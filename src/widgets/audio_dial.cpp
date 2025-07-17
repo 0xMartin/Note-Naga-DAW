@@ -185,6 +185,7 @@ void AudioDial::paintEvent(QPaintEvent* event) {
 
 float AudioDial::angleToValue(float angle_deg) const {
     float relative_angle = (angle_deg + _start_angle) / float(_angle_range);
+    qDebug() << "angle_deg:" << angle_deg << "relative_angle:" << relative_angle;
     float val = _min + relative_angle * (_max - _min);
     return std::clamp(val, _min, _max);
 }
@@ -217,15 +218,15 @@ void AudioDial::mousePressEvent(QMouseEvent* event) {
 
 void AudioDial::mouseMoveEvent(QMouseEvent* event) {
     if (_pressed) {
-        int _, __, ___;
-        QPointF center;
-        float ____, _____;
-        std::tie(_, __, ___, center, ____, _____) = getCircleGeometry();
+        auto [label_font_size, value_font_size, size, center, inner_radius, outer_radius] = getCircleGeometry();
         float dx = event->pos().x() - center.x();
         float dy = event->pos().y() - center.y();
-        float angle = std::fmod(std::atan2(dy, dx) * 180.0f / float(M_PI) - 270.0f, 360.0f);
-        if (angle > 180.0f && angle < 360.0f)
+        float angle = std::atan2(dy, dx) * 180.0f / float(M_PI) + 90.0f;
+        if (angle < -180.0f) {
+            angle += 360.0f;
+        } else if (angle > 180.0f) {
             angle -= 360.0f;
+        }
         float value = angleToValue(angle);
         setValue(value);
         event->accept();

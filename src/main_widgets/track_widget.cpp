@@ -104,6 +104,7 @@ void TrackWidget::_update_track_info() {
     auto track_info = ctx->get_track_by_id(track_index);
     if (track_info) {
         name_edit->setText(track_info->name);
+        name_edit->setToolTip(track_info->name);
         index_lbl->setText(QString::number(track_index + 1));
         auto instrument = find_instrument_by_index(track_info->instrument);
         if (instrument) {
@@ -158,6 +159,7 @@ void TrackWidget::_name_edited() {
     auto track = ctx->get_track_by_id(track_index);
     if (!track) return;
     QString new_name = name_edit->text();
+    name_edit->setToolTip(new_name);
     if (new_name != track->name) {
         track->name = new_name;
         emit name_changed_signal(track_index, new_name);

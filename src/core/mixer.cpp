@@ -10,6 +10,7 @@ Mixer::Mixer(AppContext* ctx, const QString& sf2_path)
       ctx(ctx),
       sf2_path(sf2_path),
       fluidsynth(nullptr),
+      audio_driver(nullptr),
       synth_settings(nullptr),
       master_volume(1.0f),
       master_min_note(0),
@@ -45,8 +46,10 @@ QVector<QString> Mixer::detect_outputs() {
 
 void Mixer::create_default_routing() {
     routing_entries.clear();
+    int channel = 0;
     for (const auto& track_ptr : ctx->tracks) {
-        routing_entries.append(TrackOutputEntry(track_ptr->track_id, default_output, 0));
+        routing_entries.append(TrackOutputEntry(track_ptr->track_id, default_output, channel));
+        channel = std::min(channel + 1, 15); // Limit to 16 channels
     }
     emit routing_entry_stack_changed_signal();
 }
@@ -57,8 +60,15 @@ void Mixer::set_routing(const QVector<TrackOutputEntry>& entries) {
 }
 
 void Mixer::add_routing_entry(const TrackOutputEntry& entry) {
-    routing_entries.append(entry);
-    qDebug() << "Added routing entry:" << entry.track_id << "->" << entry.device << "(ch" << entry.channel << ")";
+    TrackOutputEntry new_entry = entry;
+    if (new_entry.track_id < 0 && ctx->tracks.size() > 0) {
+        new_entry.track_id = ctx->tracks.at(0)->track_id;
+    }
+    if (new_entry.device.isEmpty()) {
+        new_entry.device = this->default_output;
+    }
+    routing_entries.append(new_entry);
+    qDebug() << "Added routing entry:" << new_entry.track_id << "->" << new_entry.device << "(ch" << new_entry.channel << ")";
     emit routing_entry_stack_changed_signal();
 }
 
@@ -84,19 +94,14 @@ void Mixer::note_play(const MidiNote& midi_note) {
 
     emit ctx->playing_note_signal(midi_note);
 
-    QVector<TrackOutputEntry> entries;
-    for (const auto& e : routing_entries)
-        if (e.track_id == midi_note.track.value())
-            entries.append(e);
-    if (entries.isEmpty())
-        return;
-
     int prog = 0;
     auto tr_cfg = ctx->get_track_by_id(midi_note.track.value());
     if (tr_cfg)
         prog = tr_cfg->instrument;
 
-    for (const auto& entry : entries) {
+    for (const TrackOutputEntry& entry : this->routing_entries) {
+        if (entry.track_id != midi_note.track.value()) continue;
+
         int note_num = midi_note.note + entry.note_offset + master_note_offset;
         if (note_num < 0 || note_num > 127) continue;
         if (note_num < master_min_note || note_num > master_max_note) continue;
@@ -250,7 +255,7 @@ void Mixer::ensure_fluidsynth() {
         int sfid = fluid_synth_sfload(fluidsynth, sf2_path.toStdString().c_str(), 1);
         qDebug() << "Mixer: SoundFont loaded, sfid=" << sfid << "from" << sf2_path;
 
-        fluid_audio_driver_t* audio_driver = new_fluid_audio_driver(synth_settings, fluidsynth);
+        this->audio_driver = new_fluid_audio_driver(synth_settings, fluidsynth);
         if (!audio_driver) {
             qWarning() << "Mixer: FluidSynth audio driver could not be started!";
         }
@@ -277,19 +282,33 @@ RtMidiOut* Mixer::ensure_midi_output(const QString& device) {
 }
 
 void Mixer::close() {
+    qDebug() << "Mixer: Closing and cleaning up resources...";
+
+    if (audio_driver) {
+        delete_fluid_audio_driver(audio_driver);
+        audio_driver = nullptr;
+        qDebug() << "Mixer: FluidSynth audio driver deleted.";
+    }
     if (fluidsynth) {
         delete_fluid_synth(fluidsynth);
         fluidsynth = nullptr;
+        qDebug() << "Mixer: FluidSynth instance closed.";
     }
     if (synth_settings) {
         delete_fluid_settings(synth_settings);
         synth_settings = nullptr;
+        qDebug() << "Mixer: FluidSynth settings deleted.";
     }
-    // Clean up RtMidiOut pointers
-    for (auto out : midi_outputs) {
-        if (out) delete out;
+
+    for (auto it = midi_outputs.begin(); it != midi_outputs.end(); ++it) {
+        if (it.value()) {
+            delete it.value();
+        } else {
+            qDebug() << "Mixer: RtMidiOut for" << it.key() << "was null.";
+        }
     }
     midi_outputs.clear();
     playing_notes.clear();
     channel_states.clear();
+    qDebug() << "Mixer: All resources cleaned up.";
 }

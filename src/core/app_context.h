@@ -12,7 +12,7 @@
 #include "shared.h"
 
 // ---------- TrackInfo ----------
-class TrackInfo {
+class Track {
 public:
     int track_id;
     QString name;
@@ -23,7 +23,7 @@ public:
     float volume;
     std::vector<MidiNote> midi_notes;
 
-    TrackInfo(int track_id,
+    Track(int track_id,
               const QString& name = "",
               int instrument = 0,
               bool visible = true,
@@ -49,7 +49,7 @@ public:
     Q_SIGNAL void mixer_playing_note_signal(const MidiNote& note);
 
     // State
-    std::vector<std::shared_ptr<TrackInfo>> tracks;
+    std::vector<std::shared_ptr<Track>> tracks;
     int ppq;
     int tempo;
     std::optional<int> active_track_id;
@@ -58,11 +58,14 @@ public:
     int max_tick;
 
     void clear();
-    void load_from_midi(const QString& midi_file_path);
-    std::shared_ptr<TrackInfo> get_track_by_id(int track_id);
+    std::shared_ptr<Track> get_track_by_id(int track_id);
     void set_track_attribute(int track_id, const QString& attr, const QVariant& value);
     std::vector<QVariantMap> get_track_dicts() const;
     int compute_max_tick();
+
+    void load_from_midi(const QString& midi_file_path);
+    std::vector<std::shared_ptr<Track>> load_type0_tracks(const MidiFile& midiFile);
+    std::vector<std::shared_ptr<Track>> load_type1_tracks(const MidiFile& midiFile);
 
 private:
     explicit AppContext(QObject* parent = nullptr);

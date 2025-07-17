@@ -8,24 +8,23 @@
 
 // --- PlaybackWorker Implementation ---
 
-PlaybackWorker::PlaybackWorker(AppContext* ctx, double timer_interval_ms,
-                               std::function<void(const std::vector<MidiNote>&, const std::vector<MidiNote>&)> on_note_events,
-                               std::function<void(int)> on_position_changed,
-                               QObject* parent)
+PlaybackWorker::PlaybackWorker(AppContext *ctx, Mixer *mixer, double timer_interval_ms,
+                               QObject *parent)
     : QObject(parent),
       ctx(ctx),
+      mixer(mixer),
       timer_interval(timer_interval_ms / 1000.0),
       playing(false),
       thread(nullptr),
       worker(nullptr),
-      should_stop(false),
-      on_note_events(on_note_events),
-      on_position_changed(on_position_changed)
-{}
+      should_stop(false)
+{
+}
 
 void PlaybackWorker::recalculate_worker_tempo()
 {
-    if (!worker) {
+    if (!worker)
+    {
         qDebug() << "PlaybackWorker: Worker is not running, unable to recalculate tempo.";
         return;
     }
@@ -34,22 +33,25 @@ void PlaybackWorker::recalculate_worker_tempo()
 
 bool PlaybackWorker::play()
 {
-    if (playing) {
+    if (playing)
+    {
         qDebug() << "PlaybackWorker: Already playing.";
         return false;
     }
-    if (!ctx->midi_file) {
+    if (!ctx->midi_file)
+    {
         qDebug() << "PlaybackWorker: No MIDI file loaded.";
         return false;
     }
     qDebug() << "PlaybackWorker: Starting playback.";
 
     thread = new QThread;
-    worker = new PlaybackThreadWorker(ctx, timer_interval, on_note_events, on_position_changed);
+    worker = new PlaybackThreadWorker(ctx, mixer, timer_interval);
     worker->moveToThread(thread);
     connect(thread, &QThread::started, worker, &PlaybackThreadWorker::run);
     connect(worker, &PlaybackThreadWorker::finished_signal, thread, &QThread::quit);
     connect(worker, &PlaybackThreadWorker::finished_signal, this, &PlaybackWorker::cleanup_thread);
+    connect(worker, &PlaybackThreadWorker::on_position_changed_signal, this, &PlaybackWorker::on_position_changed_signal);
     connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     thread->start();
     playing = true;
@@ -59,7 +61,8 @@ bool PlaybackWorker::play()
 
 bool PlaybackWorker::stop()
 {
-    if (!playing) {
+    if (!playing)
+    {
         qDebug() << "PlaybackWorker: Not currently playing.";
         return false;
     }
@@ -67,7 +70,8 @@ bool PlaybackWorker::stop()
 
     if (worker)
         worker->stop();
-    if (thread) {
+    if (thread)
+    {
         thread->quit();
         thread->wait();
     }
@@ -78,11 +82,13 @@ bool PlaybackWorker::stop()
 
 void PlaybackWorker::cleanup_thread()
 {
-    if (worker) {
+    if (worker)
+    {
         worker->deleteLater();
         worker = nullptr;
     }
-    if (thread) {
+    if (thread)
+    {
         thread->wait();
         thread->deleteLater();
         thread = nullptr;
@@ -93,17 +99,15 @@ void PlaybackWorker::cleanup_thread()
 
 // --- PlaybackThreadWorker Implementation ---
 
-PlaybackThreadWorker::PlaybackThreadWorker(AppContext* ctx, double timer_interval,
-    std::function<void(const std::vector<MidiNote>&, const std::vector<MidiNote>&)> on_note_events,
-    std::function<void(int)> on_position_changed)
+PlaybackThreadWorker::PlaybackThreadWorker(AppContext *ctx, Mixer *mixer, double timer_interval)
     : QObject(nullptr),
       ctx(ctx),
+      mixer(mixer),
       timer_interval(timer_interval),
       ms_per_tick(1.0),
-      on_note_events(on_note_events),
-      on_position_changed(on_position_changed),
       should_stop(false)
-{}
+{
+}
 
 void PlaybackThreadWorker::recalculate_tempo()
 {
@@ -122,7 +126,8 @@ void PlaybackThreadWorker::run()
 
     using clock = std::chrono::high_resolution_clock;
 
-    while (!should_stop) {
+    while (!should_stop)
+    {
         auto now = clock::now();
         double elapsed_ms = std::chrono::duration<double, std::milli>(now - start_time_point).count();
         int target_tick = start_tick_at_start + static_cast<int>(elapsed_ms / ms_per_tick);
@@ -131,31 +136,33 @@ void PlaybackThreadWorker::run()
         current_tick += tick_advance;
 
         // Stop playback on reaching max tick
-        if (current_tick >= ctx->max_tick) {
+        if (current_tick >= ctx->max_tick)
+        {
             current_tick = ctx->max_tick;
             should_stop = true;
         }
 
-        // Collect notes to play/stop
+        // Mixer note events
         std::vector<MidiNote> notes_to_play;
         std::vector<MidiNote> notes_to_stop;
-        for (const auto& track : ctx->tracks) {
-            if (!track->playing) continue;
-            for (const auto& note : track->midi_notes) {
-                if (note.start.has_value() && note.length.has_value()) {
+        for (const auto &track : ctx->tracks)
+        {
+            if (!track->playing)
+                continue;
+            for (const auto &note : track->midi_notes)
+            {
+                if (note.start.has_value() && note.length.has_value())
+                {
                     if (last_tick < note.start.value() && note.start.value() <= current_tick)
-                        notes_to_play.push_back(note);
+                        mixer->note_play(note);
                     if (last_tick < note.start.value() + note.length.value() && note.start.value() + note.length.value() <= current_tick)
-                        notes_to_stop.push_back(note);
+                        mixer->note_stop(note);
                 }
             }
         }
 
-        // Callbacks for note events and position change
-        if (on_note_events)
-            on_note_events(notes_to_play, notes_to_stop);
-        if (on_position_changed)
-            on_position_changed(current_tick);
+        // Postion changed signal
+        emit on_position_changed_signal(current_tick);
 
         std::this_thread::sleep_for(std::chrono::duration<double>(timer_interval));
     }

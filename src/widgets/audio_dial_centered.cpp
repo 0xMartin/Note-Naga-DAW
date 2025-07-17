@@ -138,8 +138,8 @@ void AudioDialCentered::paintEvent(QPaintEvent* event) {
     // Centered dial: value is mapped -1.0..1.0
     float value_frac = (_value - _min) / (_max - _min);
     painter.drawArc(adjusted_rect,
-                   int((360 - _start_angle) * 16),
-                   int(-_angle_range * value_frac * 16));
+                   int(90 * 16),
+                   int(-(_value / (_max - _min)) *  _angle_range) * 16);
 
     // Indicator dot
     float angle = float(M_PI) / 180.0f * (_start_angle + _angle_range * value_frac);
@@ -218,15 +218,15 @@ void AudioDialCentered::mousePressEvent(QMouseEvent* event) {
 
 void AudioDialCentered::mouseMoveEvent(QMouseEvent* event) {
     if (_pressed) {
-        int _, __, ___;
-        QPointF center;
-        float ____, _____;
-        std::tie(_, __, ___, center, ____, _____) = getCircleGeometry();
+        auto [label_font_size, value_font_size, size, center, inner_radius, outer_radius] = getCircleGeometry();
         float dx = event->pos().x() - center.x();
         float dy = event->pos().y() - center.y();
-        float angle = std::fmod(std::atan2(dy, dx) * 180.0f / float(M_PI) - 270.0f, 360.0f);
-        if (angle > 180.0f && angle < 360.0f)
+        float angle = std::atan2(dy, dx) * 180.0f / float(M_PI) + 90.0f;
+        if (angle < -180.0f) {
+            angle += 360.0f;
+        } else if (angle > 180.0f) {
             angle -= 360.0f;
+        }
         float value = angleToValue(angle);
         setValue(value);
         event->accept();

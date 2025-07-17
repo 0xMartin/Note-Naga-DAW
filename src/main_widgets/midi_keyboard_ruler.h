@@ -10,11 +10,12 @@
 #include <optional>
 #include <QMouseEvent>
 #include "../core/shared.h"
+#include "../core/app_context.h"
 
 class MidiKeyboardRuler : public QWidget {
     Q_OBJECT
 public:
-    explicit MidiKeyboardRuler(int min_note = 0, int max_note = 127, int viewer_row_height = 16, QWidget* parent = nullptr);
+    explicit MidiKeyboardRuler(AppContext *ctx, int min_note = 0, int max_note = 127, int viewer_row_height = 16, QWidget* parent = nullptr);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -24,7 +25,7 @@ signals:
     void stop_note_signal(MidiNote note);
 
 public slots:
-    void highlight_keys_slot(QMap<int, QColor> note_color_dict);
+    void on_play_note(const MidiNote &note);
     void set_vertical_scroll_slot(float v, float row_height);
     void clear_highlights_slot();
 
@@ -36,6 +37,8 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
+    AppContext *ctx;
+
     int min_note;
     int max_note;
     int viewer_row_height;
@@ -62,7 +65,7 @@ private:
     std::vector<int> white_keys() const;
     std::vector<int> black_keys() const;
     std::optional<int> note_at_pos(const QPoint& pos) const;
-    void highlight_keys(QMap<int, QColor> note_color_dict);
+    void highlight_key(int note, const QColor &color, int timeout);
     void _remove_highlight(int note);
     void clear_highlights();
 

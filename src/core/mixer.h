@@ -63,8 +63,9 @@ private:
     QMap<QString, RtMidiOut*> midi_outputs;
 
     // --- FluidSynth ---
-    fluid_synth_t* fluidsynth = nullptr;
-    fluid_settings_t* synth_settings = nullptr;
+    fluid_synth_t* fluidsynth;
+    fluid_audio_driver_t* audio_driver;
+    fluid_settings_t* synth_settings;
 
     // --- NOTE PLAYBACK TRACKING ---
     // (device, channel, note_num) -> note_id

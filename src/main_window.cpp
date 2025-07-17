@@ -13,15 +13,8 @@ MainWindow::MainWindow(QWidget* parent)
     ctx = AppContext::instance();
     mixer = new Mixer(ctx);
     mixer->detect_outputs();
-
     playback_worker = new PlaybackWorker(
-        ctx, 30,
-        [this](const std::vector<MidiNote>& notes_to_play, const std::vector<MidiNote>& notes_to_stop) {
-            playback_worker_handle_note_events(notes_to_play, notes_to_stop);
-        },
-        [this](int current_tick) {
-            playback_worker_on_position_changed(current_tick);
-        }
+        ctx, mixer, 30 
     );
 
     setup_actions();
@@ -135,7 +128,7 @@ void MainWindow::setup_dock_layout() {
     grid->setSpacing(0);
 
     midi_tact_ruler = new MidiTactRuler(ctx->ppq, 0.2, 10000, this);
-    midi_keyboard_ruler = new MidiKeyboardRuler();
+    midi_keyboard_ruler = new MidiKeyboardRuler(ctx);
     midi_keyboard_ruler->setFixedWidth(80);
     midi_editor = new MidiEditorWidget(ctx);
     midi_editor->setMouseTracking(true);
@@ -236,6 +229,7 @@ void MainWindow::reset_layout() {
 
 void MainWindow::connect_signals() {
     connect(playback_worker, &PlaybackWorker::playing_state_changed_signal, this, &MainWindow::on_playing_state_changed);
+    connect(playback_worker, &PlaybackWorker::on_position_changed_signal, this, &MainWindow::playback_worker_on_position_changed);
     connect(midi_editor, &MidiEditorWidget::set_play_position_signal, this, &MainWindow::set_play_position);
     connect(midi_keyboard_ruler, &MidiKeyboardRuler::play_note_signal, mixer, &Mixer::note_play);
     connect(midi_keyboard_ruler, &MidiKeyboardRuler::stop_note_signal, mixer, &Mixer::note_stop);
@@ -244,7 +238,6 @@ void MainWindow::connect_signals() {
     connect(control_bar, &MidiControlBarWidget::goto_start_signal, this, &MainWindow::goto_start);
     connect(control_bar, &MidiControlBarWidget::goto_end_signal, this, &MainWindow::goto_end);
     connect(control_bar, &MidiControlBarWidget::tempo_changed_signal, this, &MainWindow::on_tempo_changed);
-    // TrackList playback signal (for stopping notes on mute)
     connect(tracklist_widget, &TrackListWidget::playback_changed_signal, mixer, &Mixer::stop_all_notes);
 }
 
@@ -340,22 +333,6 @@ void MainWindow::playback_worker_on_position_changed(int current_tick) {
     midi_tact_ruler->set_horizontal_scroll_slot(editor_scroll->horizontalScrollBar()->value());
     midi_keyboard_ruler->set_vertical_scroll_slot(editor_scroll->verticalScrollBar()->value(), midi_editor->get_key_height());
     midi_editor->repaint_slot();
-}
-
-void MainWindow::playback_worker_handle_note_events(const std::vector<MidiNote>& notes_to_play, const std::vector<MidiNote>& notes_to_stop) {
-    QMap<int, QColor> play_note_colors;
-    for (const auto& note : notes_to_play) {
-        auto tr_info = ctx->get_track_by_id(note.track.value_or(-1));
-        QColor color = tr_info ? tr_info->color : QColor("#0084FF");
-        double duration_ms = note.length.value_or(0) * (ctx->tempo / 1000.0) / ctx->ppq;
-        play_note_colors[note.note] = color; // TODO: add timeout
-    }
-    midi_keyboard_ruler->highlight_keys_slot(play_note_colors);
-
-    for (const auto& note : notes_to_stop)
-        mixer->note_stop(note);
-    for (const auto& note : notes_to_play)
-        mixer->note_play(note);
 }
 
 void MainWindow::reset_all_colors() {

@@ -20,7 +20,6 @@ MidiTactRuler::MidiTactRuler(int ticks_per_beat_, double time_scale_, int max_ti
 {
     setObjectName("MidiTactRuler");
     setFixedHeight(32);
-    connect(this, &MidiTactRuler::set_horizontal_scroll_slot, this, &MidiTactRuler::set_horizontal_scroll);
 }
 
 void MidiTactRuler::set_params(int ticks_per_beat_, double time_scale_, int max_tick_) {

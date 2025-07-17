@@ -52,7 +52,6 @@ private slots:
     void export_midi();
     void play();
     void playback_worker_on_position_changed(int current_tick);
-    void playback_worker_handle_note_events(const std::vector<MidiNote>& notes_to_play, const std::vector<MidiNote>& notes_to_stop);
     void reset_all_colors();
     void randomize_all_colors();
     void about_dialog();
