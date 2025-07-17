@@ -1,20 +1,13 @@
 #pragma once
 
 #include <QWidget>
-#include <QHBoxLayout>
-#include <QLabel>
 #include <QPushButton>
-#include <QSizePolicy>
-#include <QInputDialog>
-#include <QIcon>
+#include <QLabel>
+#include <QHBoxLayout>
 #include <QTimer>
-#include <QString>
-#include <QEvent>
-#include <QMouseEvent>
-#include <QSignalMapper>
-#include <QVariant>
-
+#include <QPropertyAnimation>
 #include "../core/app_context.h"
+#include "../widgets/animated_time_label.h"
 
 class MidiControlBarWidget : public QWidget {
     Q_OBJECT
@@ -29,6 +22,7 @@ signals:
     void goto_start_signal();
     void goto_end_signal();
     void tempo_changed_signal(int tempo);
+    void metronome_toggled_signal(bool state);
 
 public slots:
     void set_playing_slot(bool is_playing);
@@ -40,12 +34,18 @@ private:
     AppContext* ctx;
     QLabel* tempo_label;
     QLabel* tempo_icon;
-    QLabel* time_label;
+    AnimatedTimeLabel* time_label;
     QPushButton* play_btn;
     QPushButton* to_start_btn;
     QPushButton* to_end_btn;
+    QPushButton* metronome_btn;
 
+    bool metronome_on = false;
+
+    void _init_ui();
     void edit_tempo(QMouseEvent* event);
-
     static QString format_time(double sec);
+
+private slots:
+    void metronome_btn_clicked();
 };

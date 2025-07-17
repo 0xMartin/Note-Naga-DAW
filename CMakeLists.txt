@@ -47,6 +47,7 @@ set(HEADER_FILES
     src/widgets/multi_channel_volume_bar.h
     src/widgets/audio_dial.h
     src/widgets/audio_dial_centered.h
+    src/widgets/animated_time_label.h
 
     src/main_widgets/midi_control_bar_widget.h
     src/main_widgets/track_widget.h
@@ -77,6 +78,7 @@ set(SOURCE_FILES
     src/widgets/multi_channel_volume_bar.cpp
     src/widgets/audio_dial.cpp
     src/widgets/audio_dial_centered.cpp
+    src/widgets/animated_time_label.cpp
 
     src/main_widgets/midi_control_bar_widget.cpp
     src/main_widgets/track_widget.cpp

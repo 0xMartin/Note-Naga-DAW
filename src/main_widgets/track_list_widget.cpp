@@ -2,16 +2,38 @@
 #include <QMouseEvent>
 #include <QDebug>
 
-// --- TrackWidget additions ---
-// Add these to your TrackWidget class (track_widget.h):
-// public:
-//     int get_track_index() const { return track_index; }
-//     VolumeBar* get_volume_bar() const { return volume_bar; }
-//     void refresh_style(bool selected); // Move to public if needed
-
 TrackListWidget::TrackListWidget(AppContext* ctx_, QWidget* parent)
     : QWidget(parent), ctx(ctx_), selected_row(-1)
 {
+    _init_ui();
+    _reload_tracks();
+}
+
+void TrackListWidget::_init_ui()
+{
+    // --- Moderní světlý header s ikonou a titulkem ---
+    QFrame* header_frame = new QFrame();
+    header_frame->setObjectName("TrackListHeaderFrame");
+    header_frame->setStyleSheet(
+        "QFrame#TrackListHeaderFrame { background: #353a44; border-radius: 9px; margin-bottom: 8px; }"
+    );
+    QHBoxLayout* header_layout = new QHBoxLayout(header_frame);
+    header_layout->setContentsMargins(14, 7, 14, 7);
+    header_layout->setSpacing(13);
+
+    QLabel* header_icon = new QLabel();
+    header_icon->setPixmap(QIcon(":/icons/track.svg").pixmap(32,32));
+    header_icon->setFixedSize(36,36);
+
+    QLabel* title = new QLabel("Tracks");
+    title->setStyleSheet(
+        "font-size: 22px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;"
+    );
+    header_layout->addWidget(header_icon, 0, Qt::AlignVCenter);
+    header_layout->addWidget(title, 0, Qt::AlignVCenter);
+    header_layout->addStretch(1);
+
+    // --- Scrollovací oblast tracků ---
     scroll_area = new QScrollArea(this);
     scroll_area->setWidgetResizable(true);
     scroll_area->setFrameShape(QFrame::NoFrame);
@@ -27,17 +49,17 @@ TrackListWidget::TrackListWidget(AppContext* ctx_, QWidget* parent)
 
     scroll_area->setWidget(container);
 
+    // --- Layout pro celý widget ---
     QVBoxLayout* outer_layout = new QVBoxLayout(this);
-    outer_layout->setContentsMargins(12, 5, 5, 5);
+    outer_layout->setContentsMargins(12, 12, 12, 12);
     outer_layout->setSpacing(0);
-    outer_layout->addWidget(scroll_area);
+    outer_layout->addWidget(header_frame);
+    outer_layout->addWidget(scroll_area, 1);
     setLayout(outer_layout);
 
     // Signals
     connect(ctx, &AppContext::midi_file_loaded_signal, this, &TrackListWidget::_reload_tracks);
     connect(ctx, &AppContext::playing_note_signal, this, &TrackListWidget::_handle_playing_note);
-
-    _reload_tracks();
 }
 
 void TrackListWidget::set_track_visible(int track_index, bool state)

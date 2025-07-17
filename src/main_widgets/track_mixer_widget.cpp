@@ -25,7 +25,7 @@ void TrackMixerWidget::_init_ui()
     header_layout->setSpacing(13);
 
     QLabel* header_icon = new QLabel();
-    header_icon->setPixmap(QIcon(":/icons/track.svg").pixmap(32,32));
+    header_icon->setPixmap(QIcon(":/icons/mixer.svg").pixmap(32,32));
     header_icon->setFixedSize(36,36);
 
     QLabel* title = new QLabel("Track Mixer");

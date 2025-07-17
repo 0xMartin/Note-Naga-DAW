@@ -31,6 +31,7 @@ public slots:
     void set_track_play(int track_index, bool state);
 
 private slots:
+    void _init_ui();
     void _reload_tracks();
     void _handle_playing_note(const MidiNote& note);
 

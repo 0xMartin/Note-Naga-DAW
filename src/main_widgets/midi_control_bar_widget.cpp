@@ -1,27 +1,41 @@
 #include "midi_control_bar_widget.h"
-#include <QHBoxLayout>
-#include <QInputDialog>
-#include <QFont>
-#include <cmath>
 
-QString MidiControlBarWidget::format_time(double sec) {
-    if (sec < 0) sec = 0;
-    int m = int(sec / 60);
-    int s = int(std::fmod(sec, 60));
-    int ms = int((sec - int(sec)) * 1000);
-    return QString("%1:%2.%3").arg(m).arg(s, 2, 10, QChar('0')).arg(ms, 3, 10, QChar('0'));
-}
+#include <QInputDialog>
+#include <QIcon>
+#include <QPropertyAnimation>
+#include <QPalette>
+#include <QMouseEvent>
+#include <cmath>
 
 MidiControlBarWidget::MidiControlBarWidget(AppContext* ctx_, QWidget* parent)
     : QWidget(parent), ctx(ctx_)
 {
+    _init_ui();
+}
+
+void MidiControlBarWidget::_init_ui()
+{
     setStyleSheet(R"(
-        QPushButton#playToggleBtn, QPushButton#toStartBtn, QPushButton#toEndBtn {
-            min-width: 30px;
-            max-width: 30px;
-            min-height: 30px;
-            max-height: 30px;
+        QPushButton#playToggleBtn, QPushButton#toStartBtn, QPushButton#toEndBtn, QPushButton#metronomeBtn {
+            min-width: 32px;
+            max-width: 32px;
+            min-height: 32px;
+            max-height: 32px;
             padding: 0px;
+            border-radius: 8px;
+            background: transparent;
+        }
+        QPushButton#metronomeBtn {
+            background: #253a4c;
+            border: 1.6px solid #4866a0;
+        }
+        QPushButton#metronomeBtn:checked {
+            background: #3477c0;
+            border: 1.9px solid #79b8ff;
+        }
+        QPushButton#metronomeBtn:hover {
+            background: #29528c;
+            border: 1.9px solid #79b8ff;
         }
         QLabel#tempoLabel {
             color: #eee;
@@ -32,9 +46,12 @@ MidiControlBarWidget::MidiControlBarWidget(AppContext* ctx_, QWidget* parent)
             font-size: 13px;
             background-color: #30343a;
             margin-right: 15px;
-        }
+        }   
         QLabel#tempoIcon {
             margin-right: 3px;
+        }
+        QLabel#timeLabel {
+            
         }
     )");
 
@@ -46,7 +63,7 @@ MidiControlBarWidget::MidiControlBarWidget(AppContext* ctx_, QWidget* parent)
     to_start_btn = new QPushButton();
     to_start_btn->setObjectName("toStartBtn");
     to_start_btn->setIcon(QIcon(":/icons/media-backward-end.svg"));
-    to_start_btn->setIconSize(QSize(18, 18));
+    to_start_btn->setIconSize(QSize(21, 21));
     to_start_btn->setCursor(Qt::PointingHandCursor);
     connect(to_start_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goto_start_signal);
     hbox->addWidget(to_start_btn);
@@ -55,7 +72,7 @@ MidiControlBarWidget::MidiControlBarWidget(AppContext* ctx_, QWidget* parent)
     play_btn = new QPushButton();
     play_btn->setObjectName("playToggleBtn");
     play_btn->setIcon(QIcon(":/icons/play.svg"));
-    play_btn->setIconSize(QSize(18, 18));
+    play_btn->setIconSize(QSize(21, 21));
     play_btn->setCursor(Qt::PointingHandCursor);
     connect(play_btn, &QPushButton::clicked, this, &MidiControlBarWidget::toggle_play_signal);
     hbox->addWidget(play_btn);
@@ -64,10 +81,20 @@ MidiControlBarWidget::MidiControlBarWidget(AppContext* ctx_, QWidget* parent)
     to_end_btn = new QPushButton();
     to_end_btn->setObjectName("toEndBtn");
     to_end_btn->setIcon(QIcon(":/icons/media-forward-end.svg"));
-    to_end_btn->setIconSize(QSize(18, 18));
+    to_end_btn->setIconSize(QSize(21, 21));
     to_end_btn->setCursor(Qt::PointingHandCursor);
     connect(to_end_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goto_end_signal);
     hbox->addWidget(to_end_btn);
+
+    // Metronome button
+    metronome_btn = new QPushButton();
+    metronome_btn->setObjectName("metronomeBtn");
+    metronome_btn->setCheckable(true);
+    metronome_btn->setIcon(QIcon(":/icons/tempo.svg"));
+    metronome_btn->setIconSize(QSize(21, 21));
+    metronome_btn->setCursor(Qt::PointingHandCursor);
+    connect(metronome_btn, &QPushButton::clicked, this, &MidiControlBarWidget::metronome_btn_clicked);
+    hbox->addWidget(metronome_btn);
 
     hbox->addSpacing(20);
 
@@ -89,16 +116,16 @@ MidiControlBarWidget::MidiControlBarWidget(AppContext* ctx_, QWidget* parent)
     tempo_widget->setLayout(tempo_hbox);
     hbox->addWidget(tempo_widget);
 
-    hbox->addSpacing(20);
+    hbox->addSpacing(18);
 
-    // Time label
-    time_label = new QLabel("0:00.000 / 0:00.000");
-    time_label->setMinimumWidth(110);
+    // Time label - animated
+    time_label = new AnimatedTimeLabel(this);
+    time_label->setObjectName("timeLabel");
     hbox->addWidget(time_label);
+
     hbox->addStretch(1);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    // Custom mouse event for tempo_label
     tempo_label->installEventFilter(this);
 }
 
@@ -107,6 +134,7 @@ void MidiControlBarWidget::update_times(int cur_tick, int max_tick, int tempo, i
     double total_sec = double(max_tick) * us_per_tick / 1'000'000.0;
     double cur_sec = double(cur_tick) * us_per_tick / 1'000'000.0;
     time_label->setText(QString("%1 / %2").arg(format_time(cur_sec), format_time(total_sec)));
+    time_label->animateTick();
     double bpm = tempo ? (60'000'000.0 / double(tempo)) : 0.0;
     tempo_label->setText(QString("%1 BPM").arg(bpm, 0, 'f', 2));
 }
@@ -142,4 +170,17 @@ bool MidiControlBarWidget::eventFilter(QObject* obj, QEvent* event)
         return true;
     }
     return QWidget::eventFilter(obj, event);
+}
+
+void MidiControlBarWidget::metronome_btn_clicked() {
+    metronome_on = metronome_btn->isChecked();
+    emit metronome_toggled_signal(metronome_on);
+}
+
+QString MidiControlBarWidget::format_time(double sec) {
+    if (sec < 0) sec = 0;
+    int m = int(sec / 60);
+    int s = int(std::fmod(sec, 60));
+    int ms = int((sec - int(sec)) * 1000);
+    return QString("%1:%2.%3").arg(m).arg(s, 2, 10, QChar('0')).arg(ms, 3, 10, QChar('0'));
 }
