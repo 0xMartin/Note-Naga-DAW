@@ -12,7 +12,7 @@ MidiEditorWidget::MidiEditorWidget(AppContext* ctx_, QWidget* parent)
     // Connect signals
     connect(ctx, &AppContext::midi_file_loaded_signal, this, &MidiEditorWidget::_reload_notes);
     connect(ctx, &AppContext::selected_track_changed_signal, this, [this](int){ update(); });
-    connect(ctx, &AppContext::track_info_changed_signal, this, [this](int){ update(); });
+    connect(ctx, &AppContext::track_meta_changed_signal, this, [this](int){ update(); });
 
     ppq = ctx->ppq;
 
@@ -72,10 +72,10 @@ QSize MidiEditorWidget::minimumSizeHint() const {
 void MidiEditorWidget::draw_note(QPainter& painter, const MidiNote& note, const QColor& note_color,
                                  int visible_x0, int visible_x1, int visible_y0, int visible_y1, bool active)
 {
-    int y = _content_height - (note.note - MIN_NOTE + 1) * key_height + 2;
+    int y = _content_height - (note.note - MIN_NOTE + 1) * key_height;
     int x = note.start.value_or(0) * time_scale;
     int w = std::max(1, int(note.length.value_or(0) * time_scale));
-    int h = key_height - 2;
+    int h = key_height;
     if (!((x + w > visible_x0 && x < visible_x1) &&
           (y + h > visible_y0 && y < visible_y1))) {
         return;
@@ -96,9 +96,12 @@ void MidiEditorWidget::draw_note(QPainter& painter, const MidiNote& note, const 
     painter.setPen(stroke_color);
     QFont font("Arial", std::max(6, key_height - 6));
     painter.setFont(font);
-    QString note_label = note_name(note.note);
-    QRect text_rect(int(x)+2, int(y)+int(h)-font.pointSize()-4, int(w)-4, font.pointSize()+4);
-    painter.drawText(text_rect, Qt::AlignLeft | Qt::AlignBottom, note_label);
+    if (w >= 30) 
+    {
+        QString note_label = note_name(note.note);
+        QRect text_rect(int(x)+2, int(y)+int(h)-font.pointSize()-4, int(w)-4, font.pointSize()+4);
+        painter.drawText(text_rect, Qt::AlignLeft | Qt::AlignBottom, note_label);
+    }
 }
 
 void MidiEditorWidget::paintEvent(QPaintEvent* event) {

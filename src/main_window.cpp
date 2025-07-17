@@ -128,7 +128,7 @@ void MainWindow::setup_dock_layout() {
     grid->setSpacing(0);
 
     midi_tact_ruler = new MidiTactRuler(ctx->ppq, 0.2, 10000, this);
-    midi_keyboard_ruler = new MidiKeyboardRuler(ctx);
+    midi_keyboard_ruler = new MidiKeyboardRuler(ctx, mixer);
     midi_keyboard_ruler->setFixedWidth(80);
     midi_editor = new MidiEditorWidget(ctx);
     midi_editor->setMouseTracking(true);

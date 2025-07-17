@@ -15,7 +15,7 @@
 class RoutingEntryWidget : public QFrame {
     Q_OBJECT
 public:
-    explicit RoutingEntryWidget(TrackOutputEntry& entry, Mixer* mixer, AppContext* ctx, QWidget* parent = nullptr);
+    explicit RoutingEntryWidget(TrackRountingEntry& entry, Mixer* mixer, AppContext* ctx, QWidget* parent = nullptr);
 
     void refresh_style(bool selected);
     
@@ -27,12 +27,12 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
 
 private:
-    TrackOutputEntry& entry;
+    TrackRountingEntry& entry;
     Mixer* mixer;
     AppContext* ctx;
 
     QComboBox* track_combo;
-    QComboBox* device_combo;
+    QComboBox* output_combo;
 
     AudioDial* channel_dial;
     AudioDial* volume_dial;
@@ -40,7 +40,7 @@ private:
     AudioDialCentered* offset_dial;
 
     void _populate_track_combo();
-    void _populate_device_combo();
+    void _populate_output_combo();
     void _set_combo_selections();
 
 private slots:

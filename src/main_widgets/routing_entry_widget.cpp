@@ -1,6 +1,6 @@
 #include "routing_entry_widget.h"
 
-RoutingEntryWidget::RoutingEntryWidget(TrackOutputEntry& entry_, Mixer* mixer_, AppContext* ctx_, QWidget* parent)
+RoutingEntryWidget::RoutingEntryWidget(TrackRountingEntry& entry_, Mixer* mixer_, AppContext* ctx_, QWidget* parent)
     : QFrame(parent), entry(entry_), mixer(mixer_), ctx(ctx_)
 {
     setObjectName("RoutingEntryWidget");
@@ -53,10 +53,10 @@ RoutingEntryWidget::RoutingEntryWidget(TrackOutputEntry& entry_, Mixer* mixer_, 
     device_icon->setPixmap(QIcon(":/icons/route.svg").pixmap(16, 16));
     device_row->addWidget(device_icon, Qt::AlignVCenter);
 
-    device_combo = new QComboBox();
-    device_combo->setFixedWidth(120);
-    connect(device_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RoutingEntryWidget::_on_device_changed);
-    device_row->addWidget(device_combo);
+    output_combo = new QComboBox();
+    output_combo->setFixedWidth(120);
+    connect(output_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RoutingEntryWidget::_on_device_changed);
+    device_row->addWidget(output_combo);
     combo_col->addLayout(device_row);
 
     // --- Dials ---
@@ -116,11 +116,11 @@ RoutingEntryWidget::RoutingEntryWidget(TrackOutputEntry& entry_, Mixer* mixer_, 
 
     // ComboBox initialization
     _populate_track_combo();
-    _populate_device_combo();
+    _populate_output_combo();
     _set_combo_selections();
 
     // Connect to track info changed (refresh combos)
-    connect(ctx, &AppContext::track_info_changed_signal, this, &RoutingEntryWidget::on_track_info_changed);
+    connect(ctx, &AppContext::track_meta_changed_signal, this, &RoutingEntryWidget::on_track_info_changed);
 
     // Style
     refresh_style(false);
@@ -140,30 +140,31 @@ void RoutingEntryWidget::_populate_track_combo() {
     track_combo->blockSignals(false);
 }
 
-void RoutingEntryWidget::_populate_device_combo() {
-    device_combo->blockSignals(true);
-    device_combo->clear();
-    for (const QString& dev : mixer->available_outputs) {
-        device_combo->addItem(dev);
+void RoutingEntryWidget::_populate_output_combo() {
+    output_combo->blockSignals(true);
+    output_combo->clear();
+    for (const QString& out : mixer->get_available_outputs()) {
+        output_combo->addItem(out);
     }
-    int idx = device_combo->findText(entry.device);
+    output_combo->addItem(TRACK_ROUTING_ENTRY_ANY_DEVICE);
+    int idx = output_combo->findText(entry.output);
     if (idx >= 0)
-        device_combo->setCurrentIndex(idx);
-    device_combo->blockSignals(false);
+        output_combo->setCurrentIndex(idx);
+    output_combo->blockSignals(false);
 }
 
 void RoutingEntryWidget::_set_combo_selections() {
     int track_idx = track_combo->findData(entry.track_id);
     if (track_idx >= 0)
         track_combo->setCurrentIndex(track_idx);
-    int dev_idx = device_combo->findText(entry.device);
+    int dev_idx = output_combo->findText(entry.output);
     if (dev_idx >= 0)
-        device_combo->setCurrentIndex(dev_idx);
+        output_combo->setCurrentIndex(dev_idx);
 }
 
 void RoutingEntryWidget::on_track_info_changed(int /*track_id*/) {
     _populate_track_combo();
-    _populate_device_combo();
+    _populate_output_combo();
 }
 
 void RoutingEntryWidget::_on_track_changed(int idx) {
@@ -172,8 +173,8 @@ void RoutingEntryWidget::_on_track_changed(int idx) {
 }
 
 void RoutingEntryWidget::_on_device_changed(int idx) {
-    QString new_device = device_combo->currentText();
-    entry.device = new_device;
+    QString new_device = output_combo->currentText();
+    entry.output = new_device;
 }
 
 void RoutingEntryWidget::_on_channel_changed(float val) {

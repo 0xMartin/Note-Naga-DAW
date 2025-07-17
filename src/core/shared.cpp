@@ -3,10 +3,10 @@
 
 // ---------- Channel colors ----------
 const std::vector<QColor> DEFAULT_CHANNEL_COLORS = {
-    QColor(0, 180, 255, 200), QColor(255, 100, 100, 200), QColor(250, 200, 75, 200), QColor(90, 230, 120, 200),
-    QColor(180, 110, 255, 200), QColor(170, 180, 70, 200), QColor(95, 220, 210, 200), QColor(230, 90, 210, 200),
-    QColor(70, 180, 90, 200), QColor(255, 180, 60, 200), QColor(210, 80, 80, 200), QColor(80, 120, 255, 200),
-    QColor(255, 230, 80, 200), QColor(110, 255, 120, 200), QColor(220, 160, 255, 200), QColor(100, 180, 160, 200)
+    QColor(0, 180, 255), QColor(255, 100, 100), QColor(250, 200, 75), QColor(90, 230, 120),
+    QColor(180, 110, 255), QColor(170, 180, 70), QColor(95, 220, 210), QColor(230, 90, 210),
+    QColor(70, 180, 90), QColor(255, 180, 60), QColor(210, 80, 80), QColor(80, 120, 255),
+    QColor(255, 230, 80), QColor(110, 255, 120), QColor(220, 160, 255), QColor(100, 180, 160)
 };
 
 // ---------- GM Instruments ----------

@@ -131,8 +131,8 @@ void TrackMixerWidget::_init_ui()
     main_layout->addSpacing(6);
 
     // MultiChannelVolumeBar for each device
-    QVector<QString> devices = mixer->detect_outputs();
-    for (const QString& dev : devices) {
+    QVector<QString> outputs = mixer->get_available_outputs();
+    for (const QString& dev : outputs) {
         MultiChannelVolumeBar* bar = new MultiChannelVolumeBar(16);
         bar->setMinimumHeight(66);
         bar->setMaximumHeight(98);
@@ -141,9 +141,9 @@ void TrackMixerWidget::_init_ui()
         channel_volume_bars[dev] = bar;
         main_layout->addWidget(bar);
     }
-    if (!devices.isEmpty()) {
-        device_selector->addItems(devices.toList());
-        current_channel_device = devices[0];
+    if (!outputs.isEmpty()) {
+        device_selector->addItems(outputs.toList());
+        current_channel_device = outputs[0];
         channel_volume_bars[current_channel_device]->setVisible(true);
     }
     connect(device_selector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](int idx) {
@@ -268,10 +268,9 @@ void TrackMixerWidget::refresh_routing_table() {
         }
     }
     entry_widgets.clear();
-    for (int idx = 0; idx < mixer->routing_entries.size(); ++idx) {
-        RoutingEntryWidget* widget = new RoutingEntryWidget(mixer->routing_entries[idx], mixer, ctx);
+    for (int idx = 0; idx < mixer->get_routing_entries().size(); ++idx) {
+        RoutingEntryWidget* widget = new RoutingEntryWidget(mixer->get_routing_entries()[idx], mixer, ctx);
         widget->installEventFilter(this);
-        widget->setProperty("_select_idx", idx);
         widget->setMouseTracking(true);
         connect(widget, &RoutingEntryWidget::clicked, this, [this, idx]() {
             this->_update_entry_selection(idx);
@@ -314,7 +313,6 @@ void TrackMixerWidget::_on_default_entries() {
     }
 }
 
-// Signal: mixer_playing_note_signal(const MidiNote& note, const QString& device_name);
 void TrackMixerWidget::_handle_playing_note(const MidiNote& note, const QString& device_name) {
     int time_ms = int(note_time_ms(note, ctx->ppq, ctx->tempo));
     if (note.velocity.has_value() && note.velocity.value() > 0) {

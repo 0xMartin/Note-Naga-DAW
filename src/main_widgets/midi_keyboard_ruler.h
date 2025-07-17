@@ -11,11 +11,12 @@
 #include <QMouseEvent>
 #include "../core/shared.h"
 #include "../core/app_context.h"
+#include "../core/mixer.h"
 
 class MidiKeyboardRuler : public QWidget {
     Q_OBJECT
 public:
-    explicit MidiKeyboardRuler(AppContext *ctx, int min_note = 0, int max_note = 127, int viewer_row_height = 16, QWidget* parent = nullptr);
+    explicit MidiKeyboardRuler(AppContext *ctx, Mixer *mixer, int viewer_row_height = 16, QWidget* parent = nullptr);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -38,13 +39,12 @@ protected:
 
 private:
     AppContext *ctx;
+    Mixer *mixer;
 
-    int min_note;
-    int max_note;
     int viewer_row_height;
     int verticalScroll;
 
-    int pressed_note;
+    MidiNote pressed_note;
     int hovered_note;
 
     QFont font;

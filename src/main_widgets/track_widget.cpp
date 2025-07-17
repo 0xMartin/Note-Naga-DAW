@@ -127,7 +127,7 @@ void TrackWidget::_toggle_visibility() {
     track_info->visible = !track_info->visible;
     vis_btn->setIcon(QIcon(track_info->visible ? ":/icons/eye-visible.svg" : ":/icons/eye-not-visible.svg"));
     emit visibility_changed_signal(track_index, track_info->visible);
-    emit ctx->track_info_changed_signal(track_index);
+    emit ctx->track_meta_changed_signal(track_index);
 }
 
 void TrackWidget::_toggle_solo() {
@@ -140,7 +140,7 @@ void TrackWidget::_toggle_play() {
     track_info->playing = !track_info->playing;
     play_btn->setIcon(QIcon(track_info->playing ? ":/icons/sound-on.svg" : ":/icons/sound-off.svg"));
     emit playback_changed_signal(track_index, track_info->playing);
-    emit ctx->track_info_changed_signal(track_index);
+    emit ctx->track_meta_changed_signal(track_index);
 }
 
 void TrackWidget::_choose_color() {
@@ -151,7 +151,7 @@ void TrackWidget::_choose_color() {
         track->color = col;
         color_btn->setIcon(svg_str_icon(COLOR_SVG_ICON, col, 16));
         emit color_changed_signal(track_index, col);
-        emit ctx->track_info_changed_signal(track_index);
+        emit ctx->track_meta_changed_signal(track_index);
     }
 }
 
@@ -163,7 +163,7 @@ void TrackWidget::_name_edited() {
     if (new_name != track->name) {
         track->name = new_name;
         emit name_changed_signal(track_index, new_name);
-        emit ctx->track_info_changed_signal(track_index);
+        emit ctx->track_meta_changed_signal(track_index);
     }
 }
 
@@ -177,7 +177,7 @@ void TrackWidget::_on_instrument_btn_clicked() {
             instrument_btn->setIcon(instrument_icon(instrument->icon));
             instrument_btn->setToolTip(instrument->name);
             track_info->instrument = gm_index;
-            emit ctx->track_info_changed_signal(track_index);
+            emit ctx->track_meta_changed_signal(track_index);
             emit instrument_changed_signal(track_index, gm_index);
         } else {
             instrument_btn->setIcon(instrument_icon("vinyl"));

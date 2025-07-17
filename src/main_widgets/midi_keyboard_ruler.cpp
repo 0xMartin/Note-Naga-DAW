@@ -9,14 +9,15 @@
 #include <random>
 #include "../core/shared.h"
 
-MidiKeyboardRuler::MidiKeyboardRuler(AppContext *ctx, int min_note_, int max_note_, int viewer_row_height_, QWidget *parent)
+#define NOTE_MIN 0
+#define NOTE_MAX 127
+
+MidiKeyboardRuler::MidiKeyboardRuler(AppContext *ctx, Mixer *mixer, int viewer_row_height_, QWidget *parent)
     : QWidget(parent),
       ctx(ctx),
-      min_note(min_note_),
-      max_note(max_note_),
+      mixer(mixer),
       viewer_row_height(viewer_row_height_),
       verticalScroll(0),
-      pressed_note(-1),
       hovered_note(-1),
       font("Arial", 10),
       c_key_font("Arial", 10, QFont::Bold),
@@ -29,6 +30,7 @@ MidiKeyboardRuler::MidiKeyboardRuler(AppContext *ctx, int min_note_, int max_not
       press_color("#4f76c4"),
       c_key_label_color("#1c305e")
 {
+    this->pressed_note.note = -1;
     connect(ctx, &AppContext::playing_note_signal, this, &MidiKeyboardRuler::on_play_note);
     setObjectName("MidiKeyboardRuler");
     setMinimumWidth(60);
@@ -68,7 +70,7 @@ bool MidiKeyboardRuler::is_white_key(int midi_note)
 std::vector<int> MidiKeyboardRuler::white_keys() const
 {
     std::vector<int> result;
-    for (int n = max_note; n >= min_note; --n)
+    for (int n = NOTE_MAX; n >= NOTE_MIN; --n)
         if (is_white_key(n))
             result.push_back(n);
     return result;
@@ -76,7 +78,7 @@ std::vector<int> MidiKeyboardRuler::white_keys() const
 std::vector<int> MidiKeyboardRuler::black_keys() const
 {
     std::vector<int> result;
-    for (int n = max_note; n >= min_note; --n)
+    for (int n = NOTE_MAX; n >= NOTE_MIN; --n)
         if (is_black_key(n))
             result.push_back(n);
     return result;
@@ -100,7 +102,7 @@ std::optional<int> MidiKeyboardRuler::note_at_pos(const QPoint &pos) const
     }
 
     // Black keys
-    for (int n = max_note; n >= min_note; --n)
+    for (int n = NOTE_MAX; n >= NOTE_MIN; --n)
     {
         if (!is_black_key(n))
             continue;
@@ -168,7 +170,7 @@ void MidiKeyboardRuler::paintEvent(QPaintEvent *event)
         QColor fill_color = key_highlights.contains(n) ? key_highlights[n] : QColor();
         if (!fill_color.isValid())
         {
-            if (n == pressed_note)
+            if (n == pressed_note.note)
                 fill_color = press_color;
             else if (n == hovered_note)
                 fill_color = hover_color;
@@ -192,7 +194,7 @@ void MidiKeyboardRuler::paintEvent(QPaintEvent *event)
     }
 
     // BLACK KEYS
-    for (int n = max_note; n >= min_note; --n)
+    for (int n = NOTE_MAX; n >= NOTE_MIN; --n)
     {
         if (!is_black_key(n))
             continue;
@@ -221,7 +223,7 @@ void MidiKeyboardRuler::paintEvent(QPaintEvent *event)
             {
                 painter.fillRect(rect, fill_color);
             }
-            else if (n == pressed_note)
+            else if (n == pressed_note.note)
             {
                 grad.setColorAt(1, press_color);
                 grad.setColorAt(0, black_key_color);
@@ -270,28 +272,25 @@ void MidiKeyboardRuler::mousePressEvent(QMouseEvent *event)
     int nval = note.has_value() ? note.value() : -1;
     if (nval != -1)
     {
-        pressed_note = nval;
+        pressed_note.note_id = rand();
+        pressed_note.note = nval;
+        pressed_note.track = ctx->active_track_id;
+        pressed_note.velocity = 44 + rand() % 41; // random velocity 44 - 84
+        this->mixer->note_play(pressed_note);
+        emit play_note_signal(pressed_note);
         update();
-        // random velocity 44 - 84
-        int velocity = 44 + rand() % 41;
-        MidiNote midi_note;
-        midi_note.note = nval;
-        midi_note.velocity = velocity;
-        emit play_note_signal(midi_note);
     }
     QWidget::mousePressEvent(event);
 }
 
 void MidiKeyboardRuler::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (pressed_note != -1)
+    if (pressed_note.note != -1)
     {
         int velocity = 44 + rand() % 41;
-        MidiNote midi_note;
-        midi_note.note = pressed_note;
-        midi_note.velocity = velocity;
-        emit stop_note_signal(midi_note);
-        pressed_note = -1;
+        this->mixer->note_play(pressed_note);
+        emit stop_note_signal(pressed_note);
+        pressed_note.note = -1;
         update();
     }
     QWidget::mouseReleaseEvent(event);
@@ -313,25 +312,25 @@ void MidiKeyboardRuler::on_play_note(const MidiNote &note)
 
 void MidiKeyboardRuler::highlight_key(int note, const QColor &color, int timeout)
 {
+    if (timeout == 0)
+        return;
     key_highlights[note] = color;
 
-    // Správa timerů
+    // Remove existing highlight timer if it exists
     if (highlight_timers.contains(note))
     {
         highlight_timers[note]->stop();
         highlight_timers[note]->deleteLater();
         highlight_timers.remove(note);
     }
-    if (timeout > 0)
-    {
-        QTimer *timer = new QTimer(this);
-        timer->setSingleShot(true);
-        connect(timer, &QTimer::timeout, this, [this, note](){ 
-            _remove_highlight(note); 
-        });
-        timer->start(timeout);
-        highlight_timers[note] = timer;
-    }
+
+    // setup timer for highlight removal
+    QTimer *timer = new QTimer(this);
+    timer->setSingleShot(true);
+    connect(timer, &QTimer::timeout, this, [this, note]()
+            { _remove_highlight(note); });
+    timer->start(timeout);
+    highlight_timers[note] = timer;
 
     update();
 }
