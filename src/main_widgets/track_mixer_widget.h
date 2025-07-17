@@ -6,11 +6,16 @@
 #include <QLabel>
 #include <QFrame>
 #include <QPushButton>
+#include <QComboBox>
 #include <QScrollArea>
 #include <QMessageBox>
-#include <QVector>
+#include <QMap>
+#include <QString>
+#include <QIcon>
+
 #include "../core/app_context.h"
 #include "../core/mixer.h"
+#include "../core/shared.h"
 #include "../widgets/audio_dial.h"
 #include "../widgets/audio_dial_centered.h"
 #include "../widgets/multi_channel_volume_bar.h"
@@ -35,10 +40,10 @@ private slots:
     void _on_remove_selected_entry();
     void _on_clear_routing_table();
     void _on_default_entries();
-    void _handle_playing_note(const MidiNote& note);
+    void _handle_playing_note(const MidiNote& note, const QString& device_name);
 
 private:
-    void set_channel_output_value(int channel_idx, float value, int time_ms = -1);
+    void set_channel_output_value(const QString& device, int channel_idx, float value, int time_ms = -1);
     void _init_ui();
     void _update_entry_selection(int idx);
 
@@ -54,7 +59,10 @@ private:
     AudioDialCentered* dial_offset;
     AudioDial* dial_vol;
     AudioDialCentered* dial_pan;
-    MultiChannelVolumeBar* channel_volume_bar;
+
+    QComboBox* device_selector;
+    QMap<QString, MultiChannelVolumeBar*> channel_volume_bars;
+    QString current_channel_device;
 
     QVBoxLayout* routing_entries_layout;
     QWidget* routing_entries_container;

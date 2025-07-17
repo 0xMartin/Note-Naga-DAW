@@ -13,21 +13,40 @@ TrackMixerWidget::TrackMixerWidget(AppContext* ctx_, Mixer* mixer_, QWidget* par
 void TrackMixerWidget::_init_ui()
 {
     QVBoxLayout* main_layout = new QVBoxLayout(this);
-    main_layout->setContentsMargins(12, 5, 5, 5);
-    main_layout->setSpacing(2);
+    main_layout->setContentsMargins(12, 12, 12, 12);
+    main_layout->setSpacing(0);
 
-    QLabel* title = new QLabel("🎚️ Track Mixer");
-    title->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    title->setStyleSheet("font-size: 18px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px; margin-bottom: 2px;");
-    main_layout->addWidget(title, Qt::AlignLeft);
+    // Header frame
+    QFrame* header_frame = new QFrame();
+    header_frame->setObjectName("MixerHeaderFrame");
+    header_frame->setStyleSheet("QFrame#MixerHeaderFrame { background: #353a44; border-radius: 9px; margin-bottom: 8px; }");
+    QHBoxLayout* header_layout = new QHBoxLayout(header_frame);
+    header_layout->setContentsMargins(14, 7, 14, 7);
+    header_layout->setSpacing(13);
 
+    QLabel* header_icon = new QLabel();
+    header_icon->setPixmap(QIcon(":/icons/track.svg").pixmap(32,32));
+    header_icon->setFixedSize(36,36);
+
+    QLabel* title = new QLabel("Track Mixer");
+    title->setStyleSheet("font-size: 22px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;");
+    header_layout->addWidget(header_icon, 0, Qt::AlignVCenter);
+    header_layout->addWidget(title, 0, Qt::AlignVCenter);
+    header_layout->addStretch(1);
+
+    main_layout->addWidget(header_frame);
+
+    // Controls frame
     QFrame* controls_frame = new QFrame();
-    controls_frame->setStyleSheet("QFrame { background: #2F3139; border: 1px solid #494d56; border-radius: 10px; padding: 2px 10px 0px 10px; }");
+    controls_frame->setObjectName("MixerControlsFrame");
+    controls_frame->setStyleSheet("QFrame#MixerControlsFrame { background: #2F3139; border: 1px solid #494d56; border-radius: 10px; padding: 10px 0px 8px 0px; }");
     QHBoxLayout* controls_layout = new QHBoxLayout(controls_frame);
-    controls_layout->setSpacing(28);
-    controls_layout->setContentsMargins(0, 0, 0, 0);
+    controls_layout->setSpacing(30);
+    controls_layout->setContentsMargins(20, 0, 20, 0);
 
     dial_min = new AudioDial();
+    dial_min->setMinimumSize(44, 54);
+    dial_min->setMaximumSize(54, 80);
     dial_min->setLabel("Note Min");
     dial_min->setRange(0, 127);
     dial_min->setValue(mixer->master_min_note);
@@ -37,6 +56,8 @@ void TrackMixerWidget::_init_ui()
     connect(dial_min, &AudioDial::valueChanged, this, &TrackMixerWidget::on_min_note_changed);
 
     dial_max = new AudioDial();
+    dial_max->setMinimumSize(44, 54);
+    dial_max->setMaximumSize(54, 80);
     dial_max->setLabel("Note Max");
     dial_max->setRange(0, 127);
     dial_max->setValue(mixer->master_max_note);
@@ -46,6 +67,8 @@ void TrackMixerWidget::_init_ui()
     connect(dial_max, &AudioDial::valueChanged, this, &TrackMixerWidget::on_max_note_changed);
 
     dial_offset = new AudioDialCentered();
+    dial_offset->setMinimumSize(44, 54);
+    dial_offset->setMaximumSize(54, 80);
     dial_offset->setLabel("Note Offset");
     dial_offset->setRange(-24, 24);
     dial_offset->setValue(mixer->master_note_offset);
@@ -55,6 +78,8 @@ void TrackMixerWidget::_init_ui()
     connect(dial_offset, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::on_global_offset_changed);
 
     dial_vol = new AudioDial();
+    dial_vol->setMinimumSize(44, 54);
+    dial_vol->setMaximumSize(54, 80);
     dial_vol->setLabel("Volume");
     dial_vol->setRange(0, 100);
     dial_vol->setValueDecimals(1);
@@ -65,6 +90,8 @@ void TrackMixerWidget::_init_ui()
     connect(dial_vol, &AudioDial::valueChanged, this, &TrackMixerWidget::on_global_volume_changed);
 
     dial_pan = new AudioDialCentered();
+    dial_pan->setMinimumSize(44, 54);
+    dial_pan->setMaximumSize(54, 80);
     dial_pan->setLabel("Pan");
     dial_pan->setRange(-1.0, 1.0);
     dial_pan->setValueDecimals(2);
@@ -72,27 +99,115 @@ void TrackMixerWidget::_init_ui()
     dial_pan->setDefaultValue(0.0);
     connect(dial_pan, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::on_global_pan_changed);
 
-    controls_layout->addWidget(dial_min, Qt::AlignVCenter);
-    controls_layout->addWidget(dial_max, Qt::AlignVCenter);
-    controls_layout->addWidget(dial_offset, Qt::AlignVCenter);
-    controls_layout->addWidget(dial_vol, Qt::AlignVCenter);
-    controls_layout->addWidget(dial_pan, Qt::AlignVCenter);
+    controls_layout->addWidget(dial_min, 0, Qt::AlignVCenter);
+    controls_layout->addWidget(dial_max, 0, Qt::AlignVCenter);
+    controls_layout->addWidget(dial_offset, 0, Qt::AlignVCenter);
+    controls_layout->addWidget(dial_vol, 0, Qt::AlignVCenter);
+    controls_layout->addWidget(dial_pan, 0, Qt::AlignVCenter);
 
-    main_layout->addWidget(controls_frame, Qt::AlignHCenter);
+    main_layout->addWidget(controls_frame);
+
+    main_layout->addSpacing(10);
+
+    // Channel Output section with device selector
+    QFrame* channel_output_frame = new QFrame();
+    channel_output_frame->setObjectName("MixerSectionLabelFrame");
+    channel_output_frame->setStyleSheet("QFrame#MixerSectionLabelFrame { background: #353a44; border-radius: 8px; margin-bottom: 0px; }");
+    QHBoxLayout* channel_output_label_layout = new QHBoxLayout(channel_output_frame);
+    channel_output_label_layout->setContentsMargins(12, 5, 12, 5);
 
     QLabel* channel_output_label = new QLabel("Channel Output");
-    channel_output_label->setStyleSheet("font-size: 13px; font-weight: bold; color: #7eb8f9;");
-    main_layout->addWidget(channel_output_label, Qt::AlignLeft);
+    channel_output_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #79b8ff;");
+    channel_output_label_layout->addWidget(channel_output_label, 0, Qt::AlignLeft);
 
-    channel_volume_bar = new MultiChannelVolumeBar(16);
-    channel_volume_bar->setRange(0, 1);
-    channel_volume_bar->setMinimumHeight(90);
-    main_layout->addWidget(channel_volume_bar);
+    device_selector = new QComboBox();
+    device_selector->setMinimumWidth(130);
+    device_selector->setMaximumWidth(220);
+    device_selector->setStyleSheet("QComboBox { background: #232731; color: #79b8ff; font-weight: bold; border-radius: 5px; padding: 3px 8px; }");
+    channel_output_label_layout->addStretch(1);
+    channel_output_label_layout->addWidget(device_selector, 0, Qt::AlignRight);
+
+    main_layout->addWidget(channel_output_frame);
+    main_layout->addSpacing(6);
+
+    // MultiChannelVolumeBar for each device
+    QVector<QString> devices = mixer->detect_outputs();
+    for (const QString& dev : devices) {
+        MultiChannelVolumeBar* bar = new MultiChannelVolumeBar(16);
+        bar->setMinimumHeight(66);
+        bar->setMaximumHeight(98);
+        bar->setRange(0, 1);
+        bar->setVisible(false);
+        channel_volume_bars[dev] = bar;
+        main_layout->addWidget(bar);
+    }
+    if (!devices.isEmpty()) {
+        device_selector->addItems(devices.toList());
+        current_channel_device = devices[0];
+        channel_volume_bars[current_channel_device]->setVisible(true);
+    }
+    connect(device_selector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](int idx) {
+        QString selected = device_selector->itemText(idx);
+        for (auto it = channel_volume_bars.begin(); it != channel_volume_bars.end(); ++it) {
+            it.value()->setVisible(false);
+        }
+        if (channel_volume_bars.contains(selected)) {
+            channel_volume_bars[selected]->setVisible(true);
+            current_channel_device = selected;
+        }
+    });
+
+    main_layout->addSpacing(18);
+
+    // Routing Table section
+    QFrame* routing_label_controls_frame = new QFrame();
+    routing_label_controls_frame->setObjectName("RoutingLabelControlsFrame");
+    routing_label_controls_frame->setStyleSheet("QFrame#RoutingLabelControlsFrame { background: #353a44; border-radius: 8px; }");
+    QHBoxLayout* routing_label_controls_layout = new QHBoxLayout(routing_label_controls_frame);
+    routing_label_controls_layout->setContentsMargins(12, 5, 12, 5);
+    routing_label_controls_layout->setSpacing(10);
 
     QLabel* routing_label = new QLabel("Routing Table");
-    routing_label->setStyleSheet("font-size: 13px; font-weight: bold; color: #7eb8f9;");
-    main_layout->addWidget(routing_label, Qt::AlignLeft);
+    routing_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #79b8ff;");
+    routing_label_controls_layout->addWidget(routing_label, 0, Qt::AlignLeft);
 
+    routing_label_controls_layout->addStretch(1);
+
+    auto make_btn = [](const QString& iconPath, const QString& tooltip, const char* objname) -> QPushButton* {
+        QPushButton* btn = new QPushButton();
+        btn->setObjectName(objname);
+        btn->setIcon(QIcon(iconPath));
+        btn->setToolTip(tooltip);
+        btn->setFlat(true);
+        btn->setFixedSize(26,26);
+        btn->setStyleSheet(
+            "QPushButton { background: transparent; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background: #3477c0; color: #fff; }"
+        );
+        return btn;
+    };
+
+    QPushButton* btn_add = make_btn(":/icons/add.svg", "Add new routing entry", "RoutingAddButton");
+    connect(btn_add, &QPushButton::clicked, this, &TrackMixerWidget::_on_add_entry);
+
+    QPushButton* btn_remove = make_btn(":/icons/remove.svg", "Remove selected routing entry", "RoutingRemoveButton");
+    connect(btn_remove, &QPushButton::clicked, this, &TrackMixerWidget::_on_remove_selected_entry);
+
+    QPushButton* btn_clear = make_btn(":/icons/clear.svg", "Clear all routing entries", "RoutingClearButton");
+    connect(btn_clear, &QPushButton::clicked, this, &TrackMixerWidget::_on_clear_routing_table);
+
+    QPushButton* btn_default = make_btn(":/icons/reload.svg", "Set default routing (one entry per track, Fluidsynth)", "RoutingDefaultButton");
+    connect(btn_default, &QPushButton::clicked, this, &TrackMixerWidget::_on_default_entries);
+
+    routing_label_controls_layout->addWidget(btn_add, 0, Qt::AlignRight);
+    routing_label_controls_layout->addWidget(btn_remove, 0, Qt::AlignRight);
+    routing_label_controls_layout->addWidget(btn_clear, 0, Qt::AlignRight);
+    routing_label_controls_layout->addWidget(btn_default, 0, Qt::AlignRight);
+
+    main_layout->addWidget(routing_label_controls_frame);
+    main_layout->addSpacing(6);
+
+    // Routing entries scroll area
     routing_scroll = new QScrollArea(this);
     routing_scroll->setWidgetResizable(true);
     routing_scroll->setFrameShape(QFrame::NoFrame);
@@ -106,45 +221,6 @@ void TrackMixerWidget::_init_ui()
     routing_entries_layout->setSpacing(4);
     routing_entries_layout->addStretch(1);
     routing_scroll->setWidget(routing_entries_container);
-
-    QHBoxLayout* routing_controls = new QHBoxLayout();
-    routing_controls->setSpacing(6);
-    routing_controls->setContentsMargins(6, 6, 6, 6);
-
-    QPushButton* btn_add = new QPushButton();
-    btn_add->setObjectName("RoutingAddButton");
-    btn_add->setIcon(QIcon(":/icons/add.svg"));
-    btn_add->setToolTip("Add new routing entry");
-    btn_add->setFixedSize(QSize(28, 28));
-    connect(btn_add, &QPushButton::clicked, this, &TrackMixerWidget::_on_add_entry);
-    routing_controls->addWidget(btn_add);
-
-    QPushButton* btn_remove = new QPushButton();
-    btn_remove->setObjectName("RoutingRemoveButton");
-    btn_remove->setIcon(QIcon(":/icons/remove.svg"));
-    btn_remove->setToolTip("Remove selected routing entry");
-    btn_remove->setFixedSize(QSize(28, 28));
-    connect(btn_remove, &QPushButton::clicked, this, &TrackMixerWidget::_on_remove_selected_entry);
-    routing_controls->addWidget(btn_remove);
-
-    QPushButton* btn_clear = new QPushButton();
-    btn_clear->setObjectName("RoutingClearButton");
-    btn_clear->setIcon(QIcon(":/icons/clear.svg"));
-    btn_clear->setToolTip("Clear all routing entries");
-    btn_clear->setFixedSize(QSize(28, 28));
-    connect(btn_clear, &QPushButton::clicked, this, &TrackMixerWidget::_on_clear_routing_table);
-    routing_controls->addWidget(btn_clear);
-
-    QPushButton* btn_default = new QPushButton();
-    btn_default->setObjectName("RoutingDefaultButton");
-    btn_default->setIcon(QIcon(":/icons/reload.svg"));
-    btn_default->setToolTip("Set default routing (one entry per track, Fluidsynth)");
-    btn_default->setFixedSize(QSize(28, 28));
-    connect(btn_default, &QPushButton::clicked, this, &TrackMixerWidget::_on_default_entries);
-    routing_controls->addWidget(btn_default);
-
-    routing_controls->addStretch(1);
-    main_layout->addLayout(routing_controls);
 
     setStyleSheet(
         "QWidget#TrackMixerWidget { background: transparent; border: none; padding: 0px; }"
@@ -170,8 +246,10 @@ void TrackMixerWidget::on_global_pan_changed(float value) {
     mixer->master_pan = value;
 }
 
-void TrackMixerWidget::set_channel_output_value(int channel_idx, float value, int time_ms) {
-    channel_volume_bar->setValue(channel_idx, value, time_ms);
+void TrackMixerWidget::set_channel_output_value(const QString& device, int channel_idx, float value, int time_ms) {
+    if (channel_volume_bars.contains(device)) {
+        channel_volume_bars[device]->setValue(channel_idx, value, time_ms);
+    }
 }
 
 void TrackMixerWidget::refresh_routing_table() {
@@ -192,11 +270,9 @@ void TrackMixerWidget::refresh_routing_table() {
     entry_widgets.clear();
     for (int idx = 0; idx < mixer->routing_entries.size(); ++idx) {
         RoutingEntryWidget* widget = new RoutingEntryWidget(mixer->routing_entries[idx], mixer, ctx);
-        // Selection: connect via event filter or signal, here to be implemented:
         widget->installEventFilter(this);
         widget->setProperty("_select_idx", idx);
         widget->setMouseTracking(true);
-        // Custom selection handler
         connect(widget, &RoutingEntryWidget::clicked, this, [this, idx]() {
             this->_update_entry_selection(idx);
         });
@@ -238,14 +314,11 @@ void TrackMixerWidget::_on_default_entries() {
     }
 }
 
-void TrackMixerWidget::_handle_playing_note(const MidiNote& note) {
+// Signal: mixer_playing_note_signal(const MidiNote& note, const QString& device_name);
+void TrackMixerWidget::_handle_playing_note(const MidiNote& note, const QString& device_name) {
     int time_ms = int(note_time_ms(note, ctx->ppq, ctx->tempo));
-    for (auto& entry : mixer->routing_entries) {
-        if (entry.track_id == note.track && note.velocity.has_value() && note.velocity.value() > 0) {
-            if (entry.channel < channel_volume_bar->getChannelCount()) {
-                set_channel_output_value(entry.channel, note.velocity.value() / 127.0f, time_ms);
-            }
-        }
+    if (note.velocity.has_value() && note.velocity.value() > 0) {
+        set_channel_output_value(device_name, note.channel.value_or(-1), note.velocity.value() / 127.0f, time_ms);
     }
 }
 

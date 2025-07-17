@@ -32,6 +32,7 @@ Mixer::~Mixer() {
 
 QVector<QString> Mixer::detect_outputs() {
     QVector<QString> outputs;
+
     // Detect RtMidi outputs
     try {
         RtMidiOut midi;
@@ -39,8 +40,12 @@ QVector<QString> Mixer::detect_outputs() {
         for (unsigned int i = 0; i < nPorts; ++i)
             outputs.append(QString::fromStdString(midi.getPortName(i)));
     } catch (...) {}
-    // Add FluidSynth if available
-    outputs.append("fluidsynth");
+
+    // Add FluidSynth if successfully initialized
+    if (fluidsynth && audio_driver) {
+        outputs.append("fluidsynth");
+    }
+    
     return outputs;
 }
 
@@ -92,6 +97,7 @@ void Mixer::note_play(const MidiNote& midi_note) {
     if (!midi_note.track.has_value())
         return;
 
+    // emit signal (track note is playing -> go mixer)
     emit ctx->playing_note_signal(midi_note);
 
     int prog = 0;
@@ -168,9 +174,10 @@ void Mixer::note_play(const MidiNote& midi_note) {
         int note_id = midi_note.note_id;
         playing_notes[device][ch][note_num] = note_id;
 
+        // emit signal (mixer playing note)
         MidiNote note_clone = midi_note;
         note_clone.velocity = velocity;
-        emit ctx->mixer_playing_note_signal(note_clone);
+        emit ctx->mixer_playing_note_signal(note_clone, device);
     }
 }
 

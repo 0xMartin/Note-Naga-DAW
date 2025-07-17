@@ -1,6 +1,10 @@
 ## Build 
 
 1. opravit chyb v UI (aby to vypadalo stejne jak predtim)
+   1. Mixer
+   2. Track list (velepseni)
+   3. Dock Panel Nefunguje jak by mel: reset layout, ...
+   4. Midi status bar -> Midi Control bar + vylepseni
 
 2. refactoring celeho kodu.. 
    1. vsude pouzivat misto * std::stared_ptr
