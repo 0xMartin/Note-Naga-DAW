@@ -307,6 +307,7 @@ void MidiKeyboardRuler::on_play_note(const MidiNote &note)
 {
     int timeout = note_time_ms(note, this->ctx->ppq, this->ctx->tempo);
     std::shared_ptr<Track> track = this->ctx->get_track_by_id(note.track.value_or(0));
+    if (!track) return;
     highlight_key(note.note, track->color, timeout);
 }
 

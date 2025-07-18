@@ -143,8 +143,6 @@ void PlaybackThreadWorker::run()
         }
 
         // Mixer note events
-        std::vector<MidiNote> notes_to_play;
-        std::vector<MidiNote> notes_to_stop;
         for (const auto &track : ctx->tracks)
         {
             if (!track->playing)

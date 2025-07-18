@@ -69,10 +69,23 @@ void AnimatedTimeLabel::paintEvent(QPaintEvent* event) {
     p.setPen(QColor("#4866a0"));
     p.drawRoundedRect(r, 7, 7);
 
-    // Text (čas)
+    // Text (čas) - přizpůsobení velikosti fontu
     p.setPen(QColor("#d6eaff"));
     QFont f = font();
     f.setBold(true);
+
+    // Dynamicky zmenšit font, pokud se nevejde
+    QString txt = text();
+    QRect textRect = r.adjusted(6, 2, -6, -2); // padding
+    int fontSize = f.pointSize();
+    if (fontSize <= 0) fontSize = 19; // fallback
+
+    QFontMetrics fm(f);
+    while ((fm.horizontalAdvance(txt) > textRect.width() || fm.height() > textRect.height()) && fontSize > 6) {
+        fontSize--;
+        f.setPointSize(fontSize);
+        fm = QFontMetrics(f);
+    }
     p.setFont(f);
-    p.drawText(r, Qt::AlignCenter, text());
+    p.drawText(textRect, Qt::AlignCenter, txt);
 }

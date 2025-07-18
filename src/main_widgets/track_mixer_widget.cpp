@@ -13,23 +13,25 @@ TrackMixerWidget::TrackMixerWidget(AppContext* ctx_, Mixer* mixer_, QWidget* par
 void TrackMixerWidget::_init_ui()
 {
     QVBoxLayout* main_layout = new QVBoxLayout(this);
-    main_layout->setContentsMargins(12, 12, 12, 12);
+    main_layout->setContentsMargins(5, 5, 5, 5);
     main_layout->setSpacing(0);
 
     // Header frame
     QFrame* header_frame = new QFrame();
     header_frame->setObjectName("MixerHeaderFrame");
-    header_frame->setStyleSheet("QFrame#MixerHeaderFrame { background: #353a44; border-radius: 9px; margin-bottom: 8px; }");
+    header_frame->setStyleSheet(
+        "QFrame#MixerHeaderFrame { background: #353a44; border-radius: 9px; margin-bottom: 8px; }"
+    );
     QHBoxLayout* header_layout = new QHBoxLayout(header_frame);
-    header_layout->setContentsMargins(14, 7, 14, 7);
-    header_layout->setSpacing(13);
+    header_layout->setContentsMargins(10, 5, 10, 5);
+    header_layout->setSpacing(12);
 
     QLabel* header_icon = new QLabel();
-    header_icon->setPixmap(QIcon(":/icons/mixer.svg").pixmap(32,32));
-    header_icon->setFixedSize(36,36);
+    header_icon->setPixmap(QIcon(":/icons/mixer.svg").pixmap(23, 23));
+    header_icon->setFixedSize(23, 23);
 
     QLabel* title = new QLabel("Track Mixer");
-    title->setStyleSheet("font-size: 22px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;");
+    title->setStyleSheet("font-size: 20px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;");
     header_layout->addWidget(header_icon, 0, Qt::AlignVCenter);
     header_layout->addWidget(title, 0, Qt::AlignVCenter);
     header_layout->addStretch(1);
@@ -39,14 +41,13 @@ void TrackMixerWidget::_init_ui()
     // Controls frame
     QFrame* controls_frame = new QFrame();
     controls_frame->setObjectName("MixerControlsFrame");
-    controls_frame->setStyleSheet("QFrame#MixerControlsFrame { background: #2F3139; border: 1px solid #494d56; border-radius: 10px; padding: 10px 0px 8px 0px; }");
+    controls_frame->setStyleSheet(
+        "QFrame#MixerControlsFrame { background: #2F3139; border: 1px solid #494d56; border-radius: 10px; padding: 10px 0px 8px 0px; }"
+    );
     QHBoxLayout* controls_layout = new QHBoxLayout(controls_frame);
-    controls_layout->setSpacing(30);
-    controls_layout->setContentsMargins(20, 0, 20, 0);
+    controls_layout->setContentsMargins(5, 0, 5, 0);
 
     dial_min = new AudioDial();
-    dial_min->setMinimumSize(44, 54);
-    dial_min->setMaximumSize(54, 80);
     dial_min->setLabel("Note Min");
     dial_min->setRange(0, 127);
     dial_min->setValue(mixer->master_min_note);
@@ -56,8 +57,6 @@ void TrackMixerWidget::_init_ui()
     connect(dial_min, &AudioDial::valueChanged, this, &TrackMixerWidget::on_min_note_changed);
 
     dial_max = new AudioDial();
-    dial_max->setMinimumSize(44, 54);
-    dial_max->setMaximumSize(54, 80);
     dial_max->setLabel("Note Max");
     dial_max->setRange(0, 127);
     dial_max->setValue(mixer->master_max_note);
@@ -67,9 +66,7 @@ void TrackMixerWidget::_init_ui()
     connect(dial_max, &AudioDial::valueChanged, this, &TrackMixerWidget::on_max_note_changed);
 
     dial_offset = new AudioDialCentered();
-    dial_offset->setMinimumSize(44, 54);
-    dial_offset->setMaximumSize(54, 80);
-    dial_offset->setLabel("Note Offset");
+    dial_offset->setLabel("Offset");
     dial_offset->setRange(-24, 24);
     dial_offset->setValue(mixer->master_note_offset);
     dial_offset->setDefaultValue(0);
@@ -78,8 +75,6 @@ void TrackMixerWidget::_init_ui()
     connect(dial_offset, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::on_global_offset_changed);
 
     dial_vol = new AudioDial();
-    dial_vol->setMinimumSize(44, 54);
-    dial_vol->setMaximumSize(54, 80);
     dial_vol->setLabel("Volume");
     dial_vol->setRange(0, 100);
     dial_vol->setValueDecimals(1);
@@ -90,8 +85,6 @@ void TrackMixerWidget::_init_ui()
     connect(dial_vol, &AudioDial::valueChanged, this, &TrackMixerWidget::on_global_volume_changed);
 
     dial_pan = new AudioDialCentered();
-    dial_pan->setMinimumSize(44, 54);
-    dial_pan->setMaximumSize(54, 80);
     dial_pan->setLabel("Pan");
     dial_pan->setRange(-1.0, 1.0);
     dial_pan->setValueDecimals(2);
@@ -112,7 +105,9 @@ void TrackMixerWidget::_init_ui()
     // Channel Output section with device selector
     QFrame* channel_output_frame = new QFrame();
     channel_output_frame->setObjectName("MixerSectionLabelFrame");
-    channel_output_frame->setStyleSheet("QFrame#MixerSectionLabelFrame { background: #353a44; border-radius: 8px; margin-bottom: 0px; }");
+    channel_output_frame->setStyleSheet(
+        "QFrame#MixerSectionLabelFrame { background: #353a44; border-radius: 8px; margin-bottom: 0px; }"
+    );
     QHBoxLayout* channel_output_label_layout = new QHBoxLayout(channel_output_frame);
     channel_output_label_layout->setContentsMargins(12, 5, 12, 5);
 
@@ -123,7 +118,9 @@ void TrackMixerWidget::_init_ui()
     device_selector = new QComboBox();
     device_selector->setMinimumWidth(130);
     device_selector->setMaximumWidth(220);
-    device_selector->setStyleSheet("QComboBox { background: #232731; color: #79b8ff; font-weight: bold; border-radius: 5px; padding: 3px 8px; }");
+    device_selector->setStyleSheet(
+        "QComboBox { background: #232731; color: #79b8ff; font-weight: bold; border-radius: 5px; padding: 3px 8px; }"
+    );
     channel_output_label_layout->addStretch(1);
     channel_output_label_layout->addWidget(device_selector, 0, Qt::AlignRight);
 
@@ -134,8 +131,8 @@ void TrackMixerWidget::_init_ui()
     QVector<QString> outputs = mixer->get_available_outputs();
     for (const QString& dev : outputs) {
         MultiChannelVolumeBar* bar = new MultiChannelVolumeBar(16);
-        bar->setMinimumHeight(66);
-        bar->setMaximumHeight(98);
+        bar->setMinimumHeight(90);
+        bar->setMaximumHeight(120);
         bar->setRange(0, 1);
         bar->setVisible(false);
         channel_volume_bars[dev] = bar;
@@ -211,7 +208,7 @@ void TrackMixerWidget::_init_ui()
     routing_scroll = new QScrollArea(this);
     routing_scroll->setWidgetResizable(true);
     routing_scroll->setFrameShape(QFrame::NoFrame);
-    routing_scroll->setMinimumHeight(220);
+    routing_scroll->setMinimumHeight(250);
     routing_scroll->setStyleSheet("QScrollArea { background: transparent; padding: 0px; }");
     main_layout->addWidget(routing_scroll, 1);
 

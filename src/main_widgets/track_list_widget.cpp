@@ -18,16 +18,16 @@ void TrackListWidget::_init_ui()
         "QFrame#TrackListHeaderFrame { background: #353a44; border-radius: 9px; margin-bottom: 8px; }"
     );
     QHBoxLayout* header_layout = new QHBoxLayout(header_frame);
-    header_layout->setContentsMargins(14, 7, 14, 7);
-    header_layout->setSpacing(13);
+    header_layout->setContentsMargins(10, 5, 10, 5);
+    header_layout->setSpacing(12);
 
     QLabel* header_icon = new QLabel();
-    header_icon->setPixmap(QIcon(":/icons/track.svg").pixmap(32,32));
-    header_icon->setFixedSize(36,36);
+    header_icon->setPixmap(QIcon(":/icons/track.svg").pixmap(23, 23));
+    header_icon->setFixedSize(23, 23);
 
     QLabel* title = new QLabel("Tracks");
     title->setStyleSheet(
-        "font-size: 22px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;"
+        "font-size: 20px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;"
     );
     header_layout->addWidget(header_icon, 0, Qt::AlignVCenter);
     header_layout->addWidget(title, 0, Qt::AlignVCenter);
@@ -50,12 +50,12 @@ void TrackListWidget::_init_ui()
     scroll_area->setWidget(container);
 
     // --- Layout pro celý widget ---
-    QVBoxLayout* outer_layout = new QVBoxLayout(this);
-    outer_layout->setContentsMargins(12, 12, 12, 12);
-    outer_layout->setSpacing(0);
-    outer_layout->addWidget(header_frame);
-    outer_layout->addWidget(scroll_area, 1);
-    setLayout(outer_layout);
+    QVBoxLayout* main_layout = new QVBoxLayout(this);
+    main_layout->setContentsMargins(5, 5, 5, 5);
+    main_layout->setSpacing(0);
+    main_layout->addWidget(header_frame);
+    main_layout->addWidget(scroll_area, 1);
+    setLayout(main_layout);
 
     // Signals
     connect(ctx, &AppContext::midi_file_loaded_signal, this, &TrackListWidget::_reload_tracks);
@@ -97,6 +97,7 @@ void TrackListWidget::_reload_tracks()
 
     for (size_t idx = 0; idx < ctx->tracks.size(); ++idx) {
         auto& tr = ctx->tracks[idx];
+        qDebug() << "DEBUG: " << idx << " VS " << tr->track_id;
         qDebug() << "TrackListWidget: Adding track" << tr->track_id << "-" << tr->name;
         TrackWidget* widget = new TrackWidget(tr->track_id, ctx, container);
         connect(widget, &TrackWidget::visibility_changed_signal, this, &TrackListWidget::visibility_changed_signal);
@@ -107,7 +108,6 @@ void TrackListWidget::_reload_tracks()
 
         // Selection handling via event filter
         widget->installEventFilter(this);
-        widget->setProperty("_select_idx", static_cast<int>(idx));
         widget->setMouseTracking(true);
 
         // Custom mousePressEvent via subclass or signal (see below)

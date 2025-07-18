@@ -41,17 +41,19 @@ void MidiControlBarWidget::_init_ui()
             color: #eee;
             border: 1px solid #232731;
             border-radius: 5px;
-            padding: 3px 10px 3px 8px;
             min-width: 68px;
             font-size: 13px;
             background-color: #30343a;
             margin-right: 15px;
+            min-height: 32px;
+            max-height: 32px;    
         }   
         QLabel#tempoIcon {
             margin-right: 3px;
         }
         QLabel#timeLabel {
-            
+            min-height: 32px;
+            max-height: 32px;    
         }
     )");
 
@@ -86,6 +88,13 @@ void MidiControlBarWidget::_init_ui()
     connect(to_end_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goto_end_signal);
     hbox->addWidget(to_end_btn);
 
+    hbox->addSpacing(20);
+
+    // Tempo label with icon
+    QHBoxLayout* tempo_hbox = new QHBoxLayout();
+    tempo_hbox->setContentsMargins(0,0,0,0);
+    tempo_hbox->setSpacing(2);
+    
     // Metronome button
     metronome_btn = new QPushButton();
     metronome_btn->setObjectName("metronomeBtn");
@@ -94,18 +103,7 @@ void MidiControlBarWidget::_init_ui()
     metronome_btn->setIconSize(QSize(21, 21));
     metronome_btn->setCursor(Qt::PointingHandCursor);
     connect(metronome_btn, &QPushButton::clicked, this, &MidiControlBarWidget::metronome_btn_clicked);
-    hbox->addWidget(metronome_btn);
-
-    hbox->addSpacing(20);
-
-    // Tempo label with icon
-    QHBoxLayout* tempo_hbox = new QHBoxLayout();
-    tempo_hbox->setContentsMargins(0,0,0,0);
-    tempo_hbox->setSpacing(2);
-    tempo_icon = new QLabel();
-    tempo_icon->setObjectName("tempoIcon");
-    tempo_icon->setPixmap(QIcon(":/icons/tempo.svg").pixmap(16, 16));
-    tempo_hbox->addWidget(tempo_icon);
+    tempo_hbox->addWidget(metronome_btn);
 
     tempo_label = new QLabel();
     tempo_label->setObjectName("tempoLabel");
