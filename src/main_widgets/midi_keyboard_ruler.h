@@ -22,11 +22,11 @@ public:
     QSize minimumSizeHint() const override;
 
 signals:
-    void play_note_signal(MidiNote note);
-    void stop_note_signal(MidiNote note);
+    void play_note_signal(MidiNote note, int track_id);
+    void stop_note_signal(MidiNote note, int track_id);
 
 public slots:
-    void on_play_note(const MidiNote &note);
+    void on_play_note(const MidiNote &note, int track_id);
     void set_vertical_scroll_slot(float v, float row_height);
     void clear_highlights_slot();
 

@@ -268,17 +268,23 @@ void MidiKeyboardRuler::leaveEvent(QEvent *event)
 
 void MidiKeyboardRuler::mousePressEvent(QMouseEvent *event)
 {
-    auto note = note_at_pos(event->pos());
-    int nval = note.has_value() ? note.value() : -1;
-    if (nval != -1)
+    if (ctx->active_track_id.has_value())
     {
-        pressed_note.note_id = rand();
-        pressed_note.note = nval;
-        pressed_note.track = ctx->active_track_id;
-        pressed_note.velocity = 44 + rand() % 41; // random velocity 44 - 84
-        this->mixer->note_play(pressed_note);
-        emit play_note_signal(pressed_note);
-        update();
+        auto note = note_at_pos(event->pos());
+        int nval = note.has_value() ? note.value() : -1;
+        if (nval != -1)
+        {
+            pressed_note.note_id = rand();
+            pressed_note.note = nval;
+            pressed_note.velocity = 44 + rand() % 41; // random velocity 44 - 84
+            this->mixer->note_play(pressed_note, ctx->active_track_id.value());
+            emit play_note_signal(pressed_note, ctx->active_track_id.value());
+            update();
+        }
+    }
+    else
+    {
+        qDebug() << "No active track to play note on.";
     }
     QWidget::mousePressEvent(event);
 }
@@ -288,8 +294,11 @@ void MidiKeyboardRuler::mouseReleaseEvent(QMouseEvent *event)
     if (pressed_note.note != -1)
     {
         int velocity = 44 + rand() % 41;
-        this->mixer->note_play(pressed_note);
-        emit stop_note_signal(pressed_note);
+        if (ctx->active_track_id.has_value())
+        {
+            this->mixer->note_play(pressed_note, ctx->active_track_id.value());
+            emit stop_note_signal(pressed_note, ctx->active_track_id.value());
+        }
         pressed_note.note = -1;
         update();
     }
@@ -303,10 +312,10 @@ void MidiKeyboardRuler::set_vertical_scroll_slot(float v, float row_height)
     update();
 }
 
-void MidiKeyboardRuler::on_play_note(const MidiNote &note)
+void MidiKeyboardRuler::on_play_note(const MidiNote &note, int track_id)
 {
     int timeout = note_time_ms(note, this->ctx->ppq, this->ctx->tempo);
-    std::shared_ptr<Track> track = this->ctx->get_track_by_id(note.track.value_or(0));
+    std::shared_ptr<Track> track = this->ctx->get_track_by_id(track_id);
     if (!track) return;
     highlight_key(note.note, track->color, timeout);
 }

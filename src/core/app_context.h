@@ -22,7 +22,7 @@ public:
     Q_SIGNAL void midi_file_loaded_signal();
     Q_SIGNAL void track_meta_changed_signal(int track_id);
     Q_SIGNAL void selected_track_changed_signal(int track_id);
-    Q_SIGNAL void playing_note_signal(const MidiNote& note);
+    Q_SIGNAL void playing_note_signal(const MidiNote& note, int track_id);
     Q_SIGNAL void mixer_playing_note_signal(const MidiNote& note, const QString& device_name, int channel);
 
     // State

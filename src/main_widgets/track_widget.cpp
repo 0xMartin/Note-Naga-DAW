@@ -106,7 +106,7 @@ void TrackWidget::_update_track_info() {
         name_edit->setText(track_info->name);
         name_edit->setToolTip(track_info->name);
         index_lbl->setText(QString::number(track_index + 1));
-        auto instrument = find_instrument_by_index(track_info->instrument.value_or(-1));
+        auto instrument = find_instrument_by_index(track_info->instrument.value_or(0));
         if (instrument) {
             instrument_btn->setIcon(instrument_icon(instrument->icon));
             instrument_btn->setToolTip(instrument->name);

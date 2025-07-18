@@ -40,7 +40,7 @@ public:
     void remove_routing_entry(int index);
     void clear_routing_table();
 
-    void note_play(const MidiNote& midi_note);
+    void note_play(const MidiNote& midi_note, int track_id);
     void note_stop(const MidiNote& midi_note);
     void stop_all_notes(std::optional<int> track_id = std::nullopt);
 

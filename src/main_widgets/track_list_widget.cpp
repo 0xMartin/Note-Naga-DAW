@@ -62,26 +62,6 @@ void TrackListWidget::_init_ui()
     connect(ctx, &AppContext::playing_note_signal, this, &TrackListWidget::_handle_playing_note);
 }
 
-void TrackListWidget::set_track_visible(int track_index, bool state)
-{
-    for (auto* w : track_widgets) {
-        if (w->get_track_index() == track_index) {
-            w->setVisible(state);
-            break;
-        }
-    }
-}
-
-void TrackListWidget::set_track_play(int track_index, bool state)
-{
-    for (auto* w : track_widgets) {
-        if (w->get_track_index() == track_index) {
-            // If you have a play icon refresh function, call it here
-            break;
-        }
-    }
-}
-
 void TrackListWidget::_reload_tracks()
 {
     // Remove all widgets and any existing stretch from the layout
@@ -134,22 +114,13 @@ void TrackListWidget::_update_selection(int idx)
     }
 }
 
-void TrackListWidget::_handle_playing_note(const MidiNote& note)
+void TrackListWidget::_handle_playing_note(const MidiNote& note, int track_id)
 {
     double time_ms = note_time_ms(note, ctx->ppq, ctx->tempo);
     for (auto* w : track_widgets) {
-        if (w->get_track_index() == note.track && note.velocity.has_value() && note.velocity.value() > 0) {
+        if (w->get_track_index() == track_id && note.velocity.has_value() && note.velocity.value() > 0) {
             w->get_volume_bar()->setValue(static_cast<double>(note.velocity.value()) / 127.0, time_ms);
             break;
         }
     }
 }
-
-// To enable selection via click, add this to your TrackWidget class:
-// signals:
-//     void clicked(int track_index);
-// protected:
-//     void mousePressEvent(QMouseEvent* event) override {
-//         emit clicked(get_track_index());
-//         QFrame::mousePressEvent(event);
-//     }

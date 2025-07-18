@@ -155,7 +155,7 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type0_tracks(const MidiFile
                 int start = it->second.first;
                 int velocity = it->second.second;
                 channel_note_buffers[channel].push_back(
-                    MidiNote(note, start, abs_time - start, velocity, channel)
+                    MidiNote(note, start, abs_time - start, velocity)
                 );
                 notes_on.erase(it);
             }
@@ -169,7 +169,7 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type0_tracks(const MidiFile
         std::vector<MidiNote>& note_buffer = pair.second;
         if (note_buffer.empty()) continue;
 
-        QString name = channel_names.count(channel) ? channel_names[channel] : QString("Channel %1").arg(channel+1);
+        QString name = channel_names.count(channel) ? channel_names[channel] : QString("Channel %1").arg(channel + 1);
         int instrument = channel_instruments.count(channel) ? channel_instruments[channel] : 0;
 
         qDebug() << "> Track ID:" << t_id
@@ -181,12 +181,11 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type0_tracks(const MidiFile
             t_id,
             name,
             instrument,
-            true,
-            true,
-            1.0,
-            QColor() // set to default later
+            channel
         );
-        std::sort(note_buffer.begin(), note_buffer.end(), [](const MidiNote& a, const MidiNote& b) { return a.start < b.start; });
+        std::sort(note_buffer.begin(), note_buffer.end(), [](const MidiNote& a, const MidiNote& b) { 
+            return a.start < b.start; 
+        });
         track_info->midi_notes = note_buffer;
         tracks_tmp.push_back(track_info);
         ++t_id;
@@ -202,11 +201,13 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type1_tracks(const MidiFile
 
     int tempo = 500000;
 
-    for (int i = 0; i < midiFile.getNumTracks(); ++i) {
-        const MidiTrack& track = midiFile.getTrack(i);
-        int abs_time = 0;
+    for (int track_idx = 0; track_idx < midiFile.getNumTracks(); ++track_idx) {
+        const MidiTrack& track = midiFile.getTrack(track_idx);
+
         std::map<std::pair<int,int>, std::pair<int,int>> notes_on; // (note, channel) -> (start, velocity)
+        int abs_time = 0;
         int instrument = 0;
+        std::optional<int> channel_used;
         QString name;
         std::vector<MidiNote> note_buffer;
 
@@ -226,10 +227,12 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type1_tracks(const MidiFile
             if (evt.type == MidiEventType::ProgramChange) {
                 if (!evt.data.empty()) {
                     instrument = evt.data[0];
+                    if (!channel_used.has_value())
+                        channel_used = evt.channel;
                 }
             }
             // Tempo change: only from first track
-            if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_SET_TEMPO && i == 0) {
+            if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_SET_TEMPO && track_idx == 0) {
                 if (evt.meta_data.size() == 3) {
                     tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) | evt.meta_data[2];
                 }
@@ -239,6 +242,8 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type1_tracks(const MidiFile
                 int note = evt.data[0];
                 int velocity = evt.data[1];
                 int channel = evt.channel;
+                if (!channel_used.has_value())
+                    channel_used = channel;
                 notes_on[std::make_pair(note, channel)] = std::make_pair(abs_time, velocity);
             }
             // Note off
@@ -251,7 +256,7 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type1_tracks(const MidiFile
                     int start = it->second.first;
                     int velocity = it->second.second;
                     note_buffer.push_back(
-                        MidiNote(note, start, abs_time - start, velocity, i)
+                        MidiNote(note, start, abs_time - start, velocity)
                     );
                     notes_on.erase(it);
                 }
@@ -259,15 +264,14 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type1_tracks(const MidiFile
         }
 
         auto track_info = std::make_shared<Track>(
-            i,
-            name.isEmpty() ? QString("Track %1").arg(i+1) : name,
+            track_idx,
+            name.isEmpty() ? QString("Track %1").arg(track_idx + 1) : name,
             instrument,
-            true,
-            true,
-            1.0,
-            QColor()
+            channel_used
         );
-        std::sort(note_buffer.begin(), note_buffer.end(), [](const MidiNote& a, const MidiNote& b) { return a.start < b.start; });
+        std::sort(note_buffer.begin(), note_buffer.end(), [](const MidiNote& a, const MidiNote& b) { 
+            return a.start < b.start; 
+        });
         track_info->midi_notes = note_buffer;
         tracks_tmp.push_back(track_info);
     }

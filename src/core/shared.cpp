@@ -141,7 +141,8 @@ const std::vector<GMInstrument> GM_INSTRUMENTS = {
 
 // ---------- Track ----------
 
-Track::Track() {
+Track::Track()
+{
     this->track_id = 0;
     this->name = name.isEmpty() ? QString("Track %1").arg(track_id + 1) : name;
     this->instrument = std::nullopt;
@@ -152,18 +153,19 @@ Track::Track() {
     this->volume = 1.0f;
 }
 
-Track::Track(int track_id, const QString &name, int instrument,
-          int channel, bool visible, bool playing,
-          float volume, QColor color)
+Track::Track(int track_id,
+          const QString &name,
+          std::optional<int> instrument = std::nullopt,
+          std::optional<int> channel = std::nullopt)
 {
     this->track_id = track_id;
     this->name = name.isEmpty() ? QString("Track %1").arg(track_id + 1) : name;
     this->instrument = instrument;
     this->channel = channel;
-    this->color = color.isValid() ? color : DEFAULT_CHANNEL_COLORS[track_id % DEFAULT_CHANNEL_COLORS.size()];
-    this->visible = visible;
-    this->playing = playing;
-    this->volume = volume;
+    this->color = DEFAULT_CHANNEL_COLORS[track_id % DEFAULT_CHANNEL_COLORS.size()];
+    this->visible = true;
+    this->playing = true;
+    this->volume = 1.0f;
 }
 
 // ---------- Note names ----------

@@ -152,7 +152,7 @@ void PlaybackThreadWorker::run()
                 if (note.start.has_value() && note.length.has_value())
                 {
                     if (last_tick < note.start.value() && note.start.value() <= current_tick)
-                        mixer->note_play(note);
+                        mixer->note_play(note, track->track_id);
                     if (last_tick < note.start.value() + note.length.value() && note.start.value() + note.length.value() <= current_tick)
                         mixer->note_stop(note);
                 }

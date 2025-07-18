@@ -59,11 +59,33 @@ QVector<QString> Mixer::detect_outputs()
 void Mixer::create_default_routing()
 {
     routing_entries.clear();
-    int channel = 0;
+    std::vector<bool> used_channels(16, false); // 16 MIDI channels
+
+    // Mark already assigned channels (if any)
+    for (const auto &track_ptr : ctx->tracks) {
+        if (track_ptr->channel.has_value()) {
+            int ch = track_ptr->channel.value();
+            if (ch >= 0 && ch < 16)
+                used_channels[ch] = true;
+        }
+    }
+
     for (const auto &track_ptr : ctx->tracks)
     {
+        int channel;
+        if (track_ptr->channel.has_value()) {
+            channel = track_ptr->channel.value();
+        } else {
+            // Find first free channel
+            auto it = std::find(used_channels.begin(), used_channels.end(), false);
+            if (it != used_channels.end()) {
+                channel = std::distance(used_channels.begin(), it);
+                used_channels[channel] = true;
+            } else {
+                channel = 15; // fallback to max channel if all are used
+            }
+        }
         routing_entries.append(TrackRountingEntry(track_ptr->track_id, default_output, channel));
-        channel = std::min(channel + 1, 15); // Limit to 16 channels
     }
     emit routing_entry_stack_changed_signal();
 }
@@ -111,25 +133,22 @@ void Mixer::clear_routing_table()
 }
 
 // --- NOTE PLAY ---
-void Mixer::note_play(const MidiNote &midi_note)
+void Mixer::note_play(const MidiNote &midi_note, int track_id)
 {
-    if (!midi_note.track.has_value())
-        return;
-
     // emit signal (note playing on track. note go to mixer)
-    emit ctx->playing_note_signal(midi_note);
+    emit ctx->playing_note_signal(midi_note, track_id);
 
     // get track of note and retrieve its program (instrument)
     int prog = 0;
-    auto track = ctx->get_track_by_id(midi_note.track.value());
+    auto track = ctx->get_track_by_id(track_id);
     if (track)
-        prog = track->instrument;
+        prog = track->instrument.value_or(0);
 
     // process each routing entry for the track 
     for (const TrackRountingEntry &entry : this->routing_entries)
     {
         // skip if entry does not match the track of the note
-        if (entry.track_id != midi_note.track.value())
+        if (entry.track_id != track_id)
             continue;
 
         // calculate final note: input note + track offset + master note offset

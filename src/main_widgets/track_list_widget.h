@@ -26,14 +26,10 @@ signals:
     void instrument_changed_signal(int, int);
     void name_changed_signal(int, QString); // track_index, new_name
 
-public slots:
-    void set_track_visible(int track_index, bool state);
-    void set_track_play(int track_index, bool state);
-
 private slots:
     void _init_ui();
     void _reload_tracks();
-    void _handle_playing_note(const MidiNote& note);
+    void _handle_playing_note(const MidiNote& note, int track_id);
 
 private:
     void _update_selection(int idx);

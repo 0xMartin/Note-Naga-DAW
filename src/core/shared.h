@@ -33,10 +33,9 @@ struct MidiNote
     std::optional<int> start;
     std::optional<int> length;
     std::optional<int> velocity;
-    std::optional<int> track;
-
+    
     MidiNote() : note(0), start(std::nullopt), length(std::nullopt),
-                 velocity(std::nullopt), track(std::nullopt), note_id(rand()) {}
+                 velocity(std::nullopt), note_id(rand()) {}
 
     MidiNote(int note_,
              std::optional<int> start_ = std::nullopt,
@@ -44,7 +43,7 @@ struct MidiNote
              std::optional<int> velocity_ = std::nullopt,
              std::optional<int> track_ = std::nullopt)
         : note(note_), start(start_), length(length_),
-          velocity(velocity_), track(track_), note_id(rand()) {}
+          velocity(velocity_), note_id(rand()) {}
 };
 
 // ---------- TrackInfo ----------
@@ -53,7 +52,7 @@ struct Track
 public:
     int track_id;
     std::vector<MidiNote> midi_notes;
-    
+
     std::optional<int> instrument;
     std::optional<int> channel;
 
@@ -65,9 +64,10 @@ public:
 
     Track();
 
-    Track(int track_id, const QString &name, int instrument,
-          int channel, bool visible, bool playing,
-          float volume, QColor color);
+    Track(int track_id,
+          const QString &name,
+          std::optional<int> instrument,
+          std::optional<int> channel);
 };
 
 // ---------- Utility functions ----------
