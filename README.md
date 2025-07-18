@@ -1,24 +1,22 @@
 ## Build 
 
 1. opravit chyb v UI (aby to vypadalo stejne jak predtim)
-   1. Vylepsi zvyrazeni tlacitek (toogle play/mute, visible, ...) najak zvyraznit kdyz jsou neaktivni
-   3. Dock Panel Nefunguje jak by mel: reset layout, ...
+   1. custom tile bar pro QDock widgety..
+   2. Dock Panel Nefunguje jak by mel: reset layout, nachyta se presne na dane pozice jak by mel
 
 2. refactoring celeho kodu.. 
-   1. vsude pouzivat misto * std::stared_ptr, vsude kde nacitam pointer MUSI BYT OVERENI ZDA NENI NULL
+   1. std::stared_ptr + not null kontrola
    2. vstupde pouzivat optional kde to je mozne
-   3. prejmenovat sloty (na konci nazvu nebude _slot + odstrani zbytecne metody duplicitny metody pro slot)
-   4. nazvy netridnitch metod: snake_case, tridnich: camelCase
+   3. nazvy netridnitch metod: snake_case, tridnich: camelCase
+   4. odstranit nadbitence pradne sloty volajici 1 metodu
    5. vsechny signaly zapis timto stylem: visibilityChangedSignal(int, bool);
 
 ----
 NOVE FUNKCE:
 
-nacitani primo vystupnich kanalu ulozenych v midi
+bug: lepsi detekce bich nastoroju (pres instanci mixer)
 
-implementace solo play ( u tracku )
-
-indikacni led diada (signalizace aktivniho routingu)
+pouziti u routing entry = indikacni led diada (signalizace aktivniho routingu)
 
 tlacitka u track listu:
    -> add, remove, remove all, record
@@ -29,4 +27,21 @@ tlacitka u mixeru:
    -> automacaly select channels 
 
 midi editor zoom bug (kdyz se zoomuje tak ujizdi s akutalni pozice)
+
+midi editor optimalizace
+   -> moznost zmenit vysku radku
+   -> moznost upravy sledovani aktualni pozice (komplexni moznosti)
+
+midi control bar: impelemnatce celkoveho nahledu tracku (nahradi time label)
+
+velocity editor, ...
+
+nastaveni editor + gui
+
+implementace editor modu:
+   -> select tool
+   -> manaipulation tool: move, delete, copy, shift, move to track, ...
+   -> verist vecit ohledne ppq (velikost nejmensiho bloku/noty)
+   -> add new note, note lenght editing
+   -> velocity editing
 

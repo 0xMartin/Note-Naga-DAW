@@ -1,5 +1,18 @@
 #include "main_window.h"
 
+#include <QMenuBar>
+#include <QToolBar>
+#include <QApplication>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QIcon>
+#include <QColor>
+#include <QScrollBar>
+#include <QVBoxLayout>
+#include <QGridLayout>
+#include <QMessageBox>
+#include <QFileDialog>
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), auto_follow(true)
 {
@@ -135,22 +148,11 @@ void MainWindow::setup_dock_layout() {
     midi_editor->setMinimumWidth(250);
     midi_editor->setMinimumHeight(250);
 
-    editor_scroll = new QScrollArea();
-    editor_scroll->setWidgetResizable(false);
-    editor_scroll->setWidget(midi_editor);
-    editor_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    editor_scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    editor_scroll->verticalScrollBar()->setStyleSheet("QScrollBar::handle:vertical { min-height: 40px; }");
-    editor_scroll->horizontalScrollBar()->setStyleSheet("QScrollBar::handle:horizontal { min-width: 40px; }");
-
-    connect(editor_scroll->horizontalScrollBar(), &QScrollBar::valueChanged, midi_tact_ruler, &MidiTactRuler::set_horizontal_scroll);
-    connect(editor_scroll->verticalScrollBar(), &QScrollBar::valueChanged,
-            [this](int v){ midi_keyboard_ruler->set_vertical_scroll_slot(v, midi_editor->get_key_height()); });
-
+    // -- GRID LAYOUT --
     grid->addWidget(new QWidget(), 0, 0);
     grid->addWidget(midi_tact_ruler, 0, 1);
     grid->addWidget(midi_keyboard_ruler, 1, 0);
-    grid->addWidget(editor_scroll, 1, 1);
+    grid->addWidget(midi_editor, 1, 1);
 
     QVBoxLayout* editor_layout = new QVBoxLayout();
     editor_layout->setContentsMargins(0, 0, 0, 0);
@@ -171,7 +173,7 @@ void MainWindow::setup_dock_layout() {
     docks["editor"] = editor_dock;
 
     // Track list dock
-    tracklist_widget = new TrackListWidget(ctx, mixer);
+    tracklist_widget = new TrackListWidget(ctx, mixer, this);
     QDockWidget* tracklist_dock = new QDockWidget("Track List", this);
     tracklist_dock->setWidget(tracklist_widget);
     tracklist_dock->setObjectName("tracklist");
@@ -238,6 +240,12 @@ void MainWindow::connect_signals() {
     connect(control_bar, &MidiControlBarWidget::goto_start_signal, this, &MainWindow::goto_start);
     connect(control_bar, &MidiControlBarWidget::goto_end_signal, this, &MainWindow::goto_end);
     connect(control_bar, &MidiControlBarWidget::tempo_changed_signal, this, &MainWindow::on_tempo_changed);
+
+    auto* hbar = midi_editor->horizontalScrollBar();
+    auto* vbar = midi_editor->verticalScrollBar();
+    connect(hbar, &QScrollBar::valueChanged, midi_tact_ruler, &MidiTactRuler::set_horizontal_scroll);
+    connect(vbar, &QScrollBar::valueChanged,
+            [this](int v){ midi_keyboard_ruler->set_vertical_scroll_slot(v, midi_editor->get_key_height()); });
 }
 
 void MainWindow::set_auto_follow(bool checked) { auto_follow = checked; }
@@ -274,21 +282,22 @@ void MainWindow::on_playing_state_changed(bool playing) {
 void MainWindow::set_play_position(int tick) {
     playback_worker->stop();
     ctx->current_tick = tick;
-    midi_editor->update();
-    midi_tact_ruler->set_horizontal_scroll_slot(editor_scroll->horizontalScrollBar()->value());
-    midi_keyboard_ruler->set_vertical_scroll_slot(editor_scroll->verticalScrollBar()->value(), midi_editor->get_key_height());
+    midi_editor->update_marker_slot(); // <-- přidej toto!
+    midi_editor->update(); // volitelné, pokud chceš refresh celé scény, lze i vynechat
+    midi_tact_ruler->set_horizontal_scroll_slot(midi_editor->horizontalScrollBar()->value());
+    midi_keyboard_ruler->set_vertical_scroll_slot(midi_editor->verticalScrollBar()->value(), midi_editor->get_key_height());
     control_bar->update_times(ctx->current_tick, ctx->max_tick, ctx->tempo, ctx->ppq);
     update();
 }
 
 void MainWindow::goto_start() {
     set_play_position(0);
-    editor_scroll->horizontalScrollBar()->setValue(0);
+    midi_editor->horizontalScrollBar()->setValue(0);
 }
 
 void MainWindow::goto_end() {
     set_play_position(ctx->max_tick);
-    editor_scroll->horizontalScrollBar()->setValue(editor_scroll->horizontalScrollBar()->maximum());
+    midi_editor->horizontalScrollBar()->setValue(midi_editor->horizontalScrollBar()->maximum());
 }
 
 void MainWindow::on_tempo_changed(float new_tempo) {
@@ -301,7 +310,7 @@ void MainWindow::open_midi() {
     playback_worker->stop();
     ctx->load_from_midi(fname);
     midi_editor->update();
-    QScrollBar* vertical_bar = editor_scroll->verticalScrollBar();
+    QScrollBar* vertical_bar = midi_editor->verticalScrollBar();
     int center_pos = (vertical_bar->maximum() + vertical_bar->minimum()) / 2;
     vertical_bar->setSliderPosition(center_pos);
     midi_tact_ruler->set_params(ctx->ppq, midi_editor->get_time_scale(), ctx->max_tick);
@@ -324,13 +333,13 @@ void MainWindow::playback_worker_on_position_changed(int current_tick) {
     control_bar->update_times(ctx->current_tick, ctx->max_tick, ctx->tempo, ctx->ppq);
     if (auto_follow) {
         int marker_x = int(ctx->current_tick * midi_editor->get_time_scale());
-        int width = editor_scroll->viewport()->width();
+        int width = midi_editor->viewport()->width();
         int margin = width / 2;
         int value = std::max(0, marker_x - margin);
-        editor_scroll->horizontalScrollBar()->setValue(value);
+        midi_editor->horizontalScrollBar()->setValue(value);
     }
-    midi_tact_ruler->set_horizontal_scroll_slot(editor_scroll->horizontalScrollBar()->value());
-    midi_keyboard_ruler->set_vertical_scroll_slot(editor_scroll->verticalScrollBar()->value(), midi_editor->get_key_height());
+    midi_tact_ruler->set_horizontal_scroll_slot(midi_editor->horizontalScrollBar()->value());
+    midi_keyboard_ruler->set_vertical_scroll_slot(midi_editor->verticalScrollBar()->value(), midi_editor->get_key_height());
     midi_editor->repaint_slot();
 }
 

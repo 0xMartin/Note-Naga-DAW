@@ -1,23 +1,11 @@
 #pragma once
 
 #include <QMainWindow>
-#include <QMenuBar>
 #include <QMenu>
 #include <QAction>
-#include <QToolBar>
 #include <QDockWidget>
-#include <QScrollArea>
-#include <QVBoxLayout>
-#include <QGridLayout>
-#include <QMessageBox>
-#include <QFileDialog>
-#include <QApplication>
-#include <QDesktopServices>
-#include <QScrollBar>
-#include <QUrl>
-#include <QIcon>
-#include <QColor>
-#include <vector>
+#include <QCloseEvent>
+
 #include "core/app_context.h"
 #include "core/mixer.h"
 #include "core/shared.h"
@@ -92,7 +80,6 @@ private:
     MidiTactRuler* midi_tact_ruler;
     MidiKeyboardRuler* midi_keyboard_ruler;
     MidiEditorWidget* midi_editor;
-    QScrollArea* editor_scroll;
     MidiControlBarWidget* control_bar;
 
     TrackListWidget* tracklist_widget;

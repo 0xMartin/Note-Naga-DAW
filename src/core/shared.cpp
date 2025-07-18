@@ -174,6 +174,16 @@ Track::Track(int track_id,
 const std::vector<QString> NOTE_NAMES = {
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
+QColor color_blend(const QColor &fg, const QColor &bg, double opacity)
+{
+    // opacity: 0.0 = jen bg, 1.0 = jen fg
+    double a = opacity;
+    int r = int(a * fg.red()   + (1 - a) * bg.red());
+    int g = int(a * fg.green() + (1 - a) * bg.green());
+    int b = int(a * fg.blue()  + (1 - a) * bg.blue());
+    return QColor(r, g, b);
+}
+
 // ---------- Utility functions ----------
 QString note_name(int n)
 {

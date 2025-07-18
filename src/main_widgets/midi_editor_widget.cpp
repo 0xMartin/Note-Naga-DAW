@@ -1,222 +1,280 @@
 #include "midi_editor_widget.h"
+#include <QResizeEvent>
+#include <QScrollBar>
 #include <algorithm>
-#include <QMouseEvent>
 #include <cmath>
 
+#define MIN_NOTE 0
+#define MAX_NOTE 127
+
 MidiEditorWidget::MidiEditorWidget(AppContext* ctx_, QWidget* parent)
-    : QWidget(parent), ctx(ctx_), has_file(false),
-      time_scale(0.2), key_height(16), _content_width(100), _content_height(100),
-      bg_color("#32353c"), fg_color("#e0e6ef"), line_color("#232731"), subline_color("#464a56")
+    : QGraphicsView(parent),
+      ctx(ctx_),
+      has_file(false),
+      time_scale(0.2),
+      key_height(16),
+      _content_width(100),
+      _content_height(100),
+      ppq(480),
+      tact_subdiv(4),
+      bg_color("#32353c"),
+      fg_color("#e0e6ef"),
+      line_color("#232731"),
+      subline_color("#464a56"),
+      grid_bar_color("#5e7fff"),
+      grid_row_color1("#35363b"),
+      grid_row_color2("#292a2e"),
+      grid_bar_label_color("#6fa5ff"),
+      grid_subdiv_color("#44464b")
 {
     setObjectName("MidiViewerWidget");
-    // Connect signals
+    setFrameStyle(QFrame::NoFrame);
+    setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+
+    scene = new QGraphicsScene(this);
+    setScene(scene);
+
     connect(ctx, &AppContext::midi_file_loaded_signal, this, &MidiEditorWidget::_reload_notes);
-    connect(ctx, &AppContext::selected_track_changed_signal, this, [this](int){ update(); });
-    connect(ctx, &AppContext::track_meta_changed_signal, this, [this](int){ update(); });
+    connect(ctx, &AppContext::selected_track_changed_signal, this, [this](int){ update_scene_items(); });
+    connect(ctx, &AppContext::track_meta_changed_signal, this, [this](int){ update_scene_items(); });
+    connect(horizontalScrollBar(), &QScrollBar::valueChanged, this, &MidiEditorWidget::on_viewport_changed);
+    connect(verticalScrollBar(), &QScrollBar::valueChanged, this, &MidiEditorWidget::on_viewport_changed);
 
-    ppq = ctx->ppq;
-
+    setBackgroundBrush(bg_color);
     setMouseTracking(true);
-    setAutoFillBackground(false);
 
     recalculate_content_size();
-}
-
-void MidiEditorWidget::recalculate_content_size() {
-    _content_width = int((ctx->max_tick + 1) * time_scale) + 16;
-    _content_height = (MAX_NOTE - MIN_NOTE + 1) * key_height;
-    resize(sizeHint());
-}
-
-void MidiEditorWidget::_reload_notes() {
-    notes_starts.clear();
-    notes_ends.clear();
-    for (const auto& track_ptr : ctx->tracks) {
-        if (!track_ptr) continue;
-        int tid = track_ptr->track_id;
-        notes_starts[tid].clear();
-        notes_ends[tid].clear();
-        for (const MidiNote& n : track_ptr->midi_notes) {
-            if (n.start.has_value() && n.length.has_value()) {
-                notes_starts[tid].push_back(n.start.value());
-                notes_ends[tid].push_back(n.start.value() + n.length.value());
-            }
-        }
-    }
-    ppq = ctx->ppq;
-    has_file = !ctx->tracks.empty();
-    recalculate_content_size();
-    update();
-}
-
-void MidiEditorWidget::set_time_scale(double scale) {
-    time_scale = std::max(0.02, scale);
-    recalculate_content_size();
-    update();
-}
-
-void MidiEditorWidget::set_key_height(int h) {
-    key_height = std::max(4, std::min(48, h));
-    recalculate_content_size();
-    update();
 }
 
 QSize MidiEditorWidget::sizeHint() const {
     return QSize(_content_width, _content_height);
 }
-
 QSize MidiEditorWidget::minimumSizeHint() const {
     return QSize(10, 10);
 }
 
-void MidiEditorWidget::draw_note(QPainter& painter, const MidiNote& note, const QColor& note_color,
-                                 int visible_x0, int visible_x1, int visible_y0, int visible_y1, bool active)
-{
-    int y = _content_height - (note.note - MIN_NOTE + 1) * key_height;
-    int x = note.start.value_or(0) * time_scale;
-    int w = std::max(1, int(note.length.value_or(0) * time_scale));
-    int h = key_height;
-    if (!((x + w > visible_x0 && x < visible_x1) &&
-          (y + h > visible_y0 && y < visible_y1))) {
-        return;
-    }
-
-    if (active) {
-        painter.setBrush(QBrush(note_color));
-    } else {
-        QColor c(note_color);
-        c.setAlpha(50);
-        painter.setBrush(QBrush(c));
-    }
-
-    // Kontrastní barva pro okraj/text
-    QColor stroke_color = note_color.lightness() > 128 ? QColor(0, 0, 0) : QColor(255, 255, 255);
-    painter.setPen(QPen(stroke_color, 1));
-    painter.drawRect(int(x), int(y), int(w), int(h));
-    painter.setPen(stroke_color);
-    QFont font("Arial", std::max(6, key_height - 6));
-    painter.setFont(font);
-    if (w >= 30) 
-    {
-        QString note_label = note_name(note.note);
-        QRect text_rect(int(x)+2, int(y)+int(h)-font.pointSize()-4, int(w)-4, font.pointSize()+4);
-        painter.drawText(text_rect, Qt::AlignLeft | Qt::AlignBottom, note_label);
-    }
+void MidiEditorWidget::recalculate_content_size() {
+    _content_width = int((ctx->max_tick + 1) * time_scale) + 16;
+    _content_height = (MAX_NOTE - MIN_NOTE + 1) * key_height;
+    setSceneRect(0, 0, _content_width, _content_height);
+    update_scene_items();
 }
 
-void MidiEditorWidget::paintEvent(QPaintEvent* event) {
-    QPainter painter(this);
-    QRect rect = event->rect();
+void MidiEditorWidget::repaint_slot() {
+    update_scene_items();
+}
 
-    painter.fillRect(rect, bg_color);
+void MidiEditorWidget::update_marker_slot() {
+    if (marker_line) {
+        scene->removeItem(marker_line);
+        delete marker_line;
+        marker_line = nullptr;
+    }
+    update_marker();
+}
+
+void MidiEditorWidget::on_viewport_changed() {
+    update_scene_items();
+}
+
+void MidiEditorWidget::_reload_notes() {
+    has_file = !ctx->tracks.empty();
+    ppq = ctx->ppq;
+    recalculate_content_size();
+}
+
+void MidiEditorWidget::set_time_scale(double scale) {
+    time_scale = std::max(0.02, scale);
+    recalculate_content_size();
+}
+void MidiEditorWidget::set_key_height(int h) {
+    key_height = std::max(4, std::min(48, h));
+    recalculate_content_size();
+}
+void MidiEditorWidget::set_time_scale_slot(double scale) { set_time_scale(scale); }
+void MidiEditorWidget::set_key_height_slot(int h) { set_key_height(h); }
+
+void MidiEditorWidget::resizeEvent(QResizeEvent* event) {
+    QGraphicsView::resizeEvent(event);
+    update_scene_items();
+}
+
+void MidiEditorWidget::clear_scene() {
+    scene->clear();
+    note_items.clear();
+    grid_lines.clear();
+    bar_grid_lines.clear();
+    bar_grid_labels.clear();
+    marker_line = nullptr;
+}
+
+void MidiEditorWidget::update_scene_items() {
+    clear_scene();
+    scene->setBackgroundBrush(bg_color);
+
     if (!has_file) {
-        painter.setPen(fg_color);
-        painter.setFont(QFont("Arial", 22, QFont::Bold));
-        painter.drawText(rect, Qt::AlignCenter, "Open file");
+        auto *txt = scene->addSimpleText("Open file");
+        txt->setBrush(fg_color);
+        txt->setFont(QFont("Arial", 22, QFont::Bold));
+        txt->setPos(width()/2 - 100, height()/2 - 20);
         return;
     }
 
-    int visible_x0 = rect.left();
-    int visible_x1 = rect.right();
-    int visible_y0 = rect.top();
-    int visible_y1 = rect.bottom();
+    update_grid();
+    update_bar_grid();
+    update_notes();
+    update_marker_slot();
+}
 
-    int left_tick = std::max(0, int(visible_x0 / time_scale) - 1);
-    int right_tick = int((visible_x1 + 1) / time_scale) + 1;
+void MidiEditorWidget::update_grid() {
+    int visible_y0 = verticalScrollBar()->value();
+    int visible_y1 = visible_y0 + viewport()->height();
 
-    int bottom_note = MIN_NOTE + std::max(0, int((_content_height - visible_y1) / key_height) - 1);
-    int top_note = MIN_NOTE + int((_content_height - visible_y0) / key_height) + 1;
-
-    // Draw horizontal note lines
     for (int idx = 0, note_val = MIN_NOTE; note_val <= MAX_NOTE; ++idx, ++note_val) {
         int y = _content_height - (idx + 1) * key_height;
         if (y + key_height < visible_y0 || y > visible_y1) continue;
-        painter.setPen(QPen(line_color, 1));
-        painter.drawLine(visible_x0, y, visible_x1, y);
-    }
+        QColor row_bg = (note_val % 2 == 0) ? grid_row_color1 : grid_row_color2;
+        auto row_bg_rect = scene->addRect(0, y, _content_width, key_height, QPen(Qt::NoPen), QBrush(row_bg));
+        row_bg_rect->setZValue(-100);
 
-    // Draw non-active tracks first
-    for (const auto& track_ptr : ctx->tracks) {
-        if (!track_ptr || !track_ptr->visible) continue;
-        if (ctx->active_track_id.has_value() && track_ptr->track_id == ctx->active_track_id.value()) continue;
-        int tid = track_ptr->track_id;
-        auto& starts = notes_starts[tid];
-        auto& ends = notes_ends[tid];
-        auto i0 = std::lower_bound(ends.begin(), ends.end(), left_tick - 1500);
-        auto i1 = std::upper_bound(starts.begin(), starts.end(), right_tick + 100);
-        int idx0 = std::distance(ends.begin(), i0);
-        int idx1 = std::distance(starts.begin(), i1);
-        for (int i = idx0; i < idx1 && i < int(track_ptr->midi_notes.size()); ++i) {
-            const auto& note = track_ptr->midi_notes[i];
-            if (note.note < bottom_note || note.note > top_note) continue;
-            draw_note(painter, note, track_ptr->color, visible_x0, visible_x1, visible_y0, visible_y1, false);
-        }
+        // Draw horizontal line
+        auto l = scene->addLine(0, y, _content_width, y, QPen(line_color, 1));
+        grid_lines.push_back(l);
     }
+}
 
-    // Draw active track notes
-    if (ctx->active_track_id.has_value()) {
-        for (const auto& track_ptr : ctx->tracks) {
-            if (!track_ptr || !track_ptr->visible) continue;
-            if (track_ptr->track_id != ctx->active_track_id.value()) continue;
-            int tid = track_ptr->track_id;
-            auto& starts = notes_starts[tid];
-            auto& ends = notes_ends[tid];
-            auto i0 = std::lower_bound(ends.begin(), ends.end(), left_tick - 1500);
-            auto i1 = std::upper_bound(starts.begin(), starts.end(), right_tick + 100);
-            int idx0 = std::distance(ends.begin(), i0);
-            int idx1 = std::distance(starts.begin(), i1);
-            for (int i = idx0; i < idx1 && i < int(track_ptr->midi_notes.size()); ++i) {
-                const auto& note = track_ptr->midi_notes[i];
-                if (note.note < bottom_note || note.note > top_note) continue;
-                draw_note(painter, note, track_ptr->color, visible_x0, visible_x1, visible_y0, visible_y1, true);
-            }
-        }
-    }
-
-    // --- Red Marker Line ---
-    int marker_x = ctx->current_tick * time_scale;
-    if (visible_x0 <= marker_x && marker_x <= visible_x1) {
-        painter.setPen(QPen(QColor(255, 88, 88), 2));
-        painter.drawLine(marker_x, visible_y0, marker_x, visible_y1);
-    }
-
-    // --- Bar Grid by Ticks ---
+void MidiEditorWidget::update_bar_grid() {
+    // --- Main bar lines ---
     int bar_length = ppq * 4;
-    int first_bar = (left_tick / bar_length);
-    int last_bar = (right_tick / bar_length) + 1;
+    int first_bar = 0;
+    int last_bar = (ctx->max_tick / bar_length) + 2;
+    int visible_x0 = horizontalScrollBar()->value();
+    int visible_x1 = visible_x0 + viewport()->width();
+    int visible_y0 = verticalScrollBar()->value();
 
-    QPen grid_pen(subline_color, 1, Qt::SolidLine);
+    // Dynamically skip bar lines if too close
+    double px_per_bar = time_scale * bar_length;
+    int bar_skip = 1;
+    double min_bar_dist_px = 58;
+    while (px_per_bar * bar_skip < min_bar_dist_px) bar_skip *= 2;
+
     QFont label_font("Arial", 11, QFont::Bold);
-    painter.setFont(label_font);
 
-    for (int bar = first_bar; bar < last_bar; ++bar) {
+    for (int bar = first_bar; bar < last_bar; bar += bar_skip) {
         int tick = bar * bar_length;
         int x = tick * time_scale;
-        if (visible_x0 <= x && x <= visible_x1) {
-            painter.setPen(grid_pen);
-            painter.drawLine(x, visible_y0, x, visible_y1);
-            painter.setPen(subline_color.lighter(200));
-            painter.drawText(x + 4, visible_y0 + 12, QString::number(bar + 1));
+        if (x < visible_x0 - 200 || x > visible_x1 + 200) continue;
+        auto l = scene->addLine(x, 0, x, _content_height, QPen(grid_bar_color, 2));
+        l->setZValue(2);
+        bar_grid_lines.push_back(l);
+
+        // Draw label always visible at the top of the viewport
+        if (px_per_bar > 30) {
+            auto label = scene->addSimpleText(QString::number(bar + 1));
+            label->setFont(label_font);
+            label->setBrush(grid_bar_label_color);
+            // Always at the top of the visible area
+            label->setPos(x + 4, visible_y0 + 4);
+            label->setZValue(9999);
+            bar_grid_labels.push_back(label);
         }
+
+        // --- Draw subdivisions inside each bar ---
+        // subdiv skip (if zoomed out, skip some subdivs)
+        int subdiv_skip = 1;
+        double px_per_div = px_per_bar / tact_subdiv;
+        while (px_per_div * subdiv_skip < 18.0 && subdiv_skip < tact_subdiv) subdiv_skip *= 2;
+        for (int sub = 1; sub < tact_subdiv; ++sub) {
+            if (sub % subdiv_skip != 0) continue;
+            int sub_tick = tick + (bar_length * sub) / tact_subdiv;
+            int sub_x = sub_tick * time_scale;
+            if (sub_x < visible_x0 - 200 || sub_x > visible_x1 + 200) continue;
+            auto lsub = scene->addLine(sub_x, 0, sub_x, _content_height, QPen(grid_subdiv_color, 1));
+            lsub->setZValue(1);
+        }
+    }
+}
+
+void MidiEditorWidget::draw_note(const MidiNote& note, const Track& track, bool is_selected, bool is_drum, int x, int y, int w, int h)
+{
+    QGraphicsItem* shape = nullptr;
+    QColor t_color = is_selected ? track.color : color_blend(track.color, bg_color, 0.3);
+    QPen outline = is_selected ? QPen(t_color.lightness() < 128 ? Qt::white : Qt::black, 2) : 
+                                 QPen(t_color.lightness() < 128 ? t_color.lighter(150) : t_color.darker(150));
+
+    if (is_drum) {
+        int sz = h * 0.6;
+        int cx = x + w / 2;
+        int cy = y + h / 2;
+        int left = cx - sz / 2;
+        int top = cy - sz / 2;
+        shape = scene->addEllipse(left, top, sz, sz, outline, QBrush(t_color));
+    } else {
+        shape = scene->addRect(x, y, w, h, outline, QBrush(t_color));
+    }
+    shape->setZValue(is_selected ? 999 : track.track_id);
+
+    QGraphicsSimpleTextItem* txt = nullptr;
+    if (!is_drum && w > 15 && h > 9 && time_scale > 0.04) {
+        QString note_str = note_name(note.note);
+        txt = scene->addSimpleText(note_str);
+        txt->setBrush(QBrush(t_color.lightness() < 128 ? Qt::white : Qt::black));
+        QFont f("Arial", std::max(6, h - 6));
+        txt->setFont(f);
+        txt->setPos(x + 2, y + 2);
+        txt->setZValue(shape->zValue() + 1);
+    }
+    int track_id = ctx->active_track_id.has_value() && is_selected
+                   ? ctx->active_track_id.value()
+                   : -1;
+    if (track_id >= 0)
+        note_items[track_id].push_back({shape, txt});
+}
+
+void MidiEditorWidget::update_notes() {
+    if (!ctx) return;
+    int visible_x0 = horizontalScrollBar()->value();
+    int visible_x1 = visible_x0 + viewport()->width();
+    int visible_y0 = verticalScrollBar()->value();
+    int visible_y1 = visible_y0 + viewport()->height();
+
+    for (const auto& track_ptr : ctx->tracks) {
+        if (!track_ptr || !track_ptr->visible) continue;
+
+        bool is_drum = track_ptr->channel.has_value() && track_ptr->channel.value() == 9;
+        bool is_selected = ctx->active_track_id.has_value() && ctx->active_track_id.value() == track_ptr->track_id;
+
+        for (const MidiNote& note : track_ptr->midi_notes) {
+            if (!note.start.has_value() || !note.length.has_value()) continue;
+            int y = _content_height - (note.note - MIN_NOTE + 1) * key_height;
+            int x = note.start.value() * time_scale;
+            int w = std::max(1, int(note.length.value() * time_scale));
+            int h = key_height;
+            if (!((x + w > visible_x0 && x < visible_x1) && (y + h > visible_y0 && y < visible_y1)))
+                continue;
+            draw_note(note, *track_ptr, is_selected, is_drum, x, y, w, h);
+        }
+    }
+}
+
+void MidiEditorWidget::update_marker() {
+    int marker_x = ctx->current_tick * time_scale;
+    int visible_y0 = verticalScrollBar()->value();
+    int visible_y1 = visible_y0 + viewport()->height();
+
+    if (marker_x > 0 && marker_x < _content_width) {
+        marker_line = scene->addLine(marker_x, visible_y0, marker_x, visible_y1, QPen(QColor(255, 88, 88), 2));
+        marker_line->setZValue(1000);
     }
 }
 
 void MidiEditorWidget::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton && has_file) {
-        int x = event->pos().x();
+        int x = int(mapToScene(event->pos()).x());
         int tick = int(x / time_scale);
         emit set_play_position_signal(tick);
     }
-}
-
-void MidiEditorWidget::repaint_slot() {
-    update();
-}
-
-void MidiEditorWidget::set_time_scale_slot(double scale) {
-    set_time_scale(scale);
-}
-
-void MidiEditorWidget::set_key_height_slot(int h) {
-    set_key_height(h);
+    QGraphicsView::mousePressEvent(event);
 }

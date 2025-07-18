@@ -8,6 +8,8 @@
 // ---------- Channel colors ----------
 extern const std::vector<QColor> DEFAULT_CHANNEL_COLORS;
 
+QColor color_blend(const QColor& fg, const QColor& bg, double opacity);
+
 // ---------- GM Instruments ----------
 struct GMInstrument
 {

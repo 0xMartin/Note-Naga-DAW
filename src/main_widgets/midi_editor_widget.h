@@ -1,20 +1,15 @@
 #pragma once
 
-#include <QWidget>
-#include <QSize>
-#include <QRect>
-#include <QColor>
-#include <QPainter>
-#include <QFont>
-#include <QBrush>
-#include <QPen>
-#include <vector>
-#include <map>
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QGraphicsRectItem>
+#include <QGraphicsSimpleTextItem>
 #include <memory>
+#include <QMap>
 #include "../core/app_context.h"
 #include "../core/shared.h"
 
-class MidiEditorWidget : public QWidget {
+class MidiEditorWidget : public QGraphicsView {
     Q_OBJECT
 public:
     explicit MidiEditorWidget(AppContext* ctx, QWidget* parent = nullptr);
@@ -32,9 +27,11 @@ public slots:
     void repaint_slot();
     void set_time_scale_slot(double scale);
     void set_key_height_slot(int h);
+    void update_marker_slot();
+    void on_viewport_changed();
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
 
 private:
@@ -42,12 +39,15 @@ private:
     void _reload_notes();
     void set_time_scale(double scale);
     void set_key_height(int h);
-    void draw_note(QPainter& painter, const MidiNote& note, const QColor& note_color,
-                   int visible_x0, int visible_x1, int visible_y0, int visible_y1, bool active);
+    void update_scene_items();
+    void update_grid();
+    void update_bar_grid();
+    void update_notes();
+    void draw_note(const MidiNote& note, const Track& track, bool is_selected, bool is_drum, int x, int y, int w, int h);
+    void update_marker();
+    void clear_scene();
 
     AppContext* ctx;
-    std::map<int, std::vector<int>> notes_starts; // track_id -> vector of starts
-    std::map<int, std::vector<int>> notes_ends;   // track_id -> vector of ends
     bool has_file;
 
     double time_scale;
@@ -55,13 +55,28 @@ private:
     int _content_width;
     int _content_height;
     int ppq;
+    int tact_subdiv; // number of grid subdivisions per bar
 
-    // Colors
+    QGraphicsScene* scene;
+
+    struct NoteGraphics {
+        QGraphicsItem* item;
+        QGraphicsSimpleTextItem* label;
+    };
+    QMap<int, std::vector<NoteGraphics>> note_items;
+
+    QGraphicsLineItem* marker_line = nullptr;
+    std::vector<QGraphicsLineItem*> grid_lines;
+    std::vector<QGraphicsLineItem*> bar_grid_lines;
+    std::vector<QGraphicsSimpleTextItem*> bar_grid_labels;
+
     QColor bg_color;
     QColor fg_color;
     QColor line_color;
     QColor subline_color;
-
-    static constexpr int MIN_NOTE = 0;
-    static constexpr int MAX_NOTE = 127;
+    QColor grid_bar_color;
+    QColor grid_row_color1;
+    QColor grid_row_color2;
+    QColor grid_bar_label_color;
+    QColor grid_subdiv_color;
 };
