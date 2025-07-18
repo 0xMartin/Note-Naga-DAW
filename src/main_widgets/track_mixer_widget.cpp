@@ -310,10 +310,10 @@ void TrackMixerWidget::_on_default_entries() {
     }
 }
 
-void TrackMixerWidget::_handle_playing_note(const MidiNote& note, const QString& device_name) {
+void TrackMixerWidget::_handle_playing_note(const MidiNote& note, const QString& device_name, int channel) {
     int time_ms = int(note_time_ms(note, ctx->ppq, ctx->tempo));
     if (note.velocity.has_value() && note.velocity.value() > 0) {
-        set_channel_output_value(device_name, note.channel.value_or(-1), note.velocity.value() / 127.0f, time_ms);
+        set_channel_output_value(device_name, channel, note.velocity.value() / 127.0f, time_ms);
     }
 }
 

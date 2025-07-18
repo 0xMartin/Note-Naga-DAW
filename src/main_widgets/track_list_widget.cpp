@@ -97,8 +97,6 @@ void TrackListWidget::_reload_tracks()
 
     for (size_t idx = 0; idx < ctx->tracks.size(); ++idx) {
         auto& tr = ctx->tracks[idx];
-        qDebug() << "DEBUG: " << idx << " VS " << tr->track_id;
-        qDebug() << "TrackListWidget: Adding track" << tr->track_id << "-" << tr->name;
         TrackWidget* widget = new TrackWidget(tr->track_id, ctx, container);
         connect(widget, &TrackWidget::visibility_changed_signal, this, &TrackListWidget::visibility_changed_signal);
         connect(widget, &TrackWidget::playback_changed_signal, this, &TrackListWidget::playback_changed_signal);

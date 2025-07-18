@@ -332,8 +332,7 @@ void Mixer::play_note_on_output(const QString &output, int ch, int note_num, int
     // emit signal (mixer playing note)
     MidiNote note_clone = midi_note;
     note_clone.velocity = velocity;
-    note_clone.channel = ch;
-    emit ctx->mixer_playing_note_signal(note_clone, output);
+    emit ctx->mixer_playing_note_signal(note_clone, output, ch);
 }
 
 void Mixer::ensure_fluidsynth()

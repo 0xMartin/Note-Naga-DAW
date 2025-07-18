@@ -40,7 +40,7 @@ private slots:
     void _on_remove_selected_entry();
     void _on_clear_routing_table();
     void _on_default_entries();
-    void _handle_playing_note(const MidiNote& note, const QString& device_name);
+    void _handle_playing_note(const MidiNote& note, const QString& device_name, int channel);
 
 private:
     void set_channel_output_value(const QString& device, int channel_idx, float value, int time_ms = -1);

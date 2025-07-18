@@ -7,36 +7,6 @@
 #include <algorithm>
 #include <QDebug>
 
-// ---------- TrackInfo ----------
-Track::Track(int track_id,
-                     const QString& name,
-                     int instrument,
-                     bool visible,
-                     bool playing,
-                     float volume,
-                     QColor color)
-    : track_id(track_id),
-      name(name.isEmpty() ? QString("Track %1").arg(track_id + 1) : name),
-      instrument(instrument),
-      color(color.isValid() ? color : DEFAULT_CHANNEL_COLORS[track_id % DEFAULT_CHANNEL_COLORS.size()]),
-      visible(visible),
-      playing(playing),
-      volume(volume)
-{}
-
-QVariantMap Track::to_dict() const {
-    QVariantMap m;
-    m["track_id"] = track_id;
-    m["name"] = name;
-    m["instrument"] = instrument;
-    m["color"] = color;
-    m["visible"] = visible;
-    m["playing"] = playing;
-    m["volume"] = volume;
-    return m;
-}
-
-// ---------- AppContext implementation ----------
 AppContext* AppContext::instance() {
     static AppContext* _instance = nullptr;
     if (!_instance) {
@@ -80,12 +50,6 @@ void AppContext::set_track_attribute(int track_id, const QString& attr, const QV
         else if (attr == "playing") tr->playing = value.toBool();
         else if (attr == "volume") tr->volume = value.toFloat();
     }
-}
-
-std::vector<QVariantMap> AppContext::get_track_dicts() const {
-    std::vector<QVariantMap> out;
-    for (const auto& tr : tracks) out.push_back(tr->to_dict());
-    return out;
 }
 
 int AppContext::compute_max_tick() {
@@ -138,6 +102,7 @@ void AppContext::load_from_midi(const QString& midi_file_path) {
 
 // --- Helper: load type 0 MIDI file (split channels) ---
 std::vector<std::shared_ptr<Track>> AppContext::load_type0_tracks(const MidiFile& midiFile) {
+    qDebug() << "AppContext: Loading type 0 MIDI file with " << midiFile.getNumTracks() << " tracks.";
     std::vector<std::shared_ptr<Track>> tracks_tmp;
 
     // Only one track - need to split by MIDI channel
@@ -189,7 +154,9 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type0_tracks(const MidiFile
             if (it != notes_on.end()) {
                 int start = it->second.first;
                 int velocity = it->second.second;
-                channel_note_buffers[channel].push_back(MidiNote(note, start, abs_time - start, channel, velocity, channel));
+                channel_note_buffers[channel].push_back(
+                    MidiNote(note, start, abs_time - start, velocity, channel)
+                );
                 notes_on.erase(it);
             }
         }
@@ -205,6 +172,11 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type0_tracks(const MidiFile
         QString name = channel_names.count(channel) ? channel_names[channel] : QString("Channel %1").arg(channel+1);
         int instrument = channel_instruments.count(channel) ? channel_instruments[channel] : 0;
 
+        qDebug() << "> Track ID:" << t_id
+                 << "Channel:" << channel
+                 << "Name:" << name
+                 << "Instrument:" << instrument
+                 << "Notes:" << note_buffer.size();
         auto track_info = std::make_shared<Track>(
             t_id,
             name,
@@ -225,6 +197,7 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type0_tracks(const MidiFile
 
 // --- Helper: load type 1 MIDI file (one track per chunk) ---
 std::vector<std::shared_ptr<Track>> AppContext::load_type1_tracks(const MidiFile& midiFile) {
+    qDebug() << "AppContext: Loading type 1 MIDI file with " << midiFile.getNumTracks() << " tracks.";
     std::vector<std::shared_ptr<Track>> tracks_tmp;
 
     int tempo = 500000;
@@ -277,7 +250,9 @@ std::vector<std::shared_ptr<Track>> AppContext::load_type1_tracks(const MidiFile
                 if (it != notes_on.end()) {
                     int start = it->second.first;
                     int velocity = it->second.second;
-                    note_buffer.push_back(MidiNote(note, start, abs_time - start, channel, velocity, i));
+                    note_buffer.push_back(
+                        MidiNote(note, start, abs_time - start, velocity, i)
+                    );
                     notes_on.erase(it);
                 }
             }
