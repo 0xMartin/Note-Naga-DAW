@@ -40,18 +40,6 @@ std::shared_ptr<Track> AppContext::get_track_by_id(int track_id) {
     return nullptr;
 }
 
-void AppContext::set_track_attribute(int track_id, const QString& attr, const QVariant& value) {
-    auto tr = get_track_by_id(track_id);
-    if (tr) {
-        if (attr == "name") tr->name = value.toString();
-        else if (attr == "instrument") tr->instrument = value.toInt();
-        else if (attr == "color") tr->color = value.value<QColor>();
-        else if (attr == "visible") tr->visible = value.toBool();
-        else if (attr == "playing") tr->playing = value.toBool();
-        else if (attr == "volume") tr->volume = value.toFloat();
-    }
-}
-
 int AppContext::compute_max_tick() {
     max_tick = 0;
     for (const auto& track : tracks) {

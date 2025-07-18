@@ -2,8 +2,8 @@
 #include <QMouseEvent>
 #include <QDebug>
 
-TrackListWidget::TrackListWidget(AppContext* ctx_, QWidget* parent)
-    : QWidget(parent), ctx(ctx_), selected_row(-1)
+TrackListWidget::TrackListWidget(AppContext* ctx_, Mixer *mixer_, QWidget* parent)
+    : QWidget(parent), ctx(ctx_), mixer(mixer_), selected_row(-1)
 {
     _init_ui();
     _reload_tracks();
@@ -77,9 +77,9 @@ void TrackListWidget::_reload_tracks()
 
     for (size_t idx = 0; idx < ctx->tracks.size(); ++idx) {
         auto& tr = ctx->tracks[idx];
-        TrackWidget* widget = new TrackWidget(tr->track_id, ctx, container);
+        TrackWidget* widget = new TrackWidget(tr->track_id, ctx, mixer, container);
         connect(widget, &TrackWidget::visibility_changed_signal, this, &TrackListWidget::visibility_changed_signal);
-        connect(widget, &TrackWidget::playback_changed_signal, this, &TrackListWidget::playback_changed_signal);
+        connect(widget, &TrackWidget::muted_changed_signal, this, &TrackListWidget::muted_changed_signal);
         connect(widget, &TrackWidget::color_changed_signal, this, &TrackListWidget::color_changed_signal);
         connect(widget, &TrackWidget::instrument_changed_signal, this, &TrackListWidget::instrument_changed_signal);
         connect(widget, &TrackWidget::name_changed_signal, this, &TrackListWidget::name_changed_signal);
@@ -107,7 +107,7 @@ void TrackListWidget::_update_selection(int idx)
     for (size_t i = 0; i < track_widgets.size(); ++i) {
         track_widgets[i]->refresh_style(static_cast<int>(i) == idx);
         if (static_cast<int>(i) == idx) {
-            ctx->active_track_id = track_widgets[i]->get_track_index();
+            ctx->active_track_id = track_widgets[i]->get_track_id();
             if (ctx->active_track_id.has_value())
                 emit ctx->selected_track_changed_signal(ctx->active_track_id.value());
         }
@@ -118,7 +118,7 @@ void TrackListWidget::_handle_playing_note(const MidiNote& note, int track_id)
 {
     double time_ms = note_time_ms(note, ctx->ppq, ctx->tempo);
     for (auto* w : track_widgets) {
-        if (w->get_track_index() == track_id && note.velocity.has_value() && note.velocity.value() > 0) {
+        if (w->get_track_id() == track_id && note.velocity.has_value() && note.velocity.value() > 0) {
             w->get_volume_bar()->setValue(static_cast<double>(note.velocity.value()) / 127.0, time_ms);
             break;
         }

@@ -3,9 +3,12 @@
 #include <QPainter>
 #include <QLinearGradient>
 #include <QFont>
+#include <QResizeEvent>
+#include <algorithm>
 
 AnimatedTimeLabel::AnimatedTimeLabel(QWidget* parent)
-    : QLabel(parent), anim_timer(new QTimer(this)), anim_progress(0)
+    : QLabel(parent), anim_timer(new QTimer(this)), anim_progress(0),
+      cached_font_point_size(-1), cached_text_rect(), cached_last_size(-1, -1)
 {
     setObjectName("AnimatedTimeLabel");
     setMinimumWidth(130);
@@ -13,19 +16,6 @@ AnimatedTimeLabel::AnimatedTimeLabel(QWidget* parent)
 
     anim_timer->setInterval(16); // cca 60 FPS
     connect(anim_timer, &QTimer::timeout, this, &AnimatedTimeLabel::updateAnim);
-
-    setStyleSheet(R"(
-        QLabel#AnimatedTimeLabel {
-            color: #d6eaff;
-            font-size: 19px;
-            font-family: 'Segoe UI', 'Arial', sans-serif;
-            font-weight: bold;
-            padding: 4px 18px;
-            border-radius: 7px;
-            border: 1.4px solid #4866a0;
-            letter-spacing: 1.2px;
-        }
-    )");
 }
 
 void AnimatedTimeLabel::animateTick() {
@@ -41,6 +31,48 @@ void AnimatedTimeLabel::updateAnim() {
     } else {
         anim_timer->stop();
     }
+}
+
+void AnimatedTimeLabel::resizeEvent(QResizeEvent* event) {
+    QLabel::resizeEvent(event);
+    // Přepočítej font velikost při změně velikosti prvku
+    recalculateFontSize();
+}
+
+void AnimatedTimeLabel::setText(const QString& text) {
+    QLabel::setText(text);
+    // Pokud je nově nastavený text delší než poslední, zkontroluj velikost fontu
+    recalculateFontSize();
+}
+
+void AnimatedTimeLabel::recalculateFontSize() {
+    // Nastav základní rezervu (pro případné větší hodnoty, např. 99:59.999)
+    static const QString prototype = "99:59.999 / 99:59.999";
+    QRect r = rect();
+    QRect textRect = r.adjusted(6, 2, -6, -2); // padding
+
+    // Jen pokud se změnila velikost widgetu
+    if (cached_last_size == r.size() && cached_font_point_size > 0) {
+        cached_text_rect = textRect;
+        return;
+    }
+
+    QFont f = font();
+    f.setBold(true);
+
+    int fontSize = std::max(8, f.pointSize());
+    if (fontSize <= 0) fontSize = 19; // fallback
+
+    QFontMetrics fm(f);
+    // Najdi největší font, který se vejde do textRect (s rezervou 10%)
+    while ((fm.horizontalAdvance(prototype) > textRect.width() * 0.90 || fm.height() > textRect.height() * 0.90) && fontSize > 6) {
+        fontSize--;
+        f.setPointSize(fontSize);
+        fm = QFontMetrics(f);
+    }
+    cached_font_point_size = fontSize;
+    cached_text_rect = textRect;
+    cached_last_size = r.size();
 }
 
 void AnimatedTimeLabel::paintEvent(QPaintEvent* event) {
@@ -69,23 +101,19 @@ void AnimatedTimeLabel::paintEvent(QPaintEvent* event) {
     p.setPen(QColor("#4866a0"));
     p.drawRoundedRect(r, 7, 7);
 
-    // Text (čas) - přizpůsobení velikosti fontu
+    // Text (čas)
     p.setPen(QColor("#d6eaff"));
     QFont f = font();
     f.setBold(true);
 
-    // Dynamicky zmenšit font, pokud se nevejde
-    QString txt = text();
-    QRect textRect = r.adjusted(6, 2, -6, -2); // padding
-    int fontSize = f.pointSize();
-    if (fontSize <= 0) fontSize = 19; // fallback
+    // Použij vypočtenou velikost fontu
+    if (cached_font_point_size <= 0)
+        recalculateFontSize();
 
-    QFontMetrics fm(f);
-    while ((fm.horizontalAdvance(txt) > textRect.width() || fm.height() > textRect.height()) && fontSize > 6) {
-        fontSize--;
-        f.setPointSize(fontSize);
-        fm = QFontMetrics(f);
-    }
+    f.setPointSize(cached_font_point_size);
     p.setFont(f);
+
+    QString txt = text();
+    QRect textRect = cached_text_rect;
     p.drawText(textRect, Qt::AlignCenter, txt);
 }

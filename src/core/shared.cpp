@@ -149,7 +149,8 @@ Track::Track()
     this->channel = std::nullopt;
     this->color = DEFAULT_CHANNEL_COLORS[0];
     this->visible = true;
-    this->playing = true;
+    this->muted = false;
+    this->solo = false;
     this->volume = 1.0f;
 }
 
@@ -164,7 +165,8 @@ Track::Track(int track_id,
     this->channel = channel;
     this->color = DEFAULT_CHANNEL_COLORS[track_id % DEFAULT_CHANNEL_COLORS.size()];
     this->visible = true;
-    this->playing = true;
+    this->muted = false;
+    this->solo = false;
     this->volume = 1.0f;
 }
 

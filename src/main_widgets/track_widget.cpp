@@ -7,9 +7,10 @@
 #include <QHBoxLayout>
 #include <QDialog>
 
-TrackWidget::TrackWidget(int track_index_, AppContext* ctx_, QWidget* parent)
-    : QFrame(parent), ctx(ctx_), track_index(track_index_)
+TrackWidget::TrackWidget(int track_id_, AppContext* ctx_, Mixer *mixer_, QWidget* parent)
+    : QFrame(parent), ctx(ctx_), mixer(mixer_), track_id(track_id_)
 {
+    connect(ctx, &AppContext::track_meta_changed_signal, this, &TrackWidget::_update_track_info);
     setObjectName("TrackWidget");
 
     QHBoxLayout* main_hbox = new QHBoxLayout(this);
@@ -37,7 +38,7 @@ TrackWidget::TrackWidget(int track_index_, AppContext* ctx_, QWidget* parent)
     header_hbox->setContentsMargins(0, 0, 0, 0);
     header_hbox->setSpacing(3);
 
-    index_lbl = new QLabel(QString::number(track_index + 1));
+    index_lbl = new QLabel(QString::number(track_id + 1));
     index_lbl->setObjectName("TrackWidgetIndex");
     index_lbl->setAlignment(Qt::AlignCenter);
     index_lbl->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
@@ -60,17 +61,19 @@ TrackWidget::TrackWidget(int track_index_, AppContext* ctx_, QWidget* parent)
     connect(color_btn, &QPushButton::clicked, this, &TrackWidget::_choose_color);
     header_hbox->addWidget(color_btn, 0);
 
-    vis_btn = new QPushButton();
-    vis_btn->setObjectName("VisibilityButton");
-    vis_btn->setToolTip("Toggle Track Visibility");
-    vis_btn->setFlat(true);
-    vis_btn->setCursor(Qt::PointingHandCursor);
-    vis_btn->setIconSize(QSize(16, 16));
-    connect(vis_btn, &QPushButton::clicked, this, &TrackWidget::_toggle_visibility);
-    header_hbox->addWidget(vis_btn, 0);
+    invisible_btn = new QPushButton();
+    invisible_btn->setObjectName("VisibilityButton");
+    invisible_btn->setCheckable(true);
+    invisible_btn->setToolTip("Toggle Track Visibility");
+    invisible_btn->setFlat(true);
+    invisible_btn->setCursor(Qt::PointingHandCursor);
+    invisible_btn->setIconSize(QSize(16, 16));
+    connect(invisible_btn, &QPushButton::clicked, this, &TrackWidget::_toggle_visibility);
+    header_hbox->addWidget(invisible_btn, 0);
 
     solo_btn = new QPushButton();
     solo_btn->setObjectName("SoloButton");
+    solo_btn->setCheckable(true);
     solo_btn->setToolTip("Toggle Solo Mode");
     solo_btn->setIcon(QIcon(":/icons/solo.svg"));
     solo_btn->setFlat(true);
@@ -79,14 +82,15 @@ TrackWidget::TrackWidget(int track_index_, AppContext* ctx_, QWidget* parent)
     connect(solo_btn, &QPushButton::clicked, this, &TrackWidget::_toggle_solo);
     header_hbox->addWidget(solo_btn, 0);
 
-    play_btn = new QPushButton();
-    play_btn->setObjectName("PlayButton");
-    play_btn->setToolTip("Toggle Track Mute/Play");
-    play_btn->setFlat(true);
-    play_btn->setCursor(Qt::PointingHandCursor);
-    play_btn->setIconSize(QSize(16, 16));
-    connect(play_btn, &QPushButton::clicked, this, &TrackWidget::_toggle_play);
-    header_hbox->addWidget(play_btn, 0);
+    mute_btn = new QPushButton();
+    mute_btn->setObjectName("MuteButton");
+    mute_btn->setCheckable(true);
+    mute_btn->setToolTip("Toggle Track Mute/Play");
+    mute_btn->setFlat(true);
+    mute_btn->setCursor(Qt::PointingHandCursor);
+    mute_btn->setIconSize(QSize(16, 16));
+    connect(mute_btn, &QPushButton::clicked, this, &TrackWidget::_toggle_mute);
+    header_hbox->addWidget(mute_btn, 0);
 
     right_layout->addWidget(header);
 
@@ -95,17 +99,21 @@ TrackWidget::TrackWidget(int track_index_, AppContext* ctx_, QWidget* parent)
     right_layout->addWidget(volume_bar);
 
     setLayout(main_hbox);
-    _update_track_info();
+    _update_track_info(this->track_id);
     refresh_style(false);
     setFocusPolicy(Qt::StrongFocus);
 }
 
-void TrackWidget::_update_track_info() {
-    auto track_info = ctx->get_track_by_id(track_index);
+void TrackWidget::_update_track_info(int track_id) {
+    if (this->track_id != track_id) return;
+
+    auto track_info = ctx->get_track_by_id(track_id);
     if (track_info) {
         name_edit->setText(track_info->name);
         name_edit->setToolTip(track_info->name);
-        index_lbl->setText(QString::number(track_index + 1));
+
+        index_lbl->setText(QString::number(track_id + 1));
+
         auto instrument = find_instrument_by_index(track_info->instrument.value_or(0));
         if (instrument) {
             instrument_btn->setIcon(instrument_icon(instrument->icon));
@@ -114,80 +122,74 @@ void TrackWidget::_update_track_info() {
             instrument_btn->setIcon(instrument_icon("vinyl"));
             instrument_btn->setToolTip("Unknown instrument");
         }
-        vis_btn->setIcon(QIcon(track_info->visible ? ":/icons/eye-visible.svg" : ":/icons/eye-not-visible.svg"));
-        play_btn->setIcon(QIcon(track_info->playing ? ":/icons/sound-on.svg" : ":/icons/sound-off.svg"));
+
+        solo_btn->setChecked(track_info->solo);
+        mute_btn->setChecked(track_info->muted);
+        invisible_btn->setChecked(!track_info->visible);
+
+        invisible_btn->setIcon(QIcon(invisible_btn->isChecked() ? ":/icons/eye-not-visible.svg" : ":/icons/eye-visible.svg"));
+        mute_btn->setIcon(QIcon(mute_btn->isChecked() ? ":/icons/sound-off.svg" : ":/icons/sound-on.svg"));
+
         volume_bar->setValue(0.0);
         color_btn->setIcon(svg_str_icon(COLOR_SVG_ICON, track_info->color, 16));
     }
 }
 
 void TrackWidget::_toggle_visibility() {
-    auto track_info = ctx->get_track_by_id(track_index);
+    auto track_info = ctx->get_track_by_id(track_id);
     if (!track_info) return;
-    track_info->visible = !track_info->visible;
-    vis_btn->setIcon(QIcon(track_info->visible ? ":/icons/eye-visible.svg" : ":/icons/eye-not-visible.svg"));
-    emit visibility_changed_signal(track_index, track_info->visible);
-    emit ctx->track_meta_changed_signal(track_index);
+    track_info->visible = !invisible_btn->isChecked();
+    emit visibility_changed_signal(track_id, track_info->visible);
+    emit ctx->track_meta_changed_signal(track_id);
 }
 
 void TrackWidget::_toggle_solo() {
-    // TODO: implement solo logic if needed
+    mixer->solo_track(track_id, solo_btn->isChecked());
 }
 
-void TrackWidget::_toggle_play() {
-    auto track_info = ctx->get_track_by_id(track_index);
-    if (!track_info) return;
-    track_info->playing = !track_info->playing;
-    play_btn->setIcon(QIcon(track_info->playing ? ":/icons/sound-on.svg" : ":/icons/sound-off.svg"));
-    emit playback_changed_signal(track_index, track_info->playing);
-    emit ctx->track_meta_changed_signal(track_index);
+void TrackWidget::_toggle_mute() {
+    mixer->mute_track(track_id, mute_btn->isChecked());
 }
 
 void TrackWidget::_choose_color() {
-    auto track = ctx->get_track_by_id(track_index);
+    auto track = ctx->get_track_by_id(track_id);
     if (!track) return;
     QColor col = QColorDialog::getColor(track->color, this, "Select Track Color");
     if (col.isValid()) {
         track->color = col;
-        color_btn->setIcon(svg_str_icon(COLOR_SVG_ICON, col, 16));
-        emit color_changed_signal(track_index, col);
-        emit ctx->track_meta_changed_signal(track_index);
+        emit color_changed_signal(track_id, col);
+        emit ctx->track_meta_changed_signal(track_id);
     }
 }
 
 void TrackWidget::_name_edited() {
-    auto track = ctx->get_track_by_id(track_index);
+    auto track = ctx->get_track_by_id(track_id);
     if (!track) return;
     QString new_name = name_edit->text();
     name_edit->setToolTip(new_name);
     if (new_name != track->name) {
         track->name = new_name;
-        emit name_changed_signal(track_index, new_name);
-        emit ctx->track_meta_changed_signal(track_index);
+        emit name_changed_signal(track_id, new_name);
+        emit ctx->track_meta_changed_signal(track_id);
     }
 }
 
 void TrackWidget::_on_instrument_btn_clicked() {
-    auto track_info = ctx->get_track_by_id(track_index);
+    auto track_info = ctx->get_track_by_id(track_id);
     InstrumentSelectorDialog dlg(this, GM_INSTRUMENTS, instrument_icon, track_info->instrument);
     if (dlg.exec() == QDialog::Accepted) {
         int gm_index = dlg.get_selected_gm_index();
         auto instrument = find_instrument_by_index(gm_index);
         if (instrument) {
-            instrument_btn->setIcon(instrument_icon(instrument->icon));
-            instrument_btn->setToolTip(instrument->name);
             track_info->instrument = gm_index;
-            emit ctx->track_meta_changed_signal(track_index);
-            emit instrument_changed_signal(track_index, gm_index);
-        } else {
-            instrument_btn->setIcon(instrument_icon("vinyl"));
-            instrument_btn->setToolTip("Unknown instrument");
+            emit ctx->track_meta_changed_signal(track_id);
+            emit instrument_changed_signal(track_id, gm_index);
         }
     }
 }
 
 void TrackWidget::mousePressEvent(QMouseEvent* event) {
-    emit clicked(track_index);
+    emit clicked(track_id);
     QFrame::mousePressEvent(event);
 }
 
@@ -217,7 +219,7 @@ void TrackWidget::refresh_style(bool selected) {
         }
         QPushButton#ColorButton,
         QPushButton#VisibilityButton,
-        QPushButton#PlayButton,
+        QPushButton#MuteButton,
         QPushButton#SoloButton {
             min-width: 16px;
             max-width: 16px;
@@ -226,6 +228,12 @@ void TrackWidget::refresh_style(bool selected) {
             padding: 0px;
             border: none;
             background: transparent;
+        }
+        QPushButton#MuteButton:checked,
+        QPushButton#VisibilityButton:checked,
+        QPushButton#SoloButton:checked {
+            background: #3477c0;
+            border: 1px solid #79b8ff;
         }
         QPushButton#InstrumentButton {
             min-width: 32px;

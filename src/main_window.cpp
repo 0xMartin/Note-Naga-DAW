@@ -171,7 +171,7 @@ void MainWindow::setup_dock_layout() {
     docks["editor"] = editor_dock;
 
     // Track list dock
-    tracklist_widget = new TrackListWidget(ctx);
+    tracklist_widget = new TrackListWidget(ctx, mixer);
     QDockWidget* tracklist_dock = new QDockWidget("Track List", this);
     tracklist_dock->setWidget(tracklist_widget);
     tracklist_dock->setObjectName("tracklist");
@@ -238,7 +238,6 @@ void MainWindow::connect_signals() {
     connect(control_bar, &MidiControlBarWidget::goto_start_signal, this, &MainWindow::goto_start);
     connect(control_bar, &MidiControlBarWidget::goto_end_signal, this, &MainWindow::goto_end);
     connect(control_bar, &MidiControlBarWidget::tempo_changed_signal, this, &MainWindow::on_tempo_changed);
-    connect(tracklist_widget, &TrackListWidget::playback_changed_signal, mixer, &Mixer::stop_all_notes);
 }
 
 void MainWindow::set_auto_follow(bool checked) { auto_follow = checked; }

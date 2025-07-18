@@ -27,16 +27,17 @@ public:
 
     // State
     std::vector<std::shared_ptr<Track>> tracks;
+    std::optional<int> active_track_id;
+    std::optional<int> solo_track_id;
+    std::shared_ptr<MidiFile> midi_file; 
+
     int ppq;
     int tempo;
-    std::optional<int> active_track_id;
-    std::shared_ptr<MidiFile> midi_file; 
     int current_tick;
     int max_tick;
 
     void clear();
     std::shared_ptr<Track> get_track_by_id(int track_id);
-    void set_track_attribute(int track_id, const QString& attr, const QVariant& value);
     int compute_max_tick();
 
     void load_from_midi(const QString& midi_file_path);

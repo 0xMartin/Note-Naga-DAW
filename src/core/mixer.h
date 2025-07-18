@@ -44,6 +44,9 @@ public:
     void note_stop(const MidiNote& midi_note);
     void stop_all_notes(std::optional<int> track_id = std::nullopt);
 
+    void mute_track(int track_id, bool mute);
+    void solo_track(int track_id, bool solo);
+
     QVector<TrackRountingEntry>& get_routing_entries();
     QVector<QString> get_available_outputs();
     QString get_default_output();

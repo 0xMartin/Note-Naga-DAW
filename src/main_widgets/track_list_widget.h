@@ -10,18 +10,19 @@
 
 #include "track_widget.h"
 #include "../core/app_context.h"
+#include "../core/mixer.h"
 #include "../core/shared.h"
 
 // Moderní list widget s TrackWidgety ve scrollovací oblasti.
 class TrackListWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit TrackListWidget(AppContext* ctx, QWidget* parent = nullptr);
+    explicit TrackListWidget(AppContext* ctx, Mixer *mixer, QWidget* parent = nullptr);
 
 signals:
     void track_selected_signal(int);
     void visibility_changed_signal(int, bool);
-    void playback_changed_signal(int, bool);
+    void muted_changed_signal(int, bool);
     void color_changed_signal(int, QColor);
     void instrument_changed_signal(int, int);
     void name_changed_signal(int, QString); // track_index, new_name
@@ -34,7 +35,9 @@ private slots:
 private:
     void _update_selection(int idx);
 
-    AppContext* ctx;
+    AppContext *ctx;
+    Mixer *mixer;
+
     int selected_row;
     std::vector<TrackWidget*> track_widgets;
 

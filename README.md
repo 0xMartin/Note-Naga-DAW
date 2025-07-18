@@ -9,11 +9,7 @@
    2. vstupde pouzivat optional kde to je mozne
    3. prejmenovat sloty (na konci nazvu nebude _slot + odstrani zbytecne metody duplicitny metody pro slot)
    4. nazvy netridnitch metod: snake_case, tridnich: camelCase
-
-BUG: kdyz vypinam a zapinam play/mute tak to nekdy nevypne hrajici zvuk + id je shiftnute + 1
-   -> napriklad v tracku 5 se prehravaji noty jak kdyby byli v tracku 6
-
-
+   5. vsechny signaly zapis timto stylem: visibilityChangedSignal(int, bool);
 
 ----
 NOVE FUNKCE:

@@ -132,7 +132,6 @@ void Mixer::clear_routing_table()
     emit routing_entry_stack_changed_signal();
 }
 
-// --- NOTE PLAY ---
 void Mixer::note_play(const MidiNote &midi_note, int track_id)
 {
     // emit signal (note playing on track. note go to mixer)
@@ -283,6 +282,46 @@ void Mixer::stop_all_notes(std::optional<int> track_id)
                 }
             }
         }
+    }
+}
+
+void Mixer::mute_track(int track_id, bool mute)
+{
+    if (track_id < 0 || track_id >= ctx->tracks.size())
+    {
+        qWarning() << "Invalid track ID for mute operation:" << track_id;
+        return;
+    }
+    ctx->tracks[track_id]->muted = mute;
+    emit ctx->track_meta_changed_signal(track_id);
+    this->stop_all_notes(track_id);
+}
+
+void Mixer::solo_track(int track_id, bool solo)
+{
+    if (track_id < 0 || track_id >= ctx->tracks.size())
+    {
+        qWarning() << "Invalid track ID for solo operation:" << track_id;
+        return;
+    }
+
+    ctx->tracks[track_id]->solo = solo;
+    emit ctx->track_meta_changed_signal(track_id);
+
+    if (solo)
+    {
+        ctx->solo_track_id = track_id;
+        for (const auto& track : ctx->tracks) {
+            if (track->track_id != track_id) {
+                track->solo = false; 
+                this->stop_all_notes(track->track_id);
+                emit ctx->track_meta_changed_signal(track->track_id);
+            }
+        }
+    }
+    else
+    {
+        ctx->solo_track_id = std::nullopt;  
     }
 }
 

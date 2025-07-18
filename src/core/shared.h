@@ -59,7 +59,8 @@ public:
     QString name;
     QColor color;
     bool visible;
-    bool playing;
+    bool muted;
+    bool solo;
     float volume;
 
     Track();

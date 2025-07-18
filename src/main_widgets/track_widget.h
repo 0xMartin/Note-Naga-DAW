@@ -14,6 +14,7 @@
 #include <QString>
 
 #include "../core/app_context.h"
+#include "../core/mixer.h"
 #include "../widgets/volume_bar.h"
 #include "../dialogs/instrument_selector_dialog.h"
 #include "../core/shared.h"
@@ -22,44 +23,44 @@
 class TrackWidget : public QFrame {
     Q_OBJECT
 public:
-    explicit TrackWidget(int track_index, AppContext* ctx, QWidget* parent = nullptr);
+    explicit TrackWidget(int track_id, AppContext* ctx, Mixer *mixer, QWidget* parent = nullptr);
 
-    int get_track_index() const { return track_index; }
+    int get_track_id() const { return track_id; }
     VolumeBar* get_volume_bar() const { return volume_bar; }
 
     void refresh_style(bool selected);
 
 signals:
-    void instrument_changed_signal(int track_index, int instrument_index);
-    void visibility_changed_signal(int track_index, bool visible);
-    void playback_changed_signal(int track_index, bool playing);
-    void color_changed_signal(int track_index, QColor color);
-    void name_changed_signal(int track_index, QString new_name);
-    void clicked(int track_index);
+    void instrument_changed_signal(int track_id, int instrument_index);
+    void visibility_changed_signal(int track_id, bool visible);
+    void muted_changed_signal(int track_id, bool muted);
+    void color_changed_signal(int track_id, QColor color);
+    void name_changed_signal(int track_id, QString new_name);
+    void clicked(int track_id);
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
 
 private slots:
+    void _update_track_info(int track_id);
     void _toggle_visibility();
     void _toggle_solo();
-    void _toggle_play();
+    void _toggle_mute();
     void _choose_color();
     void _name_edited();
     void _on_instrument_btn_clicked();
 
 private:
-    void _update_track_info();
-
-    AppContext* ctx;
-    int track_index;
+    AppContext *ctx;
+    Mixer *mixer;
+    int track_id;
 
     QPushButton* instrument_btn;
     QLabel* index_lbl;
     QLineEdit* name_edit;
     QPushButton* color_btn;
-    QPushButton* vis_btn;
+    QPushButton* invisible_btn;
     QPushButton* solo_btn;
-    QPushButton* play_btn;
+    QPushButton* mute_btn;
     VolumeBar* volume_bar;
 };

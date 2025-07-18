@@ -142,19 +142,43 @@ void PlaybackThreadWorker::run()
             should_stop = true;
         }
 
-        // Mixer note events
-        for (const auto &track : ctx->tracks)
+        // check if some track is soloed (store id of the soloed track)
+        if (ctx->solo_track_id.has_value())
         {
-            if (!track->playing)
-                continue;
-            for (const auto &note : track->midi_notes)
+            // send all note on / off events to mixer
+            auto track = ctx->get_track_by_id(ctx->solo_track_id.value());
+            if (track)
             {
-                if (note.start.has_value() && note.length.has_value())
+                for (const auto &note : track->midi_notes)
                 {
-                    if (last_tick < note.start.value() && note.start.value() <= current_tick)
-                        mixer->note_play(note, track->track_id);
-                    if (last_tick < note.start.value() + note.length.value() && note.start.value() + note.length.value() <= current_tick)
-                        mixer->note_stop(note);
+                    if (note.start.has_value() && note.length.has_value())
+                    {
+                        if (last_tick < note.start.value() && note.start.value() <= current_tick)
+                            mixer->note_play(note, track->track_id);
+                        if (last_tick < note.start.value() + note.length.value() && note.start.value() + note.length.value() <= current_tick)
+                            mixer->note_stop(note);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Mixer note events
+            for (const auto &track : ctx->tracks)
+            {
+                // Skip muted tracks
+                if (track->muted)
+                    continue;
+                // send all note on / off events to mixer
+                for (const auto &note : track->midi_notes)
+                {
+                    if (note.start.has_value() && note.length.has_value())
+                    {
+                        if (last_tick < note.start.value() && note.start.value() <= current_tick)
+                            mixer->note_play(note, track->track_id);
+                        if (last_tick < note.start.value() + note.length.value() && note.start.value() + note.length.value() <= current_tick)
+                            mixer->note_stop(note);
+                    }
                 }
             }
         }
