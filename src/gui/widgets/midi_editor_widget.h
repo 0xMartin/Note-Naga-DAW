@@ -6,13 +6,14 @@
 #include <QGraphicsSimpleTextItem>
 #include <memory>
 #include <QMap>
-#include "../core/app_context.h"
-#include "../core/shared.h"
+
+#include "../../note_naga_engine/note_naga_engine.h"
+#include "../../note_naga_engine/core/types.h"
 
 class MidiEditorWidget : public QGraphicsView {
     Q_OBJECT
 public:
-    explicit MidiEditorWidget(AppContext* ctx, QWidget* parent = nullptr);
+    explicit MidiEditorWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -47,7 +48,8 @@ private:
     void update_marker();
     void clear_scene();
 
-    AppContext* ctx;
+    NoteNagaEngine* engine;
+    
     bool has_file;
 
     double time_scale;

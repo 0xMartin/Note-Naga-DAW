@@ -13,18 +13,17 @@
 #include <QString>
 #include <QIcon>
 
-#include "../core/app_context.h"
-#include "../core/mixer.h"
-#include "../core/shared.h"
-#include "../widgets/audio_dial.h"
-#include "../widgets/audio_dial_centered.h"
-#include "../widgets/multi_channel_volume_bar.h"
+#include "../../note_naga_engine/note_naga_engine.h"
+#include "../../note_naga_engine/core/types.h"
+#include "../components/audio_dial.h"
+#include "../components/audio_dial_centered.h"
+#include "../components/multi_channel_volume_bar.h"
 #include "routing_entry_widget.h"
 
 class TrackMixerWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit TrackMixerWidget(AppContext* ctx, Mixer* mixer, QWidget* parent = nullptr);
+    explicit TrackMixerWidget(NoteNagaEngine* engine, Mixer* mixer, QWidget* parent = nullptr);
 
     void refresh_routing_table();
 
@@ -47,8 +46,8 @@ private:
     void _init_ui();
     void _update_entry_selection(int idx);
 
-    AppContext* ctx;
-    Mixer* mixer;
+    NoteNagaEngine* engine;
+
     int selected_entry_index;
     int selected_row;
 

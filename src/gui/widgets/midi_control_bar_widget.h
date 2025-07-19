@@ -6,13 +6,14 @@
 #include <QHBoxLayout>
 #include <QTimer>
 #include <QPropertyAnimation>
-#include "../core/app_context.h"
-#include "../widgets/animated_time_label.h"
+
+#include "../../note_naga_engine/note_naga_engine.h"
+#include "../components/animated_time_label.h"
 
 class MidiControlBarWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit MidiControlBarWidget(AppContext* ctx, QWidget* parent = nullptr);
+    explicit MidiControlBarWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
     void update_times(int cur_tick, int max_tick, int tempo, int ppq);
     void set_playing(bool is_playing);
@@ -31,7 +32,8 @@ protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
 
 private:
-    AppContext* ctx;
+    NoteNagaEngine* engine;
+    
     QLabel* tempo_label;
     QLabel* tempo_icon;
     AnimatedTimeLabel* time_label;

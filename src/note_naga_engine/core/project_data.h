@@ -20,7 +20,6 @@ public:
     NoteNagaMIDISequence(int sequence_id, std::vector<std::shared_ptr<Track>> tracks);
 
     void clear();
-    std::shared_ptr<Track> get_track_by_id(int track_id);
     int compute_max_tick();
 
     void load_from_midi(const QString& midi_file_path);
@@ -41,15 +40,20 @@ public:
     int get_max_tick() const { return max_tick; }
 
     std::optional<int> get_active_track_id() const { return active_track_id; }
-    void set_active_track_id(int track_id) { active_track_id = track_id; }
+    void set_active_track_id(std::optional<int> track_id);
+    std::shared_ptr<Track> get_active_track();
+
+    std::optional<int> get_solo_track_id() const { return solo_track_id; }
+    void set_solo_track_id(std::optional<int> track_id) { solo_track_id = track_id; }
 
     std::vector<std::shared_ptr<Track>> get_tracks() const { return tracks; }
+    std::shared_ptr<Track> get_track_by_id(int track_id);
 
     std::shared_ptr<MidiFile> get_midi_file() const { return midi_file; }
 
 Q_SIGNALS:
     void track_meta_changed_signal(int track_id);
-    void selected_track_changed_signal(int track_id);
+    void active_track_changed_signal(int track_id);
     void playing_note_signal(const MidiNote& note, int track_id);
 
 protected:
@@ -78,7 +82,17 @@ public:
     void add_sequence(const std::shared_ptr<NoteNagaMIDISequence>& sequence);
     void remove_sequence(const std::shared_ptr<NoteNagaMIDISequence>& sequence);
 
+    int compute_max_tick();
+
+    int get_ppq() const { return ppq; }
+    void set_ppq(int ppq) { this->ppq = ppq; }
+
+    int get_tempo() const { return tempo; }
+    void set_tempo(int tempo) { this->tempo = tempo; }
+
     std::optional<int> get_active_sequence_id() const { return active_sequence_id; }
+    void set_active_sequence_id(std::optional<int> sequence_id);
+    std::shared_ptr<NoteNagaMIDISequence> get_active_sequence() const;
 
     std::vector<std::shared_ptr<NoteNagaMIDISequence>> get_sequences() const { return sequences; }
 
@@ -86,12 +100,14 @@ Q_SIGNALS:
     void project_file_loaded_signal();
 
     void sequence_meta_changed_signal(int sequence_id);
-    void selected_sequence_changed_signal(int sequence_id);
+    void active_sequence_changed_signal(int sequence_id);
     
 protected:
     std::vector<std::shared_ptr<NoteNagaMIDISequence>> sequences;
     std::optional<int> active_sequence_id;
 
+    int ppq;
+    int tempo;
     int current_tick;
     int max_tick;
 };

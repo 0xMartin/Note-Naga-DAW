@@ -39,15 +39,6 @@ public:
     Mixer* get_mixer();
     PlaybackWorker* get_playback_worker();
 
-    std::optional<int> get_active_sequence_id() const;
-    void set_active_sequence_id(int sequence_id);
-
-    // --- Utility ---
-    std::shared_ptr<NoteNagaMIDISequence> get_active_sequence() const;
-    std::shared_ptr<Track> get_track_by_id(int track_id) const;
-
-    // --- Signals ---
-
 protected:
     std::shared_ptr<NoteNagaProjectData> project_data;
     std::unique_ptr<Mixer> mixer;

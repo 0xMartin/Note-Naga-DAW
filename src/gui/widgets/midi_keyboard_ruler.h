@@ -9,14 +9,14 @@
 #include <vector>
 #include <optional>
 #include <QMouseEvent>
-#include "../core/shared.h"
-#include "../core/app_context.h"
-#include "../core/mixer.h"
+
+#include "../../note_naga_engine/core/types.h"
+#include "../../note_naga_engine/note_naga_engine.h"
 
 class MidiKeyboardRuler : public QWidget {
     Q_OBJECT
 public:
-    explicit MidiKeyboardRuler(AppContext *ctx, Mixer *mixer, int viewer_row_height = 16, QWidget* parent = nullptr);
+    explicit MidiKeyboardRuler(NoteNagaEngine* engine, int viewer_row_height = 16, QWidget* parent = nullptr);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -38,8 +38,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
-    AppContext *ctx;
-    Mixer *mixer;
+    NoteNagaEngine* engine;
 
     int viewer_row_height;
     int verticalScroll;

@@ -6,16 +6,13 @@
 #include <QDockWidget>
 #include <QCloseEvent>
 
-#include "core/app_context.h"
-#include "core/mixer.h"
-#include "core/shared.h"
-#include "core/playback_worker.h"
-#include "main_widgets/midi_tact_ruler.h"
-#include "main_widgets/midi_keyboard_ruler.h"
-#include "main_widgets/midi_editor_widget.h"
-#include "main_widgets/track_list_widget.h"
-#include "main_widgets/midi_control_bar_widget.h"
-#include "main_widgets/track_mixer_widget.h"
+#include "note_naga_engine/note_naga_engine.h"
+#include "gui/widgets/midi_tact_ruler.h"
+#include "gui/widgets/midi_keyboard_ruler.h"
+#include "gui/widgets/midi_editor_widget.h"
+#include "gui/widgets/track_list_widget.h"
+#include "gui/widgets/midi_control_bar_widget.h"
+#include "gui/widgets/track_mixer_widget.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT

@@ -38,15 +38,15 @@ bool PlaybackWorker::play()
         qDebug() << "PlaybackWorker: Already playing.";
         return false;
     }
-    if (!ctx->midi_file)
+    if (!projectData)
     {
-        qDebug() << "PlaybackWorker: No MIDI file loaded.";
+        qDebug() << "PlaybackWorker: No project data available.";
         return false;
     }
     qDebug() << "PlaybackWorker: Starting playback.";
 
     thread = new QThread;
-    worker = new PlaybackThreadWorker(ctx, mixer, timer_interval);
+    worker = new PlaybackThreadWorker(projectData, mixer, timer_interval);
     worker->moveToThread(thread);
     connect(thread, &QThread::started, worker, &PlaybackThreadWorker::run);
     connect(worker, &PlaybackThreadWorker::finished_signal, thread, &QThread::quit);
@@ -55,7 +55,7 @@ bool PlaybackWorker::play()
     connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     thread->start();
     playing = true;
-    emit playing_state_changed_signal(playing);
+    NN_QT_EMIT(playing_state_changed_signal(playing));
     return true;
 }
 
@@ -76,7 +76,7 @@ bool PlaybackWorker::stop()
         thread->wait();
     }
     playing = false;
-    emit playing_state_changed_signal(playing);
+    NN_QT_EMIT(playing_state_changed_signal(playing));
     return true;
 }
 
@@ -94,7 +94,7 @@ void PlaybackWorker::cleanup_thread()
         thread = nullptr;
     }
     playing = false;
-    emit playing_state_changed_signal(playing);
+    NN_QT_EMIT(playing_state_changed_signal(playing));
 }
 
 // --- PlaybackThreadWorker Implementation ---
@@ -111,8 +111,16 @@ PlaybackThreadWorker::PlaybackThreadWorker(std::shared_ptr<NoteNagaProjectData> 
 
 void PlaybackThreadWorker::recalculate_tempo()
 {
-    int current_tick = ctx->current_tick;
-    double us_per_tick = static_cast<double>(ctx->tempo) / ctx->ppq;
+    // get active sequence from project data
+    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
+    if (!active_sequence)
+    {
+        qDebug() << "No active sequence found, cannot recalculate tempo";
+        return;
+    }
+
+    int current_tick = active_sequence->get_current_tick();
+    double us_per_tick = static_cast<double>(active_sequence->get_tempo()) / active_sequence->get_ppq();
     ms_per_tick = us_per_tick / 1000.0;
     start_time_point = std::chrono::high_resolution_clock::now();
     start_tick_at_start = current_tick;
@@ -121,7 +129,16 @@ void PlaybackThreadWorker::recalculate_tempo()
 void PlaybackThreadWorker::run()
 {
     qDebug() << "PlaybackThreadWorker: run() start";
-    int current_tick = ctx->current_tick;
+
+    // get active sequence from project data
+    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
+    if (!active_sequence)
+    {
+        qDebug() << "No active sequence found, cannot run playback worker.";
+        return;
+    }
+
+    int current_tick = active_sequence->get_current_tick();
     recalculate_tempo();
 
     using clock = std::chrono::high_resolution_clock;
@@ -136,17 +153,17 @@ void PlaybackThreadWorker::run()
         current_tick += tick_advance;
 
         // Stop playback on reaching max tick
-        if (current_tick >= ctx->max_tick)
+        if (current_tick >= active_sequence->get_max_tick())
         {
-            current_tick = ctx->max_tick;
+            current_tick = active_sequence->get_max_tick();
             should_stop = true;
         }
 
         // check if some track is soloed (store id of the soloed track)
-        if (ctx->solo_track_id.has_value())
+        if (active_sequence->get_solo_track_id().has_value())
         {
             // send all note on / off events to mixer
-            auto track = ctx->get_track_by_id(ctx->solo_track_id.value());
+            auto track = active_sequence->get_active_track();
             if (track)
             {
                 for (const auto &note : track->midi_notes)
@@ -164,7 +181,7 @@ void PlaybackThreadWorker::run()
         else
         {
             // Mixer note events
-            for (const auto &track : ctx->tracks)
+            for (const auto &track : active_sequence->get_tracks())
             {
                 // Skip muted tracks
                 if (track->muted)
@@ -184,14 +201,14 @@ void PlaybackThreadWorker::run()
         }
 
         // Postion changed signal
-        emit on_position_changed_signal(current_tick);
+        NN_QT_EMIT(on_position_changed_signal(current_tick));
 
         std::this_thread::sleep_for(std::chrono::duration<double>(timer_interval));
     }
 
     qDebug() << "PlaybackThreadWorker: finished";
 
-    emit finished_signal();
+    NN_QT_EMIT(finished_signal());
 }
 
 void PlaybackThreadWorker::stop()

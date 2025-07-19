@@ -61,7 +61,7 @@ public:
 
 Q_SIGNALS:
     void routing_entry_stack_changed_signal();
-    void note_in_signal(const MidiNote& note, const QString& device_name, int channel);
+    void note_in_signal(const MidiNote& note, int channel);
     void note_out_signal(const MidiNote& note, const QString& device_name, int channel);
 
 private:

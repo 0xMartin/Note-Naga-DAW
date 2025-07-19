@@ -18,7 +18,8 @@
 #include <vector>
 #include <optional>
 #include <functional>
-#include "../core/shared.h"
+
+#include "../../note_naga_engine/core/types.h"
 
 class InstrumentSelectorDialog : public QDialog
 {

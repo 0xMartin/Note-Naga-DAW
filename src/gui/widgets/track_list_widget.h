@@ -9,15 +9,14 @@
 #include <memory>
 
 #include "track_widget.h"
-#include "../core/app_context.h"
-#include "../core/mixer.h"
-#include "../core/shared.h"
+#include "../../note_naga_engine/note_naga_engine.h"
+#include "../../note_naga_engine/core/types.h"
 
 // Moderní list widget s TrackWidgety ve scrollovací oblasti.
 class TrackListWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit TrackListWidget(AppContext* ctx, Mixer *mixer, QWidget* parent = nullptr);
+    explicit TrackListWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
 signals:
     void track_selected_signal(int);
@@ -35,8 +34,7 @@ private slots:
 private:
     void _update_selection(int idx);
 
-    AppContext *ctx;
-    Mixer *mixer;
+    NoteNagaEngine* engine;
 
     int selected_row;
     std::vector<TrackWidget*> track_widgets;

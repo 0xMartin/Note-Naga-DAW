@@ -7,15 +7,15 @@
 #include <QLabel>
 #include <QColor>
 #include <QIcon>
-#include "../core/app_context.h"
-#include "../core/mixer.h"
-#include "../widgets/audio_dial.h"
-#include "../widgets/audio_dial_centered.h"
+
+#include "../../note_naga_engine/note_naga_engine.h"
+#include "../components/audio_dial.h"
+#include "../components/audio_dial_centered.h"
 
 class RoutingEntryWidget : public QFrame {
     Q_OBJECT
 public:
-    explicit RoutingEntryWidget(TrackRountingEntry& entry, Mixer* mixer, AppContext* ctx, QWidget* parent = nullptr);
+    explicit RoutingEntryWidget(TrackRountingEntry& entry, NoteNagaEngine* engine, QWidget* parent = nullptr);
 
     void refresh_style(bool selected);
     
@@ -28,8 +28,7 @@ protected:
 
 private:
     TrackRountingEntry& entry;
-    Mixer* mixer;
-    AppContext* ctx;
+    NoteNagaEngine* engine;
 
     QComboBox* track_combo;
     QComboBox* output_combo;

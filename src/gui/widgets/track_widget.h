@@ -13,19 +13,16 @@
 #include <QColor>
 #include <QString>
 
-#include "../core/app_context.h"
-#include "../core/mixer.h"
-#include "../widgets/volume_bar.h"
-#include "../dialogs/instrument_selector_dialog.h"
-#include "../core/shared.h"
-#include "../core/icons.h"
+#include "../../note_naga_engine/note_naga_engine.h"
+#include "../../note_naga_engine/core/types.h"
+#include "../components/volume_bar.h"
 
 class TrackWidget : public QFrame {
     Q_OBJECT
 public:
-    explicit TrackWidget(int track_id, AppContext* ctx, Mixer *mixer, QWidget* parent = nullptr);
+    explicit TrackWidget(NoteNagaEngine* engine, std::shared_ptr<NoteNagaMIDISequence> sequence, int track_id, QWidget* parent = nullptr);
 
-    int get_track_id() const { return track_id; }
+    int get_track_id() const { return track->track_id; }
     VolumeBar* get_volume_bar() const { return volume_bar; }
 
     void refresh_style(bool selected);
@@ -51,9 +48,9 @@ private slots:
     void _on_instrument_btn_clicked();
 
 private:
-    AppContext *ctx;
-    Mixer *mixer;
+    std::shared_ptr<NoteNagaMIDISequence> sequence;
     int track_id;
+    NoteNagaEngine* engine;
 
     QPushButton* instrument_btn;
     QLabel* index_lbl;

@@ -18,7 +18,7 @@ Mixer::Mixer(std::shared_ptr<NoteNagaProjectData> projectData, const QString &sf
       master_note_offset(0),
       master_pan(0.0f)
 {
-    connect(ctx, &AppContext::midi_file_loaded_signal, this, &Mixer::create_default_routing);
+    connect(projectData.get(), &NoteNagaProjectData::project_file_loaded_signal, this, &Mixer::create_default_routing);
     ensure_fluidsynth();
     available_outputs = detect_outputs();
     default_output = available_outputs.contains("fluidsynth")
@@ -59,10 +59,18 @@ QVector<QString> Mixer::detect_outputs()
 void Mixer::create_default_routing()
 {
     routing_entries.clear();
-    std::vector<bool> used_channels(16, false); // 16 MIDI channels
+
+    // get active sequence from project data
+    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
+    if (!active_sequence)
+    {
+        qDebug() << "No active sequence found, cannot create default routing.";
+        return;
+    }
 
     // Mark already assigned channels (if any)
-    for (const auto &track_ptr : ctx->tracks) {
+    std::vector<bool> used_channels(16, false); // 16 MIDI channels
+    for (const auto &track_ptr : active_sequence->get_tracks()){
         if (track_ptr->channel.has_value()) {
             int ch = track_ptr->channel.value();
             if (ch >= 0 && ch < 16)
@@ -70,7 +78,7 @@ void Mixer::create_default_routing()
         }
     }
 
-    for (const auto &track_ptr : ctx->tracks)
+    for (const auto &track_ptr : active_sequence->get_tracks())
     {
         int channel;
         if (track_ptr->channel.has_value()) {
@@ -87,21 +95,29 @@ void Mixer::create_default_routing()
         }
         routing_entries.append(TrackRountingEntry(track_ptr->track_id, default_output, channel));
     }
-    emit routing_entry_stack_changed_signal();
+    NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
 void Mixer::set_routing(const QVector<TrackRountingEntry> &entries)
 {
     routing_entries = entries;
-    emit routing_entry_stack_changed_signal();
+    NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
 void Mixer::add_routing_entry(const TrackRountingEntry &entry)
 {
-    TrackRountingEntry new_entry = entry;
-    if (new_entry.track_id < 0 && ctx->tracks.size() > 0)
+    // get active sequence from project data
+    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
+    if (!active_sequence)
     {
-        new_entry.track_id = ctx->tracks.at(0)->track_id;
+        qDebug() << "No active sequence found, cannot add routing entry.";
+        return;
+    }
+
+    TrackRountingEntry new_entry = entry;
+    if (new_entry.track_id < 0 && active_sequence->get_tracks().size() > 0)
+    {
+        new_entry.track_id = active_sequence->get_tracks().at(0)->track_id;
     }
     if (new_entry.output.isEmpty())
     {
@@ -109,7 +125,7 @@ void Mixer::add_routing_entry(const TrackRountingEntry &entry)
     }
     routing_entries.append(new_entry);
     qDebug() << "Added routing entry:" << new_entry.track_id << "->" << new_entry.output << "(ch" << new_entry.channel << ")";
-    emit routing_entry_stack_changed_signal();
+    NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
 void Mixer::remove_routing_entry(int index)
@@ -118,7 +134,7 @@ void Mixer::remove_routing_entry(int index)
     {
         const auto entry = routing_entries.takeAt(index);
         qDebug() << "Removed routing entry:" << entry.track_id << "->" << entry.output << "(ch" << entry.channel << ")";
-        emit routing_entry_stack_changed_signal();
+        NN_QT_EMIT(routing_entry_stack_changed_signal());
     }
     else
     {
@@ -129,17 +145,25 @@ void Mixer::remove_routing_entry(int index)
 void Mixer::clear_routing_table()
 {
     routing_entries.clear();
-    emit routing_entry_stack_changed_signal();
+    NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
 void Mixer::note_play(const MidiNote &midi_note, int track_id)
 {
     // emit signal (note playing on track. note go to mixer)
-    emit ctx->playing_note_signal(midi_note, track_id);
+    NN_QT_EMIT(note_in_signal(midi_note, track_id));
 
+    // get active sequence from project data
+    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
+    if (!active_sequence)
+    {
+        qDebug() << "No active sequence found, cannot play note.";
+        return;
+    }
+    
     // get track of note and retrieve its program (instrument)
     int prog = 0;
-    auto track = ctx->get_track_by_id(track_id);
+    std::shared_ptr<Track> track = active_sequence->get_active_track();
     if (track)
         prog = track->instrument.value_or(0);
 
@@ -287,41 +311,57 @@ void Mixer::stop_all_notes(std::optional<int> track_id)
 
 void Mixer::mute_track(int track_id, bool mute)
 {
-    if (track_id < 0 || track_id >= ctx->tracks.size())
+    // get active sequence from project data
+    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
+    if (!active_sequence)
+    {
+        qDebug() << "No active sequence found, cannot mute track.";
+        return;
+    }
+
+    if (track_id < 0 || track_id >= active_sequence->get_tracks().size())
     {
         qWarning() << "Invalid track ID for mute operation:" << track_id;
         return;
     }
-    ctx->tracks[track_id]->muted = mute;
-    emit ctx->track_meta_changed_signal(track_id);
+    active_sequence->get_tracks()[track_id]->muted = mute;
+    NN_QT_EMIT(active_sequence->track_meta_changed_signal(track_id));
     this->stop_all_notes(track_id);
 }
 
 void Mixer::solo_track(int track_id, bool solo)
 {
-    if (track_id < 0 || track_id >= ctx->tracks.size())
+    // get active sequence from project data
+    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
+    if (!active_sequence)
+    {
+        qDebug() << "No active sequence found, cannot solo track.";
+        return;
+    }
+
+    if (track_id < 0 || track_id >= active_sequence->get_tracks().size())
     {
         qWarning() << "Invalid track ID for solo operation:" << track_id;
         return;
     }
 
-    ctx->tracks[track_id]->solo = solo;
-    emit ctx->track_meta_changed_signal(track_id);
+    active_sequence->get_tracks()[track_id]->solo = solo;
+    NN_QT_EMIT(active_sequence->track_meta_changed_signal(track_id));
 
     if (solo)
     {
-        ctx->solo_track_id = track_id;
-        for (const auto& track : ctx->tracks) {
+        active_sequence->set_solo_track_id(track_id);
+        for (const auto& track : active_sequence->get_tracks()) {
             if (track->track_id != track_id) {
                 track->solo = false; 
                 this->stop_all_notes(track->track_id);
-                emit ctx->track_meta_changed_signal(track->track_id);
+                NN_QT_EMIT(active_sequence->track_meta_changed_signal(track->track_id));
             }
         }
     }
     else
     {
-        ctx->solo_track_id = std::nullopt;  
+        active_sequence->set_solo_track_id(std::nullopt);
     }
 }
 
@@ -390,7 +430,7 @@ void Mixer::play_note_on_output(const QString &output, int ch, int note_num, int
     // emit signal (mixer playing note)
     MidiNote note_clone = midi_note;
     note_clone.velocity = velocity;
-    emit ctx->mixer_playing_note_signal(note_clone, output, ch);
+    NN_QT_EMIT(note_out_signal(note_clone, output, ch));
 }
 
 void Mixer::ensure_fluidsynth()

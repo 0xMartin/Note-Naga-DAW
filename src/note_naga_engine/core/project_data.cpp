@@ -38,7 +38,30 @@ void NoteNagaMIDISequence::clear() {
     max_tick = 0;
 }
 
-std::shared_ptr<Track> NoteNagaMIDISequence::get_track_by_id(int track_id) {
+void NoteNagaMIDISequence::set_active_track_id(std::optional<int> track_id)
+{
+    if (!track_id.has_value()) {
+        this->active_track_id.reset();
+        return;
+    }
+    if (track_id < 0 || track_id >= tracks.size()) {
+        std::cerr << "Invalid track ID: " << track_id.value() << std::endl;
+        return;
+    }
+    this->active_track_id = track_id;
+    NN_QT_EMIT(active_track_changed_signal(track_id.value()));
+}
+
+std::shared_ptr<Track> NoteNagaMIDISequence::get_active_track()
+{
+    if (active_track_id.has_value()) {
+        return get_track_by_id(*active_track_id);
+    }
+    return nullptr;
+}
+
+std::shared_ptr<Track> NoteNagaMIDISequence::get_track_by_id(int track_id)
+{
     auto it = std::find_if(tracks.begin(), tracks.end(), [track_id](const std::shared_ptr<Track>& tr) {
         return tr->track_id == track_id;
     });
@@ -309,6 +332,8 @@ bool NoteNagaProjectData::load_project(const QString &project_path)
         active_sequence_id.reset();
     }
 
+    NN_QT_EMIT(this->project_file_loaded_signal());
+
     return true;
 }
 
@@ -332,4 +357,38 @@ void NoteNagaProjectData::remove_sequence(const std::shared_ptr<NoteNagaMIDISequ
             }
         }
     }
+}
+
+int NoteNagaProjectData::compute_max_tick()
+{
+    // implement
+    return 0.0;
+}
+
+void NoteNagaProjectData::set_active_sequence_id(std::optional<int> sequence_id) 
+{ 
+    if (!sequence_id.has_value()) {
+        active_sequence_id.reset();
+        return;
+    }
+    if (sequence_id < 0 || sequence_id >= sequences.size()) {
+        std::cerr << "Invalid sequence ID: " << sequence_id.value() << std::endl;
+        return;
+    }
+    active_sequence_id = sequence_id; 
+    NN_QT_EMIT(active_sequence_changed_signal(sequence_id.value()));
+}
+
+std::shared_ptr<NoteNagaMIDISequence> NoteNagaProjectData::get_active_sequence() const
+{
+    if (active_sequence_id.has_value()) {
+        auto it = std::find_if(sequences.begin(), sequences.end(),
+            [this](const std::shared_ptr<NoteNagaMIDISequence>& seq) {
+                return seq->get_sequence_id() == *active_sequence_id;
+            });
+        if (it != sequences.end()) {
+            return *it;
+        }
+    }
+    return nullptr;
 }

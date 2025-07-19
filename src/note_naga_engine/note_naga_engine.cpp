@@ -38,7 +38,16 @@ void NoteNagaEngine::stop_playback()
 
 void NoteNagaEngine::set_playback_position(int tick)
 {
-    if (playback_worker) playback_worker->set_(tick);
+    // get active sequence from project data
+    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->project_data->get_active_sequence();
+    if (!active_sequence)
+    {
+        qDebug() << "No active sequence found, cannot set playback position.";
+        return;
+    }
+
+    playback_worker->stop();
+    active_sequence->set_current_tick(tick);
 }
 
 void NoteNagaEngine::mute_track(int track_id, bool mute)
@@ -72,36 +81,4 @@ Mixer* NoteNagaEngine::get_mixer()
 PlaybackWorker* NoteNagaEngine::get_playback_worker()
 {
     return playback_worker.get();
-}
-
-std::optional<int> NoteNagaEngine::get_active_sequence_id() const
-{
-    if (project_data)
-        return project_data->active_sequence_id;
-    return std::nullopt;
-}
-
-void NoteNagaEngine::set_active_sequence_id(int sequence_id)
-{
-    if (project_data)
-        project_data->active_sequence_id = sequence_id;
-    NN_QT_EMIT(selected_track_changed_signal(sequence_id));
-}
-
-std::shared_ptr<NoteNagaMIDISequence> NoteNagaEngine::get_active_sequence() const
-{
-    if (!project_data)
-        return nullptr;
-    auto id = project_data->active_sequence_id;
-    if (id && *id < static_cast<int>(project_data->sequences.size()))
-        return project_data->sequences[*id];
-    return nullptr;
-}
-
-std::shared_ptr<Track> NoteNagaEngine::get_track_by_id(int track_id) const
-{
-    auto seq = get_active_sequence();
-    if (seq)
-        return seq->get_track_by_id(track_id);
-    return nullptr;
 }
