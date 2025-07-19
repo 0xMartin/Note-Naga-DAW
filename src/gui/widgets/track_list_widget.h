@@ -18,14 +18,6 @@ class TrackListWidget : public QWidget {
 public:
     explicit TrackListWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
-signals:
-    void track_selected_signal(int);
-    void visibility_changed_signal(int, bool);
-    void muted_changed_signal(int, bool);
-    void color_changed_signal(int, QColor);
-    void instrument_changed_signal(int, int);
-    void name_changed_signal(int, QString); // track_index, new_name
-
 private slots:
     void _init_ui();
     void _reload_tracks();

@@ -26,11 +26,11 @@ struct TrackRountingEntry {
         : track_id(track_id), output(device), channel(channel), volume(volume), note_offset(note_offset), pan(pan) {}
 };
 
-class Mixer : public QObject {
+class NoteNagaMixer : public QObject {
     Q_OBJECT
 public:
-    explicit Mixer(std::shared_ptr<NoteNagaProjectData> projectData, const QString& sf2_path = "./FluidR3_GM.sf2");
-    ~Mixer();
+    explicit NoteNagaMixer(std::shared_ptr<NoteNagaProjectData> projectData, const QString& sf2_path = "./FluidR3_GM.sf2");
+    ~NoteNagaMixer();
 
     QVector<QString> detect_outputs();
     void close();

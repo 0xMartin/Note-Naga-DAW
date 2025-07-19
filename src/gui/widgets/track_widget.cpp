@@ -147,7 +147,6 @@ void TrackWidget::_toggle_visibility()
     if (!track) return;
 
     track->visible = !invisible_btn->isChecked();
-    emit visibility_changed_signal(track->track_id, track->visible);
     emit this->sequence->track_meta_changed_signal(track->track_id);
 }
 
@@ -174,7 +173,6 @@ void TrackWidget::_choose_color()
     if (col.isValid())
     {
         track->color = col;
-        emit color_changed_signal(track_id, col);
         emit this->sequence->track_meta_changed_signal(track_id);
     }
 }
@@ -189,7 +187,6 @@ void TrackWidget::_name_edited()
     if (new_name != track->name)
     {
         track->name = new_name;
-        emit name_changed_signal(track_id, new_name);
         emit this->sequence->track_meta_changed_signal(track_id);
     }
 }
@@ -208,7 +205,6 @@ void TrackWidget::_on_instrument_btn_clicked()
         {
             track->instrument = gm_index;
             emit this->sequence->track_meta_changed_signal(track->track_id);
-            emit instrument_changed_signal(track->track_id, gm_index);
         }
     }
 }

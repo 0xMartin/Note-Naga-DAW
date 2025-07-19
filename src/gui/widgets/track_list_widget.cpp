@@ -2,8 +2,8 @@
 #include <QMouseEvent>
 #include <QDebug>
 
-TrackListWidget::TrackListWidget(AppContext* ctx_, Mixer *mixer_, QWidget* parent)
-    : QWidget(parent), ctx(ctx_), mixer(mixer_), selected_row(-1)
+TrackListWidget::TrackListWidget(NoteNagaEngine* engine_, QWidget* parent)
+    : QWidget(parent), engine(engine_), selected_row(-1)
 {
     _init_ui();
     _reload_tracks();
@@ -58,8 +58,8 @@ void TrackListWidget::_init_ui()
     setLayout(main_layout);
 
     // Signals
-    connect(ctx, &AppContext::midi_file_loaded_signal, this, &TrackListWidget::_reload_tracks);
-    connect(ctx, &AppContext::playing_note_signal, this, &TrackListWidget::_handle_playing_note);
+    connect(engine->get_project_data().get(), NoteNagaProjectData::project_file_loaded_signal, this, &TrackListWidget::_reload_tracks);
+    connect(engine->get_mixer(), &NoteNagaMixer::note_in_signal, this, &TrackListWidget::_handle_playing_note);
 }
 
 void TrackListWidget::_reload_tracks()
@@ -78,11 +78,6 @@ void TrackListWidget::_reload_tracks()
     for (size_t idx = 0; idx < ctx->tracks.size(); ++idx) {
         auto& tr = ctx->tracks[idx];
         TrackWidget* widget = new TrackWidget(tr->track_id, ctx, mixer, container);
-        connect(widget, &TrackWidget::visibility_changed_signal, this, &TrackListWidget::visibility_changed_signal);
-        connect(widget, &TrackWidget::muted_changed_signal, this, &TrackListWidget::muted_changed_signal);
-        connect(widget, &TrackWidget::color_changed_signal, this, &TrackListWidget::color_changed_signal);
-        connect(widget, &TrackWidget::instrument_changed_signal, this, &TrackListWidget::instrument_changed_signal);
-        connect(widget, &TrackWidget::name_changed_signal, this, &TrackListWidget::name_changed_signal);
 
         // Selection handling via event filter
         widget->installEventFilter(this);

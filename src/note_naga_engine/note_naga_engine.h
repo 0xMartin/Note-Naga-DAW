@@ -33,14 +33,14 @@ public:
     void solo_track(int track_id, bool solo = true);
 
     // --- Getters & Setters ---
-    std::shared_ptr<NoteNagaProjectData> get_project_data();
+    std::shared_ptr<NoteNagaProjectData> get_project_data() { return this->project_data; }
     void set_project_data(const std::shared_ptr<NoteNagaProjectData>& data);
 
-    Mixer* get_mixer();
-    PlaybackWorker* get_playback_worker();
+    NoteNagaMixer* get_mixer() { return this->mixer.get(); }
+    PlaybackWorker* get_playback_worker() { this->playback_worker.get(); }
 
 protected:
     std::shared_ptr<NoteNagaProjectData> project_data;
-    std::unique_ptr<Mixer> mixer;
+    std::unique_ptr<NoteNagaMixer> mixer;
     std::unique_ptr<PlaybackWorker> playback_worker;
 };

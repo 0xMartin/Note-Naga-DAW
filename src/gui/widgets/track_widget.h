@@ -22,17 +22,13 @@ class TrackWidget : public QFrame {
 public:
     explicit TrackWidget(NoteNagaEngine* engine, std::shared_ptr<NoteNagaMIDISequence> sequence, int track_id, QWidget* parent = nullptr);
 
-    int get_track_id() const { return track->track_id; }
+    std::shared_ptr<NoteNagaMIDISequence> getSequence() const { return this->sequence; }
+    int get_track_id() const { return this->track_id; }
     VolumeBar* get_volume_bar() const { return volume_bar; }
 
     void refresh_style(bool selected);
 
 signals:
-    void instrument_changed_signal(int track_id, int instrument_index);
-    void visibility_changed_signal(int track_id, bool visible);
-    void muted_changed_signal(int track_id, bool muted);
-    void color_changed_signal(int track_id, QColor color);
-    void name_changed_signal(int track_id, QString new_name);
     void clicked(int track_id);
 
 protected:

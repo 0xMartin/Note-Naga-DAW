@@ -62,23 +62,8 @@ void NoteNagaEngine::solo_track(int track_id, bool solo)
         mixer->solo_track(track_id, solo);
 }
 
-std::shared_ptr<NoteNagaProjectData> NoteNagaEngine::get_project_data()
-{
-    return project_data;
-}
-
 void NoteNagaEngine::set_project_data(const std::shared_ptr<NoteNagaProjectData>& data)
 {
     project_data = data;
     // Reinitialize mixer and playback worker with new project data if needed
-}
-
-Mixer* NoteNagaEngine::get_mixer()
-{
-    return mixer.get();
-}
-
-PlaybackWorker* NoteNagaEngine::get_playback_worker()
-{
-    return playback_worker.get();
 }

@@ -5,7 +5,7 @@
 #include <QString>
 #include <algorithm>
 
-Mixer::Mixer(std::shared_ptr<NoteNagaProjectData> projectData, const QString &sf2_path)
+NoteNagaMixer::NoteNagaMixer(std::shared_ptr<NoteNagaProjectData> projectData, const QString &sf2_path)
     : QObject(nullptr),
       projectData(projectData),
       sf2_path(sf2_path),
@@ -18,7 +18,7 @@ Mixer::Mixer(std::shared_ptr<NoteNagaProjectData> projectData, const QString &sf
       master_note_offset(0),
       master_pan(0.0f)
 {
-    connect(projectData.get(), &NoteNagaProjectData::project_file_loaded_signal, this, &Mixer::create_default_routing);
+    connect(projectData.get(), &NoteNagaProjectData::project_file_loaded_signal, this, &NoteNagaMixer::create_default_routing);
     ensure_fluidsynth();
     available_outputs = detect_outputs();
     default_output = available_outputs.contains("fluidsynth")
@@ -26,12 +26,12 @@ Mixer::Mixer(std::shared_ptr<NoteNagaProjectData> projectData, const QString &sf
                          : (available_outputs.isEmpty() ? QString() : available_outputs.first());
 }
 
-Mixer::~Mixer()
+NoteNagaMixer::~NoteNagaMixer()
 {
     close();
 }
 
-QVector<QString> Mixer::detect_outputs()
+QVector<QString> NoteNagaMixer::detect_outputs()
 {
     QVector<QString> outputs;
 
@@ -56,7 +56,7 @@ QVector<QString> Mixer::detect_outputs()
     return outputs;
 }
 
-void Mixer::create_default_routing()
+void NoteNagaMixer::create_default_routing()
 {
     routing_entries.clear();
 
@@ -98,13 +98,13 @@ void Mixer::create_default_routing()
     NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
-void Mixer::set_routing(const QVector<TrackRountingEntry> &entries)
+void NoteNagaMixer::set_routing(const QVector<TrackRountingEntry> &entries)
 {
     routing_entries = entries;
     NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
-void Mixer::add_routing_entry(const TrackRountingEntry &entry)
+void NoteNagaMixer::add_routing_entry(const TrackRountingEntry &entry)
 {
     // get active sequence from project data
     std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
@@ -128,7 +128,7 @@ void Mixer::add_routing_entry(const TrackRountingEntry &entry)
     NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
-void Mixer::remove_routing_entry(int index)
+void NoteNagaMixer::remove_routing_entry(int index)
 {
     if (index >= 0 && index < routing_entries.size())
     {
@@ -142,15 +142,15 @@ void Mixer::remove_routing_entry(int index)
     }
 }
 
-void Mixer::clear_routing_table()
+void NoteNagaMixer::clear_routing_table()
 {
     routing_entries.clear();
     NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
-void Mixer::note_play(const MidiNote &midi_note, int track_id)
+void NoteNagaMixer::note_play(const MidiNote &midi_note, int track_id)
 {
-    // emit signal (note playing on track. note go to mixer)
+    // emit signal (note playing on track. note go to NoteNagaMixer)
     NN_QT_EMIT(note_in_signal(midi_note, track_id));
 
     // get active sequence from project data
@@ -212,7 +212,7 @@ void Mixer::note_play(const MidiNote &midi_note, int track_id)
     }
 }
 
-void Mixer::note_stop(const MidiNote &midi_note)
+void NoteNagaMixer::note_stop(const MidiNote &midi_note)
 {
     int note_id = midi_note.note_id;
     for (auto dev_it = playing_notes.begin(); dev_it != playing_notes.end(); ++dev_it)
@@ -255,7 +255,7 @@ void Mixer::note_stop(const MidiNote &midi_note)
     }
 }
 
-void Mixer::stop_all_notes(std::optional<int> track_id)
+void NoteNagaMixer::stop_all_notes(std::optional<int> track_id)
 {
     for (auto dev_it = playing_notes.begin(); dev_it != playing_notes.end(); ++dev_it)
     {
@@ -309,7 +309,7 @@ void Mixer::stop_all_notes(std::optional<int> track_id)
     }
 }
 
-void Mixer::mute_track(int track_id, bool mute)
+void NoteNagaMixer::mute_track(int track_id, bool mute)
 {
     // get active sequence from project data
     std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
@@ -329,7 +329,7 @@ void Mixer::mute_track(int track_id, bool mute)
     this->stop_all_notes(track_id);
 }
 
-void Mixer::solo_track(int track_id, bool solo)
+void NoteNagaMixer::solo_track(int track_id, bool solo)
 {
     // get active sequence from project data
     std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
@@ -365,7 +365,7 @@ void Mixer::solo_track(int track_id, bool solo)
     }
 }
 
-void Mixer::play_note_on_output(const QString &output, int ch, int note_num, int velocity, int prog, int pan_cc, const MidiNote &midi_note)
+void NoteNagaMixer::play_note_on_output(const QString &output, int ch, int note_num, int velocity, int prog, int pan_cc, const MidiNote &midi_note)
 {
     // skip if note is already playing on this output device
     if (playing_notes.value(output).value(ch).contains(note_num))
@@ -427,30 +427,30 @@ void Mixer::play_note_on_output(const QString &output, int ch, int note_num, int
     int note_id = midi_note.note_id;
     playing_notes[output][ch][note_num] = note_id;
 
-    // emit signal (mixer playing note)
+    // emit signal (NoteNagaMixer playing note)
     MidiNote note_clone = midi_note;
     note_clone.velocity = velocity;
     NN_QT_EMIT(note_out_signal(note_clone, output, ch));
 }
 
-void Mixer::ensure_fluidsynth()
+void NoteNagaMixer::ensure_fluidsynth()
 {
     if (!fluidsynth)
     {
         synth_settings = new_fluid_settings();
         fluidsynth = new_fluid_synth(synth_settings);
         int sfid = fluid_synth_sfload(fluidsynth, sf2_path.toStdString().c_str(), 1);
-        qDebug() << "Mixer: SoundFont loaded, sfid=" << sfid << "from" << sf2_path;
+        qDebug() << "NoteNagaMixer: SoundFont loaded, sfid=" << sfid << "from" << sf2_path;
 
         this->audio_driver = new_fluid_audio_driver(synth_settings, fluidsynth);
         if (!audio_driver)
         {
-            qWarning() << "Mixer: FluidSynth audio driver could not be started!";
+            qWarning() << "NoteNagaMixer: FluidSynth audio driver could not be started!";
         }
     }
 }
 
-RtMidiOut *Mixer::ensure_midi_output(const QString &output)
+RtMidiOut *NoteNagaMixer::ensure_midi_output(const QString &output)
 {
     if (midi_outputs.contains(output))
         return midi_outputs.value(output);
@@ -476,27 +476,27 @@ RtMidiOut *Mixer::ensure_midi_output(const QString &output)
     return nullptr;
 }
 
-void Mixer::close()
+void NoteNagaMixer::close()
 {
-    qDebug() << "Mixer: Closing and cleaning up resources...";
+    qDebug() << "NoteNagaMixer: Closing and cleaning up resources...";
 
     if (audio_driver)
     {
         delete_fluid_audio_driver(audio_driver);
         audio_driver = nullptr;
-        qDebug() << "Mixer: FluidSynth audio driver deleted.";
+        qDebug() << "NoteNagaMixer: FluidSynth audio driver deleted.";
     }
     if (fluidsynth)
     {
         delete_fluid_synth(fluidsynth);
         fluidsynth = nullptr;
-        qDebug() << "Mixer: FluidSynth instance closed.";
+        qDebug() << "NoteNagaMixer: FluidSynth instance closed.";
     }
     if (synth_settings)
     {
         delete_fluid_settings(synth_settings);
         synth_settings = nullptr;
-        qDebug() << "Mixer: FluidSynth settings deleted.";
+        qDebug() << "NoteNagaMixer: FluidSynth settings deleted.";
     }
 
     for (auto it = midi_outputs.begin(); it != midi_outputs.end(); ++it)
@@ -507,24 +507,24 @@ void Mixer::close()
         }
         else
         {
-            qDebug() << "Mixer: RtMidiOut for" << it.key() << "was null.";
+            qDebug() << "NoteNagaMixer: RtMidiOut for" << it.key() << "was null.";
         }
     }
     midi_outputs.clear();
     playing_notes.clear();
     channel_states.clear();
-    qDebug() << "Mixer: All resources cleaned up.";
+    qDebug() << "NoteNagaMixer: All resources cleaned up.";
 }
 
-QVector<TrackRountingEntry> &Mixer::get_routing_entries()
+QVector<TrackRountingEntry> &NoteNagaMixer::get_routing_entries()
 {
     return routing_entries;
 }
-QVector<QString> Mixer::get_available_outputs()
+QVector<QString> NoteNagaMixer::get_available_outputs()
 {
     return available_outputs;
 }
-QString Mixer::get_default_output()
+QString NoteNagaMixer::get_default_output()
 {
     return default_output;
 }

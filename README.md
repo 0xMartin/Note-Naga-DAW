@@ -1,15 +1,20 @@
 ## Build 
 
-1. opravit chyb v UI (aby to vypadalo stejne jak predtim)
-   1. custom tile bar pro QDock widgety..
-   2. Dock Panel Nefunguje jak by mel: reset layout, nachyta se presne na dane pozice jak by mel
+0. predelavka struktury na gui a engine
+   1. zprovoznit vsechno
+   2. zprovoznit direktivu enginu na komplet deaktivaci Qt
+   3. zdrojovy kod enginu presunout do samostatne slozky + samostatny cmake
 
-2. refactoring celeho kodu.. 
+1. refactoring celeho kodu.. 
    1. std::stared_ptr + not null kontrola
    2. vstupde pouzivat optional kde to je mozne
    3. nazvy netridnitch metod: snake_case, tridnich: camelCase
    4. odstranit nadbitence pradne sloty volajici 1 metodu
    5. vsechny signaly zapis timto stylem: visibilityChangedSignal(int, bool);
+
+2. opravit chyb v UI (aby to vypadalo stejne jak predtim)
+   1. custom tile bar pro QDock widgety..
+   2. Dock Panel Nefunguje jak by mel: reset layout, nachyta se presne na dane pozice jak by mel
 
 ----
 NOVE FUNKCE:
