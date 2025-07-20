@@ -6,12 +6,13 @@
 #include <optional>
 #include <QString>
 
-#include "core/project_data.h"
+#include "note_naga_api.h"
 #include "core/types.h"
+#include "core/project_data.h"
 #include "core/mixer.h"
 #include "worker/playback_worker.h"
 
-class NoteNagaEngine : public QObject
+class NOTE_NAGA_ENGINE_API NoteNagaEngine : public QObject
 {
     Q_OBJECT
 
@@ -29,16 +30,16 @@ public:
     void set_playback_position(int tick);
 
     // --- Mixer Control ---
-    void mute_track(int track_id, bool mute = true);
-    void solo_track(int track_id, bool solo = true);
+    void mute_track(NoteNagaTrack* track, bool mute = true);
+    void solo_track(NoteNagaTrack* track, bool solo = true);
 
     // --- Getters for main components ---
-    std::shared_ptr<NoteNagaProject> get_project() { return this->project_data; }
-    NoteNagaMixer* get_mixer() { return this->mixer.get(); }
-    PlaybackWorker* get_playback_worker() { this->playback_worker.get(); }
+    NoteNagaProject* get_project() { return this->project; }
+    NoteNagaMixer* get_mixer() { return this->mixer; }
+    PlaybackWorker* get_playback_worker() { return this->playback_worker; }
 
 protected:
-    std::shared_ptr<NoteNagaProject> project_data;
-    std::unique_ptr<NoteNagaMixer> mixer;
-    std::unique_ptr<PlaybackWorker> playback_worker;
+    NoteNagaProject *project;
+    NoteNagaMixer *mixer;
+    PlaybackWorker *playback_worker;
 };

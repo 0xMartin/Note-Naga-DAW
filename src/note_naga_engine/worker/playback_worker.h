@@ -5,17 +5,18 @@
 #include <functional>
 #include <chrono>
 
+#include "note_naga_api.h"
 #include "project_data.h"
 #include "mixer.h"
 
 // PlaybackWorker manages playback in a separate thread.
 // It emits signals when playback finishes and playing state changes.
 
-class PlaybackWorker : public QObject
+class NOTE_NAGA_ENGINE_API PlaybackWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit PlaybackWorker(std::shared_ptr<NoteNagaProject> projectData, Mixer * mixer, double timer_interval_ms, QObject* parent = nullptr);
+    explicit PlaybackWorker(NoteNagaProject *project, NoteNagaMixer * mixer, double timer_interval_ms, QObject* parent = nullptr);
 
     bool is_playing() const { return playing; }
     void recalculate_worker_tempo();
@@ -31,8 +32,8 @@ private slots:
     void cleanup_thread();
 
 private:
-    std::shared_ptr<NoteNagaProject> projectData;
-    Mixer *mixer;
+    NoteNagaProject *project;
+    NoteNagaMixer *mixer;
 
     double timer_interval;
     bool playing;
@@ -41,11 +42,11 @@ private:
     bool should_stop;
 };
 
-class PlaybackThreadWorker : public QObject
+class NOTE_NAGA_ENGINE_API PlaybackThreadWorker : public QObject
 {
     Q_OBJECT
 public:
-    PlaybackThreadWorker(std::shared_ptr<NoteNagaProject> projectData, Mixer *mixer, double timer_interval);
+    PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMixer *mixer, double timer_interval);
     void recalculate_tempo();
     void stop();
 
@@ -57,8 +58,8 @@ signals:
     void on_position_changed_signal(int current_tick);
 
 private:
-    std::shared_ptr<NoteNagaProject> projectData;
-    Mixer *mixer;
+    NoteNagaProject *project;
+    NoteNagaMixer *mixer;
     
     double timer_interval;
     double ms_per_tick;

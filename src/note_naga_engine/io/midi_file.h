@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <map>
 
+#include "note_naga_api.h"
+
 // MIDI Meta Event Types
 #define MIDI_META_SEQUENCE_NUMBER   0x00
 #define MIDI_META_TEXT_EVENT        0x01
@@ -25,7 +27,7 @@
 #define MIDI_META_SEQ_SPECIFIC      0x7F
 
 // --- MIDI Event Types ---
-enum class MidiEventType {
+enum class NOTE_NAGA_ENGINE_API MidiEventType {
     NoteOn,
     NoteOff,
     PolyAftertouch,
@@ -38,7 +40,7 @@ enum class MidiEventType {
     Unknown
 };
 
-struct MidiEvent {
+struct NOTE_NAGA_ENGINE_API MidiEvent {
     uint32_t delta_time = 0;
     MidiEventType type = MidiEventType::Unknown;
     uint8_t channel = 0; // 0-15 for channel events
@@ -52,17 +54,17 @@ struct MidiEvent {
     std::vector<uint8_t> sysex_data;
 };
 
-struct MidiTrack {
+struct NOTE_NAGA_ENGINE_API MidiTrack {
     std::vector<MidiEvent> events;
 };
 
-struct MidiFileHeader {
+struct NOTE_NAGA_ENGINE_API MidiFileHeader {
     uint16_t format = 1; // 0, 1 or 2
     uint16_t nTracks = 0;
     uint16_t division = 480; // ticks per quarter note
 };
 
-class MidiFile {
+class NOTE_NAGA_ENGINE_API MidiFile {
 public:
     MidiFile();
     bool load(const std::string& filename);

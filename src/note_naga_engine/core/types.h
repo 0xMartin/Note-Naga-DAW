@@ -6,6 +6,7 @@
 #include <vector>
 #include <optional>
 
+#include "note_naga_api.h"
 #include "../io/midi_file.h"
 
 // comment to disable Qt support
@@ -19,11 +20,11 @@
 #endif
 
 // ---------- Forwards declarations ----------
-class NoteNagaTrack;
-class NoteNagaMIDISeq;
+class NOTE_NAGA_ENGINE_API NoteNagaTrack;
+class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq;
 
 // ---------- NoteNagaNote ----------
-struct NoteNagaNote
+struct NOTE_NAGA_ENGINE_API NoteNagaNote
 {
     // Required for unique identification
     int note_id;
@@ -52,11 +53,11 @@ struct NoteNagaNote
           velocity(velocity_), note_id(generate_random_id()), parent(parent_) {}
 };
 
-double note_time_ms(const NoteNagaNote &note, int ppq, int tempo);
-int generate_random_id();
+NOTE_NAGA_ENGINE_API double note_time_ms(const NoteNagaNote &note, int ppq, int tempo);
+NOTE_NAGA_ENGINE_API int generate_random_id();
 
 // ---------- NoteNagaTrack ----------
-class NoteNagaTrack : public QObject
+class NOTE_NAGA_ENGINE_API NoteNagaTrack : public QObject
 {
     Q_OBJECT
 public:
@@ -94,7 +95,7 @@ public:
     void set_volume(float new_volume);
 
 Q_SIGNALS:
-    void meta_changed_signal(int track_id, const QString &param);
+    void meta_changed_signal(NoteNagaTrack *track, const QString &param);
 
 protected:
     // META data
@@ -116,7 +117,7 @@ protected:
 };
 
 // ---------- Note Naga MIDI file Sequence ----------
-class NoteNagaMIDISeq : public QObject
+class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq : public QObject
 {
     Q_OBJECT
 
@@ -136,7 +137,6 @@ public:
     int get_id() const { return sequence_id; }
     int get_ppq() const { return ppq; }
     int get_tempo() const { return tempo; }
-    int get_current_tick() const { return current_tick; }
     int get_max_tick() const { return max_tick; }
     std::optional<int> get_active_track_id() const { return active_track_id; }
     NoteNagaTrack* get_active_track();
@@ -148,14 +148,13 @@ public:
     void set_id(int new_id);
     void set_ppq(int ppq);
     void set_tempo(int tempo);
-    void set_current_tick(int tick);
     void set_active_track_id(std::optional<int> track_id);
     void set_solo_track_id(std::optional<int> track_id);
 
 Q_SIGNALS:
-    void meta_changed_signal(int sequence_id, const QString &param);
-    void track_meta_changed_signal(int track_id, const QString &param);
-    void active_track_changed_signal(int track_id);
+    void meta_changed_signal(NoteNagaMIDISeq *seq, const QString &param);
+    void track_meta_changed_signal(NoteNagaTrack *track, const QString &param);
+    void active_track_changed_signal(NoteNagaTrack *track);
 
 protected:
     int sequence_id;
@@ -167,29 +166,28 @@ protected:
 
     int ppq;
     int tempo;
-    int current_tick;
     int max_tick;
 };
 
 // ---------- Channel colors ----------
-extern const std::vector<QColor> DEFAULT_CHANNEL_COLORS;
+NOTE_NAGA_ENGINE_API extern const std::vector<QColor> DEFAULT_CHANNEL_COLORS;
 
-QColor color_blend(const QColor &fg, const QColor &bg, double opacity);
+NOTE_NAGA_ENGINE_API QColor color_blend(const QColor &fg, const QColor &bg, double opacity);
 
 // ---------- GM Instruments ----------
-struct GMInstrument
+struct NOTE_NAGA_ENGINE_API GMInstrument
 {
     int index;
     QString name;
     QString icon;
 };
-extern const std::vector<GMInstrument> GM_INSTRUMENTS;
+NOTE_NAGA_ENGINE_API extern const std::vector<GMInstrument> GM_INSTRUMENTS;
 
-std::optional<GMInstrument> find_instrument_by_name(const QString &name);
-std::optional<GMInstrument> find_instrument_by_index(int index);
+NOTE_NAGA_ENGINE_API std::optional<GMInstrument> find_instrument_by_name(const QString &name);
+NOTE_NAGA_ENGINE_API std::optional<GMInstrument> find_instrument_by_index(int index);
 
 // ---------- Note names ----------
-extern const std::vector<QString> NOTE_NAMES;
+NOTE_NAGA_ENGINE_API extern const std::vector<QString> NOTE_NAMES;
 
-QString note_name(int n);
-int index_in_octave(int n);
+NOTE_NAGA_ENGINE_API QString note_name(int n);
+NOTE_NAGA_ENGINE_API int index_in_octave(int n);

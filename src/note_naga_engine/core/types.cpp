@@ -67,7 +67,7 @@ void NoteNagaTrack::set_instrument(std::optional<int> instrument)
     if (this->instrument == instrument)
         return;
     this->instrument = instrument;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "instrument"));
+    NN_QT_EMIT(meta_changed_signal(this, "instrument"));
 }
 
 void NoteNagaTrack::set_channel(std::optional<int> channel)
@@ -75,7 +75,7 @@ void NoteNagaTrack::set_channel(std::optional<int> channel)
     if (this->channel == channel)
         return;
     this->channel = channel;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "channel"));
+    NN_QT_EMIT(meta_changed_signal(this, "channel"));
 }
 
 void NoteNagaTrack::set_id(int new_id)
@@ -83,7 +83,7 @@ void NoteNagaTrack::set_id(int new_id)
     if (this->track_id == new_id)
         return;
     this->track_id = new_id;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "id"));
+    NN_QT_EMIT(meta_changed_signal(this, "id"));
 }
 
 void NoteNagaTrack::set_name(const QString &new_name)
@@ -91,7 +91,7 @@ void NoteNagaTrack::set_name(const QString &new_name)
     if (this->name == new_name)
         return;
     this->name = new_name;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "name"));
+    NN_QT_EMIT(meta_changed_signal(this, "name"));
 }
 
 void NoteNagaTrack::set_color(const QColor &new_color)
@@ -99,7 +99,7 @@ void NoteNagaTrack::set_color(const QColor &new_color)
     if (this->color == new_color)
         return;
     this->color = new_color;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "color"));
+    NN_QT_EMIT(meta_changed_signal(this, "color"));
 }
 
 void NoteNagaTrack::set_visible(bool is_visible)
@@ -107,7 +107,7 @@ void NoteNagaTrack::set_visible(bool is_visible)
     if (this->visible == is_visible)
         return;
     this->visible = is_visible;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "visible"));
+    NN_QT_EMIT(meta_changed_signal(this, "visible"));
 }
 
 void NoteNagaTrack::set_muted(bool is_muted)
@@ -115,7 +115,7 @@ void NoteNagaTrack::set_muted(bool is_muted)
     if (this->muted == is_muted)
         return;
     this->muted = is_muted;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "muted"));
+    NN_QT_EMIT(meta_changed_signal(this, "muted"));
 }
 
 void NoteNagaTrack::set_solo(bool is_solo)
@@ -123,7 +123,7 @@ void NoteNagaTrack::set_solo(bool is_solo)
     if (this->solo == is_solo)
         return;
     this->solo = is_solo;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "solo"));
+    NN_QT_EMIT(meta_changed_signal(this, "solo"));
 }
 
 void NoteNagaTrack::set_volume(float new_volume)
@@ -131,7 +131,7 @@ void NoteNagaTrack::set_volume(float new_volume)
     if (this->volume == new_volume)
         return;
     this->volume = new_volume;
-    NN_QT_EMIT(meta_changed_signal(this->track_id, "volume"));
+    NN_QT_EMIT(meta_changed_signal(this, "volume"));
 }
 
 // ---------- Note Naga MIDI file Sequence ----------
@@ -176,7 +176,6 @@ void NoteNagaMIDISeq::clear()
     ppq = 480;
     tempo = 500000;
     active_track_id.reset();
-    current_tick = 0;
     max_tick = 0;
 }
 
@@ -193,7 +192,7 @@ void NoteNagaMIDISeq::set_active_track_id(std::optional<int> track_id)
         return;
     }
     this->active_track_id = track_id;
-    NN_QT_EMIT(active_track_changed_signal(track_id.value()));
+    NN_QT_EMIT(active_track_changed_signal(get_track_by_id(track_id.value())));
 }
 
 NoteNagaTrack* NoteNagaMIDISeq::get_active_track()
@@ -216,16 +215,16 @@ NoteNagaTrack* NoteNagaMIDISeq::get_track_by_id(int track_id)
 
 int NoteNagaMIDISeq::compute_max_tick()
 {
-    max_tick = 0;
+    this->max_tick = 0;
     for (const auto &track : tracks)
     {
         for (const auto &note : track->get_notes())
         {
             if (note.start.has_value() && note.length.has_value())
-                max_tick = std::max(max_tick, note.start.value() + note.length.value());
+                this->max_tick = std::max(this->max_tick, note.start.value() + note.length.value());
         }
     }
-    return max_tick;
+    return this->max_tick;
 }
 
 void NoteNagaMIDISeq::load_from_midi(const QString &midi_file_path)
@@ -499,7 +498,7 @@ void NoteNagaMIDISeq::set_id(int new_id)
     if (this->sequence_id == new_id)
         return;
     sequence_id = new_id;
-    NN_QT_EMIT(meta_changed_signal(this->sequence_id, "id"));
+    NN_QT_EMIT(meta_changed_signal(this, "id"));
 }
 
 void NoteNagaMIDISeq::set_ppq(int ppq)
@@ -507,7 +506,7 @@ void NoteNagaMIDISeq::set_ppq(int ppq)
     if (this->ppq == ppq)
         return;
     this->ppq = ppq;
-    NN_QT_EMIT(meta_changed_signal(this->sequence_id, "ppq"));
+    NN_QT_EMIT(meta_changed_signal(this, "ppq"));
 }
 
 void NoteNagaMIDISeq::set_tempo(int tempo)
@@ -515,15 +514,7 @@ void NoteNagaMIDISeq::set_tempo(int tempo)
     if (this->tempo == tempo)
         return;
     this->tempo = tempo;
-    NN_QT_EMIT(meta_changed_signal(this->sequence_id, "tempo"));
-}
-
-void NoteNagaMIDISeq::set_current_tick(int tick)
-{
-    if (this->current_tick == tick)
-        return;
-    current_tick = tick;
-    NN_QT_EMIT(meta_changed_signal(this->sequence_id, "current_tick"));
+    NN_QT_EMIT(meta_changed_signal(this, "tempo"));
 }
 
 void NoteNagaMIDISeq::set_active_track_id(std::optional<int> track_id)
@@ -531,7 +522,7 @@ void NoteNagaMIDISeq::set_active_track_id(std::optional<int> track_id)
     if (this->active_track_id == track_id)
         return;
     active_track_id = track_id;
-    NN_QT_EMIT(meta_changed_signal(this->sequence_id, "active_track_id"));
+    NN_QT_EMIT(meta_changed_signal(this, "active_track_id"));
 }
 
 void NoteNagaMIDISeq::set_solo_track_id(std::optional<int> track_id)
@@ -539,7 +530,7 @@ void NoteNagaMIDISeq::set_solo_track_id(std::optional<int> track_id)
     if (this->solo_track_id == track_id)
         return;
     solo_track_id = track_id;
-    NN_QT_EMIT(meta_changed_signal(this->sequence_id, "solo_track_id"));
+    NN_QT_EMIT(meta_changed_signal(this, "solo_track_id"));
 }
 
 // ---------- Channel colors ----------

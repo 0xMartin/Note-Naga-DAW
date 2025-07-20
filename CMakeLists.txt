@@ -52,6 +52,7 @@ set(HEADER_FILES
     src/gui/widgets/track_mixer_widget.h
     src/gui/widgets/track_widget.h
     # note_naga_engine
+    src/note_naga_engine/note_naga_api.h
     src/note_naga_engine/note_naga_engine.h
     # note_naga_engine/core
     src/note_naga_engine/core/mixer.h

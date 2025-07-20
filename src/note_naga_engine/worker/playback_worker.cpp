@@ -6,12 +6,12 @@
 #include <chrono>
 #include <thread>
 
-// --- PlaybackWorker Implementation ---
+// --- PlaybackWorker ---
 
-PlaybackWorker::PlaybackWorker(std::shared_ptr<NoteNagaProjectData> projectData, Mixer *mixer, double timer_interval_ms,
+PlaybackWorker::PlaybackWorker(NoteNagaProject *project, NoteNagaMixer *mixer, double timer_interval_ms,
                                QObject *parent)
     : QObject(parent),
-      projectData(projectData),
+      project(project),
       mixer(mixer),
       timer_interval(timer_interval_ms / 1000.0),
       playing(false),
@@ -38,7 +38,7 @@ bool PlaybackWorker::play()
         qDebug() << "PlaybackWorker: Already playing.";
         return false;
     }
-    if (!projectData)
+    if (!project)
     {
         qDebug() << "PlaybackWorker: No project data available.";
         return false;
@@ -46,7 +46,7 @@ bool PlaybackWorker::play()
     qDebug() << "PlaybackWorker: Starting playback.";
 
     thread = new QThread;
-    worker = new PlaybackThreadWorker(projectData, mixer, timer_interval);
+    worker = new PlaybackThreadWorker(project, mixer, timer_interval);
     worker->moveToThread(thread);
     connect(thread, &QThread::started, worker, &PlaybackThreadWorker::run);
     connect(worker, &PlaybackThreadWorker::finished_signal, thread, &QThread::quit);
@@ -97,11 +97,11 @@ void PlaybackWorker::cleanup_thread()
     NN_QT_EMIT(playing_state_changed_signal(playing));
 }
 
-// --- PlaybackThreadWorker Implementation ---
+// --- PlaybackThreadWorker ---
 
-PlaybackThreadWorker::PlaybackThreadWorker(std::shared_ptr<NoteNagaProjectData> projectData, Mixer *mixer, double timer_interval)
+PlaybackThreadWorker::PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMixer *mixer, double timer_interval)
     : QObject(nullptr),
-      projectData(projectData),
+      project(project),
       mixer(mixer),
       timer_interval(timer_interval),
       ms_per_tick(1.0),
@@ -111,16 +111,8 @@ PlaybackThreadWorker::PlaybackThreadWorker(std::shared_ptr<NoteNagaProjectData> 
 
 void PlaybackThreadWorker::recalculate_tempo()
 {
-    // get active sequence from project data
-    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
-    if (!active_sequence)
-    {
-        qDebug() << "No active sequence found, cannot recalculate tempo";
-        return;
-    }
-
-    int current_tick = active_sequence->get_current_tick();
-    double us_per_tick = static_cast<double>(active_sequence->get_tempo()) / active_sequence->get_ppq();
+    int current_tick = this->project->get_current_tick();
+    double us_per_tick = static_cast<double>(this->project->get_tempo()) / this->project->get_ppq();
     ms_per_tick = us_per_tick / 1000.0;
     start_time_point = std::chrono::high_resolution_clock::now();
     start_tick_at_start = current_tick;
@@ -131,14 +123,14 @@ void PlaybackThreadWorker::run()
     qDebug() << "PlaybackThreadWorker: run() start";
 
     // get active sequence from project data
-    std::shared_ptr<NoteNagaMIDISequence> active_sequence = this->projectData->get_active_sequence();
+    NoteNagaMIDISeq *active_sequence = this->project->get_active_sequence();
     if (!active_sequence)
     {
         qDebug() << "No active sequence found, cannot run playback worker.";
         return;
     }
 
-    int current_tick = active_sequence->get_current_tick();
+    int current_tick = this->project->get_current_tick();
     recalculate_tempo();
 
     using clock = std::chrono::high_resolution_clock;
@@ -166,12 +158,12 @@ void PlaybackThreadWorker::run()
             auto track = active_sequence->get_active_track();
             if (track)
             {
-                for (const auto &note : track->midi_notes)
+                for (const auto &note : track->get_notes())
                 {
                     if (note.start.has_value() && note.length.has_value())
                     {
                         if (last_tick < note.start.value() && note.start.value() <= current_tick)
-                            mixer->note_play(note, track->track_id);
+                            mixer->note_play(note);
                         if (last_tick < note.start.value() + note.length.value() && note.start.value() + note.length.value() <= current_tick)
                             mixer->note_stop(note);
                     }
@@ -184,15 +176,15 @@ void PlaybackThreadWorker::run()
             for (const auto &track : active_sequence->get_tracks())
             {
                 // Skip muted tracks
-                if (track->muted)
+                if (track->is_muted())
                     continue;
                 // send all note on / off events to mixer
-                for (const auto &note : track->midi_notes)
+                for (const auto &note : track->get_notes())
                 {
                     if (note.start.has_value() && note.length.has_value())
                     {
                         if (last_tick < note.start.value() && note.start.value() <= current_tick)
-                            mixer->note_play(note, track->track_id);
+                            mixer->note_play(note);
                         if (last_tick < note.start.value() + note.length.value() && note.start.value() + note.length.value() <= current_tick)
                             mixer->note_stop(note);
                     }
