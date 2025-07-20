@@ -13,11 +13,6 @@ NoteNagaEngine::~NoteNagaEngine()
     if (playback_worker) playback_worker->stop();
     if (mixer) mixer->close();
 
-    if (project) 
-    {
-        delete project;
-        project = nullptr;
-    }
     if (mixer) 
     {
         delete mixer;
@@ -28,6 +23,12 @@ NoteNagaEngine::~NoteNagaEngine()
         delete playback_worker;
         playback_worker = nullptr;
     }
+    if (project) 
+    {
+        delete project;
+        project = nullptr;
+    }
+
 }
 
 bool NoteNagaEngine::init()
@@ -55,16 +56,8 @@ void NoteNagaEngine::stop_playback()
 
 void NoteNagaEngine::set_playback_position(int tick)
 {
-    // get active sequence from project data
-    NoteNagaMIDISeq *active_sequence = this->project->get_active_sequence();
-    if (!active_sequence)
-    {
-        qDebug() << "No active sequence found, cannot set playback position.";
-        return;
-    }
-
     playback_worker->stop();
-    active_sequence->set_current_tick(tick);
+    this->project->set_current_tick(tick);
 }
 
 void NoteNagaEngine::mute_track(NoteNagaTrack* track, bool mute)

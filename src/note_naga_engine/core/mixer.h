@@ -53,8 +53,8 @@ public:
 
     void set_routing(const std::vector<NoteNagaRoutingEntry>& entries);
     std::vector<NoteNagaRoutingEntry>& get_routing_entries() { return routing_entries; }
-    void add_routing_entry(const NoteNagaRoutingEntry& entry);
-    void remove_routing_entry(int index);
+    bool add_routing_entry(const std::optional<NoteNagaRoutingEntry> &entry = std::nullopt);
+    bool remove_routing_entry(int index);
     void clear_routing_table();
 
     std::vector<QString> get_available_outputs() { return available_outputs; }

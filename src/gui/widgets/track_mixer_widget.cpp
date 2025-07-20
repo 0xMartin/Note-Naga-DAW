@@ -5,8 +5,8 @@ TrackMixerWidget::TrackMixerWidget(NoteNagaEngine* engine_, QWidget* parent)
     : QWidget(parent), engine(engine_), selected_entry_index(-1), selected_row(-1)
 {
     setObjectName("TrackMixerWidget");
-    connect(ctx, &AppContext::mixer_playing_note_signal, this, &TrackMixerWidget::_handle_playing_note);
-    connect(mixer, &Mixer::routing_entry_stack_changed_signal, this, &TrackMixerWidget::refresh_routing_table);
+    connect(engine->get_mixer(), &NoteNagaMixer::note_out_signal, this, &TrackMixerWidget::_handle_playing_note);
+    connect(engine->get_mixer(), &NoteNagaMixer::routing_entry_stack_changed_signal, this, &TrackMixerWidget::refresh_routing_table);
     _init_ui();
 }
 
@@ -50,7 +50,7 @@ void TrackMixerWidget::_init_ui()
     dial_min = new AudioDial();
     dial_min->setLabel("Note Min");
     dial_min->setRange(0, 127);
-    dial_min->setValue(mixer->master_min_note);
+    dial_min->setValue(engine->get_mixer()->master_min_note);
     dial_min->setDefaultValue(0);
     dial_min->showValue(true);
     dial_min->setValueDecimals(0);
@@ -59,7 +59,7 @@ void TrackMixerWidget::_init_ui()
     dial_max = new AudioDial();
     dial_max->setLabel("Note Max");
     dial_max->setRange(0, 127);
-    dial_max->setValue(mixer->master_max_note);
+    dial_max->setValue(engine->get_mixer()->master_max_note);
     dial_max->setDefaultValue(127);
     dial_max->showValue(true);
     dial_max->setValueDecimals(0);
@@ -68,7 +68,7 @@ void TrackMixerWidget::_init_ui()
     dial_offset = new AudioDialCentered();
     dial_offset->setLabel("Offset");
     dial_offset->setRange(-24, 24);
-    dial_offset->setValue(mixer->master_note_offset);
+    dial_offset->setValue(engine->get_mixer()->master_note_offset);
     dial_offset->setDefaultValue(0);
     dial_offset->showValue(true);
     dial_offset->setValueDecimals(0);
@@ -78,7 +78,7 @@ void TrackMixerWidget::_init_ui()
     dial_vol->setLabel("Volume");
     dial_vol->setRange(0, 100);
     dial_vol->setValueDecimals(1);
-    dial_vol->setValue(mixer->master_volume * 100);
+    dial_vol->setValue(engine->get_mixer()->master_volume * 100);
     dial_vol->setDefaultValue(100);
     dial_vol->setValuePostfix(" %");
     dial_vol->showValue(true);
@@ -88,7 +88,7 @@ void TrackMixerWidget::_init_ui()
     dial_pan->setLabel("Pan");
     dial_pan->setRange(-1.0, 1.0);
     dial_pan->setValueDecimals(2);
-    dial_pan->setValue(mixer->master_pan);
+    dial_pan->setValue(engine->get_mixer()->master_pan);
     dial_pan->setDefaultValue(0.0);
     connect(dial_pan, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::on_global_pan_changed);
 
@@ -128,7 +128,7 @@ void TrackMixerWidget::_init_ui()
     main_layout->addSpacing(6);
 
     // MultiChannelVolumeBar for each device
-    QVector<QString> outputs = mixer->get_available_outputs();
+    std::vector<QString> outputs = engine->get_mixer()->get_available_outputs();
     for (const QString& dev : outputs) {
         MultiChannelVolumeBar* bar = new MultiChannelVolumeBar(16);
         bar->setMinimumHeight(90);
@@ -138,8 +138,9 @@ void TrackMixerWidget::_init_ui()
         channel_volume_bars[dev] = bar;
         main_layout->addWidget(bar);
     }
-    if (!outputs.isEmpty()) {
-        device_selector->addItems(outputs.toList());
+    if (!outputs.empty()) {
+        QStringList list(outputs.begin(), outputs.end());
+        device_selector->addItems(list);
         current_channel_device = outputs[0];
         channel_volume_bars[current_channel_device]->setVisible(true);
     }
@@ -228,19 +229,19 @@ void TrackMixerWidget::_init_ui()
 }
 
 void TrackMixerWidget::on_min_note_changed(float value) {
-    mixer->master_min_note = int(value);
+    engine->get_mixer()->master_min_note = int(value);
 }
 void TrackMixerWidget::on_max_note_changed(float value) {
-    mixer->master_max_note = int(value);
+    engine->get_mixer()->master_max_note = int(value);
 }
 void TrackMixerWidget::on_global_offset_changed(float value) {
-    mixer->master_note_offset = int(value);
+    engine->get_mixer()->master_note_offset = int(value);
 }
 void TrackMixerWidget::on_global_volume_changed(float value) {
-    mixer->master_volume = float(value / 100.0f);
+    engine->get_mixer()->master_volume = float(value / 100.0f);
 }
 void TrackMixerWidget::on_global_pan_changed(float value) {
-    mixer->master_pan = value;
+    engine->get_mixer()->master_pan = value;
 }
 
 void TrackMixerWidget::set_channel_output_value(const QString& device, int channel_idx, float value, int time_ms) {
@@ -265,8 +266,11 @@ void TrackMixerWidget::refresh_routing_table() {
         }
     }
     entry_widgets.clear();
-    for (int idx = 0; idx < mixer->get_routing_entries().size(); ++idx) {
-        RoutingEntryWidget* widget = new RoutingEntryWidget(mixer->get_routing_entries()[idx], mixer, ctx);
+
+    // Populate with current routing entries
+    std::vector<NoteNagaRoutingEntry>& entries = engine->get_mixer()->get_routing_entries();
+    for (int idx = 0; idx < entries.size(); ++idx) {
+        RoutingEntryWidget* widget = new RoutingEntryWidget(engine, &entries[idx]);
         widget->installEventFilter(this);
         widget->setMouseTracking(true);
         connect(widget, &RoutingEntryWidget::clicked, this, [this, idx]() {
@@ -278,12 +282,12 @@ void TrackMixerWidget::refresh_routing_table() {
 }
 
 void TrackMixerWidget::_on_add_entry() {
-    mixer->add_routing_entry();
+    engine->get_mixer()->add_routing_entry();
 }
 
 void TrackMixerWidget::_on_remove_selected_entry() {
     if (selected_entry_index >= 0) {
-        mixer->remove_routing_entry(selected_entry_index);
+        engine->get_mixer()->remove_routing_entry(selected_entry_index);
     } else {
         QMessageBox::warning(this, "No Entry Selected", "Please select a routing entry to remove.", QMessageBox::Ok);
     }
@@ -295,7 +299,7 @@ void TrackMixerWidget::_on_clear_routing_table() {
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No
     );
     if (reply == QMessageBox::Yes) {
-        mixer->clear_routing_table();
+        engine->get_mixer()->clear_routing_table();
     }
 }
 
@@ -305,13 +309,14 @@ void TrackMixerWidget::_on_default_entries() {
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No
     );
     if (reply == QMessageBox::Yes) {
-        mixer->clear_routing_table();
-        mixer->create_default_routing();
+        engine->get_mixer()->clear_routing_table();
+        engine->get_mixer()->create_default_routing();
     }
 }
 
-void TrackMixerWidget::_handle_playing_note(const MidiNote& note, const QString& device_name, int channel) {
-    int time_ms = int(note_time_ms(note, ctx->ppq, ctx->tempo));
+void TrackMixerWidget::_handle_playing_note(const NoteNagaNote& note, const QString& device_name, int channel) {
+    NoteNagaProject *project = engine->get_project();
+    int time_ms = int(note_time_ms(note, project->get_ppq(), project->get_tempo()));
     if (note.velocity.has_value() && note.velocity.value() > 0) {
         set_channel_output_value(device_name, channel, note.velocity.value() / 127.0f, time_ms);
     }
