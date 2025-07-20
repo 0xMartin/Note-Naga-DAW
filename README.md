@@ -51,3 +51,35 @@ implementace editor modu:
    -> add new note, note lenght editing
    -> velocity editing
 
+
+
+
+
+
+
+---------------------
+GUI
+
+1:
+track list (sequence):
+   -> pri zmene aktivni midi sekvence (je automaticky volano i pri nacteni projektu)
+
+track widget (track):
+   -> jen pri zmene dat daneho tracku
+
+2:
+midi editor (sequence):
+   -> pri zmene aktivni midi sekvence (je automaticky volano i pri nacteni projektu)
+
+3:
+mixer widget (sequence):
+   -> pri zmene aktivni midi sekvence (je automaticky volano i pri nacteni projektu)
+   -> pri zmene routing stacku
+
+routing entry (routing entry):
+   -> pri zmene routing entry
+
+-> routing stack bude pak vazany primo na midi sequcence ** 
+
+4:
+vyuzivat zmenu current tict primo jako singal z projektu -> editor, tick ruler (primo interne uz resit)

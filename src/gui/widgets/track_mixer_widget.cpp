@@ -1,8 +1,8 @@
 #include "track_mixer_widget.h"
 #include <QIcon>
 
-TrackMixerWidget::TrackMixerWidget(AppContext* ctx_, Mixer* mixer_, QWidget* parent)
-    : QWidget(parent), ctx(ctx_), mixer(mixer_), selected_entry_index(-1), selected_row(-1)
+TrackMixerWidget::TrackMixerWidget(NoteNagaEngine* engine_, QWidget* parent)
+    : QWidget(parent), engine(engine_), selected_entry_index(-1), selected_row(-1)
 {
     setObjectName("TrackMixerWidget");
     connect(ctx, &AppContext::mixer_playing_note_signal, this, &TrackMixerWidget::_handle_playing_note);

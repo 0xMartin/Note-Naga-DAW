@@ -77,8 +77,8 @@ public:
 
 Q_SIGNALS:
     void routing_entry_stack_changed_signal();
-    void note_in_signal(const NoteNagaNote& note, NoteNagaMIDISeq* seq, NoteNagaTrack* track);
-    void note_out_signal(const NoteNagaNote& note, const QString& device_name, int channel, NoteNagaMIDISeq* seq, NoteNagaTrack* track);
+    void note_in_signal(const NoteNagaNote& note);
+    void note_out_signal(const NoteNagaNote& note, const QString& device_name, int channel);
 
 private:
     NoteNagaProject* project;

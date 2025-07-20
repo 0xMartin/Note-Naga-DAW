@@ -8,10 +8,10 @@
 #include "../icons.h"
 #include "../dialogs/instrument_selector_dialog.h"
 
-TrackWidget::TrackWidget(NoteNagaEngine *engine_, std::shared_ptr<NoteNagaMIDISeq> sequence_, int track_id_, QWidget *parent)
-    : QFrame(parent), engine(engine_), sequence(sequence_), track_id(track_id_)
+TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget *parent)
+    : QFrame(parent), engine(engine_), track(track_)
 {
-    connect(sequence.get(), &NoteNagaMIDISeq::track_meta_changed_signal, this, &TrackWidget::_update_track_info);
+    connect(track, &NoteNagaTrack::meta_changed_signal, this, &TrackWidget::_update_track_info);
     setObjectName("TrackWidget");
 
     QHBoxLayout *main_hbox = new QHBoxLayout(this);
@@ -39,7 +39,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, std::shared_ptr<NoteNagaMIDISe
     header_hbox->setContentsMargins(0, 0, 0, 0);
     header_hbox->setSpacing(3);
 
-    index_lbl = new QLabel(QString::number(track_id + 1));
+    index_lbl = new QLabel(QString::number(this->track->get_id() + 1));
     index_lbl->setObjectName("TrackWidgetIndex");
     index_lbl->setAlignment(Qt::AlignCenter);
     index_lbl->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
@@ -100,23 +100,20 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, std::shared_ptr<NoteNagaMIDISe
     right_layout->addWidget(volume_bar);
 
     setLayout(main_hbox);
-    _update_track_info(track_id, "");
+    _update_track_info(this->track, "");
     refresh_style(false);
     setFocusPolicy(Qt::StrongFocus);
 }
 
-void TrackWidget::_update_track_info(int track_id, const QString& param)
+void TrackWidget::_update_track_info(NoteNagaTrack* track, const QString& param)
 {
-    if (this->track_id != track_id)
+    if (this->track != track)
         return;
-
-    std::shared_ptr<NoteNagaTrack> track = this->sequence->get_track_by_id(this->track_id);
-    if (!track) return;
 
     name_edit->setText(track->get_name());
     name_edit->setToolTip(track->get_name());
 
-    index_lbl->setText(QString::number(track_id + 1));
+    index_lbl->setText(QString::number(track->get_id() + 1));
 
     auto instrument = find_instrument_by_index(track->get_instrument().value_or(0));
     if (instrument)
@@ -143,30 +140,21 @@ void TrackWidget::_update_track_info(int track_id, const QString& param)
 
 void TrackWidget::_toggle_visibility()
 {
-    std::shared_ptr<NoteNagaTrack> track = this->sequence->get_track_by_id(this->track_id);
-    if (!track) return;
     track->set_visible(!invisible_btn->isChecked());
 }
 
 void TrackWidget::_toggle_solo()
 {
-    std::shared_ptr<NoteNagaTrack> track = this->sequence->get_track_by_id(this->track_id);
-    if (!track) return;
-    engine->solo_track(track->get_id(), solo_btn->isChecked());
+    engine->solo_track(track, solo_btn->isChecked());
 }
 
 void TrackWidget::_toggle_mute()
 {
-    std::shared_ptr<NoteNagaTrack> track = this->sequence->get_track_by_id(this->track_id);
-    if (!track) return;
-    engine->mute_track(track->get_id(), mute_btn->isChecked());
+    engine->mute_track(track, mute_btn->isChecked());
 }
 
 void TrackWidget::_choose_color()
 {
-    std::shared_ptr<NoteNagaTrack> track = this->sequence->get_track_by_id(this->track_id);
-    if (!track) return;
-    
     QColor col = QColorDialog::getColor(track->get_color(), this, "Select Track Color");
     if (col.isValid())
     {
@@ -176,19 +164,12 @@ void TrackWidget::_choose_color()
 
 void TrackWidget::_name_edited()
 {
-    std::shared_ptr<NoteNagaTrack> track = this->sequence->get_track_by_id(this->track_id);
-    if (!track) return;
-
     QString new_name = name_edit->text();
-    name_edit->setToolTip(new_name);
     track->set_name(new_name);
 }
 
 void TrackWidget::_on_instrument_btn_clicked()
 {
-    std::shared_ptr<NoteNagaTrack> track = this->sequence->get_track_by_id(this->track_id);
-    if (!track) return;
-
     InstrumentSelectorDialog dlg(this, GM_INSTRUMENTS, instrument_icon, track->get_instrument());
     if (dlg.exec() == QDialog::Accepted)
     {
@@ -203,7 +184,7 @@ void TrackWidget::_on_instrument_btn_clicked()
 
 void TrackWidget::mousePressEvent(QMouseEvent *event)
 {
-    emit clicked(track_id);
+    emit clicked(this->track->get_id());
     QFrame::mousePressEvent(event);
 }
 

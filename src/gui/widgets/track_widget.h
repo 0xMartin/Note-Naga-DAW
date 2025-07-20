@@ -19,10 +19,9 @@
 class TrackWidget : public QFrame {
     Q_OBJECT
 public:
-    explicit TrackWidget(NoteNagaEngine* engine, std::shared_ptr<NoteNagaMIDISeq> sequence, int track_id, QWidget* parent = nullptr);
+    explicit TrackWidget(NoteNagaEngine* engine, NoteNagaTrack* track, QWidget* parent = nullptr);
 
-    std::shared_ptr<NoteNagaMIDISeq> getSequence() const { return this->sequence; }
-    int get_track_id() const { return this->track_id; }
+    NoteNagaTrack* get_track() const { return this->track; }
     VolumeBar* get_volume_bar() const { return volume_bar; }
 
     void refresh_style(bool selected);
@@ -34,7 +33,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
 
 private slots:
-    void _update_track_info(int track_id, const QString& param);
+    void _update_track_info(NoteNagaTrack* track, const QString& param);
     void _toggle_visibility();
     void _toggle_solo();
     void _toggle_mute();
@@ -43,8 +42,7 @@ private slots:
     void _on_instrument_btn_clicked();
 
 private:
-    std::shared_ptr<NoteNagaMIDISeq> sequence;
-    int track_id;
+    NoteNagaTrack* track;
     NoteNagaEngine* engine;
 
     QPushButton* instrument_btn;

@@ -15,7 +15,7 @@
 class RoutingEntryWidget : public QFrame {
     Q_OBJECT
 public:
-    explicit RoutingEntryWidget(NoteNagaEngine* engine, NoteNagaRountingEntry& entry, QWidget* parent = nullptr);
+    explicit RoutingEntryWidget(NoteNagaEngine* engine, NoteNagaRoutingEntry* entry, QWidget* parent = nullptr);
 
     void refresh_style(bool selected);
     
@@ -27,7 +27,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
 
 private:
-    NoteNagaRountingEntry& entry;
+    NoteNagaRoutingEntry* entry;
     NoteNagaEngine* engine;
 
     QComboBox* track_combo;
@@ -38,12 +38,12 @@ private:
     AudioDialCentered* pan_dial;
     AudioDialCentered* offset_dial;
 
-    void _populate_track_combo();
+    void _populate_track_combo(NoteNagaTrack *track);
     void _populate_output_combo();
     void _set_combo_selections();
 
 private slots:
-    void on_track_info_changed(int track_id);
+    void on_track_info_changed(NoteNagaTrack *track);
     void _on_track_changed(int idx);
     void _on_device_changed(int idx);
     void _on_channel_changed(float val);

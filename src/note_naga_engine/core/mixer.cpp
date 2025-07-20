@@ -122,7 +122,7 @@ void NoteNagaMixer::note_play(const NoteNagaNote& midi_note)
     }
 
     int prog = track->get_instrument().value_or(0);
-    NN_QT_EMIT(note_in_signal(midi_note, seq, track));
+    NN_QT_EMIT(note_in_signal(midi_note));
 
     for (const NoteNagaRoutingEntry& entry : routing_entries) {
         if (entry.track != track) continue;
@@ -318,7 +318,7 @@ void NoteNagaMixer::play_note_on_output(
     notes.append(PlayedNote{note_num, midi_note.note_id, output, ch});
     NoteNagaNote note_clone = midi_note;
     note_clone.velocity = velocity;
-    NN_QT_EMIT(note_out_signal(note_clone, output, ch, seq, track));
+    NN_QT_EMIT(note_out_signal(note_clone, output, ch));
 }
 
 void NoteNagaMixer::ensure_fluidsynth()

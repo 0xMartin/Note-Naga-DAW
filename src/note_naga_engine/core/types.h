@@ -5,18 +5,16 @@
 #include <QColor>
 #include <vector>
 #include <optional>
+#include <cstdint>
 
 #include "note_naga_api.h"
 #include "../io/midi_file.h"
 
-// comment to disable Qt support
-#define NN_QT_ENABLED
-
 // --- Macro for emitting signals depending on NN_QT_EMIT_ENABLED ---
-#ifdef NN_QT_ENABLED
-#define NN_QT_EMIT(X) emit X
-#else
+#ifdef QT_DEACTIVATED
 #define NN_QT_EMIT(X)
+#else
+#define NN_QT_EMIT(X) emit X
 #endif
 
 // ---------- Forwards declarations ----------
@@ -170,6 +168,20 @@ protected:
 };
 
 // ---------- Channel colors ----------
+struct NOTE_NAGA_ENGINE_API Color {
+    uint8_t r, g, b;
+    Color(uint8_t rr, uint8_t gg, uint8_t bb)
+        : r(rr), g(gg), b(bb) {}
+
+    QColor to_qcolor() const {
+        return QColor(r, g, b);
+    }
+
+    static Color from_qcolor(const QColor &color) {
+        return Color(color.red(), color.green(), color.blue());
+    }
+};
+
 NOTE_NAGA_ENGINE_API extern const std::vector<QColor> DEFAULT_CHANNEL_COLORS;
 
 NOTE_NAGA_ENGINE_API QColor color_blend(const QColor &fg, const QColor &bg, double opacity);

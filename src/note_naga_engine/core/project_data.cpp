@@ -38,11 +38,7 @@ bool NoteNagaProject::load_project(const QString &project_path)
     sequence->load_from_midi(project_path);
     add_sequence(sequence);
 
-    if (!sequences.empty()) {
-        active_sequence_id = sequences[0]->get_id();
-    } else {
-        active_sequence_id.reset();
-    }
+    this->set_active_sequence_id(active_sequence_id);
 
     connect(sequence, &NoteNagaMIDISeq::meta_changed_signal, this, &NoteNagaProject::sequence_meta_changed_signal);
     NN_QT_EMIT(this->project_file_loaded_signal());
