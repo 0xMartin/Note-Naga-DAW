@@ -15,15 +15,21 @@
 #define TRACK_ROUTING_ENTRY_ANY_DEVICE "any"
 
 // TrackOutputEntry: routing config for one track
-struct TrackRountingEntry {
+struct NoteNagaRountingEntry {
     int track_id;
     QString output;
     int channel;
     float volume;
     int note_offset;
     float pan;
-    TrackRountingEntry(int track_id, const QString& device, int channel, float volume = 1.0f, int note_offset = 0, float pan = 0.0f)
-        : track_id(track_id), output(device), channel(channel), volume(volume), note_offset(note_offset), pan(pan) {}
+    
+    NoteNagaRountingEntry(
+        int track_id, 
+        const QString& device, 
+        int channel, 
+        float volume = 1.0f, 
+        int note_offset = 0, 
+        float pan = 0.0f);
 };
 
 class NoteNagaMixer : public QObject {
@@ -36,8 +42,8 @@ public:
     void close();
 
     void create_default_routing();
-    void set_routing(const QVector<TrackRountingEntry>& entries);
-    void add_routing_entry(const TrackRountingEntry& entry = TrackRountingEntry(-1, "", 0));
+    void set_routing(const QVector<NoteNagaRountingEntry>& entries);
+    void add_routing_entry(const NoteNagaRountingEntry& entry = NoteNagaRountingEntry(-1, "", 0));
     void remove_routing_entry(int index);
     void clear_routing_table();
 
@@ -48,7 +54,7 @@ public:
     void mute_track(int track_id, bool mute);
     void solo_track(int track_id, bool solo);
 
-    QVector<TrackRountingEntry>& get_routing_entries();
+    QVector<NoteNagaRountingEntry>& get_routing_entries();
     QVector<QString> get_available_outputs();
     QString get_default_output();
 
@@ -71,7 +77,7 @@ private:
     // --- Output devices and routing ---
     QVector<QString> available_outputs;
     QString default_output;
-    QVector<TrackRountingEntry> routing_entries;
+    QVector<NoteNagaRountingEntry> routing_entries;
 
     // --- MIDI OUT ---
     QMap<QString, RtMidiOut*> midi_outputs;

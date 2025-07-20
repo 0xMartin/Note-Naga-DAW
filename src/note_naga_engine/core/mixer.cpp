@@ -5,6 +5,26 @@
 #include <QString>
 #include <algorithm>
 
+// --- NoteNagaRountingEntry ---
+
+NoteNagaRountingEntry::NoteNagaRountingEntry(
+    int track_id,
+    const QString &device,
+    int channel,
+    float volume = 1.0f,
+    int note_offset = 0,
+    float pan = 0.0f)
+{
+    this->track_id = track_id;
+    this->output = device;
+    this->channel = channel;
+    this->volume = volume;
+    this->note_offset = note_offset;
+    this->pan = pan;
+}
+
+// --- NoteNagaMixer ---
+
 NoteNagaMixer::NoteNagaMixer(std::shared_ptr<NoteNagaProject> projectData, const QString &sf2_path)
     : QObject(nullptr),
       projectData(projectData),
@@ -70,9 +90,11 @@ void NoteNagaMixer::create_default_routing()
 
     // Mark already assigned channels (if any)
     std::vector<bool> used_channels(16, false); // 16 MIDI channels
-    for (const auto &track_ptr : active_sequence->get_tracks()){
-        if (track_ptr->channel.has_value()) {
-            int ch = track_ptr->channel.value();
+    for (const auto &track_ptr : active_sequence->get_tracks())
+    {
+        if (track_ptr->get_channel().has_value())
+        {
+            int ch = track_ptr->get_channel().value();
             if (ch >= 0 && ch < 16)
                 used_channels[ch] = true;
         }
@@ -81,30 +103,36 @@ void NoteNagaMixer::create_default_routing()
     for (const auto &track_ptr : active_sequence->get_tracks())
     {
         int channel;
-        if (track_ptr->channel.has_value()) {
-            channel = track_ptr->channel.value();
-        } else {
+        if (track_ptr->get_channel().has_value())
+        {
+            channel = track_ptr->get_channel().value();
+        }
+        else
+        {
             // Find first free channel
             auto it = std::find(used_channels.begin(), used_channels.end(), false);
-            if (it != used_channels.end()) {
+            if (it != used_channels.end())
+            {
                 channel = std::distance(used_channels.begin(), it);
                 used_channels[channel] = true;
-            } else {
+            }
+            else
+            {
                 channel = 15; // fallback to max channel if all are used
             }
         }
-        routing_entries.append(TrackRountingEntry(track_ptr->track_id, default_output, channel));
+        routing_entries.append(NoteNagaRountingEntry(track_ptr->get_id(), default_output, channel));
     }
     NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
-void NoteNagaMixer::set_routing(const QVector<TrackRountingEntry> &entries)
+void NoteNagaMixer::set_routing(const QVector<NoteNagaRountingEntry> &entries)
 {
     routing_entries = entries;
     NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
 
-void NoteNagaMixer::add_routing_entry(const TrackRountingEntry &entry)
+void NoteNagaMixer::add_routing_entry(const NoteNagaRountingEntry &entry)
 {
     // get active sequence from project data
     std::shared_ptr<NoteNagaMIDISeq> active_sequence = this->projectData->get_active_sequence();
@@ -114,10 +142,10 @@ void NoteNagaMixer::add_routing_entry(const TrackRountingEntry &entry)
         return;
     }
 
-    TrackRountingEntry new_entry = entry;
+    NoteNagaRountingEntry new_entry = entry;
     if (new_entry.track_id < 0 && active_sequence->get_tracks().size() > 0)
     {
-        new_entry.track_id = active_sequence->get_tracks().at(0)->track_id;
+        new_entry.track_id = active_sequence->get_tracks().at(0)->get_id();
     }
     if (new_entry.output.isEmpty())
     {
@@ -157,18 +185,18 @@ void NoteNagaMixer::note_play(const NoteNagaNote &midi_note, int track_id)
         qDebug() << "No active sequence found, cannot play note.";
         return;
     }
-    
+
     // get track of note and retrieve its program (instrument)
     int prog = 0;
-    std::shared_ptr<NoteNagaTrack> track = active_sequence->get_active_track();
+    std::shared_ptr<NoteNagaTrack> track = active_sequence->get_track_by_id(track_id);
     if (track)
-        prog = track->instrument.value_or(0);
+        prog = track->get_instrument().value_or(0);
 
     // emit signal (note playing on track. note go to NoteNagaMixer)
     NN_QT_EMIT(note_in_signal(midi_note, active_sequence.get(), track.get()));
 
-    // process each routing entry for the track 
-    for (const TrackRountingEntry &entry : this->routing_entries)
+    // process each routing entry for the track
+    for (const NoteNagaRountingEntry &entry : this->routing_entries)
     {
         // skip if entry does not match the track of the note
         if (entry.track_id != track_id)
@@ -324,7 +352,7 @@ void NoteNagaMixer::mute_track(int track_id, bool mute)
         qWarning() << "Invalid track ID for mute operation:" << track_id;
         return;
     }
-    active_sequence->get_tracks()[track_id]->muted = mute;
+    active_sequence->get_tracks()[track_id]->set_muted(mute);
     NN_QT_EMIT(active_sequence->track_meta_changed_signal(track_id));
     this->stop_all_notes(track_id);
 }
@@ -345,17 +373,19 @@ void NoteNagaMixer::solo_track(int track_id, bool solo)
         return;
     }
 
-    active_sequence->get_tracks()[track_id]->solo = solo;
+    active_sequence->get_tracks()[track_id]->set_solo(solo);
     NN_QT_EMIT(active_sequence->track_meta_changed_signal(track_id));
 
     if (solo)
     {
         active_sequence->set_solo_track_id(track_id);
-        for (const auto& track : active_sequence->get_tracks()) {
-            if (track->track_id != track_id) {
-                track->solo = false; 
-                this->stop_all_notes(track->track_id);
-                NN_QT_EMIT(active_sequence->track_meta_changed_signal(track->track_id));
+        for (const auto &track : active_sequence->get_tracks())
+        {
+            if (track->get_id() != track_id)
+            {
+                track->set_solo(false);
+                this->stop_all_notes(track->get_id());
+                NN_QT_EMIT(active_sequence->track_meta_changed_signal(track->get_id()));
             }
         }
     }
@@ -516,7 +546,7 @@ void NoteNagaMixer::close()
     qDebug() << "NoteNagaMixer: All resources cleaned up.";
 }
 
-QVector<TrackRountingEntry> &NoteNagaMixer::get_routing_entries()
+QVector<NoteNagaRountingEntry> &NoteNagaMixer::get_routing_entries()
 {
     return routing_entries;
 }

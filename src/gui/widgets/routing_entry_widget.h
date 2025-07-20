@@ -15,7 +15,7 @@
 class RoutingEntryWidget : public QFrame {
     Q_OBJECT
 public:
-    explicit RoutingEntryWidget(TrackRountingEntry& entry, NoteNagaEngine* engine, QWidget* parent = nullptr);
+    explicit RoutingEntryWidget(NoteNagaEngine* engine, NoteNagaRountingEntry& entry, QWidget* parent = nullptr);
 
     void refresh_style(bool selected);
     
@@ -27,7 +27,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
 
 private:
-    TrackRountingEntry& entry;
+    NoteNagaRountingEntry& entry;
     NoteNagaEngine* engine;
 
     QComboBox* track_combo;

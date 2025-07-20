@@ -1,7 +1,7 @@
 #include "routing_entry_widget.h"
 
-RoutingEntryWidget::RoutingEntryWidget(TrackRountingEntry& entry_, Mixer* mixer_, AppContext* ctx_, QWidget* parent)
-    : QFrame(parent), entry(entry_), mixer(mixer_), ctx(ctx_)
+RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine* engine_, NoteNagaRountingEntry& entry_, QWidget* parent)
+    : QFrame(parent), entry(entry_), engine(engine_)
 {
     setObjectName("RoutingEntryWidget");
     setMouseTracking(true);

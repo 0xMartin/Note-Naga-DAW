@@ -2,7 +2,7 @@
 
 0. predelavka struktury na gui a engine
    1. zprovoznit vsechno
-   2. MIXERU se musi predavat: Note, MIDISeq a track id !!!!!!!!!!!!!!!!!!!
+   2. Nota bude mit referenci na track, track bude mit referenci na sequence !!!!! predelat vsechny metody !!!!!!!!!!!!!
    3. zprovoznit direktivu enginu na komplet deaktivaci Qt
    4. zdrojovy kod enginu presunout do samostatne slozky + samostatny cmake
 
