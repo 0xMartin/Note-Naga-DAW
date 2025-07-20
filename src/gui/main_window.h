@@ -6,13 +6,13 @@
 #include <QDockWidget>
 #include <QCloseEvent>
 
-#include "note_naga_engine/note_naga_engine.h"
-#include "gui/widgets/midi_tact_ruler.h"
-#include "gui/widgets/midi_keyboard_ruler.h"
-#include "gui/widgets/midi_editor_widget.h"
-#include "gui/widgets/track_list_widget.h"
-#include "gui/widgets/midi_control_bar_widget.h"
-#include "gui/widgets/track_mixer_widget.h"
+#include "../note_naga_engine/note_naga_engine.h"
+#include "widgets/midi_tact_ruler.h"
+#include "widgets/midi_keyboard_ruler.h"
+#include "widgets/midi_editor_widget.h"
+#include "widgets/track_list_widget.h"
+#include "widgets/midi_control_bar_widget.h"
+#include "widgets/track_mixer_widget.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -43,15 +43,8 @@ private slots:
     void show_hide_dock(const QString& name, bool checked);
 
 private:
-    void setup_actions();
-    void setup_menu_bar();
-    void setup_toolbar();
-    void setup_dock_layout();
-    void connect_signals();
+    NoteNagaEngine* engine;
 
-    AppContext* ctx;
-    Mixer* mixer;
-    PlaybackWorker* playback_worker;
     bool auto_follow;
     QMap<QString, QDockWidget*> docks;
 
@@ -80,4 +73,10 @@ private:
 
     TrackListWidget* tracklist_widget;
     TrackMixerWidget* mixer_widget;
+
+    void setup_actions();
+    void setup_menu_bar();
+    void setup_toolbar();
+    void setup_dock_layout();
+    void connect_signals();
 };

@@ -6,6 +6,8 @@
 #include <QGraphicsSimpleTextItem>
 #include <memory>
 #include <QMap>
+#include <QColor>
+#include <vector>
 
 #include "../../note_naga_engine/note_naga_engine.h"
 
@@ -21,7 +23,7 @@ public:
     int get_key_height() const { return key_height; }
 
 signals:
-    void set_play_position_signal(int tick);
+    void set_position_signal(int tick);
 
 public slots:
     void repaint_slot();
@@ -35,27 +37,12 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
 
 private:
-    void recalculate_content_size();
-    void _reload_notes();
-    void set_time_scale(double scale);
-    void set_key_height(int h);
-    void update_scene_items();
-    void update_grid();
-    void update_bar_grid();
-    void update_notes();
-    void draw_note(const NoteNagaNote& note, const NoteNagaTrack& track, bool is_selected, bool is_drum, int x, int y, int w, int h);
-    void update_marker();
-    void clear_scene();
-
     NoteNagaEngine* engine;
-    
-    bool has_file;
 
     double time_scale;
     int key_height;
-    int _content_width;
-    int _content_height;
-    int ppq;
+    int content_width;
+    int content_height;
     int tact_subdiv; // number of grid subdivisions per bar
 
     QGraphicsScene* scene;
@@ -80,4 +67,17 @@ private:
     QColor grid_row_color2;
     QColor grid_bar_label_color;
     QColor grid_subdiv_color;
+
+    void recalculate_content_size();
+    void set_time_scale(double scale);
+    void set_key_height(int h);
+
+    void update_scene_items(NoteNagaMIDISeq *seq = nullptr);
+    void update_grid(const NoteNagaMIDISeq *seq);
+    void update_bar_grid(const NoteNagaMIDISeq *seq);
+    void update_notes(const NoteNagaMIDISeq *seq);
+    void update_marker(const NoteNagaMIDISeq *seq);
+
+    void draw_note(const NoteNagaNote& note, const NoteNagaTrack* track, bool is_selected, bool is_drum, int x, int y, int w, int h);
+    void clear_scene();
 };

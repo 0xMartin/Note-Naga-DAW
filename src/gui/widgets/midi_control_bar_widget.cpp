@@ -150,18 +150,16 @@ void MidiControlBarWidget::set_playing_slot(bool is_playing) {
 }
 
 void MidiControlBarWidget::edit_tempo(QMouseEvent* event) {
-    std::shared_ptr<NoteNagaMIDISeq> sequence = this->engine->get_project()->get_active_sequence();
-    if (!sequence) {
-        return;
-    }
+    NoteNagaMIDISeq *seq = this->engine->get_project()->get_active_sequence();
+    if (!seq) return;
 
-    double cur_bpm = sequence->get_tempo() ? (60'000'000.0 / double(sequence->get_tempo())) : 120.0;
+    double cur_bpm = seq->get_tempo() ? (60'000'000.0 / double(seq->get_tempo())) : 120.0;
     bool ok = false;
     double bpm = QInputDialog::getDouble(this, "Change Tempo", "New Tempo (BPM):", cur_bpm, 5, 500, 2, &ok);
     if (ok) {
-        sequence->set_tempo(int(60'000'000.0 / bpm));
-        update_times(sequence->get_current_tick(), sequence->get_max_tick(), sequence->get_tempo(), sequence->get_ppq());
-        emit tempo_changed_signal(sequence->get_tempo());
+        seq->set_tempo(int(60'000'000.0 / bpm));
+        update_times(this->engine->get_project()->get_current_tick(), seq->get_max_tick(), seq->get_tempo(), seq->get_ppq());
+        emit tempo_changed_signal(seq->get_tempo());
     }
 }
 

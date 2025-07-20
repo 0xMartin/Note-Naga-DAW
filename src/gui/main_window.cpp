@@ -23,12 +23,7 @@ MainWindow::MainWindow(QWidget* parent)
     qr.moveCenter(cp.center());
     move(qr.topLeft());
 
-    ctx = AppContext::instance();
-    mixer = new Mixer(ctx);
-    mixer->detect_outputs();
-    playback_worker = new PlaybackWorker(
-        ctx, mixer, 30 
-    );
+    this->engine = new NoteNagaEngine(this);
 
     setup_actions();
     setup_menu_bar();
@@ -140,10 +135,10 @@ void MainWindow::setup_dock_layout() {
     grid->setContentsMargins(0, 0, 0, 0);
     grid->setSpacing(0);
 
-    midi_tact_ruler = new MidiTactRuler(ctx->ppq, 0.2, 10000, this);
-    midi_keyboard_ruler = new MidiKeyboardRuler(ctx, mixer);
+    midi_tact_ruler = new MidiTactRuler(this->engine, this);
+    midi_keyboard_ruler = new MidiKeyboardRuler(this->engine, 16, this);
     midi_keyboard_ruler->setFixedWidth(80);
-    midi_editor = new MidiEditorWidget(ctx);
+    midi_editor = new MidiEditorWidget(this->engine, this);
     midi_editor->setMouseTracking(true);
     midi_editor->setMinimumWidth(250);
     midi_editor->setMinimumHeight(250);
@@ -158,7 +153,7 @@ void MainWindow::setup_dock_layout() {
     editor_layout->setContentsMargins(0, 0, 0, 0);
     editor_layout->setSpacing(0);
     editor_layout->addWidget(editor_main, 1);
-    control_bar = new MidiControlBarWidget(ctx, this);
+    control_bar = new MidiControlBarWidget(this->engine, this);
     editor_layout->addWidget(control_bar);
     QWidget* editor_container = new QWidget();
     editor_container->setLayout(editor_layout);
@@ -173,7 +168,7 @@ void MainWindow::setup_dock_layout() {
     docks["editor"] = editor_dock;
 
     // Track list dock
-    tracklist_widget = new TrackListWidget(ctx, mixer, this);
+    tracklist_widget = new TrackListWidget(this->engine, this);
     QDockWidget* tracklist_dock = new QDockWidget("Track List", this);
     tracklist_dock->setWidget(tracklist_widget);
     tracklist_dock->setObjectName("tracklist");
@@ -184,7 +179,7 @@ void MainWindow::setup_dock_layout() {
     docks["tracklist"] = tracklist_dock;
 
     // Mixer dock
-    mixer_widget = new TrackMixerWidget(ctx, mixer, this);
+    mixer_widget = new TrackMixerWidget(this->engine, this);
     QDockWidget* mixer_dock = new QDockWidget("Track Mixer", this);
     mixer_dock->setWidget(mixer_widget);
     mixer_dock->setObjectName("mixer");

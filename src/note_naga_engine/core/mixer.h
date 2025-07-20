@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "note_naga_api.h"
+#include "../note_naga_api.h"
 #include "project_data.h"
 #include "types.h"
 

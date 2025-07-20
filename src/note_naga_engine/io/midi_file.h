@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <map>
 
-#include "note_naga_api.h"
+#include "../note_naga_api.h"
 
 // MIDI Meta Event Types
 #define MIDI_META_SEQUENCE_NUMBER   0x00

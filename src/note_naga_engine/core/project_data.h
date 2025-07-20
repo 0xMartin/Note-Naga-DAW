@@ -8,7 +8,7 @@
 #include <optional>
 #include <QVariant>
 
-#include "note_naga_api.h"
+#include "../note_naga_api.h"
 #include "types.h"
  
 // ---------- Note Naga Project file ----------
@@ -43,6 +43,7 @@ Q_SIGNALS:
     void project_file_loaded_signal();
     void current_tick_changed_signal(int tick);
     void sequence_meta_changed_signal(NoteNagaMIDISeq *seq, const QString& param);
+    void track_meta_changed_signal(NoteNagaTrack *track, const QString& param);
     void active_sequence_changed_signal(NoteNagaMIDISeq *seq);
     
 protected:

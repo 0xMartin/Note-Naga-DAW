@@ -5,9 +5,9 @@
 #include <functional>
 #include <chrono>
 
-#include "note_naga_api.h"
-#include "project_data.h"
-#include "mixer.h"
+#include "../note_naga_api.h"
+#include "../core/project_data.h"
+#include "../core/mixer.h"
 
 // PlaybackWorker manages playback in a separate thread.
 // It emits signals when playback finishes and playing state changes.

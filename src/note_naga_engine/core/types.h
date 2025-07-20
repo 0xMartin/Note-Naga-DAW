@@ -7,7 +7,7 @@
 #include <optional>
 #include <cstdint>
 
-#include "note_naga_api.h"
+#include "../note_naga_api.h"
 #include "../io/midi_file.h"
 
 // --- Macro for emitting signals depending on NN_QT_EMIT_ENABLED ---
@@ -22,6 +22,8 @@ class NOTE_NAGA_ENGINE_API NoteNagaTrack;
 class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq;
 
 // ---------- NoteNagaNote ----------
+NOTE_NAGA_ENGINE_API unsigned long generate_random_note_id();
+
 struct NOTE_NAGA_ENGINE_API NoteNagaNote
 {
     // Required for unique identification
@@ -52,7 +54,6 @@ struct NOTE_NAGA_ENGINE_API NoteNagaNote
 };
 
 NOTE_NAGA_ENGINE_API double note_time_ms(const NoteNagaNote &note, int ppq, int tempo);
-NOTE_NAGA_ENGINE_API unsigned long generate_random_note_id();
 
 // ---------- NoteNagaTrack ----------
 class NOTE_NAGA_ENGINE_API NoteNagaTrack : public QObject

@@ -41,6 +41,7 @@ bool NoteNagaProject::load_project(const QString &project_path)
     this->set_active_sequence_id(active_sequence_id);
 
     connect(sequence, &NoteNagaMIDISeq::meta_changed_signal, this, &NoteNagaProject::sequence_meta_changed_signal);
+    connect(sequence, &NoteNagaMIDISeq::track_meta_changed_signal, this, &NoteNagaProject::track_meta_changed_signal);
     NN_QT_EMIT(this->project_file_loaded_signal());
     return true;
 }
