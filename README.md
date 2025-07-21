@@ -1,14 +1,6 @@
 ## Build 
 
-1. refactoring celeho kodu.. 
-   1. not null kontrola
-   2. vsude pouzivat optional kde to je mozne
-   3. okomentovat cely engine
-   4. nazvy netridnitch metod: snake_case, tridnich: camelCase
-   5. odstranit nadbitence pradne sloty volajici 1 metodu
-   6. vsechny signaly zapis timto stylem: visibilityChanged(int, bool);
-
-2. opravit chyb v UI (aby to vypadalo stejne jak predtim)
+1. opravit chyb v UI (aby to vypadalo stejne jak predtim)
    1. custom tile bar pro QDock widgety..
    2. Dock Panel Nefunguje jak by mel: reset layout, nachyta se presne na dane pozice jak by mel
 
@@ -48,12 +40,3 @@ implementace editor modu:
 
 
 
-
-
-
-
----------------------
-projet on pos changeg:
-
-   midi editor = poze nastavovani vykrelovani aktualni pozice (ne primo fyzicky posun)
-   track ruler = nepouzivat signal vubec (maximalne pak pouze pro zvyrazneni aktualni pozice)
