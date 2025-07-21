@@ -21,8 +21,12 @@
 class NOTE_NAGA_ENGINE_API NoteNagaTrack;
 class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq;
 
+// ---------- Unique IDs ----------
+
+NOTE_NAGA_ENGINE_API unsigned long generate_unique_note_id();
+NOTE_NAGA_ENGINE_API int generate_unique_seq_id();
+
 // ---------- NoteNagaNote ----------
-NOTE_NAGA_ENGINE_API unsigned long generate_random_note_id();
 
 struct NOTE_NAGA_ENGINE_API NoteNagaNote
 {
@@ -40,7 +44,7 @@ struct NOTE_NAGA_ENGINE_API NoteNagaNote
     // parent
     NoteNagaTrack *parent;
 
-    NoteNagaNote() : id(generate_random_note_id()), note(0), start(std::nullopt),
+    NoteNagaNote() : id(generate_unique_note_id()), note(0), start(std::nullopt),
                      length(std::nullopt), velocity(std::nullopt), parent(nullptr) {}
 
     NoteNagaNote(unsigned long note_,
@@ -49,7 +53,7 @@ struct NOTE_NAGA_ENGINE_API NoteNagaNote
                  const std::optional<int> &length_ = std::nullopt,
                  const std::optional<int> &velocity_ = std::nullopt,
                  const std::optional<int> &track_ = std::nullopt)
-        : id(generate_random_note_id()), note(note_), start(start_),
+        : id(generate_unique_note_id()), note(note_), start(start_),
           length(length_), velocity(velocity_), parent(parent_) {}
 };
 
@@ -116,6 +120,7 @@ protected:
 };
 
 // ---------- Note Naga MIDI file Sequence ----------
+
 class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq : public QObject
 {
     Q_OBJECT
@@ -137,9 +142,8 @@ public:
     int get_ppq() const { return ppq; }
     int get_tempo() const { return tempo; }
     int get_max_tick() const { return max_tick; }
-    std::optional<int> get_active_track_id() const { return active_track_id; }
-    NoteNagaTrack* get_active_track();
-    std::optional<int> get_solo_track_id() const { return solo_track_id; }
+    NoteNagaTrack* get_active_track() const { return active_track; } 
+    NoteNagaTrack* get_solo_track() const { return solo_track; }
     std::vector<NoteNagaTrack*> get_tracks() const { return tracks; }
     NoteNagaTrack* get_track_by_id(int track_id);
     MidiFile* get_midi_file() const { return midi_file; }
@@ -147,20 +151,19 @@ public:
     void set_id(int new_id);
     void set_ppq(int ppq);
     void set_tempo(int tempo);
-    void set_active_track_id(std::optional<int> track_id);
-    void set_solo_track_id(std::optional<int> track_id);
+    void set_active_track(NoteNagaTrack *track);
+    void set_solo_track(NoteNagaTrack *track);
 
 Q_SIGNALS:
     void meta_changed_signal(NoteNagaMIDISeq *seq, const QString &param);
     void track_meta_changed_signal(NoteNagaTrack *track, const QString &param);
-    void active_track_changed_signal(NoteNagaTrack *track);
 
 protected:
     int sequence_id;
 
     std::vector<NoteNagaTrack*> tracks;
-    std::optional<int> active_track_id;
-    std::optional<int> solo_track_id;
+    NoteNagaTrack *active_track;
+    NoteNagaTrack *solo_track;
     MidiFile* midi_file;
 
     int ppq;

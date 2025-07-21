@@ -49,8 +49,11 @@ void MidiTactRuler::paintEvent(QPaintEvent* event) {
     painter.setFont(font);
 
     NoteNagaProject *project = engine->get_project();
+    double ppq = project->get_ppq();
+    double beat_px = ppq * time_scale;
 
-    double beat_px = project->get_ppq() * time_scale;
+    if (beat_px <= 0) return;
+
     int min_step_px = 60;
     int takt_step = 1;
     if (beat_px < min_step_px) {
@@ -60,17 +63,31 @@ void MidiTactRuler::paintEvent(QPaintEvent* event) {
         }
         takt_step = pow2;
     }
+    if (takt_step <= 0) return;
+
     int sub_beats = 4;
     double sub_beat_px = beat_px / sub_beats;
     int width = r.width();
-    int num_beats = int(project->get_current_tick() / project->get_ppq()) + 3;
 
-    for (int i = 0; i < num_beats; i += takt_step) {
+    // Správný výpočet: první takt na okně je zarovnán na takt_step
+    int first_beat = int(std::floor(double(horizontalScroll) / (beat_px * takt_step)) * takt_step);
+    if (first_beat < 0) first_beat = 0;
+
+    for (int i = first_beat;; i += takt_step) {
         int x = int(i * beat_px - horizontalScroll);
         if (x > width) break;
-        if (x + int(beat_px * takt_step) < 0) continue;
+
+        int next_x = int((i + takt_step) * beat_px - horizontalScroll);
+        int bar_width = next_x - x;
+        if (bar_width <= 0) break;
+        if (next_x > width) {
+            bar_width = width - x;
+            if (bar_width <= 0) break;
+        }
+
+        // DULEZITE: Barva podle globalniho taktu, ne podle indexu v cyklu
         painter.fillRect(
-            QRect(x, 0, int(beat_px * takt_step), r.height()),
+            QRect(x, 0, bar_width, r.height()),
             ((i / takt_step) % 2 == 0) ? tact_bg_color : bg_color
         );
         painter.setPen(QPen(tact_line_color, 2));
@@ -88,5 +105,6 @@ void MidiTactRuler::paintEvent(QPaintEvent* event) {
                 }
             }
         }
+        if (x + bar_width >= width) break;
     }
 }

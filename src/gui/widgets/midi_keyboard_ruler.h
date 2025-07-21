@@ -25,7 +25,7 @@ signals:
     void stop_note_signal(const NoteNagaNote &note);
 
 public slots:
-    void on_play_note(const NoteNagaNote& note, const NoteNagaMIDISeq *sequence, const NoteNagaTrack *track);
+    void on_play_note(const NoteNagaNote& note);
     void set_vertical_scroll_slot(float v, float row_height);
     void clear_highlights_slot();
 

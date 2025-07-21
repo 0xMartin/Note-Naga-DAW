@@ -5,7 +5,19 @@
 #include <QFileInfo>
 #include <atomic>
 
-static std::atomic<unsigned long> next_id = 1;
+// ---------- Unique IDs ----------
+
+static std::atomic<unsigned long> next_note_id = 1;
+static std::atomic<unsigned long> next_seq_id = 1;
+
+
+unsigned long generate_unique_note_id() {
+    return static_cast<int>(next_note_id++);
+}
+
+int generate_unique_seq_id() {
+    return static_cast<int>(next_seq_id++);
+}
 
 // ---------- Note Naga Note ----------
 
@@ -16,12 +28,6 @@ double note_time_ms(const NoteNagaNote &note, int ppq, int tempo)
     double us_per_tick = static_cast<double>(tempo) / ppq;
     double total_us = note.length.value() * us_per_tick;
     return total_us / 1000.0;
-}
-
-unsigned long generate_random_note_id() {
-    unsigned long id = next_id;
-    next_id++;
-    return id;
 }
 
 // ---------- Note Naga Track ----------
@@ -138,19 +144,19 @@ void NoteNagaTrack::set_volume(float new_volume)
 
 NoteNagaMIDISeq::NoteNagaMIDISeq()
 {
-    this->sequence_id = rand();
+    this->sequence_id = generate_unique_seq_id();
     this->clear();
 }
 
 NoteNagaMIDISeq::NoteNagaMIDISeq(int sequence_id)
 {
-    this->sequence_id = sequence_id;
+    this->sequence_id = generate_unique_seq_id();
     this->clear();
 }
 
 NoteNagaMIDISeq::NoteNagaMIDISeq(int sequence_id, std::vector<NoteNagaTrack*> tracks)
 {
-    this->sequence_id = sequence_id;
+    this->sequence_id = generate_unique_seq_id();
     this->clear();
     this->tracks = std::move(tracks);
 }
@@ -168,40 +174,72 @@ void NoteNagaMIDISeq::clear()
         if (track) delete track;
     }
     this->tracks.clear();
+
     // Dealokace midi_file
     if (midi_file) {
         delete midi_file;
         midi_file = nullptr;
     }
-    ppq = 480;
-    tempo = 500000;
-    active_track_id.reset();
-    max_tick = 0;
+
+    this->ppq = 480;
+    this->tempo = 500000;
+    this->max_tick = 0;
+    this->active_track = nullptr;
+    this->solo_track = nullptr;
 }
 
-void NoteNagaMIDISeq::set_active_track_id(std::optional<int> track_id)
+void NoteNagaMIDISeq::set_id(int new_id)
 {
-    if (!track_id.has_value())
-    {
-        this->active_track_id.reset();
+    if (this->sequence_id == new_id)
         return;
-    }
-    if (track_id < 0 || track_id >= tracks.size())
-    {
-        std::cerr << "Invalid track ID: " << track_id.value() << std::endl;
-        return;
-    }
-    this->active_track_id = track_id;
-    NN_QT_EMIT(active_track_changed_signal(get_track_by_id(track_id.value())));
+    sequence_id = new_id;
+    NN_QT_EMIT(meta_changed_signal(this, "id"));
 }
 
-NoteNagaTrack* NoteNagaMIDISeq::get_active_track()
+void NoteNagaMIDISeq::set_ppq(int ppq)
 {
-    if (active_track_id.has_value())
-    {
-        return get_track_by_id(*active_track_id);
+    if (this->ppq == ppq)
+        return;
+    this->ppq = ppq;
+    NN_QT_EMIT(meta_changed_signal(this, "ppq"));
+}
+
+void NoteNagaMIDISeq::set_tempo(int tempo)
+{
+    if (this->tempo == tempo)
+        return;
+    this->tempo = tempo;
+    NN_QT_EMIT(meta_changed_signal(this, "tempo"));
+}
+
+void NoteNagaMIDISeq::set_solo_track(NoteNagaTrack *track)
+{
+    if (track) {
+        for (NoteNagaTrack* tr : this->tracks) {
+            if (tr == track) {
+                this->solo_track = track;
+                break;
+            }
+        }
+    } else {
+        this->solo_track = nullptr;
     }
-    return nullptr;
+    NN_QT_EMIT(meta_changed_signal(this, "solo_track"));
+}
+
+void NoteNagaMIDISeq::set_active_track(NoteNagaTrack *track)
+{
+    if (track) {
+        for (NoteNagaTrack* tr : this->tracks) {
+            if (tr == track) {
+                this->active_track = track;
+                break;
+            }
+        }
+    } else {
+        this->active_track = nullptr;
+    }
+    NN_QT_EMIT(meta_changed_signal(this, "active_track"));
 }
 
 NoteNagaTrack* NoteNagaMIDISeq::get_track_by_id(int track_id)
@@ -224,6 +262,7 @@ int NoteNagaMIDISeq::compute_max_tick()
                 this->max_tick = std::max(this->max_tick, note.start.value() + note.length.value());
         }
     }
+    NN_QT_EMIT(meta_changed_signal(this, "max_tick"));
     return this->max_tick;
 }
 
@@ -271,14 +310,7 @@ void NoteNagaMIDISeq::load_from_midi(const QString &midi_file_path)
     compute_max_tick();
 
     // Set the active track
-    if (!tracks.empty())
-    {
-        active_track_id = tracks[0]->get_id();
-    }
-    else
-    {
-        active_track_id.reset();
-    }
+    if (!tracks.empty()) this->active_track = tracks[0];
 
     // signals
     for (NoteNagaTrack* track : this->tracks)
@@ -491,46 +523,6 @@ std::vector<NoteNagaTrack*> NoteNagaMIDISeq::load_type1_tracks(const MidiFile *m
     }
     this->tempo = tempo;
     return tracks_tmp;
-}
-
-void NoteNagaMIDISeq::set_id(int new_id)
-{
-    if (this->sequence_id == new_id)
-        return;
-    sequence_id = new_id;
-    NN_QT_EMIT(meta_changed_signal(this, "id"));
-}
-
-void NoteNagaMIDISeq::set_ppq(int ppq)
-{
-    if (this->ppq == ppq)
-        return;
-    this->ppq = ppq;
-    NN_QT_EMIT(meta_changed_signal(this, "ppq"));
-}
-
-void NoteNagaMIDISeq::set_tempo(int tempo)
-{
-    if (this->tempo == tempo)
-        return;
-    this->tempo = tempo;
-    NN_QT_EMIT(meta_changed_signal(this, "tempo"));
-}
-
-void NoteNagaMIDISeq::set_active_track_id(std::optional<int> track_id)
-{
-    if (this->active_track_id == track_id)
-        return;
-    active_track_id = track_id;
-    NN_QT_EMIT(meta_changed_signal(this, "active_track_id"));
-}
-
-void NoteNagaMIDISeq::set_solo_track_id(std::optional<int> track_id)
-{
-    if (this->solo_track_id == track_id)
-        return;
-    solo_track_id = track_id;
-    NN_QT_EMIT(meta_changed_signal(this, "solo_track_id"));
 }
 
 // ---------- Channel colors ----------

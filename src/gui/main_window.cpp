@@ -136,13 +136,16 @@ void MainWindow::setup_dock_layout() {
     grid->setContentsMargins(0, 0, 0, 0);
     grid->setSpacing(0);
 
-    midi_tact_ruler = new MidiTactRuler(this->engine, this);
-    midi_keyboard_ruler = new MidiKeyboardRuler(this->engine, 16, this);
-    midi_keyboard_ruler->setFixedWidth(80);
     midi_editor = new MidiEditorWidget(this->engine, this);
     midi_editor->setMouseTracking(true);
     midi_editor->setMinimumWidth(250);
     midi_editor->setMinimumHeight(250);
+
+    midi_keyboard_ruler = new MidiKeyboardRuler(this->engine, 16, this);
+    midi_keyboard_ruler->setFixedWidth(80);
+
+    midi_tact_ruler = new MidiTactRuler(this->engine, this);
+    midi_tact_ruler->set_time_scale(midi_editor->get_time_scale());
 
     // -- GRID LAYOUT --
     grid->addWidget(new QWidget(), 0, 0);
@@ -254,11 +257,13 @@ void MainWindow::toggle_play() {
 void MainWindow::zoom_in_x() {
     double scale = std::min(2.0, midi_editor->get_time_scale() * 1.3);
     midi_editor->set_time_scale_slot(scale);
+    midi_tact_ruler->set_time_scale(scale);
 }
 
 void MainWindow::zoom_out_x() {
     double scale = std::max(0.02, midi_editor->get_time_scale() / 1.3);
     midi_editor->set_time_scale_slot(scale);
+    midi_tact_ruler->set_time_scale(scale);
 }
 
 void MainWindow::on_playing_state_changed(bool playing) {

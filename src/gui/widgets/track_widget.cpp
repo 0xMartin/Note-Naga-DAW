@@ -96,6 +96,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     right_layout->addWidget(header);
 
     volume_bar = new VolumeBar(0.0);
+    volume_bar->setRange(0, 127);
     volume_bar->setObjectName("VolumeBar");
     right_layout->addWidget(volume_bar);
 

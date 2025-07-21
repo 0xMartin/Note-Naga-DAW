@@ -133,7 +133,7 @@ void TrackMixerWidget::_init_ui()
         MultiChannelVolumeBar* bar = new MultiChannelVolumeBar(16);
         bar->setMinimumHeight(90);
         bar->setMaximumHeight(120);
-        bar->setRange(0, 1);
+        bar->setRange(0, 127);
         bar->setVisible(false);
         channel_volume_bars[dev] = bar;
         main_layout->addWidget(bar);
@@ -318,7 +318,7 @@ void TrackMixerWidget::_handle_playing_note(const NoteNagaNote& note, const QStr
     NoteNagaProject *project = engine->get_project();
     int time_ms = int(note_time_ms(note, project->get_ppq(), project->get_tempo()));
     if (note.velocity.has_value() && note.velocity.value() > 0) {
-        set_channel_output_value(device_name, channel, note.velocity.value() / 127.0f, time_ms);
+        set_channel_output_value(device_name, channel, note.velocity.value(), time_ms);
     }
 }
 

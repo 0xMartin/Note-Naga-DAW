@@ -60,7 +60,7 @@ void TrackListWidget::_init_ui()
     setLayout(main_layout);
 
     // Signals
-    connect(engine->get_project(), NoteNagaProject::active_sequence_changed_signal, this, &TrackListWidget::_reload_tracks);
+    connect(engine->get_project(), &NoteNagaProject::active_sequence_changed_signal, this, &TrackListWidget::_reload_tracks);
     connect(engine->get_mixer(), &NoteNagaMixer::note_in_signal, this, &TrackListWidget::_handle_playing_note);
 }
 
@@ -109,7 +109,7 @@ void TrackListWidget::_update_selection(NoteNagaMIDISeq *sequence, int widget_id
     for (size_t i = 0; i < track_widgets.size(); ++i) {
         track_widgets[i]->refresh_style(static_cast<int>(i) == widget_idx);
         if (static_cast<int>(i) == widget_idx) {
-            sequence->set_active_track_id(track_widgets[i]->get_track()->get_id());
+            sequence->set_active_track(track_widgets[i]->get_track());
         }
     }
 }
@@ -123,7 +123,7 @@ void TrackListWidget::_handle_playing_note(const NoteNagaNote& note)
     double time_ms = note_time_ms(note, project->get_ppq(), project->get_tempo());
     for (auto* w : track_widgets) {
         if (w->get_track() == track && note.velocity.has_value() && note.velocity.value() > 0) {
-            w->get_volume_bar()->setValue(static_cast<double>(note.velocity.value()) / 127.0, time_ms);
+            w->get_volume_bar()->setValue(static_cast<double>(note.velocity.value()), time_ms);
             break;
         }
     }

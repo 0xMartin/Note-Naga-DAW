@@ -1,12 +1,14 @@
 #pragma once
 
-#include <QMap>
-#include <QObject>
-#include <QString>
 #include <RtMidi.h>
 #include <fluidsynth.h>
 #include <memory>
 #include <vector>
+#include <mutex>
+
+#include <QMap>
+#include <QObject>
+#include <QString>
 
 #include "../note_naga_api.h"
 #include "project_data.h"
@@ -14,8 +16,18 @@
 
 #define TRACK_ROUTING_ENTRY_ANY_DEVICE "any"
 
-struct NOTE_NAGA_ENGINE_API NoteNagaRoutingEntry;
-struct NOTE_NAGA_ENGINE_API PlayedNote;
+struct NOTE_NAGA_ENGINE_API NoteNagaRoutingEntry {
+    NoteNagaTrack *track;
+    QString output;
+    int channel;
+    float volume;
+    int note_offset;
+    float pan;
+
+    NoteNagaRoutingEntry(NoteNagaTrack *track, const QString &device, int channel, float volume = 1.0f,
+                         int note_offset = 0, float pan = 0.0f)
+        : track(track), output(device), channel(channel), volume(volume), note_offset(note_offset), pan(pan) {}
+};
 
 class NOTE_NAGA_ENGINE_API NoteNagaMixer : public QObject {
     Q_OBJECT
@@ -61,6 +73,8 @@ class NOTE_NAGA_ENGINE_API NoteNagaMixer : public QObject {
     NoteNagaProject *project;
     QString sf2_path;
 
+    std::recursive_mutex mutex;
+
     std::vector<QString> available_outputs;
     QString default_output;
     std::vector<NoteNagaRoutingEntry> routing_entries;
@@ -86,17 +100,4 @@ class NOTE_NAGA_ENGINE_API NoteNagaMixer : public QObject {
 
     void ensure_fluidsynth();
     RtMidiOut *ensure_midi_output(const QString &device);
-};
-
-struct NOTE_NAGA_ENGINE_API NoteNagaRoutingEntry {
-    NoteNagaTrack *track;
-    QString output;
-    int channel;
-    float volume;
-    int note_offset;
-    float pan;
-
-    NoteNagaRoutingEntry(NoteNagaTrack *track, const QString &device, int channel, float volume = 1.0f,
-                         int note_offset = 0, float pan = 0.0f)
-        : track(track), output(device), channel(channel), volume(volume), note_offset(note_offset), pan(pan) {}
 };

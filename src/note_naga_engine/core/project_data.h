@@ -28,15 +28,14 @@ public:
     int get_tempo() const;
     int get_current_tick() const { return current_tick; }
     int get_max_tick() const;
-    std::optional<int> get_active_sequence_id() const { return active_sequence_id; }
-    NoteNagaMIDISeq* get_active_sequence() const;
+    NoteNagaMIDISeq* get_active_sequence() const { return this->active_sequence; }
     NoteNagaMIDISeq* get_sequence_by_id(int sequence_id);
     std::vector<NoteNagaMIDISeq*> get_sequences() const { return sequences; }
 
     void set_ppq(int ppq) { this->ppq = ppq; }
     void set_tempo(int tempo) { this->tempo = tempo; }
-    void set_active_sequence_id(std::optional<int> sequence_id);
     void set_current_tick(int tick);
+    bool set_active_sequence(NoteNagaMIDISeq* sequence);
 
 Q_SIGNALS:
     void project_file_loaded_signal();
@@ -47,7 +46,7 @@ Q_SIGNALS:
     
 protected:
     std::vector<NoteNagaMIDISeq*> sequences;
-    std::optional<int> active_sequence_id;
+    NoteNagaMIDISeq* active_sequence;
 
     int ppq;
     int tempo;

@@ -106,7 +106,8 @@ void VolumeBar::paintEvent(QPaintEvent* event) {
     int bar_y = 0;
     int width = this->width();
 
-    int bar_width = int(width * std::max(0.0f, std::min(1.0f, current_value)));
+    int current_value_clamped = std::max(this->min_value, std::min(this->max_value, current_value));
+    int bar_width = int(width * current_value_clamped / (this->max_value - this->min_value));
 
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);

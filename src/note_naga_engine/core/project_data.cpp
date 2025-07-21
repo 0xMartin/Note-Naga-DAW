@@ -1,46 +1,40 @@
 #include "project_data.h"
 
+#include <QDebug>
 #include <QFileInfo>
 #include <QString>
-#include <memory>
-#include <iostream>
 #include <algorithm>
-#include <QDebug>
-
+#include <iostream>
+#include <memory>
 
 NoteNagaProject::NoteNagaProject() {
     // Initialize with empty sequences
     sequences.clear();
-    active_sequence_id.reset();
+    active_sequence = nullptr;
     current_tick = 0;
     max_tick = 0;
 }
 
 NoteNagaProject::~NoteNagaProject() {
-    for (NoteNagaMIDISeq* seq : sequences) {
+    for (NoteNagaMIDISeq *seq : sequences) {
         if (seq) delete seq;
     }
     sequences.clear();
 }
 
-bool NoteNagaProject::load_project(const QString &project_path)
-{
-    if (project_path.isEmpty()) {
-        return false;
-    }
-    for (NoteNagaMIDISeq* seq : sequences) {
+bool NoteNagaProject::load_project(const QString &project_path) {
+    if (project_path.isEmpty()) { return false; }
+    for (NoteNagaMIDISeq *seq : sequences) {
         if (seq) delete seq;
     }
-    current_tick = 0;
-    max_tick = 0;
-    sequences.clear();
-    active_sequence_id.reset();
+    this->current_tick = 0;
+    this->max_tick = 0;
+    this->sequences.clear();
+    this->active_sequence = nullptr;
 
-    NoteNagaMIDISeq* sequence = new NoteNagaMIDISeq();
+    NoteNagaMIDISeq *sequence = new NoteNagaMIDISeq();
     sequence->load_from_midi(project_path);
     add_sequence(sequence);
-
-    this->set_active_sequence_id(active_sequence_id);
 
     connect(sequence, &NoteNagaMIDISeq::meta_changed_signal, this, &NoteNagaProject::sequence_meta_changed_signal);
     connect(sequence, &NoteNagaMIDISeq::track_meta_changed_signal, this, &NoteNagaProject::track_meta_changed_signal);
@@ -48,101 +42,73 @@ bool NoteNagaProject::load_project(const QString &project_path)
     return true;
 }
 
-
-void NoteNagaProject::add_sequence(NoteNagaMIDISeq* sequence) {
+void NoteNagaProject::add_sequence(NoteNagaMIDISeq *sequence) {
     if (sequence) {
         sequences.push_back(sequence);
-        if (!active_sequence_id.has_value()) {
-            active_sequence_id = sequence->get_track_by_id(0)->get_id(); 
+        if (!this->active_sequence) {
+            this->active_sequence = sequence;
+            NN_QT_EMIT(active_sequence_changed_signal(sequence));
         }
     }
 }
 
-void NoteNagaProject::remove_sequence(NoteNagaMIDISeq* sequence) {
+void NoteNagaProject::remove_sequence(NoteNagaMIDISeq *sequence) {
     if (sequence) {
         auto it = std::remove(sequences.begin(), sequences.end(), sequence);
         if (it != sequences.end()) {
             sequences.erase(it, sequences.end());
             // Reset active sequence if it was removed
-            if (active_sequence_id.has_value() && *active_sequence_id == sequence->get_track_by_id(0)->get_id()) {
-                active_sequence_id.reset();
+            if (active_sequence == sequence) {
+                active_sequence = nullptr;
+                NN_QT_EMIT(active_sequence_changed_signal(nullptr));
             }
         }
     }
 }
 
-int NoteNagaProject::get_ppq() const
-{
-    NoteNagaMIDISeq* active_sequence = get_active_sequence();
-    if (active_sequence)
-    {
-        return active_sequence->get_ppq();
-    }
+int NoteNagaProject::get_ppq() const {
+    NoteNagaMIDISeq *active_sequence = get_active_sequence();
+    if (active_sequence) { return active_sequence->get_ppq(); }
     return ppq;
 }
 
-int NoteNagaProject::get_tempo() const
-{
-    NoteNagaMIDISeq* active_sequence = get_active_sequence();
-    if (active_sequence)
-    {
-        return active_sequence->get_tempo();
-    }
+int NoteNagaProject::get_tempo() const {
+    NoteNagaMIDISeq *active_sequence = get_active_sequence();
+    if (active_sequence) { return active_sequence->get_tempo(); }
     return tempo;
 }
 
-void NoteNagaProject::set_active_sequence_id(std::optional<int> sequence_id) 
-{ 
-    if (!sequence_id.has_value()) {
-        active_sequence_id.reset();
-        return;
-    }
-    if (sequence_id < 0 || sequence_id >= sequences.size()) {
-        std::cerr << "Invalid sequence ID: " << sequence_id.value() << std::endl;
-        return;
-    }
-    active_sequence_id = sequence_id;
-    NN_QT_EMIT(active_sequence_changed_signal(get_sequence_by_id(sequence_id.value())));
-}
-
-void NoteNagaProject::set_current_tick(int tick)
-{
-    if (this->current_tick == tick)
-        return;
+void NoteNagaProject::set_current_tick(int tick) {
+    if (this->current_tick == tick) return;
     this->current_tick = tick;
     NN_QT_EMIT(current_tick_changed_signal(this->current_tick));
 }
 
-int NoteNagaProject::get_max_tick() const
-{
-    NoteNagaMIDISeq* active_sequence = get_active_sequence();
-    if (!active_sequence)
-    {
-        return 0;
+bool NoteNagaProject::set_active_sequence(NoteNagaMIDISeq *sequence) {
+    if (!sequence) {
+        this->active_sequence = nullptr;
+        return false;
     }
+    for (NoteNagaMIDISeq *seq : this->sequences) {
+        if (seq->get_id() == sequence->get_id()) {
+            this->active_sequence = seq;
+            NN_QT_EMIT(active_sequence_changed_signal(seq));
+            return true;
+        }
+    }
+    NN_QT_EMIT(active_sequence_changed_signal(sequence));
+    return true;
+}
+
+int NoteNagaProject::get_max_tick() const {
+    NoteNagaMIDISeq *active_sequence = get_active_sequence();
+    if (!active_sequence) { return 0; }
     return active_sequence->get_max_tick();
 }
 
-NoteNagaMIDISeq* NoteNagaProject::get_active_sequence() const
-{
-    if (active_sequence_id.has_value()) {
-        auto it = std::find_if(sequences.begin(), sequences.end(),
-            [this](const NoteNagaMIDISeq*& seq) {
-                return seq->get_id() == *active_sequence_id;
-            });
-        if (it != sequences.end()) {
-            return *it;
-        }
-    }
-    return nullptr;
-}
-
-NoteNagaMIDISeq *NoteNagaProject::get_sequence_by_id(int sequence_id)
-{
-    for (NoteNagaMIDISeq* seq : this->sequences) {
-        if (seq && seq->get_id() == sequence_id) {
-            return seq;
-        }
+NoteNagaMIDISeq *NoteNagaProject::get_sequence_by_id(int sequence_id) {
+    for (NoteNagaMIDISeq *seq : this->sequences) {
+        if (seq && seq->get_id() == sequence_id) { return seq; }
     }
     return nullptr;
 }

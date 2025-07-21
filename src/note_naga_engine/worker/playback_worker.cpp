@@ -153,10 +153,10 @@ void PlaybackThreadWorker::run()
         }
 
         // check if some track is soloed (store id of the soloed track)
-        if (active_sequence->get_solo_track_id().has_value())
+        if (active_sequence->get_solo_track())
         {
             // send all note on / off events to mixer
-            auto track = active_sequence->get_active_track();
+            auto track = active_sequence->get_solo_track();
             if (track)
             {
                 for (const auto &note : track->get_notes())

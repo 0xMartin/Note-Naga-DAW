@@ -283,7 +283,7 @@ void MidiKeyboardRuler::mousePressEvent(QMouseEvent *event)
     int nval = note.has_value() ? note.value() : -1;
     if (nval != -1)
     {
-        pressed_note.id = generate_random_note_id();
+        pressed_note.id = generate_unique_note_id();
         pressed_note.parent = track;
         pressed_note.note = nval;
         pressed_note.velocity = 44 + rand() % 41; // random velocity 44 - 84
@@ -315,10 +315,14 @@ void MidiKeyboardRuler::set_vertical_scroll_slot(float v, float row_height)
     update();
 }
 
-void MidiKeyboardRuler::on_play_note(const NoteNagaNote& note, const NoteNagaMIDISeq *sequence, const NoteNagaTrack *track)
+void MidiKeyboardRuler::on_play_note(const NoteNagaNote& note)
 {
-    int timeout = note_time_ms(note, sequence->get_ppq(), sequence->get_tempo());
+    NoteNagaTrack *track = note.parent;
     if (!track) return;
+    NoteNagaMIDISeq *sequence = track->get_parent();
+    if (!sequence) return;
+
+    int timeout = note_time_ms(note, sequence->get_ppq(), sequence->get_tempo());
     highlight_key(note.note, track->get_color(), timeout);
 }
 

@@ -15,7 +15,6 @@ class MidiControlBarWidget : public QWidget {
 public:
     explicit MidiControlBarWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
-    void update_times(int cur_tick, int max_tick, int tempo, int ppq);
     void set_playing(bool is_playing);
 
 signals:
@@ -26,6 +25,7 @@ signals:
     void metronome_toggled_signal(bool state);
 
 public slots:
+    void update_values();
     void set_playing_slot(bool is_playing);
 
 protected:
@@ -34,6 +34,11 @@ protected:
 private:
     NoteNagaEngine* engine;
     
+    int ppq;
+    int tempo;
+    int max_tick;
+    bool metronome_on;
+
     QLabel* tempo_label;
     QLabel* tempo_icon;
     AnimatedTimeLabel* time_label;
@@ -41,8 +46,6 @@ private:
     QPushButton* to_start_btn;
     QPushButton* to_end_btn;
     QPushButton* metronome_btn;
-
-    bool metronome_on = false;
 
     void _init_ui();
     void edit_tempo(QMouseEvent* event);
