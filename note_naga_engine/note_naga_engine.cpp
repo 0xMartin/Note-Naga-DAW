@@ -42,9 +42,7 @@ bool NoteNagaEngine::initialize() {
 }
 
 bool NoteNagaEngine::loadProject(const std::string &midi_file_path) {
-    if (!this->project) {
-        return false;
-    }
+    if (!this->project) { return false; }
     this->stopPlayback();
     return this->project->loadProject(midi_file_path);
 }
@@ -59,18 +57,12 @@ void NoteNagaEngine::stopPlayback() {
 }
 
 void NoteNagaEngine::setPlaybackPosition(int tick) {
-    if (playback_worker && playback_worker->isPlaying()) {
-        playback_worker->stop();
-    }
-    if (this->project) {
-        this->project->setCurrentTick(tick);
-    }
+    if (playback_worker && playback_worker->isPlaying()) { playback_worker->stop(); }
+    if (this->project) { this->project->setCurrentTick(tick); }
 }
 
 void NoteNagaEngine::changeTempo(int new_tempo) {
-    if (this->project) {
-        this->project->setTempo(new_tempo);
-    }
+    if (this->project) { this->project->setTempo(new_tempo); }
     if (playback_worker) playback_worker->recalculateWorkerTempo();
 }
 

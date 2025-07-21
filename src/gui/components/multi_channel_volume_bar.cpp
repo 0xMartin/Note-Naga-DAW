@@ -1,40 +1,25 @@
 #include "multi_channel_volume_bar.h"
 
-#include <QPainter>
 #include <QBrush>
 #include <QFont>
-#include <QPen>
 #include <QLinearGradient>
+#include <QPainter>
+#include <QPen>
 #include <algorithm>
 #include <cmath>
 
-float MultiChannelVolumeBar::exponential_decay(float progress, float steepness) {
-    return std::exp(-steepness * progress);
-}
-
 MultiChannelVolumeBar::MultiChannelVolumeBar(int channels_,
-                                             const QString& start_color_str,
-                                             const QString& end_color_str,
-                                             bool dynamic_mode_,
-                                             QWidget* parent)
-    : QWidget(parent),
-      channels(channels_),
-      start_color(start_color_str),
-      end_color(end_color_str),
-      dynamic_mode(dynamic_mode_),
-      min_value(0.0f),
-      max_value(1.0f),
-      bar_width_min(8),
-      bar_width_max(30),
-      bar_space_min(2),
-      bar_space_max(10),
-      bar_bottom_margin(28),
-      bar_top_margin(8),
+                                             const QString &start_color_str,
+                                             const QString &end_color_str,
+                                             bool dynamic_mode_, QWidget *parent)
+    : QWidget(parent), channels(channels_), start_color(start_color_str),
+      end_color(end_color_str), dynamic_mode(dynamic_mode_), min_value(0.0f),
+      max_value(1.0f), bar_width_min(8), bar_width_max(30), bar_space_min(2),
+      bar_space_max(10), bar_bottom_margin(28), bar_top_margin(8),
       labels({QString::number(min_value, 'f', 1),
               QString::number((min_value + max_value) / 2.0, 'f', 1),
               QString::number(max_value, 'f', 1)}),
-      decay_steepness(2.2f)
-{
+      decay_steepness(2.2f) {
     setMinimumHeight(80);
     setMinimumWidth(40 + channels * 12);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -61,7 +46,7 @@ void MultiChannelVolumeBar::setChannelCount(int channels_) {
         initial_decay_values.resize(channels, 0.0f);
         decay_times.resize(channels, 400);
 
-        for (auto* t : anim_elapsed)
+        for (auto *t : anim_elapsed)
             delete t;
         anim_elapsed.clear();
         for (int i = 0; i < channels; ++i)
@@ -73,14 +58,10 @@ void MultiChannelVolumeBar::setChannelCount(int channels_) {
     }
 }
 
-int MultiChannelVolumeBar::getChannelCount() const
-{
-    return channels;
-}
+int MultiChannelVolumeBar::getChannelCount() const { return channels; }
 
 void MultiChannelVolumeBar::setValue(int channel_idx, float value, int time_ms) {
-    if (!(0 <= channel_idx && channel_idx < channels))
-        return;
+    if (!(0 <= channel_idx && channel_idx < channels)) return;
     value = std::clamp(value, min_value, max_value);
     if (!dynamic_mode) {
         current_values[channel_idx] = value;
@@ -98,13 +79,9 @@ void MultiChannelVolumeBar::setValue(int channel_idx, float value, int time_ms) 
 
         float norm_intensity = (value - min_value) / (max_value - min_value);
         float base_decay = 600.0f + norm_intensity * 1400.0f;
-        if (time_ms >= 0) {
-            base_decay += time_ms * 0.3f;
-        }
+        if (time_ms >= 0) { base_decay += time_ms * 0.3f; }
         decay_times[channel_idx] = std::max(120, int(base_decay));
-        if (!timer->isActive()) {
-            timer->start(16);
-        }
+        if (!timer->isActive()) { timer->start(16); }
         update();
     }
 }
@@ -112,15 +89,13 @@ void MultiChannelVolumeBar::setValue(int channel_idx, float value, int time_ms) 
 void MultiChannelVolumeBar::setRange(float min_value_, float max_value_) {
     min_value = min_value_;
     max_value = max_value_;
-    labels = {
-        QString::number(min_value, 'f', 1),
-        QString::number((min_value + max_value) / 2.0, 'f', 1),
-        QString::number(max_value, 'f', 1)
-    };
+    labels = {QString::number(min_value, 'f', 1),
+              QString::number((min_value + max_value) / 2.0, 'f', 1),
+              QString::number(max_value, 'f', 1)};
     update();
 }
 
-void MultiChannelVolumeBar::setLabels(const std::vector<QString>& labels_) {
+void MultiChannelVolumeBar::setLabels(const std::vector<QString> &labels_) {
     if (labels_.size() == 3) {
         labels = labels_;
         update();
@@ -130,8 +105,7 @@ void MultiChannelVolumeBar::setLabels(const std::vector<QString>& labels_) {
 void MultiChannelVolumeBar::onAnimTick() {
     bool anim_still_running = false;
     for (int i = 0; i < channels; ++i) {
-        if (!anim_active[i])
-            continue;
+        if (!anim_active[i]) continue;
         int elapsed = anim_elapsed[i]->elapsed();
         float progress = std::min(float(elapsed) / float(decay_times[i]), 2.0f);
         float decay_progress = std::max(0.0f, std::min(progress, 2.0f));
@@ -144,13 +118,11 @@ void MultiChannelVolumeBar::onAnimTick() {
             anim_still_running = true;
         }
     }
-    if (!anim_still_running) {
-        timer->stop();
-    }
+    if (!anim_still_running) { timer->stop(); }
     update();
 }
 
-void MultiChannelVolumeBar::paintEvent(QPaintEvent* event) {
+void MultiChannelVolumeBar::paintEvent(QPaintEvent *event) {
     Q_UNUSED(event);
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
@@ -185,7 +157,8 @@ void MultiChannelVolumeBar::paintEvent(QPaintEvent* event) {
 
     for (int i = 0; i < channels; ++i) {
         int x = start_x + i * (bar_width + bar_space);
-        float value = std::max(0.0f, std::min(1.0f, (current_values[i] - min_value) / (max_value - min_value)));
+        float value = std::max(0.0f, std::min(1.0f, (current_values[i] - min_value) /
+                                                        (max_value - min_value)));
         int bar_h = int(bar_area_height * value);
         int by = bottom - bar_h;
         QLinearGradient gradient(0, bottom, 0, top);
@@ -225,10 +198,13 @@ void MultiChannelVolumeBar::paintEvent(QPaintEvent* event) {
     for (int i = 1; i < 10; ++i) {
         float frac = float(i) / 10.0f;
         int y = int(bottom - frac * (bottom - top));
-        if (std::find(positions.begin(), positions.end(), y) != positions.end())
-            continue;
+        if (std::find(positions.begin(), positions.end(), y) != positions.end()) continue;
         painter.drawLine(scale_x + 3, y, scale_x + 5, y);
     }
 
     painter.end();
+}
+
+float MultiChannelVolumeBar::exponential_decay(float progress, float steepness) {
+    return std::exp(-steepness * progress);
 }

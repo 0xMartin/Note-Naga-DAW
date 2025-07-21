@@ -1,6 +1,6 @@
-#include <note_naga_engine/worker/playback_worker.h>
 #include <algorithm>
 #include <iostream>
+#include <note_naga_engine/worker/playback_worker.h>
 
 /*******************************************************************************************************/
 // Playback Thread Worker

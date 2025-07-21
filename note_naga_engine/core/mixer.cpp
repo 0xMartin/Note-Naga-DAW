@@ -1,7 +1,7 @@
 #include <note_naga_engine/core/mixer.h>
 
 #include <algorithm>
-#include <iostream> 
+#include <iostream>
 
 #ifndef QT_DEACTIVATED
 NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path)
@@ -131,8 +131,7 @@ bool NoteNagaMixer::addRoutingEntry(const std::optional<NoteNagaRoutingEntry> &e
         NoteNagaMidiSeq *seq = project->getActiveSequence();
         if (!seq) return false;
         NoteNagaTrack *track = seq->getActiveTrack();
-        if (!track)
-            track = seq->getTracks().empty() ? nullptr : seq->getTracks().front();
+        if (!track) track = seq->getTracks().empty() ? nullptr : seq->getTracks().front();
         if (!track) return false;
         routing_entries.push_back(NoteNagaRoutingEntry(track, default_output, 0));
         NN_QT_EMIT(routingEntryStackChanged());

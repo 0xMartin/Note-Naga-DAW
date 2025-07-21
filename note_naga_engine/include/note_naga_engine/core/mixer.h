@@ -1,8 +1,8 @@
 #pragma once
 
-#include <note_naga_engine/note_naga_api.h>
 #include <note_naga_engine/core/project_data.h>
 #include <note_naga_engine/core/types.h>
+#include <note_naga_engine/note_naga_api.h>
 
 #ifndef QT_DEACTIVATED
 #include <QObject>
@@ -156,8 +156,10 @@ class NOTE_NAGA_ENGINE_API NoteNagaMixer {
 
     /**
      * @brief Stops all notes for the specified sequence and/or track.
-     * @param seq Optional pointer to the MIDI sequence. If is nullptr, stops all notes in all sequences.
-     * @param track Optional pointer to the track. If is nullptr, stops all notes in the sequence.
+     * @param seq Optional pointer to the MIDI sequence. If is nullptr, stops all notes in
+     * all sequences.
+     * @param track Optional pointer to the track. If is nullptr, stops all notes in the
+     * sequence.
      */
     void stopAllNotes(NoteNagaMidiSeq *seq = nullptr, NoteNagaTrack *track = nullptr);
 

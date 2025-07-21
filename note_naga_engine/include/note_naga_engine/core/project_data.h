@@ -1,7 +1,7 @@
 #pragma once
 
-#include <note_naga_engine/note_naga_api.h>
 #include <note_naga_engine/core/types.h>
+#include <note_naga_engine/note_naga_api.h>
 
 #ifndef QT_DEACTIVATED
 #include <QObject>

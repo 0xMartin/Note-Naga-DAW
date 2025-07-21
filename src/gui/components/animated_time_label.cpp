@@ -1,15 +1,14 @@
 #include "animated_time_label.h"
 
-#include <QPainter>
-#include <QLinearGradient>
 #include <QFont>
+#include <QLinearGradient>
+#include <QPainter>
 #include <QResizeEvent>
 #include <algorithm>
 
-AnimatedTimeLabel::AnimatedTimeLabel(QWidget* parent)
+AnimatedTimeLabel::AnimatedTimeLabel(QWidget *parent)
     : QLabel(parent), anim_timer(new QTimer(this)), anim_progress(0),
-      cached_font_point_size(-1), cached_text_rect(), cached_last_size(-1, -1)
-{
+      cached_font_point_size(-1), cached_text_rect(), cached_last_size(-1, -1) {
     setObjectName("AnimatedTimeLabel");
     setMinimumWidth(130);
     setAlignment(Qt::AlignCenter);
@@ -33,13 +32,13 @@ void AnimatedTimeLabel::updateAnim() {
     }
 }
 
-void AnimatedTimeLabel::resizeEvent(QResizeEvent* event) {
+void AnimatedTimeLabel::resizeEvent(QResizeEvent *event) {
     QLabel::resizeEvent(event);
     // Přepočítej font velikost při změně velikosti prvku
     recalculateFontSize();
 }
 
-void AnimatedTimeLabel::setText(const QString& text) {
+void AnimatedTimeLabel::setText(const QString &text) {
     QLabel::setText(text);
     // Pokud je nově nastavený text delší než poslední, zkontroluj velikost fontu
     recalculateFontSize();
@@ -65,7 +64,9 @@ void AnimatedTimeLabel::recalculateFontSize() {
 
     QFontMetrics fm(f);
     // Najdi největší font, který se vejde do textRect (s rezervou 10%)
-    while ((fm.horizontalAdvance(prototype) > textRect.width() * 0.90 || fm.height() > textRect.height() * 0.90) && fontSize > 6) {
+    while ((fm.horizontalAdvance(prototype) > textRect.width() * 0.90 ||
+            fm.height() > textRect.height() * 0.90) &&
+           fontSize > 6) {
         fontSize--;
         f.setPointSize(fontSize);
         fm = QFontMetrics(f);
@@ -75,7 +76,7 @@ void AnimatedTimeLabel::recalculateFontSize() {
     cached_last_size = r.size();
 }
 
-void AnimatedTimeLabel::paintEvent(QPaintEvent* event) {
+void AnimatedTimeLabel::paintEvent(QPaintEvent *event) {
     QPainter p(this);
     QRect r = rect();
 
@@ -107,8 +108,7 @@ void AnimatedTimeLabel::paintEvent(QPaintEvent* event) {
     f.setBold(true);
 
     // Použij vypočtenou velikost fontu
-    if (cached_font_point_size <= 0)
-        recalculateFontSize();
+    if (cached_font_point_size <= 0) recalculateFontSize();
 
     f.setPointSize(cached_font_point_size);
     p.setFont(f);

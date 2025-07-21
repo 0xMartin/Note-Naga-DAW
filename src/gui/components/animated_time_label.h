@@ -1,27 +1,37 @@
 #pragma once
 
-#include <QWidget>
 #include <QLabel>
-#include <QTimer>
-#include <QSize>
 #include <QRect>
+#include <QSize>
+#include <QTimer>
+#include <QWidget>
 
+/**
+ * @brief A QLabel subclass that animates the text size and appearance.
+ */
 class AnimatedTimeLabel : public QLabel {
     Q_OBJECT
-public:
-    explicit AnimatedTimeLabel(QWidget* parent = nullptr);
+  public:
+    explicit AnimatedTimeLabel(QWidget *parent = nullptr);
 
-    void animateTick(); 
+    /**
+     * @brief Starts the animation with a specified duration.
+     */
+    void animateTick();
 
-    void setText(const QString& text);
+    /**
+     * @brief Sets the text to be displayed in the label.
+     * @param text The text to display.
+     */
+    void setText(const QString &text);
 
-protected:
-    void paintEvent(QPaintEvent* event) override;
-    void resizeEvent(QResizeEvent* event) override;
+  protected:
+    void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
-private:
-    QTimer* anim_timer;
-    int anim_progress; 
+  private:
+    QTimer *anim_timer;
+    int anim_progress;
 
     // Font size caching
     int cached_font_point_size;

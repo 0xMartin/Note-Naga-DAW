@@ -9,10 +9,12 @@
 /*******************************************************************************************************/
 
 const std::vector<NNColor> DEFAULT_CHANNEL_COLORS = {
-    NNColor(0, 180, 255),   NNColor(255, 100, 100), NNColor(250, 200, 75),  NNColor(90, 230, 120),
-    NNColor(180, 110, 255), NNColor(170, 180, 70),  NNColor(95, 220, 210),  NNColor(230, 90, 210),
-    NNColor(70, 180, 90),   NNColor(255, 180, 60),  NNColor(210, 80, 80),   NNColor(80, 120, 255),
-    NNColor(255, 230, 80),  NNColor(110, 255, 120), NNColor(220, 160, 255), NNColor(100, 180, 160)};
+    NNColor(0, 180, 255),  NNColor(255, 100, 100), NNColor(250, 200, 75),
+    NNColor(90, 230, 120), NNColor(180, 110, 255), NNColor(170, 180, 70),
+    NNColor(95, 220, 210), NNColor(230, 90, 210),  NNColor(70, 180, 90),
+    NNColor(255, 180, 60), NNColor(210, 80, 80),   NNColor(80, 120, 255),
+    NNColor(255, 230, 80), NNColor(110, 255, 120), NNColor(220, 160, 255),
+    NNColor(100, 180, 160)};
 
 NNColor nn_color_blend(const NNColor &fg, const NNColor &bg, double opacity) {
     // opacity: 0.0 = jen bg, 1.0 = jen fg
@@ -66,11 +68,16 @@ NoteNagaTrack::NoteNagaTrack() {
 }
 
 #ifndef QT_DEACTIVATED
-NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent, const std::string &name,
-                             const std::optional<int> &instrument, const std::optional<int> &channel) : QObject(nullptr) {
+NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent,
+                             const std::string &name,
+                             const std::optional<int> &instrument,
+                             const std::optional<int> &channel)
+    : QObject(nullptr) {
 #else
-NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent, const std::string &name,
-                             const std::optional<int> &instrument, const std::optional<int> &channel) {
+NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent,
+                             const std::string &name,
+                             const std::optional<int> &instrument,
+                             const std::optional<int> &channel) {
 #endif
     this->track_id = track_id;
     this->parent = parent;
@@ -244,7 +251,8 @@ int NoteNagaMidiSeq::computeMaxTick() {
     for (const auto &track : this->tracks) {
         for (const auto &note : track->getNotes()) {
             if (note.start.has_value() && note.length.has_value())
-                this->max_tick = std::max(this->max_tick, note.start.value() + note.length.value());
+                this->max_tick =
+                    std::max(this->max_tick, note.start.value() + note.length.value());
         }
     }
     NN_QT_EMIT(metadataChanged(this, "max_tick"));
@@ -289,7 +297,8 @@ void NoteNagaMidiSeq::loadFromMidi(const std::string &midi_file_path) {
     for (NoteNagaTrack *track : this->tracks) {
         if (!track) continue;
 #ifndef QT_DEACTIVATED
-        connect(track, &NoteNagaTrack::metadataChanged, this, &NoteNagaMidiSeq::trackMetadataChanged);
+        connect(track, &NoteNagaTrack::metadataChanged, this,
+                &NoteNagaMidiSeq::trackMetadataChanged);
 #endif
     }
 }
@@ -301,7 +310,8 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
     // Only one track - need to split by MIDI channel
     const MidiTrack &track = midiFile->getTrack(0);
     int abs_time = 0;
-    std::map<std::pair<int, int>, std::pair<int, int>> notes_on; // (note, channel) -> (start, velocity)
+    std::map<std::pair<int, int>, std::pair<int, int>>
+        notes_on; // (note, channel) -> (start, velocity)
     std::map<int, std::vector<NoteNagaNote>> channel_note_buffers;
     std::map<int, int> channel_instruments;
     std::map<int, std::string> channel_names;
@@ -315,7 +325,8 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_TRACK_NAME) {
             std::string track_name(evt.meta_data.begin(), evt.meta_data.end());
             size_t endpos = track_name.find_last_not_of('\0');
-            if (endpos != std::string::npos) track_name = track_name.substr(0, endpos + 1);
+            if (endpos != std::string::npos)
+                track_name = track_name.substr(0, endpos + 1);
             for (int ch = 0; ch < 16; ++ch) {
                 channel_names[ch] = track_name;
             }
@@ -327,7 +338,8 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         // Tempo change: only once
         if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_SET_TEMPO) {
             if (evt.meta_data.size() == 3) {
-                tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) | evt.meta_data[2];
+                tempo =
+                    (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) | evt.meta_data[2];
             }
         }
         // Note on: register note start per channel
@@ -339,7 +351,8 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         }
         // Note off: finish note per channel
         else if ((evt.type == MidiEventType::NoteOff) ||
-                 (evt.type == MidiEventType::NoteOn && !evt.data.empty() && evt.data[1] == 0)) {
+                 (evt.type == MidiEventType::NoteOn && !evt.data.empty() &&
+                  evt.data[1] == 0)) {
             int note = evt.data[0];
             int channel = evt.channel;
             auto key = std::make_pair(note, channel);
@@ -347,7 +360,8 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
             if (it != notes_on.end()) {
                 int start = it->second.first;
                 int velocity = it->second.second;
-                channel_note_buffers[channel].push_back(NoteNagaNote(note, nullptr, start, abs_time - start, velocity));
+                channel_note_buffers[channel].push_back(
+                    NoteNagaNote(note, nullptr, start, abs_time - start, velocity));
                 notes_on.erase(it);
             }
         }
@@ -360,12 +374,18 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         std::vector<NoteNagaNote> &note_buffer = pair.second;
         if (note_buffer.empty()) continue;
 
-        std::string name = channel_names.count(channel) ? channel_names[channel] : "Channel " + std::to_string(channel + 1);
-        int instrument = channel_instruments.count(channel) ? channel_instruments[channel] : 0;
+        std::string name = channel_names.count(channel)
+                               ? channel_names[channel]
+                               : "Channel " + std::to_string(channel + 1);
+        int instrument =
+            channel_instruments.count(channel) ? channel_instruments[channel] : 0;
 
-        NoteNagaTrack *nn_track = new NoteNagaTrack(t_id, this, name, instrument, channel);
+        NoteNagaTrack *nn_track =
+            new NoteNagaTrack(t_id, this, name, instrument, channel);
         std::sort(note_buffer.begin(), note_buffer.end(),
-                  [](const NoteNagaNote &a, const NoteNagaNote &b) { return a.start < b.start; });
+                  [](const NoteNagaNote &a, const NoteNagaNote &b) {
+                      return a.start < b.start;
+                  });
         for (auto &note : note_buffer) {
             note.parent = nn_track;
         }
@@ -386,7 +406,8 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
     for (int track_idx = 0; track_idx < midiFile->getNumTracks(); ++track_idx) {
         const MidiTrack &track = midiFile->getTrack(track_idx);
 
-        std::map<std::pair<int, int>, std::pair<int, int>> notes_on; // (note, channel) -> (start, velocity)
+        std::map<std::pair<int, int>, std::pair<int, int>>
+            notes_on; // (note, channel) -> (start, velocity)
         int abs_time = 0;
         int instrument = 0;
         std::optional<int> channel_used;
@@ -401,10 +422,12 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
             abs_time += evt.delta_time;
 
             // Track name
-            if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_TRACK_NAME) {
+            if (evt.type == MidiEventType::Meta &&
+                evt.meta_type == MIDI_META_TRACK_NAME) {
                 std::string track_name(evt.meta_data.begin(), evt.meta_data.end());
                 size_t endpos = track_name.find_last_not_of('\0');
-                if (endpos != std::string::npos) track_name = track_name.substr(0, endpos + 1);
+                if (endpos != std::string::npos)
+                    track_name = track_name.substr(0, endpos + 1);
                 name = track_name;
             }
             // Program change: store instrument
@@ -415,22 +438,27 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
                 }
             }
             // Tempo change: only from first track
-            if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_SET_TEMPO && track_idx == 0) {
+            if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_SET_TEMPO &&
+                track_idx == 0) {
                 if (evt.meta_data.size() == 3) {
-                    tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) | evt.meta_data[2];
+                    tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) |
+                            evt.meta_data[2];
                 }
             }
             // Note on
-            if (evt.type == MidiEventType::NoteOn && !evt.data.empty() && evt.data[1] > 0) {
+            if (evt.type == MidiEventType::NoteOn && !evt.data.empty() &&
+                evt.data[1] > 0) {
                 int note = evt.data[0];
                 int velocity = evt.data[1];
                 int channel = evt.channel;
                 if (!channel_used.has_value()) channel_used = channel;
-                notes_on[std::make_pair(note, channel)] = std::make_pair(abs_time, velocity);
+                notes_on[std::make_pair(note, channel)] =
+                    std::make_pair(abs_time, velocity);
             }
             // Note off
             else if ((evt.type == MidiEventType::NoteOff) ||
-                     (evt.type == MidiEventType::NoteOn && !evt.data.empty() && evt.data[1] == 0)) {
+                     (evt.type == MidiEventType::NoteOn && !evt.data.empty() &&
+                      evt.data[1] == 0)) {
                 int note = evt.data[0];
                 int channel = evt.channel;
                 auto key = std::make_pair(note, channel);
@@ -438,7 +466,8 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
                 if (it != notes_on.end()) {
                     int start = it->second.first;
                     int velocity = it->second.second;
-                    note_buffer.push_back(NoteNagaNote(note, nn_track, start, abs_time - start, velocity));
+                    note_buffer.push_back(
+                        NoteNagaNote(note, nn_track, start, abs_time - start, velocity));
                     notes_on.erase(it);
                 }
             }
@@ -446,7 +475,9 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
 
         // sort notes by start time and store in track
         std::sort(note_buffer.begin(), note_buffer.end(),
-                  [](const NoteNagaNote &a, const NoteNagaNote &b) { return a.start < b.start; });
+                  [](const NoteNagaNote &a, const NoteNagaNote &b) {
+                      return a.start < b.start;
+                  });
         nn_track->setNotes(note_buffer);
         // set channel and instrument
         nn_track->setChannel(channel_used);
@@ -463,146 +494,148 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
 // General MIDI Instruments Utils
 /*******************************************************************************************************/
 
-const std::vector<GMInstrument> GM_INSTRUMENTS = {{0, "Acoustic Grand Piano", "grand_piano"},
-                                                  {1, "Bright Acoustic Piano", "grand_piano"},
-                                                  {2, "Electric Grand Piano", "grand_piano"},
-                                                  {3, "Honky-tonk Piano", "grand_piano"},
-                                                  {4, "Electric Piano 1", "keyboard"},
-                                                  {5, "Electric Piano 2", "keyboard"},
-                                                  {6, "Harpsichord", "harp"},
-                                                  {7, "Clavinet", "keyboard"},
-                                                  {8, "Celesta", "keyboard"},
-                                                  {9, "Glockenspiel", "xylophone"},
-                                                  {10, "Music Box", "keyboard"},
-                                                  {11, "Vibraphone", "xylophone"},
-                                                  {12, "Marimba", "xylophone"},
-                                                  {13, "Xylophone", "xylophone"},
-                                                  {14, "Tubular Bells", "xylophone"},
-                                                  {15, "Dulcimer", "lyre"},
-                                                  {16, "Drawbar Organ", "keyboard"},
-                                                  {17, "Percussive Organ", "keyboard"},
-                                                  {18, "Rock Organ", "keyboard"},
-                                                  {19, "Church Organ", "keyboard"},
-                                                  {20, "Reed Organ", "keyboard"},
-                                                  {21, "Accordion", "accordion"},
-                                                  {22, "Harmonica", "accordion"},
-                                                  {23, "Tango Accordion", "accordion"},
-                                                  {24, "Acoustic Guitar (nylon)", "acoustic_guitar"},
-                                                  {25, "Acoustic Guitar (steel)", "acoustic_guitar"},
-                                                  {26, "Electric Guitar (jazz)", "electric_guitar"},
-                                                  {27, "Electric Guitar (clean)", "electric_guitar"},
-                                                  {28, "Electric Guitar (muted)", "electric_guitar"},
-                                                  {29, "Overdriven Guitar", "electric_guitar"},
-                                                  {30, "Distortion Guitar", "electric_guitar"},
-                                                  {31, "Guitar harmonics", "electric_guitar"},
-                                                  {32, "Acoustic Bass", "contrabass"},
-                                                  {33, "Electric Bass (finger)", "contrabass"},
-                                                  {34, "Electric Bass (pick)", "contrabass"},
-                                                  {35, "Fretless Bass", "contrabass"},
-                                                  {36, "Slap Bass 1", "contrabass"},
-                                                  {37, "Slap Bass 2", "contrabass"},
-                                                  {38, "Synth Bass 1", "contrabass"},
-                                                  {39, "Synth Bass 2", "contrabass"},
-                                                  {40, "Violin", "violin"},
-                                                  {41, "Viola", "violin"},
-                                                  {42, "Cello", "contrabass"},
-                                                  {43, "Contrabass", "contrabass"},
-                                                  {44, "Tremolo Strings", "violin"},
-                                                  {45, "Pizzicato Strings", "violin"},
-                                                  {46, "Orchestral Harp", "harp"},
-                                                  {47, "Timpani", "drum"},
-                                                  {48, "String Ensemble 1", "lyre"},
-                                                  {49, "String Ensemble 2", "lyre"},
-                                                  {50, "SynthStrings 1", "lyre"},
-                                                  {51, "SynthStrings 2", "lyre"},
-                                                  {52, "Choir Aahs", "lyre"},
-                                                  {53, "Voice Oohs", "lyre"},
-                                                  {54, "Synth Voice", "lyre"},
-                                                  {55, "Orchestra Hit", "lyre"},
-                                                  {56, "Trumpet", "trumpet"},
-                                                  {57, "Trombone", "trombone"},
-                                                  {58, "Tuba", "trombone"},
-                                                  {59, "Muted Trumpet", "trumpet"},
-                                                  {60, "French Horn", "trumpet"},
-                                                  {61, "Brass Section", "trumpet"},
-                                                  {62, "SynthBrass 1", "trumpet"},
-                                                  {63, "SynthBrass 2", "trumpet"},
-                                                  {64, "Soprano Sax", "clarinet"},
-                                                  {65, "Alto Sax", "clarinet"},
-                                                  {66, "Tenor Sax", "clarinet"},
-                                                  {67, "Baritone Sax", "clarinet"},
-                                                  {68, "Oboe", "clarinet"},
-                                                  {69, "English Horn", "clarinet"},
-                                                  {70, "Bassoon", "clarinet"},
-                                                  {71, "Clarinet", "clarinet"},
-                                                  {72, "Piccolo", "recorder"},
-                                                  {73, "Flute", "recorder"},
-                                                  {74, "Recorder", "recorder"},
-                                                  {75, "Pan Flute", "pan_flute"},
-                                                  {76, "Blown Bottle", "recorder"},
-                                                  {77, "Shakuhachi", "recorder"},
-                                                  {78, "Whistle", "recorder"},
-                                                  {79, "Ocarina", "recorder"},
-                                                  {80, "Lead 1 (square)", "keyboard"},
-                                                  {81, "Lead 2 (sawtooth)", "keyboard"},
-                                                  {82, "Lead 3 (calliope)", "keyboard"},
-                                                  {83, "Lead 4 (chiff)", "keyboard"},
-                                                  {84, "Lead 5 (charang)", "keyboard"},
-                                                  {85, "Lead 6 (voice)", "keyboard"},
-                                                  {86, "Lead 7 (fifths)", "keyboard"},
-                                                  {87, "Lead 8 (bass + lead)", "keyboard"},
-                                                  {88, "Pad 1 (new age)", "keyboard"},
-                                                  {89, "Pad 2 (warm)", "keyboard"},
-                                                  {90, "Pad 3 (polysynth)", "keyboard"},
-                                                  {91, "Pad 4 (choir)", "keyboard"},
-                                                  {92, "Pad 5 (bowed)", "keyboard"},
-                                                  {93, "Pad 6 (metallic)", "keyboard"},
-                                                  {94, "Pad 7 (halo)", "keyboard"},
-                                                  {95, "Pad 8 (sweep)", "keyboard"},
-                                                  {96, "FX 1 (rain)", "vinyl"},
-                                                  {97, "FX 2 (soundtrack)", "vinyl"},
-                                                  {98, "FX 3 (crystal)", "vinyl"},
-                                                  {99, "FX 4 (atmosphere)", "vinyl"},
-                                                  {100, "FX 5 (brightness)", "vinyl"},
-                                                  {101, "FX 6 (goblins)", "vinyl"},
-                                                  {102, "FX 7 (echoes)", "vinyl"},
-                                                  {103, "FX 8 (sci-fi)", "vinyl"},
-                                                  {104, "Sitar", "acoustic_guitar"},
-                                                  {105, "Banjo", "banjo"},
-                                                  {106, "Shamisen", "acoustic_guitar"},
-                                                  {107, "Koto", "lyre"},
-                                                  {108, "Kalimba", "lyre"},
-                                                  {109, "Bag pipe", "bagpipes"},
-                                                  {110, "Fiddle", "violin"},
-                                                  {111, "Shanai", "clarinet"},
-                                                  {112, "Tinkle Bell", "xylophone"},
-                                                  {113, "Agogo", "drum"},
-                                                  {114, "Steel Drums", "drum"},
-                                                  {115, "Woodblock", "snare_drum"},
-                                                  {116, "Taiko Drum", "drum"},
-                                                  {117, "Melodic Tom", "drum"},
-                                                  {118, "Synth Drum", "drum"},
-                                                  {119, "Reverse Cymbal", "cymbal"},
-                                                  {120, "Guitar Fret Noise", "electric_guitar"},
-                                                  {121, "Breath Noise", "vinyl"},
-                                                  {122, "Seashore", "vinyl"},
-                                                  {123, "Bird Tweet", "vinyl"},
-                                                  {124, "Telephone Ring", "vinyl"},
-                                                  {125, "Helicopter", "vinyl"},
-                                                  {126, "Applause", "vinyl"},
-                                                  {127, "Gunshot", "vinyl"}};
+const std::vector<GMInstrument> GM_INSTRUMENTS = {
+    {0, "Acoustic Grand Piano", "grand_piano"},
+    {1, "Bright Acoustic Piano", "grand_piano"},
+    {2, "Electric Grand Piano", "grand_piano"},
+    {3, "Honky-tonk Piano", "grand_piano"},
+    {4, "Electric Piano 1", "keyboard"},
+    {5, "Electric Piano 2", "keyboard"},
+    {6, "Harpsichord", "harp"},
+    {7, "Clavinet", "keyboard"},
+    {8, "Celesta", "keyboard"},
+    {9, "Glockenspiel", "xylophone"},
+    {10, "Music Box", "keyboard"},
+    {11, "Vibraphone", "xylophone"},
+    {12, "Marimba", "xylophone"},
+    {13, "Xylophone", "xylophone"},
+    {14, "Tubular Bells", "xylophone"},
+    {15, "Dulcimer", "lyre"},
+    {16, "Drawbar Organ", "keyboard"},
+    {17, "Percussive Organ", "keyboard"},
+    {18, "Rock Organ", "keyboard"},
+    {19, "Church Organ", "keyboard"},
+    {20, "Reed Organ", "keyboard"},
+    {21, "Accordion", "accordion"},
+    {22, "Harmonica", "accordion"},
+    {23, "Tango Accordion", "accordion"},
+    {24, "Acoustic Guitar (nylon)", "acoustic_guitar"},
+    {25, "Acoustic Guitar (steel)", "acoustic_guitar"},
+    {26, "Electric Guitar (jazz)", "electric_guitar"},
+    {27, "Electric Guitar (clean)", "electric_guitar"},
+    {28, "Electric Guitar (muted)", "electric_guitar"},
+    {29, "Overdriven Guitar", "electric_guitar"},
+    {30, "Distortion Guitar", "electric_guitar"},
+    {31, "Guitar harmonics", "electric_guitar"},
+    {32, "Acoustic Bass", "contrabass"},
+    {33, "Electric Bass (finger)", "contrabass"},
+    {34, "Electric Bass (pick)", "contrabass"},
+    {35, "Fretless Bass", "contrabass"},
+    {36, "Slap Bass 1", "contrabass"},
+    {37, "Slap Bass 2", "contrabass"},
+    {38, "Synth Bass 1", "contrabass"},
+    {39, "Synth Bass 2", "contrabass"},
+    {40, "Violin", "violin"},
+    {41, "Viola", "violin"},
+    {42, "Cello", "contrabass"},
+    {43, "Contrabass", "contrabass"},
+    {44, "Tremolo Strings", "violin"},
+    {45, "Pizzicato Strings", "violin"},
+    {46, "Orchestral Harp", "harp"},
+    {47, "Timpani", "drum"},
+    {48, "String Ensemble 1", "lyre"},
+    {49, "String Ensemble 2", "lyre"},
+    {50, "SynthStrings 1", "lyre"},
+    {51, "SynthStrings 2", "lyre"},
+    {52, "Choir Aahs", "lyre"},
+    {53, "Voice Oohs", "lyre"},
+    {54, "Synth Voice", "lyre"},
+    {55, "Orchestra Hit", "lyre"},
+    {56, "Trumpet", "trumpet"},
+    {57, "Trombone", "trombone"},
+    {58, "Tuba", "trombone"},
+    {59, "Muted Trumpet", "trumpet"},
+    {60, "French Horn", "trumpet"},
+    {61, "Brass Section", "trumpet"},
+    {62, "SynthBrass 1", "trumpet"},
+    {63, "SynthBrass 2", "trumpet"},
+    {64, "Soprano Sax", "clarinet"},
+    {65, "Alto Sax", "clarinet"},
+    {66, "Tenor Sax", "clarinet"},
+    {67, "Baritone Sax", "clarinet"},
+    {68, "Oboe", "clarinet"},
+    {69, "English Horn", "clarinet"},
+    {70, "Bassoon", "clarinet"},
+    {71, "Clarinet", "clarinet"},
+    {72, "Piccolo", "recorder"},
+    {73, "Flute", "recorder"},
+    {74, "Recorder", "recorder"},
+    {75, "Pan Flute", "pan_flute"},
+    {76, "Blown Bottle", "recorder"},
+    {77, "Shakuhachi", "recorder"},
+    {78, "Whistle", "recorder"},
+    {79, "Ocarina", "recorder"},
+    {80, "Lead 1 (square)", "keyboard"},
+    {81, "Lead 2 (sawtooth)", "keyboard"},
+    {82, "Lead 3 (calliope)", "keyboard"},
+    {83, "Lead 4 (chiff)", "keyboard"},
+    {84, "Lead 5 (charang)", "keyboard"},
+    {85, "Lead 6 (voice)", "keyboard"},
+    {86, "Lead 7 (fifths)", "keyboard"},
+    {87, "Lead 8 (bass + lead)", "keyboard"},
+    {88, "Pad 1 (new age)", "keyboard"},
+    {89, "Pad 2 (warm)", "keyboard"},
+    {90, "Pad 3 (polysynth)", "keyboard"},
+    {91, "Pad 4 (choir)", "keyboard"},
+    {92, "Pad 5 (bowed)", "keyboard"},
+    {93, "Pad 6 (metallic)", "keyboard"},
+    {94, "Pad 7 (halo)", "keyboard"},
+    {95, "Pad 8 (sweep)", "keyboard"},
+    {96, "FX 1 (rain)", "vinyl"},
+    {97, "FX 2 (soundtrack)", "vinyl"},
+    {98, "FX 3 (crystal)", "vinyl"},
+    {99, "FX 4 (atmosphere)", "vinyl"},
+    {100, "FX 5 (brightness)", "vinyl"},
+    {101, "FX 6 (goblins)", "vinyl"},
+    {102, "FX 7 (echoes)", "vinyl"},
+    {103, "FX 8 (sci-fi)", "vinyl"},
+    {104, "Sitar", "acoustic_guitar"},
+    {105, "Banjo", "banjo"},
+    {106, "Shamisen", "acoustic_guitar"},
+    {107, "Koto", "lyre"},
+    {108, "Kalimba", "lyre"},
+    {109, "Bag pipe", "bagpipes"},
+    {110, "Fiddle", "violin"},
+    {111, "Shanai", "clarinet"},
+    {112, "Tinkle Bell", "xylophone"},
+    {113, "Agogo", "drum"},
+    {114, "Steel Drums", "drum"},
+    {115, "Woodblock", "snare_drum"},
+    {116, "Taiko Drum", "drum"},
+    {117, "Melodic Tom", "drum"},
+    {118, "Synth Drum", "drum"},
+    {119, "Reverse Cymbal", "cymbal"},
+    {120, "Guitar Fret Noise", "electric_guitar"},
+    {121, "Breath Noise", "vinyl"},
+    {122, "Seashore", "vinyl"},
+    {123, "Bird Tweet", "vinyl"},
+    {124, "Telephone Ring", "vinyl"},
+    {125, "Helicopter", "vinyl"},
+    {126, "Applause", "vinyl"},
+    {127, "Gunshot", "vinyl"}};
 
 std::optional<GMInstrument> nn_find_instrument_by_name(const std::string &name) {
-    auto it = std::find_if(GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(), [&](const GMInstrument &instr) {
-        return instr.name.compare(name) == 0;
-    });
+    auto it = std::find_if(
+        GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
+        [&](const GMInstrument &instr) { return instr.name.compare(name) == 0; });
     if (it != GM_INSTRUMENTS.end()) return *it;
     return std::nullopt;
 }
 
 std::optional<GMInstrument> nn_find_instrument_by_index(int index) {
-    auto it = std::find_if(GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
-                           [&](const GMInstrument &instr) { return instr.index == index; });
+    auto it =
+        std::find_if(GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
+                     [&](const GMInstrument &instr) { return instr.index == index; });
     if (it != GM_INSTRUMENTS.end()) return *it;
     return std::nullopt;
 }
@@ -611,8 +644,11 @@ std::optional<GMInstrument> nn_find_instrument_by_index(int index) {
 // Note Names Utils
 /*******************************************************************************************************/
 
-const std::vector<std::string> NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+const std::vector<std::string> NOTE_NAMES = {"C",  "C#", "D",  "D#", "E",  "F",
+                                             "F#", "G",  "G#", "A",  "A#", "B"};
 
-std::string nn_note_name(int n) { return NOTE_NAMES.at(n % 12) + std::to_string(n / 12 - 1); }
+std::string nn_note_name(int n) {
+    return NOTE_NAMES.at(n % 12) + std::to_string(n / 12 - 1);
+}
 
 int nn_index_in_octave(int n) { return n % 12; }

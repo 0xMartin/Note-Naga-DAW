@@ -76,10 +76,6 @@ std::tuple<int, int, int, QPointF, float, float> AudioDialCentered::getCircleGeo
     return _geometry_cache;
 }
 
-float AudioDialCentered::value() const {
-    return _value;
-}
-
 void AudioDialCentered::setValue(float value) {
     value = std::clamp(value, _min, _max);
     if (value != _value) {

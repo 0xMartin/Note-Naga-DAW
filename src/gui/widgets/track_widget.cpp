@@ -174,7 +174,7 @@ void TrackWidget::_on_instrument_btn_clicked()
     InstrumentSelectorDialog dlg(this, GM_INSTRUMENTS, instrument_icon, track->getInstrument());
     if (dlg.exec() == QDialog::Accepted)
     {
-        int gm_index = dlg.get_selected_gm_index();
+        int gm_index = dlg.getSelectedGMIndex();
         auto instrument = nn_find_instrument_by_index(gm_index);
         if (instrument)
         {

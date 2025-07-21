@@ -14,13 +14,13 @@ InstrumentSelectorDialog::InstrumentSelectorDialog(QWidget* parent,
     setMinimumHeight(340);
     setWindowModality(Qt::WindowModal);
 
-    groups = group_instruments(gm_instruments);
+    groups = groupInstruments(gm_instruments);
     int idx = 0;
     for (const auto& key : groups.keys())
         icon_to_group_index[key] = idx++;
 
     if (selected_gm_index.has_value())
-        selected_group = find_group_by_gm_index(selected_gm_index.value());
+        selected_group = findGroupByGMIndex(selected_gm_index.value());
     else
         selected_group = groups.keys().isEmpty() ? "" : groups.keys().first();
 
@@ -79,16 +79,16 @@ InstrumentSelectorDialog::InstrumentSelectorDialog(QWidget* parent,
 
     layout->addLayout(right_panel, 3);
 
-    populate_groups();
-    select_group(selected_group, true);
+    populateGroups();
+    selectGroup(selected_group, true);
 }
 
-int InstrumentSelectorDialog::get_selected_gm_index() const
+int InstrumentSelectorDialog::getSelectedGMIndex() const
 {
     return this->selected_gm_index.value_or(-1);
 }
 
-QMap<QString, std::vector<GMInstrument>> InstrumentSelectorDialog::group_instruments(const std::vector<GMInstrument>& gm_instruments)
+QMap<QString, std::vector<GMInstrument>> InstrumentSelectorDialog::groupInstruments(const std::vector<GMInstrument>& gm_instruments)
 {
     QMap<QString, std::vector<GMInstrument>> groups;
     for (const auto& instr : gm_instruments) {
@@ -97,7 +97,7 @@ QMap<QString, std::vector<GMInstrument>> InstrumentSelectorDialog::group_instrum
     return groups;
 }
 
-QString InstrumentSelectorDialog::find_group_by_gm_index(int gm_index)
+QString InstrumentSelectorDialog::findGroupByGMIndex(int gm_index)
 {
     for (const auto& icon : groups.keys()) {
         for (const auto& instr : groups[icon]) {
@@ -108,7 +108,7 @@ QString InstrumentSelectorDialog::find_group_by_gm_index(int gm_index)
     return groups.keys().isEmpty() ? "" : groups.keys().first();
 }
 
-void InstrumentSelectorDialog::populate_groups()
+void InstrumentSelectorDialog::populateGroups()
 {
     // Remove old widgets
     QLayoutItem* item;
@@ -149,7 +149,7 @@ void InstrumentSelectorDialog::populate_groups()
         frame->setLayout(v);
         group_grid->addWidget(frame, row, col);
 
-        connect(btn, &QPushButton::clicked, [this, icon_name]() { select_group(icon_name, true); });
+        connect(btn, &QPushButton::clicked, [this, icon_name]() { selectGroup(icon_name, true); });
 
         frame->setToolTip(group_label.left(1).toUpper() + group_label.mid(1));
         frame->setProperty("_btn", QVariant::fromValue(btn));
@@ -162,7 +162,7 @@ void InstrumentSelectorDialog::populate_groups()
     }
 }
 
-void InstrumentSelectorDialog::select_group(const QString& icon_name, bool scroll_to_selected)
+void InstrumentSelectorDialog::selectGroup(const QString& icon_name, bool scroll_to_selected)
 {
     selected_group = icon_name;
     // Set checked state
@@ -175,12 +175,12 @@ void InstrumentSelectorDialog::select_group(const QString& icon_name, bool scrol
                 btn->setChecked(groups[icon_name][0].icon == icon_name);
         }
     }
-    populate_variants(icon_name);
+    populateVariants(icon_name);
     if (scroll_to_selected)
-        scroll_to_selected_group(icon_name);
+        scrollToSelectedGroup(icon_name);
 }
 
-void InstrumentSelectorDialog::scroll_to_selected_group(const QString& icon_name)
+void InstrumentSelectorDialog::scrollToSelectedGroup(const QString& icon_name)
 {
     for (int i = 0; i < group_grid->count(); ++i) {
         QLayoutItem* item = group_grid->itemAt(i);
@@ -195,7 +195,7 @@ void InstrumentSelectorDialog::scroll_to_selected_group(const QString& icon_name
     }
 }
 
-void InstrumentSelectorDialog::populate_variants(const QString& icon_name)
+void InstrumentSelectorDialog::populateVariants(const QString& icon_name)
 {
     // Remove old widgets
     QLayoutItem* item;
@@ -214,7 +214,7 @@ void InstrumentSelectorDialog::populate_variants(const QString& icon_name)
         );
         btn->setText(QString::fromStdString(instr.name));
         btn->setToolTip(QString::fromStdString(instr.name));
-        connect(btn, &QPushButton::clicked, [this, idx = instr.index]() { select_variant(idx); });
+        connect(btn, &QPushButton::clicked, [this, idx = instr.index]() { selectVariant(idx); });
 
         if (selected_gm_index.has_value() && selected_gm_index.value() == instr.index) {
             btn->setStyleSheet(btn->styleSheet() + "QPushButton { background: #253a4c; border: 1.7px solid #5a9be6; color: #7eb8f9; }");
@@ -223,9 +223,9 @@ void InstrumentSelectorDialog::populate_variants(const QString& icon_name)
     }
 }
 
-void InstrumentSelectorDialog::select_variant(int gm_index)
+void InstrumentSelectorDialog::selectVariant(int gm_index)
 {
-    selected_gm_index = gm_index;
-    emit instrument_selected(gm_index);
+    this->selected_gm_index = gm_index;
+    emit instrumentSelected(gm_index);
     accept();
 }
