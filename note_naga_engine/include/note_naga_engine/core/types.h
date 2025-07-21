@@ -1,5 +1,8 @@
 #pragma once
 
+#include <note_naga_engine/io/midi_file.h>
+#include <note_naga_engine/note_naga_api.h>
+
 #ifndef QT_DEACTIVATED
 #include <QColor>
 #include <QObject>
@@ -9,9 +12,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-
-#include "../io/midi_file.h"
-#include "../note_naga_api.h"
 
 /*******************************************************************************************************/
 // Macros for emitting signals depending on NN_QT_EMIT_ENABLED

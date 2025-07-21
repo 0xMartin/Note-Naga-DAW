@@ -9,7 +9,7 @@
 #include <memory>
 #include <vector>
 
-#include <note_naga_engine.h>
+#include <note_naga_engine/note_naga_engine.h>
 
 // MidiEditorWidget: přehledněji rozdělená implementace, optimalizace pro signál
 // track_meta_changed_signal

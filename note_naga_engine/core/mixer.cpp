@@ -1,6 +1,7 @@
-#include "mixer.h"
+#include <note_naga_engine/core/mixer.h>
+
 #include <algorithm>
-#include <iostream> // for debug output
+#include <iostream> 
 
 #ifndef QT_DEACTIVATED
 NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path)

@@ -253,7 +253,7 @@ void MidiEditorWidget::draw_note(const NoteNagaNote &note, const NoteNagaTrack *
     shape->setZValue(is_selected ? 999 : track->getId());
 
     QGraphicsSimpleTextItem *txt = nullptr;
-    if (!is_drum && w > 15 && h > 9 && time_scale > 0.04) {
+    if (!is_drum && w > 20 && h > 9 && time_scale > 0.04) {
         QString note_str = QString::fromStdString(nn_note_name(note.note));
         txt = scene->addSimpleText(note_str);
         txt->setBrush(QBrush(t_color.lightness() < 128 ? Qt::white : Qt::black));

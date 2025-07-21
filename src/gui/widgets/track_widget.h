@@ -13,7 +13,7 @@
 #include <QColor>
 #include <QString>
 
-#include <note_naga_engine.h>
+#include <note_naga_engine/note_naga_engine.h>
 #include "../components/volume_bar.h"
 
 class TrackWidget : public QFrame {

@@ -17,14 +17,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(QT_DEACTIVATED "Build without Qt support" OFF)
 message(STATUS "QT_DEACTIVATED = ${QT_DEACTIVATED}")
 
-set(HEADER_FILES
-    note_naga_api.h
-    note_naga_engine.h
-    core/mixer.h
-    core/project_data.h
-    core/types.h
-    io/midi_file.h
-    worker/playback_worker.h
+set(PUBLIC_HEADER_FILES
+    include/note_naga_engine/note_naga_api.h
+    include/note_naga_engine/note_naga_engine.h
+    include/note_naga_engine/core/mixer.h
+    include/note_naga_engine/core/project_data.h
+    include/note_naga_engine/core/types.h
+    include/note_naga_engine/io/midi_file.h
+    include/note_naga_engine/worker/playback_worker.h
 )
 
 set(SOURCE_FILES
@@ -52,13 +52,14 @@ if(NOT QT_DEACTIVATED)
 endif()
 
 add_library(note_naga_engine STATIC
-    ${HEADER_FILES}
+    ${PUBLIC_HEADER_FILES}
     ${SOURCE_FILES}
 )
 
 target_include_directories(note_naga_engine
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
 )
 
 if(NOT QT_DEACTIVATED)
@@ -99,4 +100,4 @@ install(TARGETS note_naga_engine
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
 )
-install(FILES ${HEADER_FILES} DESTINATION include/note_naga_engine)
+install(FILES ${PUBLIC_HEADER_FILES} DESTINATION include/note_naga_engine)

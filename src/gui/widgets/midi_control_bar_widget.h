@@ -7,7 +7,7 @@
 #include <QTimer>
 #include <QPropertyAnimation>
 
-#include <note_naga_engine.h>
+#include <note_naga_engine/note_naga_engine.h>
 #include "../components/animated_time_label.h"
 
 class MidiControlBarWidget : public QWidget {

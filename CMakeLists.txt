@@ -97,8 +97,6 @@ else()
     endif()
 endif()
 
-target_include_directories(NoteNaga PRIVATE ${CMAKE_SOURCE_DIR}/note_naga_engine)
-
 target_link_libraries(NoteNaga PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Concurrent

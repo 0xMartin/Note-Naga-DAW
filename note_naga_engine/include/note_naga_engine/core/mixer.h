@@ -1,5 +1,9 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
+#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/types.h>
+
 #ifndef QT_DEACTIVATED
 #include <QObject>
 #endif
@@ -13,10 +17,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "../note_naga_api.h"
-#include "project_data.h"
-#include "types.h"
 
 #define TRACK_ROUTING_ENTRY_ANY_DEVICE "any"
 

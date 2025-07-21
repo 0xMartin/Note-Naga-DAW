@@ -1,5 +1,8 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
+#include <note_naga_engine/core/types.h>
+
 #ifndef QT_DEACTIVATED
 #include <QObject>
 #endif
@@ -8,9 +11,6 @@
 #include <memory>
 #include <optional>
 #include <vector>
-
-#include "../note_naga_api.h"
-#include "types.h"
 
 /*******************************************************************************************************/
 // Note Naga Project

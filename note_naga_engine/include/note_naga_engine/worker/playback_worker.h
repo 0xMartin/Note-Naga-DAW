@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../core/mixer.h"
-#include "../core/project_data.h"
-#include "../note_naga_api.h"
+#include <note_naga_engine/core/mixer.h>
+#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/note_naga_api.h>
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>

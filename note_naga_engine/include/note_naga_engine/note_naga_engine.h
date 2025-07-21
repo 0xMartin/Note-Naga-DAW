@@ -1,17 +1,17 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
+#include <note_naga_engine/core/types.h>
+#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/mixer.h>
+#include <note_naga_engine/worker/playback_worker.h>
+
 #ifndef QT_DEACTIVATED
 #include <QObject>
 #endif 
 
 #include <vector>
 #include <string>
-
-#include "note_naga_api.h"
-#include "core/types.h"
-#include "core/project_data.h"
-#include "core/mixer.h"
-#include "worker/playback_worker.h"
 
 /**
  * @brief The main class for Note Naga engine. Engine allows loading MIDI files,

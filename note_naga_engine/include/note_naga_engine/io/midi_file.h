@@ -1,12 +1,12 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
+
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
-
-#include "../note_naga_api.h"
 
 // MIDI Meta Event Types
 #define MIDI_META_SEQUENCE_NUMBER 0x00

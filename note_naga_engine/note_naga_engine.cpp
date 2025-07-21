@@ -1,4 +1,4 @@
-#include "note_naga_engine.h"
+#include <note_naga_engine/note_naga_engine.h>
 
 NoteNagaEngine::NoteNagaEngine()
 #ifndef QT_DEACTIVATED
