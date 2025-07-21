@@ -106,21 +106,21 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     setFocusPolicy(Qt::StrongFocus);
 }
 
-void TrackWidget::_update_track_info(NoteNagaTrack* track, const QString& param)
+void TrackWidget::_update_track_info(NoteNagaTrack* track, const std::string &param)
 {
     if (this->track != track)
         return;
 
-    name_edit->setText(track->get_name());
-    name_edit->setToolTip(track->get_name());
+    name_edit->setText(QString::fromStdString(track->get_name()));
+    name_edit->setToolTip(QString::fromStdString(track->get_name()));
 
     index_lbl->setText(QString::number(track->get_id() + 1));
 
     auto instrument = find_instrument_by_index(track->get_instrument().value_or(0));
     if (instrument)
     {
-        instrument_btn->setIcon(instrument_icon(instrument->icon));
-        instrument_btn->setToolTip(instrument->name);
+        instrument_btn->setIcon(instrument_icon(QString::fromStdString(instrument->icon)));
+        instrument_btn->setToolTip(QString::fromStdString(instrument->name));
     }
     else
     {
@@ -136,7 +136,7 @@ void TrackWidget::_update_track_info(NoteNagaTrack* track, const QString& param)
     mute_btn->setIcon(QIcon(mute_btn->isChecked() ? ":/icons/sound-off.svg" : ":/icons/sound-on.svg"));
 
     volume_bar->setValue(0.0);
-    color_btn->setIcon(svg_str_icon(COLOR_SVG_ICON, track->get_color(), 16));
+    color_btn->setIcon(svg_str_icon(COLOR_SVG_ICON, track->get_color().toQColor(), 16));
 }
 
 void TrackWidget::_toggle_visibility()
@@ -156,17 +156,17 @@ void TrackWidget::_toggle_mute()
 
 void TrackWidget::_choose_color()
 {
-    QColor col = QColorDialog::getColor(track->get_color(), this, "Select Track Color");
+    QColor col = QColorDialog::getColor(track->get_color().toQColor(), this, "Select Track Color");
     if (col.isValid())
     {
-        track->set_color(col);
+        track->set_color(NNColor::fromQColor(col));
     }
 }
 
 void TrackWidget::_name_edited()
 {
     QString new_name = name_edit->text();
-    track->set_name(new_name);
+    track->set_name(new_name.toStdString());
 }
 
 void TrackWidget::_on_instrument_btn_clicked()

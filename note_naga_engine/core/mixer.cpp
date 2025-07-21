@@ -1,19 +1,34 @@
 #include "mixer.h"
-#include <QDebug>
 #include <algorithm>
+#include <iostream> // for debug output
 
-NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const QString &sf2_path)
-    : QObject(nullptr), project(project), sf2_path(sf2_path), fluidsynth(nullptr), audio_driver(nullptr),
-      synth_settings(nullptr), master_volume(1.0f), master_min_note(0), master_max_note(127), master_note_offset(0),
-      master_pan(0.0f) {
+#ifndef QT_DEACTIVATED
+NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path) : QObject(nullptr) {
+#else
+NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path) {
+#endif
+    this->project = project;
+    this->sf2_path = sf2_path;
+    this->fluidsynth = nullptr;
+    this->audio_driver = nullptr;
+    this->synth_settings = nullptr;
+    this->master_volume = 1.0f;
+    this->master_min_note = 0;
+    this->master_max_note = 127;
+    this->master_note_offset = 0;
+    this->master_pan = 0.0f;
+
+#ifndef QT_DEACTIVATED
     connect(project, &NoteNagaProject::project_file_loaded_signal, this, &NoteNagaMixer::create_default_routing);
+#endif
+
     ensure_fluidsynth();
     available_outputs = detect_outputs();
     auto it = std::find(available_outputs.begin(), available_outputs.end(), "fluidsynth");
     if (it != available_outputs.end()) {
         default_output = "fluidsynth";
     } else if (available_outputs.empty()) {
-        default_output = QString();
+        default_output = std::string();
     } else {
         default_output = available_outputs.front();
     }
@@ -21,14 +36,14 @@ NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const QString &sf2_path)
 
 NoteNagaMixer::~NoteNagaMixer() { close(); }
 
-std::vector<QString> NoteNagaMixer::detect_outputs() {
-    std::vector<QString> outputs;
+std::vector<std::string> NoteNagaMixer::detect_outputs() {
+    std::vector<std::string> outputs;
     if (fluidsynth && audio_driver) outputs.push_back("fluidsynth");
     try {
         RtMidiOut midi;
         unsigned int nPorts = midi.getPortCount();
         for (unsigned int i = 0; i < nPorts; ++i)
-            outputs.push_back(QString::fromStdString(midi.getPortName(i)));
+            outputs.push_back(midi.getPortName(i));
     } catch (...) {}
     return outputs;
 }
@@ -102,7 +117,7 @@ bool NoteNagaMixer::remove_routing_entry(int index) {
     // Ensure thread safety
     std::lock_guard<std::recursive_mutex> lock(mutex);
 
-    if (index >= 0 && index < routing_entries.size()) {
+    if (index >= 0 && index < int(routing_entries.size())) {
         routing_entries.erase(routing_entries.begin() + index);
         NN_QT_EMIT(routing_entry_stack_changed_signal());
         return true;
@@ -114,7 +129,7 @@ bool NoteNagaMixer::remove_routing_entry(int index) {
 void NoteNagaMixer::clear_routing_table() {
     // Ensure thread safety
     std::lock_guard<std::recursive_mutex> lock(mutex);
-    
+
     routing_entries.clear();
     NN_QT_EMIT(routing_entry_stack_changed_signal());
 }
@@ -122,12 +137,12 @@ void NoteNagaMixer::clear_routing_table() {
 void NoteNagaMixer::note_play(const NoteNagaNote &midi_note) {
     NoteNagaTrack *track = midi_note.parent;
     if (!track) {
-        qWarning() << "NoteNagaMixer: Cannot play note, missing parent track";
+        std::cerr << "NoteNagaMixer: Cannot play note, missing parent track" << std::endl;
         return;
     }
     NoteNagaMIDISeq *seq = track->get_parent();
     if (!seq) {
-        qWarning() << "NoteNagaMixer: Cannot play note, missing parent sequence";
+        std::cerr << "NoteNagaMixer: Cannot play note, missing parent sequence" << std::endl;
         return;
     }
 
@@ -151,7 +166,7 @@ void NoteNagaMixer::note_play(const NoteNagaNote &midi_note) {
         int ch = entry.channel;
 
         if (entry.output == TRACK_ROUTING_ENTRY_ANY_DEVICE) {
-            for (const QString &out_dev : available_outputs) {
+            for (const std::string &out_dev : available_outputs) {
                 play_note_on_output(out_dev, ch, note_num, velocity, prog, pan_cc, midi_note, seq, track);
             }
         } else {
@@ -175,7 +190,8 @@ void NoteNagaMixer::note_stop(const NoteNagaNote &midi_note) {
             if (it->device == "fluidsynth" && fluidsynth) {
                 fluid_synth_noteoff(fluidsynth, it->channel, it->note_num);
             } else {
-                RtMidiOut *out = midi_outputs.value(it->device, nullptr);
+                auto midi_out_it = midi_outputs.find(it->device);
+                RtMidiOut *out = (midi_out_it != midi_outputs.end()) ? midi_out_it->second : nullptr;
                 if (out) {
                     std::vector<unsigned char> msg = {static_cast<unsigned char>(0x80 | (it->channel & 0x0F)),
                                                       static_cast<unsigned char>(it->note_num),
@@ -196,13 +212,14 @@ void NoteNagaMixer::stop_all_notes(NoteNagaMIDISeq *seq, NoteNagaTrack *track) {
 
     if (!seq && !track) {
         // Stop all
-        for (auto seq_it = playing_notes.begin(); seq_it != playing_notes.end(); ++seq_it) {
-            for (auto trk_it = seq_it.value().begin(); trk_it != seq_it.value().end(); ++trk_it) {
-                for (const PlayedNote &pn : trk_it.value()) {
+        for (auto &seq_pair : playing_notes) {
+            for (auto &trk_pair : seq_pair.second) {
+                for (const PlayedNote &pn : trk_pair.second) {
                     if (pn.device == "fluidsynth" && fluidsynth) {
                         fluid_synth_noteoff(fluidsynth, pn.channel, pn.note_num);
                     } else {
-                        RtMidiOut *out = midi_outputs.value(pn.device, nullptr);
+                        auto midi_out_it = midi_outputs.find(pn.device);
+                        RtMidiOut *out = (midi_out_it != midi_outputs.end()) ? midi_out_it->second : nullptr;
                         if (out) {
                             std::vector<unsigned char> msg = {static_cast<unsigned char>(0x80 | (pn.channel & 0x0F)),
                                                               static_cast<unsigned char>(pn.note_num),
@@ -211,17 +228,18 @@ void NoteNagaMixer::stop_all_notes(NoteNagaMIDISeq *seq, NoteNagaTrack *track) {
                         }
                     }
                 }
-                trk_it.value().clear();
+                trk_pair.second.clear();
             }
         }
         playing_notes.clear();
     } else if (seq && !track) {
-        for (auto trk_it = playing_notes[seq].begin(); trk_it != playing_notes[seq].end(); ++trk_it) {
-            for (const PlayedNote &pn : trk_it.value()) {
+        for (auto &trk_pair : playing_notes[seq]) {
+            for (const PlayedNote &pn : trk_pair.second) {
                 if (pn.device == "fluidsynth" && fluidsynth) {
                     fluid_synth_noteoff(fluidsynth, pn.channel, pn.note_num);
                 } else {
-                    RtMidiOut *out = midi_outputs.value(pn.device, nullptr);
+                    auto midi_out_it = midi_outputs.find(pn.device);
+                    RtMidiOut *out = (midi_out_it != midi_outputs.end()) ? midi_out_it->second : nullptr;
                     if (out) {
                         std::vector<unsigned char> msg = {static_cast<unsigned char>(0x80 | (pn.channel & 0x0F)),
                                                           static_cast<unsigned char>(pn.note_num),
@@ -230,7 +248,7 @@ void NoteNagaMixer::stop_all_notes(NoteNagaMIDISeq *seq, NoteNagaTrack *track) {
                     }
                 }
             }
-            trk_it.value().clear();
+            trk_pair.second.clear();
         }
         playing_notes[seq].clear();
     } else if (seq && track) {
@@ -239,7 +257,8 @@ void NoteNagaMixer::stop_all_notes(NoteNagaMIDISeq *seq, NoteNagaTrack *track) {
             if (pn.device == "fluidsynth" && fluidsynth) {
                 fluid_synth_noteoff(fluidsynth, pn.channel, pn.note_num);
             } else {
-                RtMidiOut *out = midi_outputs.value(pn.device, nullptr);
+                auto midi_out_it = midi_outputs.find(pn.device);
+                RtMidiOut *out = (midi_out_it != midi_outputs.end()) ? midi_out_it->second : nullptr;
                 if (out) {
                     std::vector<unsigned char> msg = {static_cast<unsigned char>(0x80 | (pn.channel & 0x0F)),
                                                       static_cast<unsigned char>(pn.note_num),
@@ -284,10 +303,13 @@ void NoteNagaMixer::solo_track(NoteNagaTrack *track, bool solo) {
     }
 }
 
-void NoteNagaMixer::play_note_on_output(const QString &output, int ch, int note_num, int velocity, int prog, int pan_cc,
-                                        const NoteNagaNote &midi_note, NoteNagaMIDISeq *seq, NoteNagaTrack *track) {
+void NoteNagaMixer::play_note_on_output(const std::string &output, int ch, int note_num, int velocity, int prog,
+                                        int pan_cc, const NoteNagaNote &midi_note, NoteNagaMIDISeq *seq,
+                                        NoteNagaTrack *track) {
     if (!seq || !track) return;
     auto &notes = playing_notes[seq][track];
+
+    // prevent duplicate notes on same device/channel/note
     for (const PlayedNote &pn : notes) {
         if (pn.device == output && pn.channel == ch && pn.note_num == note_num) return;
     }
@@ -327,7 +349,7 @@ void NoteNagaMixer::play_note_on_output(const QString &output, int ch, int note_
             out->sendMessage(&msg);
         }
     }
-    notes.append(PlayedNote{note_num, midi_note.id, output, ch});
+    notes.push_back(PlayedNote{note_num, midi_note.id, output, ch});
     NoteNagaNote note_clone = midi_note;
     note_clone.velocity = velocity;
     NN_QT_EMIT(note_out_signal(note_clone, output, ch));
@@ -337,20 +359,21 @@ void NoteNagaMixer::ensure_fluidsynth() {
     if (!fluidsynth) {
         synth_settings = new_fluid_settings();
         fluidsynth = new_fluid_synth(synth_settings);
-        int sfid = fluid_synth_sfload(fluidsynth, sf2_path.toStdString().c_str(), 1);
-        qDebug() << "NoteNagaMixer: SoundFont loaded, sfid=" << sfid << "from" << sf2_path;
+        int sfid = fluid_synth_sfload(fluidsynth, sf2_path.c_str(), 1);
+        std::cout << "NoteNagaMixer: SoundFont loaded, sfid=" << sfid << " from " << sf2_path << std::endl;
         audio_driver = new_fluid_audio_driver(synth_settings, fluidsynth);
-        if (!audio_driver) { qWarning() << "NoteNagaMixer: FluidSynth audio driver could not be started!"; }
+        if (!audio_driver) { std::cerr << "NoteNagaMixer: FluidSynth audio driver could not be started!" << std::endl; }
     }
 }
 
-RtMidiOut *NoteNagaMixer::ensure_midi_output(const QString &output) {
-    if (midi_outputs.contains(output)) return midi_outputs.value(output);
+RtMidiOut *NoteNagaMixer::ensure_midi_output(const std::string &output) {
+    auto it = midi_outputs.find(output);
+    if (it != midi_outputs.end()) return it->second;
     try {
         RtMidiOut *out = new RtMidiOut();
         unsigned int nPorts = out->getPortCount();
         for (unsigned int i = 0; i < nPorts; ++i) {
-            if (QString::fromStdString(out->getPortName(i)) == output) {
+            if (out->getPortName(i) == output) {
                 out->openPort(i);
                 midi_outputs[output] = out;
                 return out;
@@ -363,7 +386,7 @@ RtMidiOut *NoteNagaMixer::ensure_midi_output(const QString &output) {
 }
 
 void NoteNagaMixer::close() {
-    qDebug() << "NoteNagaMixer: Closing and cleaning up resources...";
+    std::cout << "NoteNagaMixer: Closing and cleaning up resources..." << std::endl;
     if (audio_driver) {
         delete_fluid_audio_driver(audio_driver);
         audio_driver = nullptr;
@@ -376,11 +399,11 @@ void NoteNagaMixer::close() {
         delete_fluid_settings(synth_settings);
         synth_settings = nullptr;
     }
-    for (auto it = midi_outputs.begin(); it != midi_outputs.end(); ++it) {
-        if (it.value()) delete it.value();
+    for (auto &pair : midi_outputs) {
+        if (pair.second) delete pair.second;
     }
     midi_outputs.clear();
     playing_notes.clear();
     channel_states.clear();
-    qDebug() << "NoteNagaMixer: All resources cleaned up.";
+    std::cout << "NoteNagaMixer: All resources cleaned up." << std::endl;
 }

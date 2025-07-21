@@ -1,10 +1,11 @@
 #pragma once
 
+#ifndef QT_DEACTIVATED
 #include <QObject>
+#endif 
+
 #include <vector>
-#include <memory>
-#include <optional>
-#include <QString>
+#include <string>
 
 #include "note_naga_api.h"
 #include "core/types.h"
@@ -12,12 +13,15 @@
 #include "core/mixer.h"
 #include "worker/playback_worker.h"
 
-class NOTE_NAGA_ENGINE_API NoteNagaEngine : public QObject
-{
+#ifndef QT_DEACTIVATED
+class NOTE_NAGA_ENGINE_API NoteNagaEngine : public QObject {
     Q_OBJECT
+#else
+class NoteNagaEngine {
+#endif
 
 public:
-    explicit NoteNagaEngine(QObject* parent = nullptr);
+    explicit NoteNagaEngine();
     ~NoteNagaEngine();
 
     // --- Initialization ---
@@ -30,7 +34,7 @@ public:
     bool is_playing() const { return playback_worker ? playback_worker->is_playing() : false; }
 
     // --- Project Control ---
-    bool load_project(const QString& midi_file_path);
+    bool load_project(const std::string& midi_file_path);
     void change_tempo(int new_tempo);
 
     // --- Mixer Control ---

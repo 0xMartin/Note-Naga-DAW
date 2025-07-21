@@ -9,7 +9,7 @@
 #include <QColor>
 #include <vector>
 
-#include "../../note_naga_engine/note_naga_engine.h"
+#include <note_naga_engine.h>
 
 // MidiEditorWidget: přehledněji rozdělená implementace, optimalizace pro signál track_meta_changed_signal
 
@@ -34,7 +34,7 @@ public slots:
     void update_marker_slot();
     void on_viewport_changed();
     void reload_all(); // pro active_sequence_changed_signal
-    void reload_track(NoteNagaTrack* track, const QString& param); // pro track_meta_changed_signal
+    void reload_track(NoteNagaTrack* track, const std::string& param); // pro track_meta_changed_signal
 
 protected:
     void resizeEvent(QResizeEvent* event) override;

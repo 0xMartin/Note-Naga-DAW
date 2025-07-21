@@ -13,7 +13,7 @@
 #include <QColor>
 #include <QString>
 
-#include "../../note_naga_engine/note_naga_engine.h"
+#include <note_naga_engine.h>
 #include "../components/volume_bar.h"
 
 class TrackWidget : public QFrame {
@@ -33,7 +33,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
 
 private slots:
-    void _update_track_info(NoteNagaTrack* track, const QString& param);
+    void _update_track_info(NoteNagaTrack* track, const std::string &param);
     void _toggle_visibility();
     void _toggle_solo();
     void _toggle_mute();

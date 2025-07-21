@@ -6,7 +6,7 @@
 #include <QDockWidget>
 #include <QCloseEvent>
 
-#include "../note_naga_engine/note_naga_engine.h"
+#include <note_naga_engine.h>
 #include "widgets/midi_tact_ruler.h"
 #include "widgets/midi_keyboard_ruler.h"
 #include "widgets/midi_editor_widget.h"

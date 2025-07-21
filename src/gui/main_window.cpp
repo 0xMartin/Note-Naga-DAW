@@ -23,7 +23,7 @@ MainWindow::MainWindow(QWidget* parent)
     qr.moveCenter(cp.center());
     move(qr.topLeft());
 
-    this->engine = new NoteNagaEngine(this);
+    this->engine = new NoteNagaEngine();
     this->engine->init();
 
     setup_actions();
@@ -292,7 +292,7 @@ void MainWindow::open_midi() {
     QString fname = QFileDialog::getOpenFileName(this, "Open MIDI file", "", "MIDI Files (*.mid *.midi)");
     if (fname.isEmpty()) return;
 
-    if (!engine->load_project(fname)) {
+    if (!engine->load_project(fname.toStdString())) {
         QMessageBox::critical(this, "Error", "Failed to load MIDI file.");
         return;
     }
@@ -316,7 +316,6 @@ void MainWindow::playback_worker_on_position_changed(int current_tick) {
         midi_editor->horizontalScrollBar()->setValue(value);
     }
     midi_tact_ruler->set_tick_position(midi_editor->horizontalScrollBar()->value());
-    // midi_editor->repaint_slot();
 }
 
 void MainWindow::reset_all_colors() {
@@ -327,7 +326,7 @@ void MainWindow::reset_all_colors() {
     }
 
     for (NoteNagaTrack *tr : active_sequence->get_tracks()) {
-        tr->set_color(QColor(DEFAULT_CHANNEL_COLORS[tr->get_id() % 16]));
+        tr->set_color(DEFAULT_CHANNEL_COLORS[tr->get_id() % 16]);
     }
     midi_editor->update();
     QMessageBox::information(this, "Colors", "All track colors have been reset.");
@@ -342,7 +341,7 @@ void MainWindow::randomize_all_colors() {
 
     for (NoteNagaTrack *tr : active_sequence->get_tracks()) {
         QColor c(rand() % 206 + 50, rand() % 206 + 50, rand() % 206 + 50, 200);
-        tr->set_color(c);
+        tr->set_color(NNColor::fromQColor(c));
     }
     midi_editor->update();
     QMessageBox::information(this, "Colors", "Track colors have been randomized.");

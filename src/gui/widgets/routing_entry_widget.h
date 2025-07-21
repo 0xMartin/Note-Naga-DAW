@@ -8,7 +8,7 @@
 #include <QColor>
 #include <QIcon>
 
-#include "../../note_naga_engine/note_naga_engine.h"
+#include <note_naga_engine.h>
 #include "../components/audio_dial.h"
 #include "../components/audio_dial_centered.h"
 

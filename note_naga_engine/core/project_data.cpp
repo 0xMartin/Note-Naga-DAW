@@ -1,13 +1,14 @@
 #include "project_data.h"
 
-#include <QDebug>
-#include <QFileInfo>
-#include <QString>
 #include <algorithm>
 #include <iostream>
 #include <memory>
 
+#ifndef QT_DEACTIVATED
+NoteNagaProject::NoteNagaProject() : QObject(nullptr) {
+#else
 NoteNagaProject::NoteNagaProject() {
+#endif
     // Initialize with empty sequences
     sequences.clear();
     active_sequence = nullptr;
@@ -22,8 +23,8 @@ NoteNagaProject::~NoteNagaProject() {
     sequences.clear();
 }
 
-bool NoteNagaProject::load_project(const QString &project_path) {
-    if (project_path.isEmpty()) { return false; }
+bool NoteNagaProject::load_project(const std::string &project_path) {
+    if (project_path.empty()) { return false; }
     for (NoteNagaMIDISeq *seq : sequences) {
         if (seq) delete seq;
     }
@@ -36,8 +37,10 @@ bool NoteNagaProject::load_project(const QString &project_path) {
     sequence->load_from_midi(project_path);
     add_sequence(sequence);
 
+#ifndef QT_DEACTIVATED    
     connect(sequence, &NoteNagaMIDISeq::meta_changed_signal, this, &NoteNagaProject::sequence_meta_changed_signal);
     connect(sequence, &NoteNagaMIDISeq::track_meta_changed_signal, this, &NoteNagaProject::track_meta_changed_signal);
+#endif
     NN_QT_EMIT(this->project_file_loaded_signal());
     return true;
 }

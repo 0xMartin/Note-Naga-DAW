@@ -6,7 +6,7 @@
 #include <QRect>
 #include <QPen>
 
-#include "../../note_naga_engine/note_naga_engine.h"
+#include <note_naga_engine.h>
 
 class MidiTactRuler : public QWidget {
     Q_OBJECT

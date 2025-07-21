@@ -36,7 +36,7 @@ void MidiEditorWidget::setup_connections() {
 
     // track meta update
     connect(engine->get_project(), &NoteNagaProject::sequence_meta_changed_signal, this,
-            [this](NoteNagaMIDISeq *seq, const QString &param) { this->reload_all(); });
+            [this](NoteNagaMIDISeq *seq, const std::string &param) { this->reload_all(); });
 
     // Current tick changed, update marker
     connect(engine->get_project(), &NoteNagaProject::current_tick_changed_signal, this,
@@ -65,7 +65,7 @@ void MidiEditorWidget::repaint_slot() { recalculate_content_size(engine->get_pro
 
 void MidiEditorWidget::reload_all() { recalculate_content_size(engine->get_project()->get_active_sequence()); }
 
-void MidiEditorWidget::reload_track(NoteNagaTrack *track, const QString &) {
+void MidiEditorWidget::reload_track(NoteNagaTrack *track, const std::string &param) {
     // Pokud není aktivní sekvence nebo track je nullptr, ignoruj
     NoteNagaMIDISeq *seq = engine->get_project()->get_active_sequence();
     if (!seq || !track) return;
@@ -217,7 +217,7 @@ void MidiEditorWidget::update_bar_grid(const NoteNagaMIDISeq *seq) {
 void MidiEditorWidget::draw_note(const NoteNagaNote &note, const NoteNagaTrack *track, bool is_selected, bool is_drum,
                                  int x, int y, int w, int h) {
     QGraphicsItem *shape = nullptr;
-    QColor t_color = is_selected ? track->get_color() : color_blend(track->get_color(), bg_color, 0.3);
+    QColor t_color = (is_selected ? track->get_color() : color_blend(track->get_color(), NNColor::fromQColor(bg_color), 0.3)).toQColor();
     QPen outline = is_selected ? QPen(t_color.lightness() < 128 ? Qt::white : Qt::black, 2)
                                : QPen(t_color.lightness() < 128 ? t_color.lighter(150) : t_color.darker(150));
 
@@ -235,7 +235,7 @@ void MidiEditorWidget::draw_note(const NoteNagaNote &note, const NoteNagaTrack *
 
     QGraphicsSimpleTextItem *txt = nullptr;
     if (!is_drum && w > 15 && h > 9 && time_scale > 0.04) {
-        QString note_str = note_name(note.note);
+        QString note_str = QString::fromStdString(note_name(note.note));
         txt = scene->addSimpleText(note_str);
         txt->setBrush(QBrush(t_color.lightness() < 128 ? Qt::white : Qt::black));
         QFont f("Arial", std::max(6, h - 6));

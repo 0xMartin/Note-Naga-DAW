@@ -1,8 +1,5 @@
 ## Build 
 
-* mute a solo nereaguje spravne..
-
-
 1. refactoring celeho kodu.. 
    1. std::stared_ptr + not null kontrola
    2. vstupde pouzivat optional kde to je mozne

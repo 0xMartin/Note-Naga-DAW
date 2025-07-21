@@ -23,7 +23,7 @@ MidiControlBarWidget::MidiControlBarWidget(NoteNagaEngine *engine_, QWidget *par
                 this->update_values();
             });
     connect(this->engine->get_project(), &NoteNagaProject::sequence_meta_changed_signal, this,
-            [this](NoteNagaMIDISeq *seq, const QString &param) {
+            [this](NoteNagaMIDISeq *seq, const std::string &param) {
                 this->ppq = seq->get_ppq();
                 this->tempo = seq->get_tempo();
                 this->max_tick = seq->get_max_tick();

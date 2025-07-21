@@ -8,8 +8,8 @@
 #include <vector>
 #include <memory>
 
+#include <note_naga_engine.h>
 #include "track_widget.h"
-#include "../../note_naga_engine/note_naga_engine.h"
 
 // Moderní list widget s TrackWidgety ve scrollovací oblasti.
 class TrackListWidget : public QWidget {

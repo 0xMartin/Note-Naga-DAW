@@ -1,8 +1,11 @@
 #pragma once
 
+#ifndef QT_DEACTIVATED
 #include <QObject>
-#include <QString>
 #include <QColor>
+#endif
+
+#include <string>
 #include <vector>
 #include <optional>
 #include <cstdint>
@@ -10,23 +13,63 @@
 #include "../note_naga_api.h"
 #include "../io/midi_file.h"
 
-// --- Macro for emitting signals depending on NN_QT_EMIT_ENABLED ---
+/*******************************************************************************************************/
+// Macros for emitting signals depending on NN_QT_EMIT_ENABLED
+/*******************************************************************************************************/
+// #define QT_DEACTIVATED
+
 #ifdef QT_DEACTIVATED
 #define NN_QT_EMIT(X)
 #else
 #define NN_QT_EMIT(X) emit X
 #endif
 
-// ---------- Forwards declarations ----------
+/*******************************************************************************************************/
+// Channel Colors
+/*******************************************************************************************************/
+
+struct NOTE_NAGA_ENGINE_API NNColor {
+    uint8_t red, green, blue;
+
+    NNColor() : red(0), green(0), blue(0) {}
+    NNColor(uint8_t rr, uint8_t gg, uint8_t bb)
+        : red(rr), green(gg), blue(bb) {}
+
+    bool operator==(const NNColor &other) const {
+        return red == other.red && green == other.green && blue == other.blue;
+    }
+
+#ifndef QT_DEACTIVATED
+    QColor toQColor() const {
+        return QColor(red, green, blue);
+    }
+
+    static NNColor fromQColor(const QColor &color) {
+        return NNColor(color.red(), color.green(), color.blue());
+    }
+#endif
+};
+
+NOTE_NAGA_ENGINE_API extern const std::vector<NNColor> DEFAULT_CHANNEL_COLORS;
+
+NOTE_NAGA_ENGINE_API NNColor color_blend(const NNColor &fg, const NNColor &bg, double opacity);
+
+/*******************************************************************************************************/
+// Forwards declarations
+/*******************************************************************************************************/
 class NOTE_NAGA_ENGINE_API NoteNagaTrack;
 class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq;
 
-// ---------- Unique IDs ----------
+/*******************************************************************************************************/
+// Unique ID generation
+/*******************************************************************************************************/
 
 NOTE_NAGA_ENGINE_API unsigned long generate_unique_note_id();
 NOTE_NAGA_ENGINE_API int generate_unique_seq_id();
 
-// ---------- NoteNagaNote ----------
+/*******************************************************************************************************/
+// Note Naga Note
+/*******************************************************************************************************/
 
 struct NOTE_NAGA_ENGINE_API NoteNagaNote
 {
@@ -59,16 +102,23 @@ struct NOTE_NAGA_ENGINE_API NoteNagaNote
 
 NOTE_NAGA_ENGINE_API double note_time_ms(const NoteNagaNote &note, int ppq, int tempo);
 
-// ---------- NoteNagaTrack ----------
-class NOTE_NAGA_ENGINE_API NoteNagaTrack : public QObject
-{
+/*******************************************************************************************************/
+// Note Naga Track
+/*******************************************************************************************************/
+
+#ifndef QT_DEACTIVATED
+class NOTE_NAGA_ENGINE_API NoteNagaTrack : public QObject {
     Q_OBJECT
+#else
+class NOTE_NAGA_ENGINE_API NoteNagaTrack {
+#endif
+
 public:
     NoteNagaTrack();
 
     NoteNagaTrack(int track_id,
                   NoteNagaMIDISeq *parent,
-                  const QString &name = "Track",
+                  const std::string &name = "Track",
                   const std::optional<int> &instrument = std::nullopt,
                   const std::optional<int> &channel = std::nullopt);
     virtual ~NoteNagaTrack() = default;
@@ -78,8 +128,8 @@ public:
     std::vector<NoteNagaNote> get_notes() const { return midi_notes; }
     std::optional<int> get_instrument() const { return instrument; }
     std::optional<int> get_channel() const { return channel; }
-    const QString &get_name() const { return name; }
-    const QColor &get_color() const { return color; }
+    const std::string &get_name() const { return name; }
+    const NNColor &get_color() const { return color; }
     bool is_visible() const { return visible; }
     bool is_muted() const { return muted; }
     bool is_solo() const { return solo; }
@@ -90,23 +140,25 @@ public:
     void set_notes(const std::vector<NoteNagaNote> &notes);
     void set_instrument(std::optional<int> instrument);
     void set_channel(std::optional<int> channel);
-    void set_name(const QString &new_name);
-    void set_color(const QColor &new_color);
+    void set_name(const std::string &new_name);
+    void set_color(const NNColor &new_color);
     void set_visible(bool is_visible);
     void set_muted(bool is_muted);
     void set_solo(bool is_solo);
     void set_volume(float new_volume);
 
+#ifndef QT_DEACTIVATED
 Q_SIGNALS:
-    void meta_changed_signal(NoteNagaTrack *track, const QString &param);
+    void meta_changed_signal(NoteNagaTrack *track, const std::string &param);
+#endif
 
 protected:
     // META data
     int track_id;
     std::optional<int> instrument;
     std::optional<int> channel;
-    QString name;
-    QColor color;
+    std::string name;
+    NNColor color;
     bool visible;
     bool muted;
     bool solo;
@@ -119,11 +171,16 @@ protected:
     NoteNagaMIDISeq *parent;
 };
 
-// ---------- Note Naga MIDI file Sequence ----------
+/*******************************************************************************************************/
+// Note Naga MIDI Sequence
+/*******************************************************************************************************/
 
-class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq : public QObject
-{
+#ifndef QT_DEACTIVATED
+class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq : public QObject {
     Q_OBJECT
+#else
+class NOTE_NAGA_ENGINE_API NoteNagaMIDISeq {
+#endif
 
 public:
     NoteNagaMIDISeq();
@@ -134,7 +191,7 @@ public:
     void clear();
     int compute_max_tick();
 
-    void load_from_midi(const QString &midi_file_path);
+    void load_from_midi(const std::string &midi_file_path);
     std::vector<NoteNagaTrack*> load_type0_tracks(const MidiFile *midiFile);
     std::vector<NoteNagaTrack*> load_type1_tracks(const MidiFile *midiFile);
 
@@ -154,9 +211,12 @@ public:
     void set_active_track(NoteNagaTrack *track);
     void set_solo_track(NoteNagaTrack *track);
 
+#ifndef QT_DEACTIVATED
 Q_SIGNALS:
-    void meta_changed_signal(NoteNagaMIDISeq *seq, const QString &param);
-    void track_meta_changed_signal(NoteNagaTrack *track, const QString &param);
+    void meta_changed_signal(NoteNagaMIDISeq *seq, const std::string &param);
+    void track_meta_changed_signal(NoteNagaTrack *track, const std::string &param);
+    void active_track_changed_signal(NoteNagaTrack *track);
+#endif
 
 protected:
     int sequence_id;
@@ -171,39 +231,26 @@ protected:
     int max_tick;
 };
 
-// ---------- Channel colors ----------
-struct NOTE_NAGA_ENGINE_API Color {
-    uint8_t r, g, b;
-    Color(uint8_t rr, uint8_t gg, uint8_t bb)
-        : r(rr), g(gg), b(bb) {}
+/*******************************************************************************************************/
+// General MIDI Instruments Utils
+/*******************************************************************************************************/
 
-    QColor to_qcolor() const {
-        return QColor(r, g, b);
-    }
-
-    static Color from_qcolor(const QColor &color) {
-        return Color(color.red(), color.green(), color.blue());
-    }
-};
-
-NOTE_NAGA_ENGINE_API extern const std::vector<QColor> DEFAULT_CHANNEL_COLORS;
-
-NOTE_NAGA_ENGINE_API QColor color_blend(const QColor &fg, const QColor &bg, double opacity);
-
-// ---------- GM Instruments ----------
 struct NOTE_NAGA_ENGINE_API GMInstrument
 {
     int index;
-    QString name;
-    QString icon;
+    std::string name;
+    std::string icon;
 };
 NOTE_NAGA_ENGINE_API extern const std::vector<GMInstrument> GM_INSTRUMENTS;
 
-NOTE_NAGA_ENGINE_API std::optional<GMInstrument> find_instrument_by_name(const QString &name);
+NOTE_NAGA_ENGINE_API std::optional<GMInstrument> find_instrument_by_name(const std::string &name);
 NOTE_NAGA_ENGINE_API std::optional<GMInstrument> find_instrument_by_index(int index);
 
-// ---------- Note names ----------
-NOTE_NAGA_ENGINE_API extern const std::vector<QString> NOTE_NAMES;
+/*******************************************************************************************************/
+// Note Names Utils
+/*******************************************************************************************************/
 
-NOTE_NAGA_ENGINE_API QString note_name(int n);
+NOTE_NAGA_ENGINE_API extern const std::vector<std::string> NOTE_NAMES;
+
+NOTE_NAGA_ENGINE_API std::string note_name(int n);
 NOTE_NAGA_ENGINE_API int index_in_octave(int n);

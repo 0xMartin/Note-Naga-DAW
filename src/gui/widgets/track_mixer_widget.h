@@ -13,7 +13,7 @@
 #include <QString>
 #include <QIcon>
 
-#include "../../note_naga_engine/note_naga_engine.h"
+#include <note_naga_engine.h>
 #include "../components/audio_dial.h"
 #include "../components/audio_dial_centered.h"
 #include "../components/multi_channel_volume_bar.h"
@@ -38,10 +38,10 @@ private slots:
     void _on_remove_selected_entry();
     void _on_clear_routing_table();
     void _on_default_entries();
-    void _handle_playing_note(const NoteNagaNote& note, const QString& device_name, int channel);
+    void _handle_playing_note(const NoteNagaNote& note, const std::string& device_name, int channel);
 
 private:
-    void set_channel_output_value(const QString& device, int channel_idx, float value, int time_ms = -1);
+    void set_channel_output_value(const std::string& device, int channel_idx, float value, int time_ms = -1);
     void _init_ui();
     void _update_entry_selection(int idx);
 

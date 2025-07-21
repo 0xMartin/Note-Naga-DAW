@@ -10,7 +10,7 @@
 #include <optional>
 #include <QMouseEvent>
 
-#include "../../note_naga_engine/note_naga_engine.h"
+#include <note_naga_engine.h>
 
 class MidiKeyboardRuler : public QWidget {
     Q_OBJECT

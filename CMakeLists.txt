@@ -23,11 +23,8 @@ endif()
 set(RESOURCES src/resources.qrc)
 qt6_add_resources(RESOURCES_RCC ${RESOURCES})
 
-# Použijeme pkg-config
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GLIB2 REQUIRED IMPORTED_TARGET glib-2.0)
-pkg_check_modules(FLUIDSYNTH REQUIRED IMPORTED_TARGET fluidsynth)
-pkg_check_modules(RTMIDI REQUIRED IMPORTED_TARGET rtmidi)
+# --- Přidej note_naga_engine knihovnu ---
+add_subdirectory(note_naga_engine)
 
 set(HEADER_FILES
     # gui
@@ -51,17 +48,6 @@ set(HEADER_FILES
     src/gui/widgets/track_list_widget.h
     src/gui/widgets/track_mixer_widget.h
     src/gui/widgets/track_widget.h
-    # note_naga_engine
-    src/note_naga_engine/note_naga_api.h
-    src/note_naga_engine/note_naga_engine.h
-    # note_naga_engine/core
-    src/note_naga_engine/core/mixer.h
-    src/note_naga_engine/core/project_data.h
-    src/note_naga_engine/core/types.h
-    # note_naga_engine/io
-    src/note_naga_engine/io/midi_file.h
-    # note_naga_engine/worker
-    src/note_naga_engine/worker/playback_worker.h
 )
 
 set(SOURCE_FILES
@@ -88,16 +74,6 @@ set(SOURCE_FILES
     src/gui/widgets/track_list_widget.cpp
     src/gui/widgets/track_mixer_widget.cpp
     src/gui/widgets/track_widget.cpp
-    # note_naga_engine
-    src/note_naga_engine/note_naga_engine.cpp
-    # note_naga_engine/core
-    src/note_naga_engine/core/mixer.cpp
-    src/note_naga_engine/core/project_data.cpp
-    src/note_naga_engine/core/types.cpp
-    # note_naga_engine/io
-    src/note_naga_engine/io/midi_file.cpp
-    # note_naga_engine/worker
-    src/note_naga_engine/worker/playback_worker.cpp
 )
 
 if(WIN32)
@@ -109,17 +85,11 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${HEADER_FILES} ${SOURCE_FILES} ${RESOURCES_RCC}
     )
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET untitled APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
     if(ANDROID)
         add_library(NoteNaga SHARED
             ${HEADER_FILES} ${SOURCE_FILES} ${RESOURCES_RCC}
         )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
         add_executable(NoteNaga
             ${HEADER_FILES} ${SOURCE_FILES} ${RESOURCES_RCC}
@@ -127,19 +97,16 @@ else()
     endif()
 endif()
 
-# Všechno linkování pomocí pkg-config targetů
+target_include_directories(NoteNaga PRIVATE ${CMAKE_SOURCE_DIR}/note_naga_engine)
+
 target_link_libraries(NoteNaga PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Concurrent
     Qt${QT_VERSION_MAJOR}::Svg
-    PkgConfig::GLIB2
-    PkgConfig::FLUIDSYNTH
-    PkgConfig::RTMIDI
+    note_naga_engine
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.saucom.stork)
 endif()

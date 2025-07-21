@@ -92,7 +92,7 @@ QMap<QString, std::vector<GMInstrument>> InstrumentSelectorDialog::group_instrum
 {
     QMap<QString, std::vector<GMInstrument>> groups;
     for (const auto& instr : gm_instruments) {
-        groups[instr.icon].push_back(instr);
+        groups[QString::fromStdString(instr.icon)].push_back(instr);
     }
     return groups;
 }
@@ -123,7 +123,7 @@ void InstrumentSelectorDialog::populate_groups()
         QString icon_name = groups.keys()[idx];
         const auto& instrument_list = groups.value(icon_name);
 
-        QString group_label = instrument_list[0].name.section(' ', 0, 0);
+        QString group_label = QString::fromStdString(instrument_list[0].name).section(' ', 0, 0);
         QIcon icon = icon_provider(icon_name);
 
         QPushButton* btn = new QPushButton();
@@ -205,15 +205,15 @@ void InstrumentSelectorDialog::populate_variants(const QString& icon_name)
 
     for (const auto& instr : groups[icon_name]) {
         QPushButton* btn = new QPushButton();
-        btn->setIcon(icon_provider(instr.icon));
+        btn->setIcon(icon_provider(QString::fromStdString(instr.icon)));
         btn->setIconSize(QSize(36, 36));
         btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->setStyleSheet(
             "QPushButton { border: 1px solid #2b3644; border-radius: 8px; text-align: left; padding: 6px 12px; background: #181f27; color: #e0e9fa; font-size: 11pt; }"
             "QPushButton:hover { background: #273a51; border: 1.7px solid #3477c0; color: #7eb8f9; }"
         );
-        btn->setText(instr.name);
-        btn->setToolTip(instr.name);
+        btn->setText(QString::fromStdString(instr.name));
+        btn->setToolTip(QString::fromStdString(instr.name));
         connect(btn, &QPushButton::clicked, [this, idx = instr.index]() { select_variant(idx); });
 
         if (selected_gm_index.has_value() && selected_gm_index.value() == instr.index) {

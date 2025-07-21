@@ -128,20 +128,23 @@ void TrackMixerWidget::_init_ui()
     main_layout->addSpacing(6);
 
     // MultiChannelVolumeBar for each device
-    std::vector<QString> outputs = engine->get_mixer()->get_available_outputs();
-    for (const QString& dev : outputs) {
+    std::vector<std::string> outputs = engine->get_mixer()->get_available_outputs();
+    for (const std::string& dev : outputs) {
         MultiChannelVolumeBar* bar = new MultiChannelVolumeBar(16);
         bar->setMinimumHeight(90);
         bar->setMaximumHeight(120);
         bar->setRange(0, 127);
         bar->setVisible(false);
-        channel_volume_bars[dev] = bar;
+        channel_volume_bars[QString::fromStdString(dev)] = bar;
         main_layout->addWidget(bar);
     }
     if (!outputs.empty()) {
-        QStringList list(outputs.begin(), outputs.end());
+        QStringList list;
+        for (const auto& s : outputs) {
+            list << QString::fromStdString(s);
+        }
         device_selector->addItems(list);
-        current_channel_device = outputs[0];
+        current_channel_device = QString::fromStdString(outputs[0]);
         channel_volume_bars[current_channel_device]->setVisible(true);
     }
     connect(device_selector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](int idx) {
@@ -244,9 +247,9 @@ void TrackMixerWidget::on_global_pan_changed(float value) {
     engine->get_mixer()->master_pan = value;
 }
 
-void TrackMixerWidget::set_channel_output_value(const QString& device, int channel_idx, float value, int time_ms) {
-    if (channel_volume_bars.contains(device)) {
-        channel_volume_bars[device]->setValue(channel_idx, value, time_ms);
+void TrackMixerWidget::set_channel_output_value(const std::string& device, int channel_idx, float value, int time_ms) {
+    if (channel_volume_bars.contains(QString::fromStdString(device))) {
+        channel_volume_bars[QString::fromStdString(device)]->setValue(channel_idx, value, time_ms);
     }
 }
 
@@ -314,7 +317,7 @@ void TrackMixerWidget::_on_default_entries() {
     }
 }
 
-void TrackMixerWidget::_handle_playing_note(const NoteNagaNote& note, const QString& device_name, int channel) {
+void TrackMixerWidget::_handle_playing_note(const NoteNagaNote& note, const std::string& device_name, int channel) {
     NoteNagaProject *project = engine->get_project();
     int time_ms = int(note_time_ms(note, project->get_ppq(), project->get_tempo()));
     if (note.velocity.has_value() && note.velocity.value() > 0) {

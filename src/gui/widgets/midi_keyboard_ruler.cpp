@@ -180,7 +180,7 @@ void MidiKeyboardRuler::paintEvent(QPaintEvent *event)
         painter.drawRect(rect);
         if (n % 12 == 0)
         {
-            QString note_name_str = note_name(n);
+            QString note_name_str = QString::fromStdString(note_name(n));
             painter.setPen(c_key_label_color);
             painter.setFont(c_key_font);
             QRect text_rect(0, int(y - 2), key_w - 2, int(white_key_height));
@@ -323,7 +323,7 @@ void MidiKeyboardRuler::on_play_note(const NoteNagaNote& note)
     if (!sequence) return;
 
     int timeout = note_time_ms(note, sequence->get_ppq(), sequence->get_tempo());
-    highlight_key(note.note, track->get_color(), timeout);
+    highlight_key(note.note, track->get_color().toQColor(), timeout);
 }
 
 void MidiKeyboardRuler::highlight_key(int note, const QColor &color, int timeout)

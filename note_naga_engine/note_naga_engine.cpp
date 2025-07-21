@@ -1,6 +1,10 @@
 #include "note_naga_engine.h"
 
-NoteNagaEngine::NoteNagaEngine(QObject *parent) : QObject(parent) {
+NoteNagaEngine::NoteNagaEngine()
+#ifndef QT_DEACTIVATED
+    : QObject(nullptr)
+#endif
+{
     this->project = nullptr;
     this->mixer = nullptr;
     this->playback_worker = nullptr;
@@ -29,20 +33,25 @@ bool NoteNagaEngine::init() {
     if (!this->mixer) this->mixer = new NoteNagaMixer(this->project);
     if (!this->playback_worker) {
         this->playback_worker = new PlaybackWorker(this->project, this->mixer, 30.0);
-        connect(this->playback_worker, &PlaybackWorker::finished_signal, this, [this]() {
-            mixer->stop_all_notes();
+
+        this->playback_worker->add_finished_callback([this]() {
+            if (mixer) mixer->stop_all_notes();
         });
     }
     return this->project && this->mixer && this->playback_worker;
 }
 
-bool NoteNagaEngine::load_project(const QString &midi_file_path) { 
+bool NoteNagaEngine::load_project(const std::string &midi_file_path) {
     if (!this->project) {
+#ifndef QT_DEACTIVATED
         qWarning("NoteNagaEngine: Project is not initialized.");
+#else
+        std::cerr << "NoteNagaEngine: Project is not initialized." << std::endl;
+#endif
         return false;
     }
     this->stop_playback();
-    return this->project->load_project(midi_file_path); 
+    return this->project->load_project(midi_file_path);
 }
 
 void NoteNagaEngine::start_playback() {
@@ -55,14 +64,18 @@ void NoteNagaEngine::stop_playback() {
 }
 
 void NoteNagaEngine::set_playback_position(int tick) {
-    if (playback_worker->is_playing()) {
+    if (playback_worker && playback_worker->is_playing()) {
         playback_worker->stop();
     }
-    this->project->set_current_tick(tick);
+    if (this->project) {
+        this->project->set_current_tick(tick);
+    }
 }
 
 void NoteNagaEngine::change_tempo(int new_tempo) {
-    this->project->set_tempo(new_tempo);
+    if (this->project) {
+        this->project->set_tempo(new_tempo);
+    }
     if (playback_worker) playback_worker->recalculate_worker_tempo();
 }
 

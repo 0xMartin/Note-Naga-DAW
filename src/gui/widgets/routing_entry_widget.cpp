@@ -153,11 +153,11 @@ void RoutingEntryWidget::_populate_track_combo(NoteNagaTrack *track) {
 void RoutingEntryWidget::_populate_output_combo() {
     output_combo->blockSignals(true);
     output_combo->clear();
-    for (const QString &out : engine->get_mixer()->get_available_outputs()) {
-        output_combo->addItem(out);
+    for (const std::string &out : engine->get_mixer()->get_available_outputs()) {
+        output_combo->addItem(QString::fromStdString(out));
     }
     output_combo->addItem(TRACK_ROUTING_ENTRY_ANY_DEVICE);
-    int idx = output_combo->findText(entry->output);
+    int idx = output_combo->findText(QString::fromStdString(entry->output));
     if (idx >= 0) output_combo->setCurrentIndex(idx);
     output_combo->blockSignals(false);
 }
@@ -168,7 +168,7 @@ void RoutingEntryWidget::_set_combo_selections() {
         if (track_idx >= 0) track_combo->setCurrentIndex(track_idx);
     }
 
-    int dev_idx = output_combo->findText(entry->output);
+    int dev_idx = output_combo->findText(QString::fromStdString(entry->output));
     if (dev_idx >= 0) output_combo->setCurrentIndex(dev_idx);
 }
 
@@ -193,7 +193,7 @@ void RoutingEntryWidget::_on_track_changed(int idx) {
 
 void RoutingEntryWidget::_on_device_changed(int idx) {
     QString new_device = output_combo->currentText();
-    entry->output = new_device;
+    entry->output = new_device.toStdString();
 }
 
 void RoutingEntryWidget::_on_channel_changed(float val) { entry->channel = int(val - 1); }
