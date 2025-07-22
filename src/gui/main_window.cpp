@@ -341,7 +341,7 @@ void MainWindow::randomize_all_colors() {
 
     for (NoteNagaTrack *tr : active_sequence->getTracks()) {
         QColor c(rand() % 206 + 50, rand() % 206 + 50, rand() % 206 + 50, 200);
-        tr->setColor(NNColor::fromQColor(c));
+        tr->setColor(NN_Color_t::fromQColor(c));
     }
     midi_editor->update();
     QMessageBox::information(this, "Colors", "Track colors have been randomized.");

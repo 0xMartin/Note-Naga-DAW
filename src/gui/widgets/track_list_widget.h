@@ -27,7 +27,7 @@ public:
 private slots:
     void initUI();
     void reloadTracks(NoteNagaMidiSeq *seq);
-    void handlePlayingNote(const NoteNagaNote& note);
+    void handlePlayingNote(const NN_Note_t& note);
 
 private:
     NoteNagaEngine* engine;

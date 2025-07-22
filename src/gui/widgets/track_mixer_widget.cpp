@@ -317,7 +317,7 @@ void TrackMixerWidget::onDefaultEntries() {
     }
 }
 
-void TrackMixerWidget::handlePlayingNote(const NoteNagaNote& note, const std::string& device_name, int channel) {
+void TrackMixerWidget::handlePlayingNote(const NN_Note_t& note, const std::string& device_name, int channel) {
     NoteNagaProject *project = engine->getProject();
     int time_ms = int(note_time_ms(note, project->getPPQ(), project->getTempo()));
     if (note.velocity.has_value() && note.velocity.value() > 0) {

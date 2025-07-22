@@ -1,12 +1,15 @@
-#include <note_naga_engine/core/mixer.h>
+#include <note_naga_engine/module/mixer.h>
 
 #include <algorithm>
 
 #include <note_naga_engine/logger.h>
 
-NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path)
 #ifndef QT_DEACTIVATED
-    : QObject(nullptr)
+NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path)
+    : NoteNagaEngineComponent(), QObject(nullptr)
+#else
+NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path)
+    : NoteNagaEngineComponent()
 #endif
 {
     this->project = project;
@@ -119,14 +122,14 @@ void NoteNagaMixer::createDefaultRouting() {
         }
     }
     NOTE_NAGA_LOG_INFO("Default routing created with " +
-                        std::to_string(routing_entries.size()) + " entries");
+                       std::to_string(routing_entries.size()) + " entries");
     NN_QT_EMIT(routingEntryStackChanged());
 }
 
 void NoteNagaMixer::setRouting(const std::vector<NoteNagaRoutingEntry> &entries) {
     routing_entries = entries;
     NOTE_NAGA_LOG_INFO("Rounting stack changed, now has " +
-                        std::to_string(routing_entries.size()) + " entries");
+                       std::to_string(routing_entries.size()) + " entries");
     NN_QT_EMIT(routingEntryStackChanged());
 }
 
@@ -134,7 +137,8 @@ bool NoteNagaMixer::addRoutingEntry(const std::optional<NoteNagaRoutingEntry> &e
     if (entry.has_value()) {
         if (!entry.value().track) return false;
         routing_entries.push_back(entry.value());
-        NOTE_NAGA_LOG_INFO("Added routing entry for track if Id: " + std::to_string(entry.value().track->getId()) +
+        NOTE_NAGA_LOG_INFO("Added routing entry for track if Id: " +
+                           std::to_string(entry.value().track->getId()) +
                            " on device: " + entry.value().output);
         NN_QT_EMIT(routingEntryStackChanged());
     } else {
@@ -145,7 +149,8 @@ bool NoteNagaMixer::addRoutingEntry(const std::optional<NoteNagaRoutingEntry> &e
         if (!track) return false;
         routing_entries.push_back(NoteNagaRoutingEntry(track, default_output, 0));
         NOTE_NAGA_LOG_INFO("Added default routing entry for track Id: " +
-                           std::to_string(track->getId()) + " on device: " + default_output);
+                           std::to_string(track->getId()) +
+                           " on device: " + default_output);
         NN_QT_EMIT(routingEntryStackChanged());
     }
 
@@ -160,7 +165,8 @@ bool NoteNagaMixer::removeRoutingEntry(int index) {
         return true;
     }
 
-    NOTE_NAGA_LOG_WARNING("Failed to remove routing entry at index: " + std::to_string(index));
+    NOTE_NAGA_LOG_WARNING("Failed to remove routing entry at index: " +
+                          std::to_string(index));
     return false;
 }
 
@@ -170,7 +176,7 @@ void NoteNagaMixer::clearRoutingTable() {
     NN_QT_EMIT(routingEntryStackChanged());
 }
 
-void NoteNagaMixer::playNote(const NoteNagaNote &midi_note) {
+void NoteNagaMixer::playNote(const NN_Note_t &midi_note) {
     NoteNagaTrack *track = midi_note.parent;
     if (!track) {
         NOTE_NAGA_LOG_WARNING("Cannot play note, missing parent track");
@@ -211,7 +217,7 @@ void NoteNagaMixer::playNote(const NoteNagaNote &midi_note) {
     }
 }
 
-void NoteNagaMixer::stopNote(const NoteNagaNote &midi_note) {
+void NoteNagaMixer::stopNote(const NN_Note_t &midi_note) {
     NoteNagaTrack *track = midi_note.parent;
     if (!track) {
         NOTE_NAGA_LOG_WARNING("Cannot stop note, missing parent track");
@@ -346,9 +352,21 @@ void NoteNagaMixer::soloTrack(NoteNagaTrack *track, bool solo) {
 // Private methods
 /********************************************************************************************************/
 
+void NoteNagaMixer::onItem(const NN_MixerMessage_t &value) {
+    // This method is called when a new item is dequeued from the component's queue.
+    // It processes the MIDI note play/stop messages.
+    if (value.play) {
+        // Handle note play
+        playNote(value.note);
+    } else {
+        // Handle note stop
+        stopNote(value.note);
+    }
+}
+
 void NoteNagaMixer::playNoteOnOutputDevice(const std::string &output, int ch,
                                            int note_num, int velocity, int prog,
-                                           int pan_cc, const NoteNagaNote &midi_note,
+                                           int pan_cc, const NN_Note_t &midi_note,
                                            NoteNagaMidiSeq *seq, NoteNagaTrack *track) {
     if (!seq || !track) return;
     auto &notes = playing_notes[seq][track];
@@ -397,7 +415,7 @@ void NoteNagaMixer::playNoteOnOutputDevice(const std::string &output, int ch,
         }
     }
     notes.push_back(PlayedNote{note_num, midi_note.id, output, ch});
-    NoteNagaNote note_clone = midi_note;
+    NN_Note_t note_clone = midi_note;
     note_clone.velocity = velocity;
     NN_QT_EMIT(noteOutSignal(note_clone, output, ch));
 }
@@ -407,9 +425,9 @@ void NoteNagaMixer::ensureFluidsynth() {
         synth_settings = new_fluid_settings();
         fluidsynth = new_fluid_synth(synth_settings);
         int sfid = fluid_synth_sfload(fluidsynth, sf2_path.c_str(), 1);
-        NOTE_NAGA_LOG_INFO("SoundFont loaded, sfid=" + std::to_string(sfid) +
-                           " from " + sf2_path);
-                           
+        NOTE_NAGA_LOG_INFO("SoundFont loaded, sfid=" + std::to_string(sfid) + " from " +
+                           sf2_path);
+
         audio_driver = new_fluid_audio_driver(synth_settings, fluidsynth);
         if (!audio_driver) {
             NOTE_NAGA_LOG_WARNING("FluidSynth audio driver could not be started!");

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
+
 #include <atomic>
 #include <cstddef>
 #include <memory>
@@ -12,7 +14,7 @@
  * @tparam T Element type.
  * @tparam N Capacity.
  */
-template <typename T, size_t N> class LockFreeSPSCQueue {
+template <typename T, size_t N> class NOTE_NAGA_ENGINE_API LockFreeSPSCQueue {
     static_assert((N & (N - 1)) == 0, "Capacity must be power of 2 for mask");
 
     T buffer[N];

@@ -114,7 +114,7 @@ void TrackListWidget::updateSelection(NoteNagaMidiSeq *sequence, int widget_idx)
     }
 }
 
-void TrackListWidget::handlePlayingNote(const NoteNagaNote& note)
+void TrackListWidget::handlePlayingNote(const NN_Note_t& note)
 {
     NoteNagaTrack *track = note.parent;
     if (!track) return;

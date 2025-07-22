@@ -125,6 +125,18 @@ public:
      */
     bool setActiveSequence(NoteNagaMidiSeq *sequence);
 
+protected:
+    std::vector<NoteNagaMidiSeq *> sequences; ///< All MIDI sequences in the project
+    NoteNagaMidiSeq *active_sequence; ///< Pointer to the currently active sequence
+
+    int ppq;                       ///< Pulses per quarter note (PPQ)
+    int tempo;                     ///< Tempo of the project (BPM)
+    std::atomic<int> current_tick; ///< Current position in ticks
+    int max_tick;                  ///< Maximum tick in the project
+
+    // SIGNALS
+    // ////////////////////////////////////////////////////////////////////////////////
+    
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
     /**
@@ -158,13 +170,4 @@ Q_SIGNALS:
      */
     void activeSequenceChanged(NoteNagaMidiSeq *seq);
 #endif
-
-protected:
-    std::vector<NoteNagaMidiSeq *> sequences; ///< All MIDI sequences in the project
-    NoteNagaMidiSeq *active_sequence; ///< Pointer to the currently active sequence
-
-    int ppq;                       ///< Pulses per quarter note (PPQ)
-    int tempo;                     ///< Tempo of the project (BPM)
-    std::atomic<int> current_tick; ///< Current position in ticks
-    int max_tick;                  ///< Maximum tick in the project
 };

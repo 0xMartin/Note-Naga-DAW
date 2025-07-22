@@ -36,13 +36,13 @@
 /**
  * @brief Represents an RGB color for channel coloring.
  */
-struct NOTE_NAGA_ENGINE_API NNColor {
+struct NOTE_NAGA_ENGINE_API NN_Color_t {
     uint8_t red, green, blue; ///< Red, green, and blue color channels
 
     /**
      * @brief Default constructor (black color).
      */
-    NNColor() : red(0), green(0), blue(0) {}
+    NN_Color_t() : red(0), green(0), blue(0) {}
 
     /**
      * @brief Parameterized constructor.
@@ -50,12 +50,12 @@ struct NOTE_NAGA_ENGINE_API NNColor {
      * @param gg Green value.
      * @param bb Blue value.
      */
-    NNColor(uint8_t rr, uint8_t gg, uint8_t bb) : red(rr), green(gg), blue(bb) {}
+    NN_Color_t(uint8_t rr, uint8_t gg, uint8_t bb) : red(rr), green(gg), blue(bb) {}
 
     /**
      * @brief Equality operator for comparing two NNColor objects.
      */
-    bool operator==(const NNColor &other) const {
+    bool operator==(const NN_Color_t &other) const {
         return red == other.red && green == other.green && blue == other.blue;
     }
 
@@ -71,8 +71,8 @@ struct NOTE_NAGA_ENGINE_API NNColor {
      * @param color QColor to convert.
      * @return NNColor representation.
      */
-    static NNColor fromQColor(const QColor &color) {
-        return NNColor(color.red(), color.green(), color.blue());
+    static NN_Color_t fromQColor(const QColor &color) {
+        return NN_Color_t(color.red(), color.green(), color.blue());
     }
 #endif
 };
@@ -80,7 +80,7 @@ struct NOTE_NAGA_ENGINE_API NNColor {
 /**
  * @brief Default channel colors used for tracks/channels.
  */
-NOTE_NAGA_ENGINE_API extern const std::vector<NNColor> DEFAULT_CHANNEL_COLORS;
+NOTE_NAGA_ENGINE_API extern const std::vector<NN_Color_t> DEFAULT_CHANNEL_COLORS;
 
 /**
  * @brief Blends two colors with the given opacity for the foreground color.
@@ -89,7 +89,7 @@ NOTE_NAGA_ENGINE_API extern const std::vector<NNColor> DEFAULT_CHANNEL_COLORS;
  * @param opacity Opacity of the foreground color (0.0-1.0).
  * @return Blended NNColor.
  */
-NOTE_NAGA_ENGINE_API extern NNColor nn_color_blend(const NNColor &fg, const NNColor &bg,
+NOTE_NAGA_ENGINE_API extern NN_Color_t nn_color_blend(const NN_Color_t &fg, const NN_Color_t &bg,
                                                    double opacity);
 
 /*******************************************************************************************************/
@@ -128,7 +128,7 @@ NOTE_NAGA_ENGINE_API int nn_generate_unique_seq_id();
 /**
  * @brief Structure representing a single MIDI note in Note Naga.
  */
-struct NOTE_NAGA_ENGINE_API NoteNagaNote {
+struct NOTE_NAGA_ENGINE_API NN_Note_t {
     unsigned long id;            ///< Unique note ID (required for identification)
     int note;                    ///< MIDI note number (0-127)
     std::optional<int> start;    ///< Optional: note start tick
@@ -139,7 +139,7 @@ struct NOTE_NAGA_ENGINE_API NoteNagaNote {
     /**
      * @brief Default constructor. Initializes note with a unique ID and zero values.
      */
-    NoteNagaNote()
+    NN_Note_t()
         : id(nn_generate_unique_note_id()), note(0), start(std::nullopt),
           length(std::nullopt), velocity(std::nullopt), parent(nullptr) {}
 
@@ -152,7 +152,7 @@ struct NOTE_NAGA_ENGINE_API NoteNagaNote {
      * @param velocity_ Optional velocity.
      * @param track_ (Unused) Optional track index.
      */
-    NoteNagaNote(unsigned long note_, NoteNagaTrack *parent_,
+    NN_Note_t(unsigned long note_, NoteNagaTrack *parent_,
                  const std::optional<int> &start_ = std::nullopt,
                  const std::optional<int> &length_ = std::nullopt,
                  const std::optional<int> &velocity_ = std::nullopt,
@@ -168,7 +168,7 @@ struct NOTE_NAGA_ENGINE_API NoteNagaNote {
  * @param tempo Tempo in BPM.
  * @return Duration in milliseconds.
  */
-NOTE_NAGA_ENGINE_API double note_time_ms(const NoteNagaNote &note, int ppq, int tempo);
+NOTE_NAGA_ENGINE_API double note_time_ms(const NN_Note_t &note, int ppq, int tempo);
 
 /*******************************************************************************************************/
 // Note Naga Track
@@ -227,7 +227,7 @@ public:
      * @brief Gets all MIDI notes in the track.
      * @return Vector of notes.
      */
-    std::vector<NoteNagaNote> getNotes() const { return midi_notes; }
+    std::vector<NN_Note_t> getNotes() const { return midi_notes; }
 
     /**
      * @brief Gets the track's instrument index.
@@ -251,7 +251,7 @@ public:
      * @brief Gets the assigned color for this track.
      * @return Reference to color.
      */
-    const NNColor &getColor() const { return color; }
+    const NN_Color_t &getColor() const { return color; }
 
     /**
      * @brief Returns whether the track is visible. Can be used to toggle visibility in
@@ -298,7 +298,7 @@ public:
      * @brief Sets the notes for this track.
      * @param notes Vector of notes.
      */
-    void setNotes(const std::vector<NoteNagaNote> &notes) { this->midi_notes = notes; }
+    void setNotes(const std::vector<NN_Note_t> &notes) { this->midi_notes = notes; }
 
     /**
      * @brief Sets the instrument index.
@@ -322,7 +322,7 @@ public:
      * @brief Sets the track color.
      * @param new_color New color.
      */
-    void setColor(const NNColor &new_color);
+    void setColor(const NN_Color_t &new_color);
 
     /**
      * @brief Sets the track visibility. Can be used to toggle visibility in UI.
@@ -348,6 +348,22 @@ public:
      */
     void setVolume(float new_volume);
 
+protected:
+    int track_id;                         ///< Unique track ID
+    std::optional<int> instrument;        ///< Instrument index (optional)
+    std::optional<int> channel;           ///< MIDI channel (optional)
+    std::string name;                     ///< Track name
+    NN_Color_t color;                        ///< Track color
+    bool visible;                         ///< Track visibility
+    bool muted;                           ///< Track muted state
+    bool solo;                            ///< Track solo state
+    float volume;                         ///< Track volume (0.0 - 1.0)
+    std::vector<NN_Note_t> midi_notes; ///< MIDI notes in this track
+    NoteNagaMidiSeq *parent;              ///< Pointer to parent MIDI sequence
+
+    // SIGNALS
+    // ////////////////////////////////////////////////////////////////////////////////
+    
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
     /**
@@ -358,19 +374,6 @@ Q_SIGNALS:
      */
     void metadataChanged(NoteNagaTrack *track, const std::string &param);
 #endif
-
-protected:
-    int track_id;                         ///< Unique track ID
-    std::optional<int> instrument;        ///< Instrument index (optional)
-    std::optional<int> channel;           ///< MIDI channel (optional)
-    std::string name;                     ///< Track name
-    NNColor color;                        ///< Track color
-    bool visible;                         ///< Track visibility
-    bool muted;                           ///< Track muted state
-    bool solo;                            ///< Track solo state
-    float volume;                         ///< Track volume (0.0 - 1.0)
-    std::vector<NoteNagaNote> midi_notes; ///< MIDI notes in this track
-    NoteNagaMidiSeq *parent;              ///< Pointer to parent MIDI sequence
 };
 
 /*******************************************************************************************************/
@@ -535,6 +538,19 @@ public:
      */
     void setSoloTrack(NoteNagaTrack *track);
 
+protected:
+    int sequence_id;                     ///< Unique sequence ID
+    std::vector<NoteNagaTrack *> tracks; ///< All tracks in the sequence
+    NoteNagaTrack *active_track;         ///< Pointer to the currently active track
+    NoteNagaTrack *solo_track;           ///< Pointer to the currently soloed track
+    MidiFile *midi_file;                 ///< Pointer to the MIDI file object
+    int ppq;                             ///< Pulses per quarter note (PPQ)
+    int tempo;                           ///< Tempo (BPM)
+    int max_tick;                        ///< Maximum tick in the sequence
+
+    // SIGNALS
+    // ////////////////////////////////////////////////////////////////////////////////
+    
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
     /**
@@ -557,16 +573,6 @@ Q_SIGNALS:
      */
     void activeTrackChanged(NoteNagaTrack *track);
 #endif
-
-protected:
-    int sequence_id;                     ///< Unique sequence ID
-    std::vector<NoteNagaTrack *> tracks; ///< All tracks in the sequence
-    NoteNagaTrack *active_track;         ///< Pointer to the currently active track
-    NoteNagaTrack *solo_track;           ///< Pointer to the currently soloed track
-    MidiFile *midi_file;                 ///< Pointer to the MIDI file object
-    int ppq;                             ///< Pulses per quarter note (PPQ)
-    int tempo;                           ///< Tempo (BPM)
-    int max_tick;                        ///< Maximum tick in the sequence
 };
 
 /*******************************************************************************************************/
@@ -576,7 +582,7 @@ protected:
 /**
  * @brief Structure describing a General MIDI instrument.
  */
-struct NOTE_NAGA_ENGINE_API GMInstrument {
+struct NOTE_NAGA_ENGINE_API NN_GMInstrument_t {
     int index;        ///< Instrument index
     std::string name; ///< Human-readable name
     std::string icon; ///< Icon filename or resource ID
@@ -585,14 +591,14 @@ struct NOTE_NAGA_ENGINE_API GMInstrument {
 /**
  * @brief List of all General MIDI instruments.
  */
-NOTE_NAGA_ENGINE_API extern const std::vector<GMInstrument> GM_INSTRUMENTS;
+NOTE_NAGA_ENGINE_API extern const std::vector<NN_GMInstrument_t> GM_INSTRUMENTS;
 
 /**
  * @brief Finds a General MIDI instrument by name.
  * @param name Instrument name.
  * @return Optional GMInstrument if found.
  */
-NOTE_NAGA_ENGINE_API extern std::optional<GMInstrument>
+NOTE_NAGA_ENGINE_API extern std::optional<NN_GMInstrument_t>
 nn_find_instrument_by_name(const std::string &name);
 
 /**
@@ -600,7 +606,7 @@ nn_find_instrument_by_name(const std::string &name);
  * @param index Instrument index.
  * @return Optional GMInstrument if found.
  */
-NOTE_NAGA_ENGINE_API std::optional<GMInstrument> nn_find_instrument_by_index(int index);
+NOTE_NAGA_ENGINE_API std::optional<NN_GMInstrument_t> nn_find_instrument_by_index(int index);
 
 /*******************************************************************************************************/
 // Note Names Utils

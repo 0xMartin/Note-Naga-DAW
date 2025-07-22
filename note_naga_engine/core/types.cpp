@@ -9,21 +9,21 @@
 // Channel Colors
 /*******************************************************************************************************/
 
-const std::vector<NNColor> DEFAULT_CHANNEL_COLORS = {
-    NNColor(0, 180, 255),  NNColor(255, 100, 100), NNColor(250, 200, 75),
-    NNColor(90, 230, 120), NNColor(180, 110, 255), NNColor(170, 180, 70),
-    NNColor(95, 220, 210), NNColor(230, 90, 210),  NNColor(70, 180, 90),
-    NNColor(255, 180, 60), NNColor(210, 80, 80),   NNColor(80, 120, 255),
-    NNColor(255, 230, 80), NNColor(110, 255, 120), NNColor(220, 160, 255),
-    NNColor(100, 180, 160)};
+const std::vector<NN_Color_t> DEFAULT_CHANNEL_COLORS = {
+    NN_Color_t(0, 180, 255),  NN_Color_t(255, 100, 100), NN_Color_t(250, 200, 75),
+    NN_Color_t(90, 230, 120), NN_Color_t(180, 110, 255), NN_Color_t(170, 180, 70),
+    NN_Color_t(95, 220, 210), NN_Color_t(230, 90, 210),  NN_Color_t(70, 180, 90),
+    NN_Color_t(255, 180, 60), NN_Color_t(210, 80, 80),   NN_Color_t(80, 120, 255),
+    NN_Color_t(255, 230, 80), NN_Color_t(110, 255, 120), NN_Color_t(220, 160, 255),
+    NN_Color_t(100, 180, 160)};
 
-NNColor nn_color_blend(const NNColor &fg, const NNColor &bg, double opacity) {
+NN_Color_t nn_color_blend(const NN_Color_t &fg, const NN_Color_t &bg, double opacity) {
     // opacity: 0.0 = jen bg, 1.0 = jen fg
     double a = opacity;
     int r = int(a * fg.red + (1 - a) * bg.red);
     int g = int(a * fg.green + (1 - a) * bg.green);
     int b = int(a * fg.blue + (1 - a) * bg.blue);
-    return NNColor(r, g, b);
+    return NN_Color_t(r, g, b);
 }
 
 /*******************************************************************************************************/
@@ -41,7 +41,7 @@ int nn_generate_unique_seq_id() { return static_cast<int>(next_seq_id++); }
 // Note Naga Note
 /*******************************************************************************************************/
 
-double note_time_ms(const NoteNagaNote &note, int ppq, int tempo) {
+double note_time_ms(const NN_Note_t &note, int ppq, int tempo) {
     if (!note.length.has_value() || note.length.value() <= 0) return 0.0;
     double us_per_tick = static_cast<double>(tempo) / ppq;
     double total_us = note.length.value() * us_per_tick;
@@ -124,7 +124,7 @@ void NoteNagaTrack::setName(const std::string &new_name) {
     NN_QT_EMIT(metadataChanged(this, "name"));
 }
 
-void NoteNagaTrack::setColor(const NNColor &new_color) {
+void NoteNagaTrack::setColor(const NN_Color_t &new_color) {
     if (this->color == new_color) return;
     this->color = new_color;
     NN_QT_EMIT(metadataChanged(this, "color"));
@@ -352,7 +352,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
     int abs_time = 0;
     std::map<std::pair<int, int>, std::pair<int, int>>
         notes_on; // (note, channel) -> (start, velocity)
-    std::map<int, std::vector<NoteNagaNote>> channel_note_buffers;
+    std::map<int, std::vector<NN_Note_t>> channel_note_buffers;
     std::map<int, int> channel_instruments;
     std::map<int, std::string> channel_names;
 
@@ -401,7 +401,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
                 int start = it->second.first;
                 int velocity = it->second.second;
                 channel_note_buffers[channel].push_back(
-                    NoteNagaNote(note, nullptr, start, abs_time - start, velocity));
+                    NN_Note_t(note, nullptr, start, abs_time - start, velocity));
                 notes_on.erase(it);
             }
         }
@@ -411,7 +411,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
     int t_id = 0;
     for (auto &pair : channel_note_buffers) {
         int channel = pair.first;
-        std::vector<NoteNagaNote> &note_buffer = pair.second;
+        std::vector<NN_Note_t> &note_buffer = pair.second;
         if (note_buffer.empty()) continue;
 
         std::string name = channel_names.count(channel)
@@ -423,7 +423,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         NoteNagaTrack *nn_track =
             new NoteNagaTrack(t_id, this, name, instrument, channel);
         std::sort(note_buffer.begin(), note_buffer.end(),
-                  [](const NoteNagaNote &a, const NoteNagaNote &b) {
+                  [](const NN_Note_t &a, const NN_Note_t &b) {
                       return a.start < b.start;
                   });
         for (auto &note : note_buffer) {
@@ -454,7 +454,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
         int instrument = 0;
         std::optional<int> channel_used;
         std::string name;
-        std::vector<NoteNagaNote> note_buffer;
+        std::vector<NN_Note_t> note_buffer;
 
         // create instance of track
         NoteNagaTrack *nn_track = new NoteNagaTrack(track_idx, this);
@@ -509,7 +509,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
                     int start = it->second.first;
                     int velocity = it->second.second;
                     note_buffer.push_back(
-                        NoteNagaNote(note, nn_track, start, abs_time - start, velocity));
+                        NN_Note_t(note, nn_track, start, abs_time - start, velocity));
                     notes_on.erase(it);
                 }
             }
@@ -517,7 +517,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
 
         // sort notes by start time and store in track
         std::sort(note_buffer.begin(), note_buffer.end(),
-                  [](const NoteNagaNote &a, const NoteNagaNote &b) {
+                  [](const NN_Note_t &a, const NN_Note_t &b) {
                       return a.start < b.start;
                   });
         nn_track->setNotes(note_buffer);
@@ -536,7 +536,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
 // General MIDI Instruments Utils
 /*******************************************************************************************************/
 
-const std::vector<GMInstrument> GM_INSTRUMENTS = {
+const std::vector<NN_GMInstrument_t> GM_INSTRUMENTS = {
     {0, "Acoustic Grand Piano", "grand_piano"},
     {1, "Bright Acoustic Piano", "grand_piano"},
     {2, "Electric Grand Piano", "grand_piano"},
@@ -666,18 +666,18 @@ const std::vector<GMInstrument> GM_INSTRUMENTS = {
     {126, "Applause", "vinyl"},
     {127, "Gunshot", "vinyl"}};
 
-std::optional<GMInstrument> nn_find_instrument_by_name(const std::string &name) {
+std::optional<NN_GMInstrument_t> nn_find_instrument_by_name(const std::string &name) {
     auto it = std::find_if(
         GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
-        [&](const GMInstrument &instr) { return instr.name.compare(name) == 0; });
+        [&](const NN_GMInstrument_t &instr) { return instr.name.compare(name) == 0; });
     if (it != GM_INSTRUMENTS.end()) return *it;
     return std::nullopt;
 }
 
-std::optional<GMInstrument> nn_find_instrument_by_index(int index) {
+std::optional<NN_GMInstrument_t> nn_find_instrument_by_index(int index) {
     auto it =
         std::find_if(GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
-                     [&](const GMInstrument &instr) { return instr.index == index; });
+                     [&](const NN_GMInstrument_t &instr) { return instr.index == index; });
     if (it != GM_INSTRUMENTS.end()) return *it;
     return std::nullopt;
 }

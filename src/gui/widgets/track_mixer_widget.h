@@ -50,7 +50,7 @@ private slots:
     void onRemoveSelectedEntry();
     void onClearRoutingTable();
     void onDefaultEntries();
-    void handlePlayingNote(const NoteNagaNote& note, const std::string& device_name, int channel);
+    void handlePlayingNote(const NN_Note_t& note, const std::string& device_name, int channel);
 
 private:
     NoteNagaEngine* engine;

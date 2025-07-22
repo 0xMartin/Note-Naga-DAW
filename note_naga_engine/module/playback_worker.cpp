@@ -1,4 +1,4 @@
-#include <note_naga_engine/worker/playback_worker.h>
+#include <note_naga_engine/module/playback_worker.h>
 
 #include <algorithm>
 #include <note_naga_engine/logger.h>
@@ -14,7 +14,6 @@ PlaybackThreadWorker::PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMix
     this->timer_interval = timer_interval;
     this->start_tick_at_start = 0;
     this->last_id = 0;
-    this->note_queue = std::make_unique<QueueType>();
 }
 
 PlaybackThreadWorker::CallbackId
@@ -58,20 +57,6 @@ void PlaybackThreadWorker::recalculateTempo() {
                        std::to_string(60'000'000.0 / this->project->getTempo()) +
                        " BPM, PPQ: " + std::to_string(this->project->getPPQ()) +
                        ", ms per tick: " + std::to_string(ms_per_tick));
-}
-
-void PlaybackThreadWorker::processNoteQueue() {
-    while (auto cmdopt = note_queue->dequeue()) {
-        const auto &cmd = *cmdopt;
-        switch (cmd.type) {
-        case QueueCommandType::PlayNote:
-            mixer->playNote(cmd.note);
-            break;
-        case QueueCommandType::StopNote:
-            mixer->stopNote(cmd.note);
-            break;
-        }
-    }
 }
 
 void PlaybackThreadWorker::emitFinished() {
@@ -121,10 +106,10 @@ void PlaybackThreadWorker::run() {
                     if (note.start.has_value() && note.length.has_value()) {
                         if (last_tick < note.start.value() &&
                             note.start.value() <= current_tick)
-                            mixer->playNote(note);
+                            mixer->pushToQueue(NN_MixerMessage_t{note, true});
                         if (last_tick < note.start.value() + note.length.value() &&
                             note.start.value() + note.length.value() <= current_tick)
-                            mixer->stopNote(note);
+                            mixer->pushToQueue(NN_MixerMessage_t{note, false});
                     }
                 }
             }
@@ -136,17 +121,14 @@ void PlaybackThreadWorker::run() {
                     if (note.start.has_value() && note.length.has_value()) {
                         if (last_tick < note.start.value() &&
                             note.start.value() <= current_tick)
-                            mixer->playNote(note);
+                            mixer->pushToQueue(NN_MixerMessage_t{note, true});
                         if (last_tick < note.start.value() + note.length.value() &&
                             note.start.value() + note.length.value() <= current_tick)
-                            mixer->stopNote(note);
+                            mixer->pushToQueue(NN_MixerMessage_t{note, false});
                     }
                 }
             }
         }
-
-        // Process note queue
-        this->processNoteQueue();
 
         this->emitPositionChanged(current_tick);
 
@@ -155,16 +137,6 @@ void PlaybackThreadWorker::run() {
 
     NOTE_NAGA_LOG_INFO("Playback thread finished");
     emitFinished();
-}
-
-void PlaybackThreadWorker::addPlayNoteToQueue(const NoteNagaNote &note) {
-    QueueCommand cmd{QueueCommandType::PlayNote, note};
-    this->note_queue->enqueue(cmd);
-}
-
-void PlaybackThreadWorker::addStopNoteToQueue(const NoteNagaNote &note) {
-    QueueCommand cmd{QueueCommandType::StopNote, note};
-    this->note_queue->enqueue(cmd);
 }
 
 void PlaybackThreadWorker::stop() { should_stop = true; }
@@ -280,7 +252,7 @@ void PlaybackWorker::emitPlayingState(bool playing_val) {
 
 bool PlaybackWorker::play() {
     if (playing) {
-        NOTE_NAGA_LOG_ERROR("Already playing");
+        NOTE_NAGA_LOG_WARNING("Already playing");
         return false;
     }
     if (!project) {
@@ -309,7 +281,7 @@ bool PlaybackWorker::play() {
 
 bool PlaybackWorker::stop() {
     if (!playing) {
-        NOTE_NAGA_LOG_ERROR("Playback worker not currently playing");
+        NOTE_NAGA_LOG_WARNING("Playback worker not currently playing");
         return false;
     }
 
@@ -320,22 +292,6 @@ bool PlaybackWorker::stop() {
 
     NOTE_NAGA_LOG_INFO("Playback worker stopped");
     return true;
-}
-
-void PlaybackWorker::addPlayNoteToQueue(const NoteNagaNote &note) {
-    if (worker) {
-        worker->addPlayNoteToQueue(note);
-    } else {
-        mixer->playNote(note);
-    }
-}
-
-void PlaybackWorker::addStopNoteToQueue(const NoteNagaNote &note) {
-    if (worker) {
-        worker->addStopNoteToQueue(note);
-    } else {
-        mixer->stopNote(note);
-    }
 }
 
 void PlaybackWorker::cleanupThread() {

@@ -249,12 +249,12 @@ void MidiEditorWidget::updateBarGrid() {
     }
 }
 
-void MidiEditorWidget::drawNote(const NoteNagaNote &note, const NoteNagaTrack *track,
+void MidiEditorWidget::drawNote(const NN_Note_t &note, const NoteNagaTrack *track,
                                 bool is_selected, bool is_drum, int x, int y, int w, int h) {
     QGraphicsItem *shape = nullptr;
     QColor t_color = (is_selected ? track->getColor()
                                   : nn_color_blend(track->getColor(),
-                                                   NNColor::fromQColor(bg_color), 0.3))
+                                                   NN_Color_t::fromQColor(bg_color), 0.3))
                          .toQColor();
     QPen outline = is_selected
                        ? QPen(t_color.lightness() < 128 ? Qt::white : Qt::black, 2)

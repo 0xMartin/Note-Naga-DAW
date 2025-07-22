@@ -1,10 +1,10 @@
 #pragma once
 
-#include <note_naga_engine/core/mixer.h>
-#include <note_naga_engine/core/project_data.h>
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_api.h>
-#include <note_naga_engine/worker/playback_worker.h>
+#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/module/mixer.h>
+#include <note_naga_engine/module/playback_worker.h>
 
 #ifndef QT_DEACTIVATED
 #include <QObject>

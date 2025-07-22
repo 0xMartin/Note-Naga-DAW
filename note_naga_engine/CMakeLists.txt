@@ -28,34 +28,46 @@ option(QT_DEACTIVATED "Build without Qt support" OFF)
 message(STATUS "QT_DEACTIVATED = ${QT_DEACTIVATED}")
 
 set(PUBLIC_HEADER_FILES
-    include/note_naga_engine/note_naga_api.h
-    include/note_naga_engine/logger.h
-    include/note_naga_engine/note_naga_engine.h
-    include/note_naga_engine/core/mixer.h
-    include/note_naga_engine/core/project_data.h
-    include/note_naga_engine/core/types.h
-    include/note_naga_engine/core/lock_free_spsc_queue.h
-    include/note_naga_engine/io/midi_file.h
-    include/note_naga_engine/worker/playback_worker.h
+    # include/note_naga_engine
+    ./include/note_naga_engine/logger.h
+    ./include/note_naga_engine/note_naga_api.h
+    ./include/note_naga_engine/note_naga_engine.h
+    # include/note_naga_engine/core
+    ./include/note_naga_engine/core/lock_free_spsc_queue.h
+    ./include/note_naga_engine/core/lock_free_mpmc_queue.h
+    ./include/note_naga_engine/core/note_naga_component.h
+    ./include/note_naga_engine/core/project_data.h
+    ./include/note_naga_engine/core/types.h
+    # include/note_naga_engine/io
+    ./include/note_naga_engine/io/midi_file.h
+    # include/note_naga_engine/module
+    ./include/note_naga_engine/module/mixer.h
+    ./include/note_naga_engine/module/playback_worker.h
 )
 
 set(SOURCE_FILES
-    logger.cpp
-    note_naga_engine.cpp
-    core/mixer.cpp
-    core/project_data.cpp
-    core/types.cpp
-    io/midi_file.cpp
-    worker/playback_worker.cpp
+    # src
+    ./logger.cpp
+    ./note_naga_engine.cpp
+    # core
+    ./core/project_data.cpp
+    ./core/types.cpp
+    # io
+    ./io/midi_file.cpp
+    # module
+    ./module/mixer.cpp
+    ./module/playback_worker.cpp
 )
 
-# GLIB2, FluidSynth, and RtMidi dependencies
+# GLIB2, FluidSynth, and RtMidi dependencies (REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLIB2 REQUIRED IMPORTED_TARGET glib-2.0)
 pkg_check_modules(FLUIDSYNTH REQUIRED IMPORTED_TARGET fluidsynth)
 pkg_check_modules(RTMIDI REQUIRED IMPORTED_TARGET rtmidi)
 
+# Qt dependencies (OPTIONAL)
 if(NOT QT_DEACTIVATED)
+    find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
     if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
     else()

@@ -35,7 +35,7 @@ public:
      * @param selected_gm_index Optional index of the initially selected instrument.
      */
     InstrumentSelectorDialog(QWidget *parent,
-                             const std::vector<GMInstrument> &gm_instruments,
+                             const std::vector<NN_GMInstrument_t> &gm_instruments,
                              std::function<QIcon(QString)> icon_provider,
                              std::optional<int> selected_gm_index = std::nullopt);
 
@@ -53,12 +53,12 @@ signals:
     void instrumentSelected(int gm_index);
 
 private:
-    std::vector<GMInstrument> gm_instruments;
+    std::vector<NN_GMInstrument_t> gm_instruments;
     std::function<QIcon(QString)> icon_provider;
     std::optional<int> selected_gm_index;
     QString selected_group;
 
-    QMap<QString, std::vector<GMInstrument>> groups;
+    QMap<QString, std::vector<NN_GMInstrument_t>> groups;
     QMap<QString, int> icon_to_group_index;
 
     // UI widgets
@@ -75,7 +75,7 @@ private:
     void selectVariant(int gm_index);
 
     // Utility
-    QMap<QString, std::vector<GMInstrument>>
-    groupInstruments(const std::vector<GMInstrument> &gm_instruments);
+    QMap<QString, std::vector<NN_GMInstrument_t>>
+    groupInstruments(const std::vector<NN_GMInstrument_t> &gm_instruments);
     QString findGroupByGMIndex(int gm_index);
 };

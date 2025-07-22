@@ -159,7 +159,7 @@ void TrackWidget::colorSelect()
     QColor col = QColorDialog::getColor(track->getColor().toQColor(), this, "Select Track Color");
     if (col.isValid())
     {
-        track->setColor(NNColor::fromQColor(col));
+        track->setColor(NN_Color_t::fromQColor(col));
     }
 }
 

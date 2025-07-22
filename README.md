@@ -1,8 +1,6 @@
 ## Build 
 
-vylepseni enginu: funkce enginu bude noty play, stop ... pridavat do fronty a interni vlakno to bude predavat mixeru.
-
-2. opravit chyb v UI (aby to vypadalo stejne jak predtim)
+1. opravit chyb v UI (aby to vypadalo stejne jak predtim)
    1. custom tile bar pro QDock widgety..
    2. Dock Panel Nefunguje jak by mel: reset layout, nachyta se presne na dane pozice jak by mel
 

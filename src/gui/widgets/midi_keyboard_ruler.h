@@ -35,23 +35,23 @@ public:
 signals:
     /**
      * @brief Signal emitted when a note is pressed.
-     * @param note The NoteNagaNote that was pressed.
+     * @param note The NN_Note_t that was pressed.
      */
-    void notePressed(const NoteNagaNote &note);
+    void notePressed(const NN_Note_t &note);
 
     /**
      * @brief Signal emitted when a note is released.
-     * @param note The NoteNagaNote that was released.
+     * @param note The NN_Note_t that was released.
      */
-    void noteReleased(const NoteNagaNote &note);
+    void noteReleased(const NN_Note_t &note);
 
 public slots:
     /**
      * @brief Slot to handle playing a note. Highlights the key with a color of note
      * track.
-     * @param note The NoteNagaNote to play.
+     * @param note The NN_Note_t to play.
      */
-    void handleNotePlay(const NoteNagaNote &note);
+    void handleNotePlay(const NN_Note_t &note);
 
     /**
      * @brief Slot to clear all key highlights.
@@ -78,7 +78,7 @@ private:
     int viewer_row_height;
     int verticalScroll;
 
-    NoteNagaNote pressed_note;
+    NN_Note_t pressed_note;
     int hovered_note;
 
     QFont font;

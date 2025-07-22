@@ -77,7 +77,7 @@ private:
     void updateAllNotes();
     void updateTrackNotes(NoteNagaTrack *track);
 
-    void drawNote(const NoteNagaNote &note, const NoteNagaTrack *track, bool is_selected,
+    void drawNote(const NN_Note_t &note, const NoteNagaTrack *track, bool is_selected,
                   bool is_drum, int x, int y, int w, int h);
 
     void clearScene();
