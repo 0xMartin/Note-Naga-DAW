@@ -19,6 +19,7 @@ message(STATUS "QT_DEACTIVATED = ${QT_DEACTIVATED}")
 
 set(PUBLIC_HEADER_FILES
     include/note_naga_engine/note_naga_api.h
+    include/note_naga_engine/logger.h
     include/note_naga_engine/note_naga_engine.h
     include/note_naga_engine/core/mixer.h
     include/note_naga_engine/core/project_data.h
@@ -28,6 +29,7 @@ set(PUBLIC_HEADER_FILES
 )
 
 set(SOURCE_FILES
+    logger.cpp
     note_naga_engine.cpp
     core/mixer.cpp
     core/project_data.cpp
