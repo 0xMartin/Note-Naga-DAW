@@ -1,37 +1,37 @@
 #include "track_mixer_widget.h"
 #include <QIcon>
 
-TrackMixerWidget::TrackMixerWidget(NoteNagaEngine* engine_, QWidget* parent)
-    : QWidget(parent), engine(engine_), selected_entry_index(-1), selected_row(-1)
-{
+TrackMixerWidget::TrackMixerWidget(NoteNagaEngine *engine_, QWidget *parent)
+    : QWidget(parent), engine(engine_), selected_entry_index(-1), selected_row(-1) {
     setObjectName("TrackMixerWidget");
-    connect(engine->getMixer(), &NoteNagaMixer::noteOutSignal, this, &TrackMixerWidget::handlePlayingNote);
-    connect(engine->getMixer(), &NoteNagaMixer::routingEntryStackChanged, this, &TrackMixerWidget::refresh_routing_table);
+    connect(engine->getMixer(), &NoteNagaMixer::noteOutSignal, this,
+            &TrackMixerWidget::handlePlayingNote);
+    connect(engine->getMixer(), &NoteNagaMixer::routingEntryStackChanged, this,
+            &TrackMixerWidget::refresh_routing_table);
     initUI();
 }
 
-void TrackMixerWidget::initUI()
-{
-    QVBoxLayout* main_layout = new QVBoxLayout(this);
+void TrackMixerWidget::initUI() {
+    QVBoxLayout *main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(5, 5, 5, 5);
     main_layout->setSpacing(0);
 
     // Header frame
-    QFrame* header_frame = new QFrame();
+    QFrame *header_frame = new QFrame();
     header_frame->setObjectName("MixerHeaderFrame");
-    header_frame->setStyleSheet(
-        "QFrame#MixerHeaderFrame { background: #353a44; border-radius: 9px; margin-bottom: 8px; }"
-    );
-    QHBoxLayout* header_layout = new QHBoxLayout(header_frame);
+    header_frame->setStyleSheet("QFrame#MixerHeaderFrame { background: #353a44; "
+                                "border-radius: 9px; margin-bottom: 8px; }");
+    QHBoxLayout *header_layout = new QHBoxLayout(header_frame);
     header_layout->setContentsMargins(10, 5, 10, 5);
     header_layout->setSpacing(12);
 
-    QLabel* header_icon = new QLabel();
+    QLabel *header_icon = new QLabel();
     header_icon->setPixmap(QIcon(":/icons/mixer.svg").pixmap(23, 23));
     header_icon->setFixedSize(23, 23);
 
-    QLabel* title = new QLabel("Track Mixer");
-    title->setStyleSheet("font-size: 20px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;");
+    QLabel *title = new QLabel("Track Mixer");
+    title->setStyleSheet(
+        "font-size: 20px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;");
     header_layout->addWidget(header_icon, 0, Qt::AlignVCenter);
     header_layout->addWidget(title, 0, Qt::AlignVCenter);
     header_layout->addStretch(1);
@@ -39,12 +39,12 @@ void TrackMixerWidget::initUI()
     main_layout->addWidget(header_frame);
 
     // Controls frame
-    QFrame* controls_frame = new QFrame();
+    QFrame *controls_frame = new QFrame();
     controls_frame->setObjectName("MixerControlsFrame");
     controls_frame->setStyleSheet(
-        "QFrame#MixerControlsFrame { background: #2F3139; border: 1px solid #494d56; border-radius: 10px; padding: 10px 0px 8px 0px; }"
-    );
-    QHBoxLayout* controls_layout = new QHBoxLayout(controls_frame);
+        "QFrame#MixerControlsFrame { background: #2F3139; border: 1px solid #494d56; "
+        "border-radius: 10px; padding: 10px 0px 8px 0px; }");
+    QHBoxLayout *controls_layout = new QHBoxLayout(controls_frame);
     controls_layout->setContentsMargins(5, 0, 5, 0);
 
     dial_min = new AudioDial();
@@ -54,7 +54,8 @@ void TrackMixerWidget::initUI()
     dial_min->setDefaultValue(0);
     dial_min->showValue(true);
     dial_min->setValueDecimals(0);
-    connect(dial_min, &AudioDial::valueChanged, this, &TrackMixerWidget::onMinNoteChanged);
+    connect(dial_min, &AudioDial::valueChanged, this,
+            &TrackMixerWidget::onMinNoteChanged);
 
     dial_max = new AudioDial();
     dial_max->setLabel("Note Max");
@@ -63,7 +64,8 @@ void TrackMixerWidget::initUI()
     dial_max->setDefaultValue(127);
     dial_max->showValue(true);
     dial_max->setValueDecimals(0);
-    connect(dial_max, &AudioDial::valueChanged, this, &TrackMixerWidget::onMaxNoteChanged);
+    connect(dial_max, &AudioDial::valueChanged, this,
+            &TrackMixerWidget::onMaxNoteChanged);
 
     dial_offset = new AudioDialCentered();
     dial_offset->setLabel("Offset");
@@ -72,7 +74,8 @@ void TrackMixerWidget::initUI()
     dial_offset->setDefaultValue(0);
     dial_offset->showValue(true);
     dial_offset->setValueDecimals(0);
-    connect(dial_offset, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::onGlobalOffsetChanged);
+    connect(dial_offset, &AudioDialCentered::valueChanged, this,
+            &TrackMixerWidget::onGlobalOffsetChanged);
 
     dial_vol = new AudioDial();
     dial_vol->setLabel("Volume");
@@ -82,7 +85,8 @@ void TrackMixerWidget::initUI()
     dial_vol->setDefaultValue(100);
     dial_vol->setValuePostfix(" %");
     dial_vol->showValue(true);
-    connect(dial_vol, &AudioDial::valueChanged, this, &TrackMixerWidget::onGlobalVolumeChanged);
+    connect(dial_vol, &AudioDial::valueChanged, this,
+            &TrackMixerWidget::onGlobalVolumeChanged);
 
     dial_pan = new AudioDialCentered();
     dial_pan->setLabel("Pan");
@@ -90,7 +94,8 @@ void TrackMixerWidget::initUI()
     dial_pan->setValueDecimals(2);
     dial_pan->setValue(engine->getMixer()->master_pan);
     dial_pan->setDefaultValue(0.0);
-    connect(dial_pan, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::onGlobalPanChanged);
+    connect(dial_pan, &AudioDialCentered::valueChanged, this,
+            &TrackMixerWidget::onGlobalPanChanged);
 
     controls_layout->addWidget(dial_min, 0, Qt::AlignVCenter);
     controls_layout->addWidget(dial_max, 0, Qt::AlignVCenter);
@@ -103,24 +108,25 @@ void TrackMixerWidget::initUI()
     main_layout->addSpacing(10);
 
     // Channel Output section with device selector
-    QFrame* channel_output_frame = new QFrame();
+    QFrame *channel_output_frame = new QFrame();
     channel_output_frame->setObjectName("MixerSectionLabelFrame");
     channel_output_frame->setStyleSheet(
-        "QFrame#MixerSectionLabelFrame { background: #353a44; border-radius: 8px; margin-bottom: 0px; }"
-    );
-    QHBoxLayout* channel_output_label_layout = new QHBoxLayout(channel_output_frame);
+        "QFrame#MixerSectionLabelFrame { background: #353a44; border-radius: 8px; "
+        "margin-bottom: 0px; }");
+    QHBoxLayout *channel_output_label_layout = new QHBoxLayout(channel_output_frame);
     channel_output_label_layout->setContentsMargins(12, 5, 12, 5);
 
-    QLabel* channel_output_label = new QLabel("Channel Output");
-    channel_output_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #79b8ff;");
+    QLabel *channel_output_label = new QLabel("Channel Output");
+    channel_output_label->setStyleSheet(
+        "font-size: 15px; font-weight: bold; color: #79b8ff;");
     channel_output_label_layout->addWidget(channel_output_label, 0, Qt::AlignLeft);
 
     device_selector = new QComboBox();
     device_selector->setMinimumWidth(130);
     device_selector->setMaximumWidth(220);
     device_selector->setStyleSheet(
-        "QComboBox { background: #232731; color: #79b8ff; font-weight: bold; border-radius: 5px; padding: 3px 8px; }"
-    );
+        "QComboBox { background: #232731; color: #79b8ff; font-weight: bold; "
+        "border-radius: 5px; padding: 3px 8px; }");
     channel_output_label_layout->addStretch(1);
     channel_output_label_layout->addWidget(device_selector, 0, Qt::AlignRight);
 
@@ -129,8 +135,8 @@ void TrackMixerWidget::initUI()
 
     // MultiChannelVolumeBar for each device
     std::vector<std::string> outputs = engine->getMixer()->getAvailableOutputs();
-    for (const std::string& dev : outputs) {
-        MultiChannelVolumeBar* bar = new MultiChannelVolumeBar(16);
+    for (const std::string &dev : outputs) {
+        MultiChannelVolumeBar *bar = new MultiChannelVolumeBar(16);
         bar->setMinimumHeight(90);
         bar->setMaximumHeight(120);
         bar->setRange(0, 127);
@@ -140,65 +146,77 @@ void TrackMixerWidget::initUI()
     }
     if (!outputs.empty()) {
         QStringList list;
-        for (const auto& s : outputs) {
+        for (const auto &s : outputs) {
             list << QString::fromStdString(s);
         }
         device_selector->addItems(list);
         current_channel_device = QString::fromStdString(outputs[0]);
         channel_volume_bars[current_channel_device]->setVisible(true);
     }
-    connect(device_selector, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](int idx) {
-        QString selected = device_selector->itemText(idx);
-        for (auto it = channel_volume_bars.begin(); it != channel_volume_bars.end(); ++it) {
-            it.value()->setVisible(false);
-        }
-        if (channel_volume_bars.contains(selected)) {
-            channel_volume_bars[selected]->setVisible(true);
-            current_channel_device = selected;
-        }
-    });
+    connect(device_selector, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [=](int idx) {
+                QString selected = device_selector->itemText(idx);
+                for (auto it = channel_volume_bars.begin();
+                     it != channel_volume_bars.end(); ++it) {
+                    it.value()->setVisible(false);
+                }
+                if (channel_volume_bars.contains(selected)) {
+                    channel_volume_bars[selected]->setVisible(true);
+                    current_channel_device = selected;
+                }
+            });
 
     main_layout->addSpacing(18);
 
     // Routing Table section
-    QFrame* routing_label_controls_frame = new QFrame();
+    QFrame *routing_label_controls_frame = new QFrame();
     routing_label_controls_frame->setObjectName("RoutingLabelControlsFrame");
-    routing_label_controls_frame->setStyleSheet("QFrame#RoutingLabelControlsFrame { background: #353a44; border-radius: 8px; }");
-    QHBoxLayout* routing_label_controls_layout = new QHBoxLayout(routing_label_controls_frame);
+    routing_label_controls_frame->setStyleSheet(
+        "QFrame#RoutingLabelControlsFrame { background: #353a44; border-radius: 8px; }");
+    QHBoxLayout *routing_label_controls_layout =
+        new QHBoxLayout(routing_label_controls_frame);
     routing_label_controls_layout->setContentsMargins(12, 5, 12, 5);
     routing_label_controls_layout->setSpacing(10);
 
-    QLabel* routing_label = new QLabel("Routing Table");
+    QLabel *routing_label = new QLabel("Routing Table");
     routing_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #79b8ff;");
     routing_label_controls_layout->addWidget(routing_label, 0, Qt::AlignLeft);
 
     routing_label_controls_layout->addStretch(1);
 
-    auto make_btn = [](const QString& iconPath, const QString& tooltip, const char* objname) -> QPushButton* {
-        QPushButton* btn = new QPushButton();
+    auto make_btn = [](const QString &iconPath, const QString &tooltip,
+                       const char *objname) -> QPushButton * {
+        QPushButton *btn = new QPushButton();
         btn->setObjectName(objname);
         btn->setIcon(QIcon(iconPath));
         btn->setToolTip(tooltip);
         btn->setFlat(true);
-        btn->setFixedSize(26,26);
+        btn->setFixedSize(26, 26);
         btn->setStyleSheet(
             "QPushButton { background: transparent; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background: #3477c0; color: #fff; }"
-        );
+            "QPushButton:hover { background: #3477c0; color: #fff; }");
         return btn;
     };
 
-    QPushButton* btn_add = make_btn(":/icons/add.svg", "Add new routing entry", "RoutingAddButton");
+    QPushButton *btn_add =
+        make_btn(":/icons/add.svg", "Add new routing entry", "RoutingAddButton");
     connect(btn_add, &QPushButton::clicked, this, &TrackMixerWidget::onAddEntry);
 
-    QPushButton* btn_remove = make_btn(":/icons/remove.svg", "Remove selected routing entry", "RoutingRemoveButton");
-    connect(btn_remove, &QPushButton::clicked, this, &TrackMixerWidget::onRemoveSelectedEntry);
+    QPushButton *btn_remove = make_btn(
+        ":/icons/remove.svg", "Remove selected routing entry", "RoutingRemoveButton");
+    connect(btn_remove, &QPushButton::clicked, this,
+            &TrackMixerWidget::onRemoveSelectedEntry);
 
-    QPushButton* btn_clear = make_btn(":/icons/clear.svg", "Clear all routing entries", "RoutingClearButton");
-    connect(btn_clear, &QPushButton::clicked, this, &TrackMixerWidget::onClearRoutingTable);
+    QPushButton *btn_clear =
+        make_btn(":/icons/clear.svg", "Clear all routing entries", "RoutingClearButton");
+    connect(btn_clear, &QPushButton::clicked, this,
+            &TrackMixerWidget::onClearRoutingTable);
 
-    QPushButton* btn_default = make_btn(":/icons/reload.svg", "Set default routing (one entry per track, Fluidsynth)", "RoutingDefaultButton");
-    connect(btn_default, &QPushButton::clicked, this, &TrackMixerWidget::onDefaultEntries);
+    QPushButton *btn_default = make_btn(
+        ":/icons/reload.svg", "Set default routing (one entry per track, Fluidsynth)",
+        "RoutingDefaultButton");
+    connect(btn_default, &QPushButton::clicked, this,
+            &TrackMixerWidget::onDefaultEntries);
 
     routing_label_controls_layout->addWidget(btn_add, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_remove, 0, Qt::AlignRight);
@@ -213,7 +231,8 @@ void TrackMixerWidget::initUI()
     routing_scroll->setWidgetResizable(true);
     routing_scroll->setFrameShape(QFrame::NoFrame);
     routing_scroll->setMinimumHeight(250);
-    routing_scroll->setStyleSheet("QScrollArea { background: transparent; padding: 0px; }");
+    routing_scroll->setStyleSheet(
+        "QScrollArea { background: transparent; padding: 0px; }");
     main_layout->addWidget(routing_scroll, 1);
 
     routing_entries_container = new QWidget();
@@ -223,10 +242,10 @@ void TrackMixerWidget::initUI()
     routing_entries_layout->addStretch(1);
     routing_scroll->setWidget(routing_entries_container);
 
-    setStyleSheet(
-        "QWidget#TrackMixerWidget { background: transparent; border: none; padding: 0px; }"
-        "QPushButton { min-width: 24px; max-width: 24px; min-height: 24px; max-height: 24px; padding: 0px; }"
-    );
+    setStyleSheet("QWidget#TrackMixerWidget { background: transparent; border: none; "
+                  "padding: 0px; }"
+                  "QPushButton { min-width: 24px; max-width: 24px; min-height: 24px; "
+                  "max-height: 24px; padding: 0px; }");
 
     refresh_routing_table();
 }
@@ -247,19 +266,21 @@ void TrackMixerWidget::onGlobalPanChanged(float value) {
     engine->getMixer()->master_pan = value;
 }
 
-void TrackMixerWidget::setChannelOutputValue(const std::string& device, int channel_idx, float value, int time_ms) {
+void TrackMixerWidget::setChannelOutputValue(const std::string &device, int channel_idx,
+                                             float value, int time_ms) {
     if (channel_volume_bars.contains(QString::fromStdString(device))) {
-        channel_volume_bars[QString::fromStdString(device)]->setValue(channel_idx, value, time_ms);
+        channel_volume_bars[QString::fromStdString(device)]->setValue(channel_idx, value,
+                                                                      time_ms);
     }
 }
 
 void TrackMixerWidget::refresh_routing_table() {
-    QVBoxLayout* layout = routing_entries_layout;
+    QVBoxLayout *layout = routing_entries_layout;
     selected_entry_index = -1;
     // Remove all widgets except last stretch
     for (int i = layout->count() - 2; i >= 0; --i) {
-        QLayoutItem* item = layout->itemAt(i);
-        QWidget* widget = item->widget();
+        QLayoutItem *item = layout->itemAt(i);
+        QWidget *widget = item->widget();
         if (widget) {
             widget->setParent(nullptr);
             widget->deleteLater();
@@ -271,53 +292,50 @@ void TrackMixerWidget::refresh_routing_table() {
     entry_widgets.clear();
 
     // Populate with current routing entries
-    std::vector<NoteNagaRoutingEntry>& entries = engine->getMixer()->getRoutingEntries();
+    std::vector<NoteNagaRoutingEntry> &entries = engine->getMixer()->getRoutingEntries();
     for (int idx = 0; idx < entries.size(); ++idx) {
-        RoutingEntryWidget* widget = new RoutingEntryWidget(engine, &entries[idx]);
+        RoutingEntryWidget *widget = new RoutingEntryWidget(engine, &entries[idx]);
         widget->installEventFilter(this);
         widget->setMouseTracking(true);
-        connect(widget, &RoutingEntryWidget::clicked, this, [this, idx]() {
-            this->updateEntrySelection(idx);
-        });
+        connect(widget, &RoutingEntryWidget::clicked, this,
+                [this, idx]() { this->updateEntrySelection(idx); });
         layout->insertWidget(layout->count() - 1, widget);
         entry_widgets.push_back(widget);
     }
 }
 
-void TrackMixerWidget::onAddEntry() {
-    engine->getMixer()->addRoutingEntry();
-}
+void TrackMixerWidget::onAddEntry() { engine->getMixer()->addRoutingEntry(); }
 
 void TrackMixerWidget::onRemoveSelectedEntry() {
     if (selected_entry_index >= 0) {
         engine->getMixer()->removeRoutingEntry(selected_entry_index);
     } else {
-        QMessageBox::warning(this, "No Entry Selected", "Please select a routing entry to remove.", QMessageBox::Ok);
+        QMessageBox::warning(this, "No Entry Selected",
+                             "Please select a routing entry to remove.", QMessageBox::Ok);
     }
 }
 
 void TrackMixerWidget::onClearRoutingTable() {
-    auto reply = QMessageBox::question(
-        this, "Clear Routing Table", "Are you sure you want to clear all routing entries?",
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No
-    );
-    if (reply == QMessageBox::Yes) {
-        engine->getMixer()->clearRoutingTable();
-    }
+    auto reply =
+        QMessageBox::question(this, "Clear Routing Table",
+                              "Are you sure you want to clear all routing entries?",
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (reply == QMessageBox::Yes) { engine->getMixer()->clearRoutingTable(); }
 }
 
 void TrackMixerWidget::onDefaultEntries() {
     auto reply = QMessageBox::question(
-        this, "Set Default Routing", "This will clear all routing entries and set default routing. Continue?",
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No
-    );
+        this, "Set Default Routing",
+        "This will clear all routing entries and set default routing. Continue?",
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (reply == QMessageBox::Yes) {
         engine->getMixer()->clearRoutingTable();
         engine->getMixer()->createDefaultRouting();
     }
 }
 
-void TrackMixerWidget::handlePlayingNote(const NN_Note_t& note, const std::string& device_name, int channel) {
+void TrackMixerWidget::handlePlayingNote(const NN_Note_t &note,
+                                         const std::string &device_name, int channel) {
     NoteNagaProject *project = engine->getProject();
     int time_ms = int(note_time_ms(note, project->getPPQ(), project->getTempo()));
     if (note.velocity.has_value() && note.velocity.value() > 0) {
@@ -329,8 +347,6 @@ void TrackMixerWidget::updateEntrySelection(int idx) {
     selected_row = idx;
     for (size_t i = 0; i < entry_widgets.size(); ++i) {
         entry_widgets[i]->refresh_style(int(i) == idx);
-        if (int(i) == idx) {
-            selected_entry_index = int(i);
-        }
+        if (int(i) == idx) { selected_entry_index = int(i); }
     }
 }

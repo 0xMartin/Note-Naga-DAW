@@ -1,16 +1,5 @@
 ## Build 
 
-1. opravit chyb v UI (aby to vypadalo stejne jak predtim)
-   1. custom tile bar pro QDock widgety..
-   2. Dock Panel Nefunguje jak by mel: reset layout, nachyta se presne na dane pozice jak by mel
-
-----
-NOVE FUNKCE:
-
-bug: lepsi detekce bich nastoroju (pres instanci mixer)
-
-pouziti u routing entry = indikacni led diada (signalizace aktivniho routingu)
-
 tlacitka u track listu:
    -> add, remove, remove all, record
 
@@ -18,6 +7,17 @@ tlacitka u mixeru:
    -> set all to min volume / max volume
    -> set output for all (replace ouput)
    -> automacaly select channels 
+
+pouziti u routing entry = indikacni led diada (signalizace aktivniho routingu)
+
+1. opravit chyb v UI (aby to vypadalo stejne jak predtim)
+   1. custom tile bar pro QDock widgety..
+   2. Dock Panel Nefunguje jak by mel: reset layout, nachyta se presne na dane pozice jak by mel
+
+----
+NOVE FUNKCE:
+
+bug: lepsi detekce bicích nastoroju (v Midi editoru ...)
 
 midi editor zoom bug (kdyz se zoomuje tak ujizdi s akutalni pozice)
 
