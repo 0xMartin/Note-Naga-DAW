@@ -11,7 +11,7 @@
  */
 class AnimatedTimeLabel : public QLabel {
     Q_OBJECT
-  public:
+public:
     explicit AnimatedTimeLabel(QWidget *parent = nullptr);
 
     /**
@@ -25,11 +25,11 @@ class AnimatedTimeLabel : public QLabel {
      */
     void setText(const QString &text);
 
-  protected:
+protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
-  private:
+private:
     QTimer *anim_timer;
     int anim_progress;
 

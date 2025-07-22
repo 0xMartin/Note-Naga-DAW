@@ -48,11 +48,19 @@ bool NoteNagaEngine::loadProject(const std::string &midi_file_path) {
 }
 
 void NoteNagaEngine::startPlayback() {
-    if (playback_worker) playback_worker->play();
+    if (playback_worker) {
+        if (playback_worker->play()) {
+            NN_QT_EMIT(this->playbackStarted());
+        }
+    }
 }
 
 void NoteNagaEngine::stopPlayback() {
-    if (playback_worker) playback_worker->stop();
+    if (playback_worker) {
+        if (playback_worker->stop()) {
+            NN_QT_EMIT(this->playbackStopped());
+        }
+    }
     if (mixer) mixer->stopAllNotes();
 }
 

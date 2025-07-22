@@ -70,7 +70,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaMixer : public QObject {
 class NOTE_NAGA_ENGINE_API NoteNagaMixer {
 #endif
 
-  public:
+public:
     /**
      * @brief Constructs the mixer and initializes the synthesizer and outputs.
      * @param project Pointer to the NoteNagaProject instance.
@@ -184,7 +184,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaMixer {
     float master_pan;       ///< Master stereo pan position
 
 #ifndef QT_DEACTIVATED
-  Q_SIGNALS:
+Q_SIGNALS:
     /**
      * @brief Signal emitted when the routing entry stack changes.
      */
@@ -206,7 +206,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaMixer {
                        int channel);
 #endif
 
-  private:
+private:
     /********************************************************************************************************/
     // Custom private types
     /********************************************************************************************************/

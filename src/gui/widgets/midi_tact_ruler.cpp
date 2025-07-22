@@ -22,12 +22,12 @@ MidiTactRuler::MidiTactRuler(NoteNagaEngine *engine_, QWidget* parent)
     //connect(engine->get_project(), &NoteNagaProject::current_tick_changed_signal, this, &MidiTactRuler::set_tick_position);
 }
 
-void MidiTactRuler::set_time_scale(double time_scale) {
+void MidiTactRuler::setTimeScale(double time_scale) {
     this->time_scale = time_scale;
     update();
 }
 
-void MidiTactRuler::set_tick_position(int val) {
+void MidiTactRuler::setHorizontalScroll(int val) {
     horizontalScroll = val;
     update();
 }
@@ -37,7 +37,7 @@ void MidiTactRuler::mousePressEvent(QMouseEvent* event) {
         NoteNagaProject *project = engine->getProject();
         int click_x = int(event->position().x()) + horizontalScroll;
         int tick = int(double(click_x) / (project->getPPQ() * time_scale) * project->getPPQ());
-        emit set_horizontal_scroll(tick);
+        emit positionSelected(tick);
     }
 }
 

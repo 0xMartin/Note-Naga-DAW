@@ -9,7 +9,7 @@
  */
 class IndicatorLedWidget : public QWidget {
     Q_OBJECT
-  public:
+public:
     /**
      * @brief Constructor for the IndicatorLedWidget.
      * @param color The color of the LED indicator. Default is green.
@@ -33,7 +33,7 @@ class IndicatorLedWidget : public QWidget {
      */
     bool isActive() const { return is_active; }
 
-  public slots:
+public slots:
     /**
      * @brief Sets the active state of the LED indicator.
      * @param active If true, the LED is turned on; otherwise, it is turned off.
@@ -46,10 +46,10 @@ class IndicatorLedWidget : public QWidget {
      */
     void setColor(const QColor &color);
 
-  protected:
+protected:
     void paintEvent(QPaintEvent *event) override;
 
-  private:
+private:
     QColor led_color;
     bool is_active;
 };

@@ -15,7 +15,7 @@
  */
 class MultiChannelVolumeBar : public QWidget {
     Q_OBJECT
-  public:
+public:
     /**
      * @brief Constructs a MultiChannelVolumeBar widget.
      * @param channels Number of audio channels.
@@ -62,13 +62,13 @@ class MultiChannelVolumeBar : public QWidget {
      */
     void setLabels(const std::vector<QString> &labels);
 
-  protected:
+protected:
     void paintEvent(QPaintEvent *event) override;
 
-  private slots:
+private slots:
     void onAnimTick();
 
-  private:
+private:
     int channels;
     QColor start_color;
     QColor end_color;

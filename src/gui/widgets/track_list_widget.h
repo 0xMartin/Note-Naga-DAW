@@ -11,20 +11,25 @@
 #include <note_naga_engine/note_naga_engine.h>
 #include "track_widget.h"
 
-// Moderní list widget s TrackWidgety ve scrollovací oblasti.
+/**
+ * @brief The TrackListWidget class provides a widget to display and manage a list of tracks in the NoteNaga application.
+ */
 class TrackListWidget : public QWidget {
     Q_OBJECT
 public:
+    /**
+     * @brief Constructs a TrackListWidget for managing tracks in the NoteNaga application.
+     * @param engine Pointer to the NoteNagaEngine instance.
+     * @param parent Parent widget.
+     */
     explicit TrackListWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
 private slots:
-    void _init_ui();
-    void _reload_tracks(NoteNagaMidiSeq *seq);
-    void _handle_playing_note(const NoteNagaNote& note);
+    void initUI();
+    void reloadTracks(NoteNagaMidiSeq *seq);
+    void handlePlayingNote(const NoteNagaNote& note);
 
 private:
-    void _update_selection(NoteNagaMidiSeq *sequence, int widget_idx);
-
     NoteNagaEngine* engine;
 
     int selected_row;
@@ -33,4 +38,6 @@ private:
     QScrollArea* scroll_area;
     QWidget* container;
     QVBoxLayout* vbox;
+
+    void updateSelection(NoteNagaMidiSeq *sequence, int widget_idx);
 };

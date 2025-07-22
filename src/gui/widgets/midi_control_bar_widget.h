@@ -10,23 +10,61 @@
 #include <note_naga_engine/note_naga_engine.h>
 #include "../components/animated_time_label.h"
 
+/**
+ * @brief The MidiControlBarWidget class provides a control bar for MIDI playback.
+ * It includes buttons for play/pause, navigation, and tempo control...
+ */
 class MidiControlBarWidget : public QWidget {
     Q_OBJECT
 public:
+    /**
+     * @brief Constructor for MidiControlBarWidget.
+     * @param engine Pointer to the NoteNagaEngine instance.
+     * @param parent Parent widget.
+     */
     explicit MidiControlBarWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
-    void set_playing(bool is_playing);
+public slots:
+    /**
+     * @brief Updates the control bar values based on the current project state.
+     */
+    void updateValues();
+
+    /**
+     * @brief Set playing state of the control bar.
+     */
+    void setPlaying(bool is_playing);
 
 signals:
-    void toggle_play_signal();
-    void goto_start_signal();
-    void goto_end_signal();
-    void tempo_changed_signal(int tempo);
-    void metronome_toggled_signal(bool state);
+    /**
+     * @brief Signal emitted when the play button is toggled.
+     */
+    void playToggled();
 
-public slots:
-    void update_values();
-    void set_playing_slot(bool is_playing);
+    /**
+     * @brief Signal emitted when the user navigates to the start of the sequence.
+     */
+    void goToStart();
+
+    /**
+     * @brief Signal emitted when the user navigates to the end of the sequence.
+     */
+    void goToEnd();
+
+    /**
+     * @brief Signal emitted when the tempo is changed.
+     * @param tempo New tempo in BPM.
+     */
+    void tempoChanged(int tempo);
+
+    /**
+     * @brief Signal emitted when the metronome is toggled.
+     * @param state True if metronome is on, false otherwise.
+     */
+    void metronomeToggled(bool state);
+
+private slots:
+    void metronome_btn_clicked();
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
@@ -47,10 +85,7 @@ private:
     QPushButton* to_end_btn;
     QPushButton* metronome_btn;
 
-    void _init_ui();
-    void edit_tempo(QMouseEvent* event);
+    void initUI();
+    void editTempo(QMouseEvent* event);
     static QString format_time(double sec);
-
-private slots:
-    void metronome_btn_clicked();
 };

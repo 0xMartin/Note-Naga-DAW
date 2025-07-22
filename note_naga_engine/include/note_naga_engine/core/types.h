@@ -184,7 +184,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaTrack : public QObject {
 class NOTE_NAGA_ENGINE_API NoteNagaTrack {
 #endif
 
-  public:
+public:
     /**
      * @brief Default constructor for NoteNagaTrack.
      */
@@ -349,7 +349,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaTrack {
     void setVolume(float new_volume);
 
 #ifndef QT_DEACTIVATED
-  Q_SIGNALS:
+Q_SIGNALS:
     /**
      * @brief Signal emitted when track metadata changes (name, id, volume, ...) not
      * including notes vector.
@@ -359,7 +359,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaTrack {
     void metadataChanged(NoteNagaTrack *track, const std::string &param);
 #endif
 
-  protected:
+protected:
     int track_id;                         ///< Unique track ID
     std::optional<int> instrument;        ///< Instrument index (optional)
     std::optional<int> channel;           ///< MIDI channel (optional)
@@ -387,7 +387,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaMidiSeq : public QObject {
 class NOTE_NAGA_ENGINE_API NoteNagaMidiSeq {
 #endif
 
-  public:
+public:
     /**
      * @brief Default constructor.
      */
@@ -534,7 +534,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaMidiSeq {
     void setSoloTrack(NoteNagaTrack *track);
 
 #ifndef QT_DEACTIVATED
-  Q_SIGNALS:
+Q_SIGNALS:
     /**
      * @brief Signal emitted when sequence metadata changes.
      * @param seq Pointer to the sequence.
@@ -556,7 +556,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaMidiSeq {
     void activeTrackChanged(NoteNagaTrack *track);
 #endif
 
-  protected:
+protected:
     int sequence_id;                     ///< Unique sequence ID
     std::vector<NoteNagaTrack *> tracks; ///< All tracks in the sequence
     NoteNagaTrack *active_track;         ///< Pointer to the currently active track

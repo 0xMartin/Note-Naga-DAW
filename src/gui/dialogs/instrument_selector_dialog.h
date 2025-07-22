@@ -1,31 +1,30 @@
 #pragma once
 
 #include <QDialog>
-#include <QVBoxLayout>
+#include <QFont>
+#include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
+#include <QMap>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QWidget>
 #include <QSizePolicy>
-#include <QFrame>
 #include <QSpacerItem>
-#include <QGridLayout>
-#include <QFont>
 #include <QString>
-#include <QIcon>
-#include <QMap>
-#include <vector>
-#include <optional>
+#include <QVBoxLayout>
+#include <QWidget>
 #include <functional>
+#include <optional>
+#include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
 
 /**
  * @brief Dialog for selecting an instrument from a list of GM instruments.
  */
-class InstrumentSelectorDialog : public QDialog
-{
+class InstrumentSelectorDialog : public QDialog {
     Q_OBJECT
 public:
     /**
@@ -35,10 +34,10 @@ public:
      * @param icon_provider Function to provide icons for instruments.
      * @param selected_gm_index Optional index of the initially selected instrument.
      */
-    InstrumentSelectorDialog(QWidget* parent,
-                            const std::vector<GMInstrument>& gm_instruments,
-                            std::function<QIcon(QString)> icon_provider,
-                            std::optional<int> selected_gm_index = std::nullopt);
+    InstrumentSelectorDialog(QWidget *parent,
+                             const std::vector<GMInstrument> &gm_instruments,
+                             std::function<QIcon(QString)> icon_provider,
+                             std::optional<int> selected_gm_index = std::nullopt);
 
     /**
      * @brief Get the selected GM index.
@@ -63,19 +62,20 @@ private:
     QMap<QString, int> icon_to_group_index;
 
     // UI widgets
-    QGridLayout* group_grid;
-    QVBoxLayout* variant_vbox;
-    QScrollArea* group_scroll;
-    QScrollArea* variant_scroll;
-    QLabel* variant_title;
+    QGridLayout *group_grid;
+    QVBoxLayout *variant_vbox;
+    QScrollArea *group_scroll;
+    QScrollArea *variant_scroll;
+    QLabel *variant_title;
 
     void populateGroups();
-    void selectGroup(const QString& icon_name, bool scroll_to_selected = false);
-    void scrollToSelectedGroup(const QString& icon_name);
-    void populateVariants(const QString& icon_name);
+    void selectGroup(const QString &icon_name, bool scroll_to_selected = false);
+    void scrollToSelectedGroup(const QString &icon_name);
+    void populateVariants(const QString &icon_name);
     void selectVariant(int gm_index);
 
     // Utility
-    QMap<QString, std::vector<GMInstrument>> groupInstruments(const std::vector<GMInstrument>& gm_instruments);
+    QMap<QString, std::vector<GMInstrument>>
+    groupInstruments(const std::vector<GMInstrument> &gm_instruments);
     QString findGroupByGMIndex(int gm_index);
 };

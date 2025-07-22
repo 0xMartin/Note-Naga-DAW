@@ -33,7 +33,7 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_, NoteNagaRoutingE
     track_combo = new QComboBox();
     track_combo->setFixedWidth(120);
     connect(track_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &RoutingEntryWidget::_on_track_changed);
+            &RoutingEntryWidget::onTrackChanged);
     track_row->addWidget(track_combo);
     combo_col->addLayout(track_row);
 
@@ -54,7 +54,7 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_, NoteNagaRoutingE
     output_combo = new QComboBox();
     output_combo->setFixedWidth(120);
     connect(output_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &RoutingEntryWidget::_on_device_changed);
+            &RoutingEntryWidget::onDeviceChanged);
     device_row->addWidget(output_combo);
     combo_col->addLayout(device_row);
 
@@ -71,7 +71,7 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_, NoteNagaRoutingE
     channel_dial->setDefaultValue(1);
     channel_dial->showValue(true);
     channel_dial->setValueDecimals(0);
-    connect(channel_dial, &AudioDial::valueChanged, this, &RoutingEntryWidget::_on_channel_changed);
+    connect(channel_dial, &AudioDial::valueChanged, this, &RoutingEntryWidget::onChannelChanged);
     dials_layout->addWidget(channel_dial);
 
     // Volume
@@ -83,7 +83,7 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_, NoteNagaRoutingE
     volume_dial->setValueDecimals(1);
     volume_dial->setValuePostfix(" %");
     volume_dial->showValue(true);
-    connect(volume_dial, &AudioDial::valueChanged, this, &RoutingEntryWidget::_on_volume_changed);
+    connect(volume_dial, &AudioDial::valueChanged, this, &RoutingEntryWidget::onVolumeChanged);
     dials_layout->addWidget(volume_dial);
 
     // Pan
@@ -93,7 +93,7 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_, NoteNagaRoutingE
     pan_dial->setValueDecimals(2);
     pan_dial->setValue(entry->pan);
     pan_dial->setDefaultValue(0.0);
-    connect(pan_dial, &AudioDialCentered::valueChanged, this, &RoutingEntryWidget::on_global_pan_changed);
+    connect(pan_dial, &AudioDialCentered::valueChanged, this, &RoutingEntryWidget::onGlobalPanChanged);
     dials_layout->addWidget(pan_dial);
 
     // Note offset
@@ -104,7 +104,7 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_, NoteNagaRoutingE
     offset_dial->showValue(true);
     offset_dial->setValueDecimals(0);
     offset_dial->setDefaultValue(0);
-    connect(offset_dial, &AudioDialCentered::valueChanged, this, &RoutingEntryWidget::_on_offset_changed);
+    connect(offset_dial, &AudioDialCentered::valueChanged, this, &RoutingEntryWidget::onOffsetChanged);
     dials_layout->addWidget(offset_dial);
 
     // Main layout
@@ -114,18 +114,18 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_, NoteNagaRoutingE
     setLayout(layout);
 
     // ComboBox initialization
-    _populate_track_combo(entry->track);
-    _populate_output_combo();
-    _set_combo_selections();
+    populateTrackComboBox(entry->track);
+    populateOutputComboBox();
+    setComboBoxSelections();
 
     // Connect to track info changed (refresh combos)
-    connect(entry->track, &NoteNagaTrack::metadataChanged, this, &RoutingEntryWidget::on_track_info_changed);
+    connect(entry->track, &NoteNagaTrack::metadataChanged, this, &RoutingEntryWidget::onTrackMetadataChanged);
 
     // Style
     refresh_style(false);
 }
 
-void RoutingEntryWidget::_populate_track_combo(NoteNagaTrack *track) {
+void RoutingEntryWidget::populateTrackComboBox(NoteNagaTrack *track) {
     track_combo->blockSignals(true);
     track_combo->clear();
 
@@ -150,7 +150,7 @@ void RoutingEntryWidget::_populate_track_combo(NoteNagaTrack *track) {
     }
 }
 
-void RoutingEntryWidget::_populate_output_combo() {
+void RoutingEntryWidget::populateOutputComboBox() {
     output_combo->blockSignals(true);
     output_combo->clear();
     for (const std::string &out : engine->getMixer()->getAvailableOutputs()) {
@@ -162,7 +162,7 @@ void RoutingEntryWidget::_populate_output_combo() {
     output_combo->blockSignals(false);
 }
 
-void RoutingEntryWidget::_set_combo_selections() {
+void RoutingEntryWidget::setComboBoxSelections() {
     if (entry->track) {
         int track_idx = track_combo->findData(entry->track->getId());
         if (track_idx >= 0) track_combo->setCurrentIndex(track_idx);
@@ -172,12 +172,12 @@ void RoutingEntryWidget::_set_combo_selections() {
     if (dev_idx >= 0) output_combo->setCurrentIndex(dev_idx);
 }
 
-void RoutingEntryWidget::on_track_info_changed(NoteNagaTrack *track) {
-    _populate_track_combo(track);
-    _populate_output_combo();
+void RoutingEntryWidget::onTrackMetadataChanged(NoteNagaTrack *track) {
+    populateTrackComboBox(track);
+    populateOutputComboBox();
 }
 
-void RoutingEntryWidget::_on_track_changed(int idx) {
+void RoutingEntryWidget::onTrackChanged(int idx) {
     int new_track_id = track_combo->itemData(idx).toInt();
 
     NoteNagaTrack *track = entry->track;
@@ -191,18 +191,18 @@ void RoutingEntryWidget::_on_track_changed(int idx) {
     entry->track = new_track;
 }
 
-void RoutingEntryWidget::_on_device_changed(int idx) {
+void RoutingEntryWidget::onDeviceChanged(int idx) {
     QString new_device = output_combo->currentText();
     entry->output = new_device.toStdString();
 }
 
-void RoutingEntryWidget::_on_channel_changed(float val) { entry->channel = int(val - 1); }
+void RoutingEntryWidget::onChannelChanged(float val) { entry->channel = int(val - 1); }
 
-void RoutingEntryWidget::_on_volume_changed(float val) { entry->volume = float(val / 100.0f); }
+void RoutingEntryWidget::onVolumeChanged(float val) { entry->volume = float(val / 100.0f); }
 
-void RoutingEntryWidget::_on_offset_changed(float val) { entry->note_offset = int(val); }
+void RoutingEntryWidget::onOffsetChanged(float val) { entry->note_offset = int(val); }
 
-void RoutingEntryWidget::on_global_pan_changed(float value) { entry->pan = value; }
+void RoutingEntryWidget::onGlobalPanChanged(float value) { entry->pan = value; }
 
 void RoutingEntryWidget::refresh_style(bool selected) {
     QString base_style = R"(

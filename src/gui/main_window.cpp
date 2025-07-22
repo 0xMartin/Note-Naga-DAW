@@ -143,7 +143,7 @@ void MainWindow::setup_dock_layout() {
     midi_keyboard_ruler->setFixedWidth(80);
 
     midi_tact_ruler = new MidiTactRuler(this->engine, this);
-    midi_tact_ruler->set_time_scale(midi_editor->get_time_scale());
+    midi_tact_ruler->setTimeScale(midi_editor->get_time_scale());
 
     // -- GRID LAYOUT --
     grid->addWidget(new QWidget(), 0, 0);
@@ -239,16 +239,15 @@ void MainWindow::connect_signals() {
     connect(engine->getProject(), &NoteNagaProject::currentTickChanged, this,
             &MainWindow::current_tick_position_changed);
 
-    connect(control_bar, &MidiControlBarWidget::toggle_play_signal, this, &MainWindow::toggle_play);
-    connect(control_bar, &MidiControlBarWidget::goto_start_signal, this, &MainWindow::goto_start);
-    connect(control_bar, &MidiControlBarWidget::goto_end_signal, this, &MainWindow::goto_end);
-    connect(control_bar, &MidiControlBarWidget::tempo_changed_signal, this, &MainWindow::on_tempo_changed);
+    connect(control_bar, &MidiControlBarWidget::playToggled, this, &MainWindow::toggle_play);
+    connect(control_bar, &MidiControlBarWidget::goToStart, this, &MainWindow::goto_start);
+    connect(control_bar, &MidiControlBarWidget::goToEnd, this, &MainWindow::goto_end);
 
     auto *hbar = midi_editor->horizontalScrollBar();
     auto *vbar = midi_editor->verticalScrollBar();
-    connect(hbar, &QScrollBar::valueChanged, midi_tact_ruler, &MidiTactRuler::set_tick_position);
+    connect(hbar, &QScrollBar::valueChanged, midi_tact_ruler, &MidiTactRuler::setHorizontalScroll);
     connect(vbar, &QScrollBar::valueChanged,
-            [this](int v) { midi_keyboard_ruler->set_vertical_scroll_slot(v, midi_editor->get_key_height()); });
+            [this](int v) { midi_keyboard_ruler->setVerticalScroll(v, midi_editor->get_key_height()); });
 }
 
 void MainWindow::set_auto_follow(bool checked) { auto_follow = checked; }
@@ -264,19 +263,19 @@ void MainWindow::toggle_play() {
 void MainWindow::zoom_in_x() {
     double scale = std::min(2.0, midi_editor->get_time_scale() * 1.3);
     midi_editor->set_time_scale_slot(scale);
-    midi_tact_ruler->set_time_scale(scale);
+    midi_tact_ruler->setTimeScale(scale);
 }
 
 void MainWindow::zoom_out_x() {
     double scale = std::max(0.02, midi_editor->get_time_scale() / 1.3);
     midi_editor->set_time_scale_slot(scale);
-    midi_tact_ruler->set_time_scale(scale);
+    midi_tact_ruler->setTimeScale(scale);
 }
 
 void MainWindow::on_playing_state_changed(bool playing) {
     action_toolbar_play->setIcon(QIcon(playing ? ":/icons/stop.svg" : ":/icons/play.svg"));
-    if (!playing) { midi_keyboard_ruler->clear_highlights_slot(); }
-    control_bar->set_playing(playing);
+    if (!playing) { midi_keyboard_ruler->clearHighlights(); }
+    control_bar->setPlaying(playing);
 }
 
 void MainWindow::goto_start() {
@@ -288,8 +287,6 @@ void MainWindow::goto_end() {
     this->engine->setPlaybackPosition(this->engine->getProject()->getMaxTick());
     midi_editor->horizontalScrollBar()->setValue(midi_editor->horizontalScrollBar()->maximum());
 }
-
-void MainWindow::on_tempo_changed(float new_tempo) { engine->changeTempo(new_tempo); }
 
 void MainWindow::open_midi() {
     QString fname = QFileDialog::getOpenFileName(this, "Open MIDI file", "", "MIDI Files (*.mid *.midi)");
@@ -303,7 +300,7 @@ void MainWindow::open_midi() {
     QScrollBar *vertical_bar = midi_editor->verticalScrollBar();
     int center_pos = (vertical_bar->maximum() + vertical_bar->minimum()) / 2;
     vertical_bar->setSliderPosition(center_pos);
-    midi_tact_ruler->set_tick_position(0);
+    midi_tact_ruler->setHorizontalScroll(0);
 }
 
 void MainWindow::export_midi() {
@@ -318,7 +315,7 @@ void MainWindow::current_tick_position_changed(int current_tick) {
         int value = std::max(0, marker_x - margin);
         midi_editor->horizontalScrollBar()->setValue(value);
     }
-    midi_tact_ruler->set_tick_position(midi_editor->horizontalScrollBar()->value());
+    midi_tact_ruler->setHorizontalScroll(midi_editor->horizontalScrollBar()->value());
 }
 
 void MainWindow::reset_all_colors() {

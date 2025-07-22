@@ -1,29 +1,51 @@
 #pragma once
 
-#include <QWidget>
-#include <QFont>
 #include <QColor>
-#include <QRect>
+#include <QFont>
 #include <QPen>
+#include <QRect>
+#include <QWidget>
 
 #include <note_naga_engine/note_naga_engine.h>
 
+/**
+ * @brief The MidiTactRuler class provides a visual representation of the MIDI tact ruler.
+ * It displays the current position in ticks and allows interaction to select a position.
+ */
 class MidiTactRuler : public QWidget {
     Q_OBJECT
 public:
-    explicit MidiTactRuler(NoteNagaEngine *engine, QWidget* parent = nullptr);
+    /**
+     * @brief Constructor for MidiTactRuler.
+     * @param engine Pointer to the NoteNagaEngine instance.
+     * @param parent Parent widget.
+     */
+    explicit MidiTactRuler(NoteNagaEngine *engine, QWidget *parent = nullptr);
 
-    void set_time_scale(double time_scale);
-
-signals:
-    void set_horizontal_scroll(int tick);
+    /**
+     * @brief Sets the time scale for the ruler.
+     * @param time_scale The new time scale value.
+     */
+    void setTimeScale(double time_scale);
 
 public slots:
-    void set_tick_position(int val);
+    /**
+     * @brief Sets the horizontal scroll position. Must be same as the horizontal scroll
+     * bar value for MIDI editor.
+     * @param val The new horizontal scroll value.
+     */
+    void setHorizontalScroll(int val);
+
+signals:
+    /**
+     * @brief Signal emitted when a position is selected.
+     * @param tick The tick position selected.
+     */
+    void positionSelected(int tick);
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
+    void paintEvent(QPaintEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
 
 private:
     NoteNagaEngine *engine;

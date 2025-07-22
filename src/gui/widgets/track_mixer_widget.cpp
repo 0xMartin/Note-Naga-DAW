@@ -5,12 +5,12 @@ TrackMixerWidget::TrackMixerWidget(NoteNagaEngine* engine_, QWidget* parent)
     : QWidget(parent), engine(engine_), selected_entry_index(-1), selected_row(-1)
 {
     setObjectName("TrackMixerWidget");
-    connect(engine->getMixer(), &NoteNagaMixer::noteOutSignal, this, &TrackMixerWidget::_handle_playing_note);
+    connect(engine->getMixer(), &NoteNagaMixer::noteOutSignal, this, &TrackMixerWidget::handlePlayingNote);
     connect(engine->getMixer(), &NoteNagaMixer::routingEntryStackChanged, this, &TrackMixerWidget::refresh_routing_table);
-    _init_ui();
+    initUI();
 }
 
-void TrackMixerWidget::_init_ui()
+void TrackMixerWidget::initUI()
 {
     QVBoxLayout* main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(5, 5, 5, 5);
@@ -54,7 +54,7 @@ void TrackMixerWidget::_init_ui()
     dial_min->setDefaultValue(0);
     dial_min->showValue(true);
     dial_min->setValueDecimals(0);
-    connect(dial_min, &AudioDial::valueChanged, this, &TrackMixerWidget::on_min_note_changed);
+    connect(dial_min, &AudioDial::valueChanged, this, &TrackMixerWidget::onMinNoteChanged);
 
     dial_max = new AudioDial();
     dial_max->setLabel("Note Max");
@@ -63,7 +63,7 @@ void TrackMixerWidget::_init_ui()
     dial_max->setDefaultValue(127);
     dial_max->showValue(true);
     dial_max->setValueDecimals(0);
-    connect(dial_max, &AudioDial::valueChanged, this, &TrackMixerWidget::on_max_note_changed);
+    connect(dial_max, &AudioDial::valueChanged, this, &TrackMixerWidget::onMaxNoteChanged);
 
     dial_offset = new AudioDialCentered();
     dial_offset->setLabel("Offset");
@@ -72,7 +72,7 @@ void TrackMixerWidget::_init_ui()
     dial_offset->setDefaultValue(0);
     dial_offset->showValue(true);
     dial_offset->setValueDecimals(0);
-    connect(dial_offset, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::on_global_offset_changed);
+    connect(dial_offset, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::onGlobalOffsetChanged);
 
     dial_vol = new AudioDial();
     dial_vol->setLabel("Volume");
@@ -82,7 +82,7 @@ void TrackMixerWidget::_init_ui()
     dial_vol->setDefaultValue(100);
     dial_vol->setValuePostfix(" %");
     dial_vol->showValue(true);
-    connect(dial_vol, &AudioDial::valueChanged, this, &TrackMixerWidget::on_global_volume_changed);
+    connect(dial_vol, &AudioDial::valueChanged, this, &TrackMixerWidget::onGlobalVolumeChanged);
 
     dial_pan = new AudioDialCentered();
     dial_pan->setLabel("Pan");
@@ -90,7 +90,7 @@ void TrackMixerWidget::_init_ui()
     dial_pan->setValueDecimals(2);
     dial_pan->setValue(engine->getMixer()->master_pan);
     dial_pan->setDefaultValue(0.0);
-    connect(dial_pan, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::on_global_pan_changed);
+    connect(dial_pan, &AudioDialCentered::valueChanged, this, &TrackMixerWidget::onGlobalPanChanged);
 
     controls_layout->addWidget(dial_min, 0, Qt::AlignVCenter);
     controls_layout->addWidget(dial_max, 0, Qt::AlignVCenter);
@@ -189,16 +189,16 @@ void TrackMixerWidget::_init_ui()
     };
 
     QPushButton* btn_add = make_btn(":/icons/add.svg", "Add new routing entry", "RoutingAddButton");
-    connect(btn_add, &QPushButton::clicked, this, &TrackMixerWidget::_on_add_entry);
+    connect(btn_add, &QPushButton::clicked, this, &TrackMixerWidget::onAddEntry);
 
     QPushButton* btn_remove = make_btn(":/icons/remove.svg", "Remove selected routing entry", "RoutingRemoveButton");
-    connect(btn_remove, &QPushButton::clicked, this, &TrackMixerWidget::_on_remove_selected_entry);
+    connect(btn_remove, &QPushButton::clicked, this, &TrackMixerWidget::onRemoveSelectedEntry);
 
     QPushButton* btn_clear = make_btn(":/icons/clear.svg", "Clear all routing entries", "RoutingClearButton");
-    connect(btn_clear, &QPushButton::clicked, this, &TrackMixerWidget::_on_clear_routing_table);
+    connect(btn_clear, &QPushButton::clicked, this, &TrackMixerWidget::onClearRoutingTable);
 
     QPushButton* btn_default = make_btn(":/icons/reload.svg", "Set default routing (one entry per track, Fluidsynth)", "RoutingDefaultButton");
-    connect(btn_default, &QPushButton::clicked, this, &TrackMixerWidget::_on_default_entries);
+    connect(btn_default, &QPushButton::clicked, this, &TrackMixerWidget::onDefaultEntries);
 
     routing_label_controls_layout->addWidget(btn_add, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_remove, 0, Qt::AlignRight);
@@ -231,23 +231,23 @@ void TrackMixerWidget::_init_ui()
     refresh_routing_table();
 }
 
-void TrackMixerWidget::on_min_note_changed(float value) {
+void TrackMixerWidget::onMinNoteChanged(float value) {
     engine->getMixer()->master_min_note = int(value);
 }
-void TrackMixerWidget::on_max_note_changed(float value) {
+void TrackMixerWidget::onMaxNoteChanged(float value) {
     engine->getMixer()->master_max_note = int(value);
 }
-void TrackMixerWidget::on_global_offset_changed(float value) {
+void TrackMixerWidget::onGlobalOffsetChanged(float value) {
     engine->getMixer()->master_note_offset = int(value);
 }
-void TrackMixerWidget::on_global_volume_changed(float value) {
+void TrackMixerWidget::onGlobalVolumeChanged(float value) {
     engine->getMixer()->master_volume = float(value / 100.0f);
 }
-void TrackMixerWidget::on_global_pan_changed(float value) {
+void TrackMixerWidget::onGlobalPanChanged(float value) {
     engine->getMixer()->master_pan = value;
 }
 
-void TrackMixerWidget::set_channel_output_value(const std::string& device, int channel_idx, float value, int time_ms) {
+void TrackMixerWidget::setChannelOutputValue(const std::string& device, int channel_idx, float value, int time_ms) {
     if (channel_volume_bars.contains(QString::fromStdString(device))) {
         channel_volume_bars[QString::fromStdString(device)]->setValue(channel_idx, value, time_ms);
     }
@@ -277,18 +277,18 @@ void TrackMixerWidget::refresh_routing_table() {
         widget->installEventFilter(this);
         widget->setMouseTracking(true);
         connect(widget, &RoutingEntryWidget::clicked, this, [this, idx]() {
-            this->_update_entry_selection(idx);
+            this->updateEntrySelection(idx);
         });
         layout->insertWidget(layout->count() - 1, widget);
         entry_widgets.push_back(widget);
     }
 }
 
-void TrackMixerWidget::_on_add_entry() {
+void TrackMixerWidget::onAddEntry() {
     engine->getMixer()->addRoutingEntry();
 }
 
-void TrackMixerWidget::_on_remove_selected_entry() {
+void TrackMixerWidget::onRemoveSelectedEntry() {
     if (selected_entry_index >= 0) {
         engine->getMixer()->removeRoutingEntry(selected_entry_index);
     } else {
@@ -296,7 +296,7 @@ void TrackMixerWidget::_on_remove_selected_entry() {
     }
 }
 
-void TrackMixerWidget::_on_clear_routing_table() {
+void TrackMixerWidget::onClearRoutingTable() {
     auto reply = QMessageBox::question(
         this, "Clear Routing Table", "Are you sure you want to clear all routing entries?",
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No
@@ -306,7 +306,7 @@ void TrackMixerWidget::_on_clear_routing_table() {
     }
 }
 
-void TrackMixerWidget::_on_default_entries() {
+void TrackMixerWidget::onDefaultEntries() {
     auto reply = QMessageBox::question(
         this, "Set Default Routing", "This will clear all routing entries and set default routing. Continue?",
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No
@@ -317,15 +317,15 @@ void TrackMixerWidget::_on_default_entries() {
     }
 }
 
-void TrackMixerWidget::_handle_playing_note(const NoteNagaNote& note, const std::string& device_name, int channel) {
+void TrackMixerWidget::handlePlayingNote(const NoteNagaNote& note, const std::string& device_name, int channel) {
     NoteNagaProject *project = engine->getProject();
     int time_ms = int(note_time_ms(note, project->getPPQ(), project->getTempo()));
     if (note.velocity.has_value() && note.velocity.value() > 0) {
-        set_channel_output_value(device_name, channel, note.velocity.value(), time_ms);
+        setChannelOutputValue(device_name, channel, note.velocity.value(), time_ms);
     }
 }
 
-void TrackMixerWidget::_update_entry_selection(int idx) {
+void TrackMixerWidget::updateEntrySelection(int idx) {
     selected_row = idx;
     for (size_t i = 0; i < entry_widgets.size(); ++i) {
         entry_widgets[i]->refresh_style(int(i) == idx);

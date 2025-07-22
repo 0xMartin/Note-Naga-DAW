@@ -1,53 +1,70 @@
 #pragma once
 
+#include <QColor>
+#include <QComboBox>
 #include <QFrame>
 #include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QComboBox>
-#include <QLabel>
-#include <QColor>
 #include <QIcon>
+#include <QLabel>
+#include <QVBoxLayout>
 
-#include <note_naga_engine/note_naga_engine.h>
 #include "../components/audio_dial.h"
 #include "../components/audio_dial_centered.h"
+#include <note_naga_engine/note_naga_engine.h>
 
+/**
+ * @brief Widget for displaying and editing a routing entry in the NoteNaga app.
+ */
 class RoutingEntryWidget : public QFrame {
     Q_OBJECT
 public:
-    explicit RoutingEntryWidget(NoteNagaEngine* engine, NoteNagaRoutingEntry* entry, QWidget* parent = nullptr);
+    /**
+     * @brief Constructs a RoutingEntryWidget.
+     * @param engine Pointer to the NoteNagaEngine instance.
+     * @param entry Pointer to the NoteNagaRoutingEntry to display/edit.
+     * @param parent Parent widget (default is nullptr).
+     */
+    explicit RoutingEntryWidget(NoteNagaEngine *engine, NoteNagaRoutingEntry *entry,
+                                QWidget *parent = nullptr);
 
+public slots:
+    /**
+     * @brief Refreshes the style of the widget based on selection.
+     * @param selected True if the widget is selected, false otherwise.
+     */
     void refresh_style(bool selected);
-    
+
 signals:
+    /**
+     * @brief Signal emitted when the routing entry is clicked.
+     */
     void clicked();
 
 protected:
-    // For custom selection in parent
-    void mousePressEvent(QMouseEvent* event) override;
+    void mousePressEvent(QMouseEvent *event) override;
 
 private:
-    NoteNagaRoutingEntry* entry;
-    NoteNagaEngine* engine;
+    NoteNagaRoutingEntry *entry;
+    NoteNagaEngine *engine;
 
-    QComboBox* track_combo;
-    QComboBox* output_combo;
+    QComboBox *track_combo;
+    QComboBox *output_combo;
 
-    AudioDial* channel_dial;
-    AudioDial* volume_dial;
-    AudioDialCentered* pan_dial;
-    AudioDialCentered* offset_dial;
+    AudioDial *channel_dial;
+    AudioDial *volume_dial;
+    AudioDialCentered *pan_dial;
+    AudioDialCentered *offset_dial;
 
-    void _populate_track_combo(NoteNagaTrack *track);
-    void _populate_output_combo();
-    void _set_combo_selections();
+    void populateTrackComboBox(NoteNagaTrack *track);
+    void populateOutputComboBox();
+    void setComboBoxSelections();
 
 private slots:
-    void on_track_info_changed(NoteNagaTrack *track);
-    void _on_track_changed(int idx);
-    void _on_device_changed(int idx);
-    void _on_channel_changed(float val);
-    void _on_volume_changed(float val);
-    void _on_offset_changed(float val);
-    void on_global_pan_changed(float value);
+    void onTrackMetadataChanged(NoteNagaTrack *track);
+    void onTrackChanged(int idx);
+    void onDeviceChanged(int idx);
+    void onChannelChanged(float val);
+    void onVolumeChanged(float val);
+    void onOffsetChanged(float val);
+    void onGlobalPanChanged(float value);
 };

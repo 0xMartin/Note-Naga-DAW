@@ -19,32 +19,40 @@
 #include "../components/multi_channel_volume_bar.h"
 #include "routing_entry_widget.h"
 
+/**
+ * @brief The TrackMixerWidget class provides a user interface for mixing tracks in the NoteNaga engine.
+ * It allows users to adjust volume, pan, and other parameters for each track.
+ */
 class TrackMixerWidget : public QWidget {
     Q_OBJECT
 public:
+    /**
+     * @brief Constructs a new TrackMixerWidget.
+     * @param engine Pointer to the NoteNagaEngine instance.
+     * @param parent Parent widget (default is nullptr).
+     */
     explicit TrackMixerWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
+public slots:
+    /**
+     * @brief Refreshes the routing table GUI with active routing entries.
+     */
     void refresh_routing_table();
 
-public slots:
-    void on_min_note_changed(float value);
-    void on_max_note_changed(float value);
-    void on_global_offset_changed(float value);
-    void on_global_volume_changed(float value);
-    void on_global_pan_changed(float value);
-
 private slots:
-    void _on_add_entry();
-    void _on_remove_selected_entry();
-    void _on_clear_routing_table();
-    void _on_default_entries();
-    void _handle_playing_note(const NoteNagaNote& note, const std::string& device_name, int channel);
+    void onMinNoteChanged(float value);
+    void onMaxNoteChanged(float value);
+    void onGlobalOffsetChanged(float value);
+    void onGlobalVolumeChanged(float value);
+    void onGlobalPanChanged(float value);
+
+    void onAddEntry();
+    void onRemoveSelectedEntry();
+    void onClearRoutingTable();
+    void onDefaultEntries();
+    void handlePlayingNote(const NoteNagaNote& note, const std::string& device_name, int channel);
 
 private:
-    void set_channel_output_value(const std::string& device, int channel_idx, float value, int time_ms = -1);
-    void _init_ui();
-    void _update_entry_selection(int idx);
-
     NoteNagaEngine* engine;
 
     int selected_entry_index;
@@ -65,4 +73,8 @@ private:
     QVBoxLayout* routing_entries_layout;
     QWidget* routing_entries_container;
     QScrollArea* routing_scroll;
+
+    void initUI();
+    void setChannelOutputValue(const std::string& device, int channel_idx, float value, int time_ms = -1);
+    void updateEntrySelection(int idx);
 };

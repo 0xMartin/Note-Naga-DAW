@@ -1,11 +1,11 @@
 #pragma once
 
-#include <QWidget>
 #include <QColor>
 #include <QPointF>
 #include <QRectF>
-#include <QTimer>
 #include <QString>
+#include <QTimer>
+#include <QWidget>
 
 /**
  * @brief A custom audio dial widget for displaying and adjusting audio levels or values.
@@ -13,12 +13,11 @@
 class AudioDial : public QWidget {
     Q_OBJECT
 public:
-
     /**
      * @brief Constructs a new AudioDial widget.
      * @param parent The parent widget.
      */
-    explicit AudioDial(QWidget* parent = nullptr);
+    explicit AudioDial(QWidget *parent = nullptr);
 
     /**
      * @brief Returns the current value of the dial.
@@ -50,13 +49,13 @@ public:
      * @param color_start The starting color of the gradient.
      * @param color_end The ending color of the gradient.
      */
-    void setGradient(const QColor& color_start, const QColor& color_end);
+    void setGradient(const QColor &color_start, const QColor &color_end);
 
     /**
      * @brief Sets label text for the dial.
      * @param label The label text to display.
      */
-    void setLabel(const QString& label);
+    void setLabel(const QString &label);
 
     /**
      * @brief Sets if the label should be shown.
@@ -74,13 +73,13 @@ public:
      * @brief Sets the prefix for the value display.
      * @param prefix The prefix string to display before the value.
      */
-    void setValuePrefix(const QString& prefix);
+    void setValuePrefix(const QString &prefix);
 
     /**
      * @brief Sets the postfix for the value display.
      * @param postfix The postfix string to display after the value.
      */
-    void setValuePostfix(const QString& postfix);
+    void setValuePostfix(const QString &postfix);
 
     /**
      * @brief Sets the number of decimal places for the value display.
@@ -96,18 +95,18 @@ signals:
     void valueChanged(float value);
 
 protected:
-    void paintEvent(QPaintEvent* event) override;
-    void resizeEvent(QResizeEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-    void wheelEvent(QWheelEvent* event) override;
+    void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
 
 private:
     void updateGeometryCache();
     std::tuple<int, int, int, QPointF, float, float> getCircleGeometry();
     float angleToValue(float angle_deg) const;
-    bool inCircleArea(const QPoint& pos);
+    bool inCircleArea(const QPoint &pos);
 
     float _min;
     float _max;

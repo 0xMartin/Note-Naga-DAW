@@ -5,17 +5,17 @@
 TrackListWidget::TrackListWidget(NoteNagaEngine* engine_, QWidget* parent)
     : QWidget(parent), engine(engine_), selected_row(-1)
 {
-    _init_ui();
+    initUI();
 
     NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
-    _reload_tracks(seq);
+    reloadTracks(seq);
 
     // Signals
-    connect(engine->getProject(), &NoteNagaProject::activeSequenceChanged, this, &TrackListWidget::_reload_tracks);
-    connect(engine->getMixer(), &NoteNagaMixer::noteInSignal, this, &TrackListWidget::_handle_playing_note);
+    connect(engine->getProject(), &NoteNagaProject::activeSequenceChanged, this, &TrackListWidget::reloadTracks);
+    connect(engine->getMixer(), &NoteNagaMixer::noteInSignal, this, &TrackListWidget::handlePlayingNote);
 }
 
-void TrackListWidget::_init_ui()
+void TrackListWidget::initUI()
 {
     // --- Moderní světlý header s ikonou a titulkem ---
     QFrame* header_frame = new QFrame();
@@ -64,7 +64,7 @@ void TrackListWidget::_init_ui()
     setLayout(main_layout);
 }
 
-void TrackListWidget::_reload_tracks(NoteNagaMidiSeq *seq)
+void TrackListWidget::reloadTracks(NoteNagaMidiSeq *seq)
 {
     // Remove all widgets and any existing stretch from the layout
     while (vbox->count() > 0) {
@@ -93,28 +93,28 @@ void TrackListWidget::_reload_tracks(NoteNagaMidiSeq *seq)
 
         // Custom mousePressEvent via subclass or signal (see below)
         connect(widget, &TrackWidget::clicked, this, [this, seq, idx]() {
-            _update_selection(seq, static_cast<int>(idx));
+            updateSelection(seq, static_cast<int>(idx));
         });
 
         track_widgets.push_back(widget);
         vbox->addWidget(widget);
     }
     vbox->addStretch();
-    _update_selection(seq, track_widgets.empty() ? -1 : 0);
+    updateSelection(seq, track_widgets.empty() ? -1 : 0);
 }
 
-void TrackListWidget::_update_selection(NoteNagaMidiSeq *sequence, int widget_idx)
+void TrackListWidget::updateSelection(NoteNagaMidiSeq *sequence, int widget_idx)
 {
     selected_row = widget_idx;
     for (size_t i = 0; i < track_widgets.size(); ++i) {
-        track_widgets[i]->refresh_style(static_cast<int>(i) == widget_idx);
+        track_widgets[i]->refreshStyle(static_cast<int>(i) == widget_idx);
         if (static_cast<int>(i) == widget_idx) {
-            sequence->setActiveTrack(track_widgets[i]->get_track());
+            sequence->setActiveTrack(track_widgets[i]->getTrack());
         }
     }
 }
 
-void TrackListWidget::_handle_playing_note(const NoteNagaNote& note)
+void TrackListWidget::handlePlayingNote(const NoteNagaNote& note)
 {
     NoteNagaTrack *track = note.parent;
     if (!track) return;
@@ -122,8 +122,8 @@ void TrackListWidget::_handle_playing_note(const NoteNagaNote& note)
 
     double time_ms = note_time_ms(note, project->getPPQ(), project->getTempo());
     for (auto* w : track_widgets) {
-        if (w->get_track() == track && note.velocity.has_value() && note.velocity.value() > 0) {
-            w->get_volume_bar()->setValue(static_cast<double>(note.velocity.value()), time_ms);
+        if (w->getTrack() == track && note.velocity.has_value() && note.velocity.value() > 0) {
+            w->getVolumeBar()->setValue(static_cast<double>(note.velocity.value()), time_ms);
             break;
         }
     }

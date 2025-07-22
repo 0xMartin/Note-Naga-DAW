@@ -23,7 +23,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaProject : public QObject {
 class NOTE_NAGA_ENGINE_API NoteNagaProject {
 #endif
 
-  public:
+public:
     /**
      * @brief Constructor for Note Naga project.
      */
@@ -122,7 +122,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaProject {
     bool setActiveSequence(NoteNagaMidiSeq *sequence);
 
 #ifndef QT_DEACTIVATED
-  Q_SIGNALS:
+Q_SIGNALS:
     /**
      * @brief Signal emitted when the project file is successfully loaded.
      */
@@ -155,7 +155,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaProject {
     void activeSequenceChanged(NoteNagaMidiSeq *seq);
 #endif
 
-  protected:
+protected:
     std::vector<NoteNagaMidiSeq *> sequences; ///< All MIDI sequences in the project
     NoteNagaMidiSeq *active_sequence; ///< Pointer to the currently active sequence
 

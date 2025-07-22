@@ -12,7 +12,7 @@
  */
 class VolumeBar : public QWidget {
     Q_OBJECT
-  public:
+public:
     /**
      * @brief Constructs a VolumeBar widget.
      * @param value Initial volume value.
@@ -45,13 +45,13 @@ class VolumeBar : public QWidget {
      */
     void setLabels(const std::vector<QString> &labels);
 
-  protected:
+protected:
     void paintEvent(QPaintEvent *event) override;
 
-  private slots:
+private slots:
     void onAnimTick();
 
-  private:
+private:
     QColor start_color;
     QColor end_color;
     bool dynamic_mode;

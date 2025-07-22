@@ -11,7 +11,7 @@
 TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget *parent)
     : QFrame(parent), engine(engine_), track(track_)
 {
-    connect(track, &NoteNagaTrack::metadataChanged, this, &TrackWidget::_update_track_info);
+    connect(track, &NoteNagaTrack::metadataChanged, this, &TrackWidget::updateTrackInfo);
     setObjectName("TrackWidget");
 
     QHBoxLayout *main_hbox = new QHBoxLayout(this);
@@ -23,7 +23,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     instrument_btn->setFlat(true);
     instrument_btn->setCursor(Qt::PointingHandCursor);
     instrument_btn->setIconSize(QSize(32, 32));
-    connect(instrument_btn, &QPushButton::clicked, this, &TrackWidget::_on_instrument_btn_clicked);
+    connect(instrument_btn, &QPushButton::clicked, this, &TrackWidget::instrumentSelect);
     main_hbox->addWidget(instrument_btn, 0, Qt::AlignVCenter);
 
     QFrame *right_frame = new QFrame();
@@ -50,7 +50,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     name_edit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     name_edit->setFrame(false);
     name_edit->setStyleSheet("background: transparent; color: #fff; border: none; font-weight: bold; font-size: 12px;");
-    connect(name_edit, &QLineEdit::editingFinished, this, &TrackWidget::_name_edited);
+    connect(name_edit, &QLineEdit::editingFinished, this, &TrackWidget::onNameEdited);
     header_hbox->addWidget(name_edit, 1);
 
     color_btn = new QPushButton();
@@ -59,7 +59,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     color_btn->setFlat(true);
     color_btn->setCursor(Qt::PointingHandCursor);
     color_btn->setIconSize(QSize(16, 16));
-    connect(color_btn, &QPushButton::clicked, this, &TrackWidget::_choose_color);
+    connect(color_btn, &QPushButton::clicked, this, &TrackWidget::colorSelect);
     header_hbox->addWidget(color_btn, 0);
 
     invisible_btn = new QPushButton();
@@ -69,7 +69,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     invisible_btn->setFlat(true);
     invisible_btn->setCursor(Qt::PointingHandCursor);
     invisible_btn->setIconSize(QSize(16, 16));
-    connect(invisible_btn, &QPushButton::clicked, this, &TrackWidget::_toggle_visibility);
+    connect(invisible_btn, &QPushButton::clicked, this, &TrackWidget::onToggleVisibility);
     header_hbox->addWidget(invisible_btn, 0);
 
     solo_btn = new QPushButton();
@@ -80,7 +80,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     solo_btn->setFlat(true);
     solo_btn->setCursor(Qt::PointingHandCursor);
     solo_btn->setIconSize(QSize(16, 16));
-    connect(solo_btn, &QPushButton::clicked, this, &TrackWidget::_toggle_solo);
+    connect(solo_btn, &QPushButton::clicked, this, &TrackWidget::onToggleSolo);
     header_hbox->addWidget(solo_btn, 0);
 
     mute_btn = new QPushButton();
@@ -90,7 +90,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     mute_btn->setFlat(true);
     mute_btn->setCursor(Qt::PointingHandCursor);
     mute_btn->setIconSize(QSize(16, 16));
-    connect(mute_btn, &QPushButton::clicked, this, &TrackWidget::_toggle_mute);
+    connect(mute_btn, &QPushButton::clicked, this, &TrackWidget::onToggleMute);
     header_hbox->addWidget(mute_btn, 0);
 
     right_layout->addWidget(header);
@@ -101,12 +101,12 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     right_layout->addWidget(volume_bar);
 
     setLayout(main_hbox);
-    _update_track_info(this->track, "");
-    refresh_style(false);
+    updateTrackInfo(this->track, "");
+    refreshStyle(false);
     setFocusPolicy(Qt::StrongFocus);
 }
 
-void TrackWidget::_update_track_info(NoteNagaTrack* track, const std::string &param)
+void TrackWidget::updateTrackInfo(NoteNagaTrack* track, const std::string &param)
 {
     if (this->track != track)
         return;
@@ -139,22 +139,22 @@ void TrackWidget::_update_track_info(NoteNagaTrack* track, const std::string &pa
     color_btn->setIcon(svg_str_icon(COLOR_SVG_ICON, track->getColor().toQColor(), 16));
 }
 
-void TrackWidget::_toggle_visibility()
+void TrackWidget::onToggleVisibility()
 {
     track->setVisible(!invisible_btn->isChecked());
 }
 
-void TrackWidget::_toggle_solo()
+void TrackWidget::onToggleSolo()
 {
     engine->soloTrack(track, solo_btn->isChecked());
 }
 
-void TrackWidget::_toggle_mute()
+void TrackWidget::onToggleMute()
 {
     engine->muteTrack(track, mute_btn->isChecked());
 }
 
-void TrackWidget::_choose_color()
+void TrackWidget::colorSelect()
 {
     QColor col = QColorDialog::getColor(track->getColor().toQColor(), this, "Select Track Color");
     if (col.isValid())
@@ -163,13 +163,13 @@ void TrackWidget::_choose_color()
     }
 }
 
-void TrackWidget::_name_edited()
+void TrackWidget::onNameEdited()
 {
     QString new_name = name_edit->text();
     track->setName(new_name.toStdString());
 }
 
-void TrackWidget::_on_instrument_btn_clicked()
+void TrackWidget::instrumentSelect()
 {
     InstrumentSelectorDialog dlg(this, GM_INSTRUMENTS, instrument_icon, track->getInstrument());
     if (dlg.exec() == QDialog::Accepted)
@@ -189,7 +189,7 @@ void TrackWidget::mousePressEvent(QMouseEvent *event)
     QFrame::mousePressEvent(event);
 }
 
-void TrackWidget::refresh_style(bool selected)
+void TrackWidget::refreshStyle(bool selected)
 {
     QString base_style = R"(
         QFrame#TrackWidget {

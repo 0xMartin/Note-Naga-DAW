@@ -41,7 +41,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaEngine : public QObject {
 class NoteNagaEngine {
 #endif
 
-  public:
+public:
     /**
      * @brief Default constructor for NoteNagaEngine.
      */
@@ -137,7 +137,19 @@ class NoteNagaEngine {
      */
     PlaybackWorker *getPlaybackWorker() { return this->playback_worker; }
 
-  protected:
+#ifndef QT_DEACTIVATED
+Q_SIGNALS:
+    /**
+     * @brief Signal emitted when playback starts.
+     */
+    void playbackStarted(); 
+    /**
+     * @brief Signal emitted when playback stops.
+     */
+    void playbackStopped();
+#endif
+
+protected:
     NoteNagaProject *project;        ///< Pointer to the current project instance
     NoteNagaMixer *mixer;            ///< Pointer to the mixer instance
     PlaybackWorker *playback_worker; ///< Pointer to the playback worker instance

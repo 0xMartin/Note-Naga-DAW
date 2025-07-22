@@ -19,8 +19,8 @@
 /**
  * @brief Worker class responsible for running playback logic in a separate thread.
  */
-class PlaybackThreadWorker {
-  public:
+class NOTE_NAGA_ENGINE_API PlaybackThreadWorker {
+public:
     using CallbackId = std::uint64_t;               ///< Type for callback identifier
     using FinishedCallback = std::function<void()>; ///< Callback type for finished event
     using PositionChangedCallback =
@@ -78,7 +78,7 @@ class PlaybackThreadWorker {
 
     std::atomic<bool> should_stop{false}; ///< Flag to signal worker thread should stop
 
-  private:
+private:
     NoteNagaProject *project; ///< Pointer to project data (not owned)
     NoteNagaMixer *mixer;     ///< Pointer to mixer (not owned)
     double timer_interval;    ///< Timer interval in milliseconds
@@ -126,7 +126,7 @@ class NOTE_NAGA_ENGINE_API PlaybackWorker : public QObject {
 class NOTE_NAGA_ENGINE_API PlaybackWorker {
 #endif
 
-  public:
+public:
     using CallbackId = std::uint64_t;               ///< Type for callback identifier
     using FinishedCallback = std::function<void()>; ///< Callback type for finished event
     using PositionChangedCallback =
@@ -206,7 +206,7 @@ class NOTE_NAGA_ENGINE_API PlaybackWorker {
     void removePlayingStateCallback(CallbackId id);
 
 #ifndef QT_DEACTIVATED
-  Q_SIGNALS:
+Q_SIGNALS:
     /**
      * @brief Qt signal emitted when playback is finished.
      */
@@ -223,7 +223,7 @@ class NOTE_NAGA_ENGINE_API PlaybackWorker {
     void playingStateChanged(bool playing_val);
 #endif
 
-  private:
+private:
     /**
      * @brief Main function for the worker thread.
      */

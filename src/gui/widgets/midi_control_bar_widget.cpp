@@ -20,21 +20,25 @@ MidiControlBarWidget::MidiControlBarWidget(NoteNagaEngine *engine_, QWidget *par
                 this->ppq = seq->getPPQ();
                 this->tempo = seq->getTempo();
                 this->max_tick = seq->getMaxTick();
-                this->update_values();
+                this->updateValues();
             });
     connect(this->engine->getProject(), &NoteNagaProject::sequenceMetadataChanged, this,
             [this](NoteNagaMidiSeq *seq, const std::string &param) {
                 this->ppq = seq->getPPQ();
                 this->tempo = seq->getTempo();
                 this->max_tick = seq->getMaxTick();
-                this->update_values();
+                this->updateValues();
             });
     connect(this->engine->getProject(), &NoteNagaProject::currentTickChanged, this,
-            [this]() { this->update_values(); });
-    _init_ui();
+            [this]() { this->updateValues(); });
+    connect(this->engine, &NoteNagaEngine::playbackStarted, this,
+            [this]() { this->setPlaying(true); });
+    connect(this->engine, &NoteNagaEngine::playbackStopped, this,
+            [this]() { this->setPlaying(false); });
+    initUI();
 }
 
-void MidiControlBarWidget::_init_ui() {
+void MidiControlBarWidget::initUI() {
     setStyleSheet(R"(
         QPushButton#playToggleBtn, QPushButton#toStartBtn, QPushButton#toEndBtn, QPushButton#metronomeBtn {
             min-width: 32px;
@@ -87,7 +91,7 @@ void MidiControlBarWidget::_init_ui() {
     to_start_btn->setIcon(QIcon(":/icons/media-backward-end.svg"));
     to_start_btn->setIconSize(QSize(21, 21));
     to_start_btn->setCursor(Qt::PointingHandCursor);
-    connect(to_start_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goto_start_signal);
+    connect(to_start_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goToStart);
     hbox->addWidget(to_start_btn);
 
     // Play/stop toggle button
@@ -96,7 +100,7 @@ void MidiControlBarWidget::_init_ui() {
     play_btn->setIcon(QIcon(":/icons/play.svg"));
     play_btn->setIconSize(QSize(21, 21));
     play_btn->setCursor(Qt::PointingHandCursor);
-    connect(play_btn, &QPushButton::clicked, this, &MidiControlBarWidget::toggle_play_signal);
+    connect(play_btn, &QPushButton::clicked, this, &MidiControlBarWidget::playToggled);
     hbox->addWidget(play_btn);
 
     // End button
@@ -105,7 +109,7 @@ void MidiControlBarWidget::_init_ui() {
     to_end_btn->setIcon(QIcon(":/icons/media-forward-end.svg"));
     to_end_btn->setIconSize(QSize(21, 21));
     to_end_btn->setCursor(Qt::PointingHandCursor);
-    connect(to_end_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goto_end_signal);
+    connect(to_end_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goToEnd);
     hbox->addWidget(to_end_btn);
 
     hbox->addSpacing(20);
@@ -122,7 +126,8 @@ void MidiControlBarWidget::_init_ui() {
     metronome_btn->setIcon(QIcon(":/icons/tempo.svg"));
     metronome_btn->setIconSize(QSize(21, 21));
     metronome_btn->setCursor(Qt::PointingHandCursor);
-    connect(metronome_btn, &QPushButton::clicked, this, &MidiControlBarWidget::metronome_btn_clicked);
+    connect(metronome_btn, &QPushButton::clicked, this,
+            &MidiControlBarWidget::metronome_btn_clicked);
     tempo_hbox->addWidget(metronome_btn);
 
     tempo_label = new QLabel();
@@ -147,18 +152,19 @@ void MidiControlBarWidget::_init_ui() {
     tempo_label->installEventFilter(this);
 }
 
-void MidiControlBarWidget::update_values() {
+void MidiControlBarWidget::updateValues() {
     NoteNagaProject *project = this->engine->getProject();
     double us_per_tick = double(this->tempo) / double(this->ppq);
     double total_sec = double(this->max_tick) * us_per_tick / 1'000'000.0;
     double cur_sec = double(project->getCurrentTick()) * us_per_tick / 1'000'000.0;
-    time_label->setText(QString("%1 / %2").arg(format_time(cur_sec), format_time(total_sec)));
+    time_label->setText(
+        QString("%1 / %2").arg(format_time(cur_sec), format_time(total_sec)));
     time_label->animateTick();
     double bpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 0.0;
     tempo_label->setText(QString("%1 BPM").arg(bpm, 0, 'f', 2));
 }
 
-void MidiControlBarWidget::set_playing(bool is_playing) {
+void MidiControlBarWidget::setPlaying(bool is_playing) {
     if (is_playing) {
         play_btn->setIcon(QIcon(":/icons/stop.svg"));
     } else {
@@ -166,26 +172,26 @@ void MidiControlBarWidget::set_playing(bool is_playing) {
     }
 }
 
-void MidiControlBarWidget::set_playing_slot(bool is_playing) { set_playing(is_playing); }
-
-void MidiControlBarWidget::edit_tempo(QMouseEvent *event) {
+void MidiControlBarWidget::editTempo(QMouseEvent *event) {
     NoteNagaMidiSeq *seq = this->engine->getProject()->getActiveSequence();
     if (!seq) return;
 
     double cur_bpm = seq->getTempo() ? (60'000'000.0 / double(seq->getTempo())) : 120.0;
     bool ok = false;
-    double bpm = QInputDialog::getDouble(this, "Change Tempo", "New Tempo (BPM):", cur_bpm, 5, 500, 2, &ok);
+    double bpm = QInputDialog::getDouble(this, "Change Tempo",
+                                         "New Tempo (BPM):", cur_bpm, 5, 500, 2, &ok);
     if (ok) {
         seq->setTempo(60'000'000.0 / bpm);
-        update_values();
-        emit tempo_changed_signal(seq->getTempo());
+        updateValues();
+        engine->changeTempo(seq->getTempo());
+        emit tempoChanged(seq->getTempo());
     }
 }
 
 bool MidiControlBarWidget::eventFilter(QObject *obj, QEvent *event) {
     if (obj == tempo_label && event->type() == QEvent::MouseButtonPress) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-        edit_tempo(mouseEvent);
+        editTempo(mouseEvent);
         return true;
     }
     return QWidget::eventFilter(obj, event);
@@ -193,7 +199,7 @@ bool MidiControlBarWidget::eventFilter(QObject *obj, QEvent *event) {
 
 void MidiControlBarWidget::metronome_btn_clicked() {
     metronome_on = metronome_btn->isChecked();
-    emit metronome_toggled_signal(metronome_on);
+    emit metronomeToggled(metronome_on);
 }
 
 QString MidiControlBarWidget::format_time(double sec) {
@@ -201,5 +207,8 @@ QString MidiControlBarWidget::format_time(double sec) {
     int m = int(sec / 60);
     int s = int(std::fmod(sec, 60));
     int ms = int((sec - int(sec)) * 1000);
-    return QString("%1:%2.%3").arg(m).arg(s, 2, 10, QChar('0')).arg(ms, 3, 10, QChar('0'));
+    return QString("%1:%2.%3")
+        .arg(m)
+        .arg(s, 2, 10, QChar('0'))
+        .arg(ms, 3, 10, QChar('0'));
 }

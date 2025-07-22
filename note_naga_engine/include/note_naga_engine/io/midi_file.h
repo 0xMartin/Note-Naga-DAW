@@ -79,7 +79,7 @@ struct NOTE_NAGA_ENGINE_API MidiFileHeader {
  * @brief Class for representing and manipulating a MIDI file.
  */
 class NOTE_NAGA_ENGINE_API MidiFile {
-  public:
+public:
     /**
      * @brief Constructs a new, empty MidiFile object.
      */
@@ -134,7 +134,7 @@ class NOTE_NAGA_ENGINE_API MidiFile {
      */
     static MidiFile createTestFile();
 
-  private:
+private:
     /**
      * @brief Reads a variable-length value from the stream.
      * @param in Input stream.
