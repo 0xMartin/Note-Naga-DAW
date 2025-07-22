@@ -233,7 +233,7 @@ void MidiKeyboardRuler::mousePressEvent(QMouseEvent *event) {
         pressed_note.parent = track;
         pressed_note.note = nval;
         pressed_note.velocity = 44 + rand() % 41; // random velocity 44 - 84
-        this->engine->getMixer()->playNote(pressed_note);
+        this->engine->getPlaybackWorker()->addPlayNoteToQueue(pressed_note);
         emit notePressed(pressed_note);
         update();
     }
@@ -244,7 +244,7 @@ void MidiKeyboardRuler::mousePressEvent(QMouseEvent *event) {
 void MidiKeyboardRuler::mouseReleaseEvent(QMouseEvent *event) {
     if (pressed_note.note != -1) {
         int velocity = 44 + rand() % 41;
-        this->engine->getMixer()->stopNote(pressed_note);
+        this->engine->getPlaybackWorker()->addStopNoteToQueue(pressed_note);
         emit noteReleased(pressed_note);
         pressed_note.note = -1;
         update();

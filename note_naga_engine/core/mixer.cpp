@@ -88,9 +88,6 @@ void NoteNagaMixer::close() {
 }
 
 void NoteNagaMixer::createDefaultRouting() {
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
-
     routing_entries.clear();
     if (!project) return;
     for (NoteNagaMidiSeq *seq : project->getSequences()) {
@@ -127,9 +124,6 @@ void NoteNagaMixer::createDefaultRouting() {
 }
 
 void NoteNagaMixer::setRouting(const std::vector<NoteNagaRoutingEntry> &entries) {
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
-
     routing_entries = entries;
     NOTE_NAGA_LOG_INFO("Rounting stack changed, now has " +
                         std::to_string(routing_entries.size()) + " entries");
@@ -137,9 +131,6 @@ void NoteNagaMixer::setRouting(const std::vector<NoteNagaRoutingEntry> &entries)
 }
 
 bool NoteNagaMixer::addRoutingEntry(const std::optional<NoteNagaRoutingEntry> &entry) {
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
-
     if (entry.has_value()) {
         if (!entry.value().track) return false;
         routing_entries.push_back(entry.value());
@@ -162,9 +153,6 @@ bool NoteNagaMixer::addRoutingEntry(const std::optional<NoteNagaRoutingEntry> &e
 }
 
 bool NoteNagaMixer::removeRoutingEntry(int index) {
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
-
     if (index >= 0 && index < int(routing_entries.size())) {
         routing_entries.erase(routing_entries.begin() + index);
         NOTE_NAGA_LOG_INFO("Removed routing entry at index: " + std::to_string(index));
@@ -177,9 +165,6 @@ bool NoteNagaMixer::removeRoutingEntry(int index) {
 }
 
 void NoteNagaMixer::clearRoutingTable() {
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
-
     routing_entries.clear();
     NOTE_NAGA_LOG_INFO("Routing table cleared");
     NN_QT_EMIT(routingEntryStackChanged());
@@ -196,9 +181,6 @@ void NoteNagaMixer::playNote(const NoteNagaNote &midi_note) {
         NOTE_NAGA_LOG_WARNING("Cannot play note, missing parent sequence");
         return;
     }
-
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
 
     int prog = track->getInstrument().value_or(0);
     NN_QT_EMIT(noteInSignal(midi_note));
@@ -241,9 +223,6 @@ void NoteNagaMixer::stopNote(const NoteNagaNote &midi_note) {
         return;
     }
 
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
-
     auto &notes = playing_notes[seq][track];
     for (auto it = notes.begin(); it != notes.end();) {
         if (it->note_id == midi_note.id) {
@@ -269,9 +248,6 @@ void NoteNagaMixer::stopNote(const NoteNagaNote &midi_note) {
 }
 
 void NoteNagaMixer::stopAllNotes(NoteNagaMidiSeq *seq, NoteNagaTrack *track) {
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
-
     if (!seq && !track) {
         // Stop all
         for (auto &seq_pair : playing_notes) {
@@ -343,10 +319,6 @@ void NoteNagaMixer::stopAllNotes(NoteNagaMidiSeq *seq, NoteNagaTrack *track) {
 
 void NoteNagaMixer::muteTrack(NoteNagaTrack *track, bool mute) {
     if (!track) return;
-
-    // Ensure thread safety
-    std::lock_guard<std::recursive_mutex> lock(mutex);
-
     track->setMuted(mute);
     stopAllNotes(track->getParent(), track);
 }
@@ -358,9 +330,6 @@ void NoteNagaMixer::soloTrack(NoteNagaTrack *track, bool solo) {
     track->setSolo(solo);
 
     if (solo) {
-        // Ensure thread safety
-        std::lock_guard<std::recursive_mutex> lock(mutex);
-
         seq->setSoloTrack(track);
         for (NoteNagaTrack *t : seq->getTracks()) {
             if (t && t != track) {

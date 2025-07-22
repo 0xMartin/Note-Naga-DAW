@@ -11,7 +11,6 @@
 #include <RtMidi.h>
 #include <fluidsynth.h>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -55,18 +54,15 @@ struct NOTE_NAGA_ENGINE_API NoteNagaRoutingEntry {
 // Note Naga Mixer
 /*******************************************************************************************************/
 
-#ifndef QT_DEACTIVATED
 /**
  * @brief Mixer class responsible for managing MIDI routing, output devices, and playback
- * parameters.
+ * parameters. This component is NOT THREAD SAFE and should be used in only one thread.
+ * If you want to use it in multiple threads, you queue in Note Naga engine playback worker.
  */
+#ifndef QT_DEACTIVATED
 class NOTE_NAGA_ENGINE_API NoteNagaMixer : public QObject {
     Q_OBJECT
 #else
-/**
- * @brief Mixer class responsible for managing MIDI routing, output devices, and playback
- * parameters.
- */
 class NOTE_NAGA_ENGINE_API NoteNagaMixer {
 #endif
 
@@ -245,8 +241,6 @@ private:
 
     NoteNagaProject *project; ///< Pointer to the associated project
     std::string sf2_path;     ///< Path to the SoundFont file
-
-    std::recursive_mutex mutex; ///< Mutex for thread safety
 
     std::vector<std::string>
         available_outputs;      ///< Names of available MIDI output devices

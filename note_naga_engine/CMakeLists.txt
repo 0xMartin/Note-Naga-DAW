@@ -34,6 +34,7 @@ set(PUBLIC_HEADER_FILES
     include/note_naga_engine/core/mixer.h
     include/note_naga_engine/core/project_data.h
     include/note_naga_engine/core/types.h
+    include/note_naga_engine/core/lock_free_spsc_queue.h
     include/note_naga_engine/io/midi_file.h
     include/note_naga_engine/worker/playback_worker.h
 )

@@ -2,6 +2,7 @@
 
 #include <note_naga_engine/core/mixer.h>
 #include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/lock_free_spsc_queue.h>
 #include <note_naga_engine/note_naga_api.h>
 
 #include <atomic>
@@ -51,6 +52,18 @@ public:
     void run();
 
     /**
+     * @brief Adds a play note command to the lock-free queue.
+     * @param note Note to play.
+     */
+    void addPlayNoteToQueue(const NoteNagaNote& note);
+
+    /**
+     * @brief Adds a stop note command to the lock-free queue.
+     * @param note Note to stop.
+     */
+    void addStopNoteToQueue(const NoteNagaNote& note);
+
+    /**
      * @brief Adds a callback for when playback finishes.
      * @param cb Callback function.
      * @return Unique callback ID.
@@ -81,17 +94,48 @@ public:
 private:
     NoteNagaProject *project; ///< Pointer to project data (not owned)
     NoteNagaMixer *mixer;     ///< Pointer to mixer (not owned)
+
+    // Timing ////////////////////////////////////////////////////////////////////////////////
+
     double timer_interval;    ///< Timer interval in milliseconds
     double ms_per_tick;       ///< Milliseconds per tick, for timing
     std::chrono::high_resolution_clock::time_point
         start_time_point;    ///< Start time of playback
     int start_tick_at_start; ///< Tick at which playback started
 
+    // Callbacks ////////////////////////////////////////////////////////////////////////////////
+
     CallbackId last_id = 0; ///< Last assigned callback ID
     std::vector<std::pair<CallbackId, FinishedCallback>>
         finished_callbacks; ///< List of finished callbacks
     std::vector<std::pair<CallbackId, PositionChangedCallback>>
         position_changed_callbacks; ///< List of position changed callbacks
+
+    // Note Queuing ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Type of a command in the playback queue.
+     */
+    enum class QueueCommandType {
+        PlayNote,
+        StopNote
+    };
+
+    struct QueueCommand {
+        QueueCommandType type;
+        NoteNagaNote note;
+    };
+
+    static constexpr size_t QUEUE_SIZE = 256;
+    using QueueType = LockFreeSPSCQueue<QueueCommand, QUEUE_SIZE>;
+    std::unique_ptr<QueueType> note_queue;
+
+    // Private Methods //////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Process pending note commands from the queue, called in threadFunc.
+     */
+    void processNoteQueue();
 
     /**
      * @brief Emits all registered finished callbacks.
@@ -162,6 +206,20 @@ public:
     bool stop();
 
     /**
+     * @brief Adds a play note command to the lock-free queue. If the worker is not running,
+     * it will call the mixer directly.
+     * @param note Note to play.
+     */
+    void addPlayNoteToQueue(const NoteNagaNote& note);
+
+    /**
+     * @brief Adds a stop note command to the lock-free queue. If the worker is not running,
+     * it will call the mixer directly.
+     * @param note Note to stop.
+     */
+    void addStopNoteToQueue(const NoteNagaNote& note);
+
+    /**
      * @brief Adds a callback for the finished event.
      * @param cb Callback function.
      * @return Unique callback ID.
@@ -219,10 +277,28 @@ Q_SIGNALS:
 #endif
 
 private:
-    /**
-     * @brief Main function for the worker thread.
-     */
-    void threadFunc();
+    NoteNagaProject *project;              ///< Pointer to project data (not owned)
+    NoteNagaMixer *mixer;                  ///< Pointer to mixer (not owned)
+
+    // Internal State ////////////////////////////////////////////////////////////////////////////////
+
+    double timer_interval;                 ///< Timer interval in milliseconds
+    std::atomic<bool> playing{false};      ///< Whether playback is currently running
+    std::atomic<bool> should_stop{false};  ///< Flag to signal playback should stop
+    std::thread worker_thread;             ///< Thread running the playback logic
+    PlaybackThreadWorker *worker{nullptr}; ///< Pointer to the thread worker
+
+    // Callbacks ////////////////////////////////////////////////////////////////////////////////
+
+    CallbackId last_id = 0; ///< Last assigned callback ID
+    std::vector<std::pair<CallbackId, FinishedCallback>>
+        finished_callbacks; ///< List of finished callbacks
+    std::vector<std::pair<CallbackId, PositionChangedCallback>>
+        position_changed_callbacks; ///< List of position changed callbacks
+    std::vector<std::pair<CallbackId, PlayingStateCallback>>
+        playing_state_callbacks; ///< List of playing state change callbacks
+
+    // Private Methods ////////////////////////////////////////////////////////////////////////
 
     /**
      * @brief Cleans up the worker thread.
@@ -245,20 +321,4 @@ private:
      * @param playing True if playing, false otherwise.
      */
     void emitPlayingState(bool playing);
-
-    NoteNagaProject *project;              ///< Pointer to project data (not owned)
-    NoteNagaMixer *mixer;                  ///< Pointer to mixer (not owned)
-    double timer_interval;                 ///< Timer interval in milliseconds
-    std::atomic<bool> playing{false};      ///< Whether playback is currently running
-    std::atomic<bool> should_stop{false};  ///< Flag to signal playback should stop
-    std::thread worker_thread;             ///< Thread running the playback logic
-    PlaybackThreadWorker *worker{nullptr}; ///< Pointer to the thread worker
-
-    CallbackId last_id = 0; ///< Last assigned callback ID
-    std::vector<std::pair<CallbackId, FinishedCallback>>
-        finished_callbacks; ///< List of finished callbacks
-    std::vector<std::pair<CallbackId, PositionChangedCallback>>
-        position_changed_callbacks; ///< List of position changed callbacks
-    std::vector<std::pair<CallbackId, PlayingStateCallback>>
-        playing_state_callbacks; ///< List of playing state change callbacks
 };

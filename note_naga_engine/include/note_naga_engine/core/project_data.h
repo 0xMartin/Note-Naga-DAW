@@ -16,6 +16,9 @@
 // Note Naga Project
 /*******************************************************************************************************/
 
+/**
+ * @brief Represents a Note Naga project containing MIDI sequences and tracks.
+ */
 #ifndef QT_DEACTIVATED
 class NOTE_NAGA_ENGINE_API NoteNagaProject : public QObject {
     Q_OBJECT

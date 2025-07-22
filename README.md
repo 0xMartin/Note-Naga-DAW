@@ -1,6 +1,6 @@
 ## Build 
 
-1. Logger prodat vsude v enginu
+vylepseni enginu: funkce enginu bude noty play, stop ... pridavat do fronty a interni vlakno to bude predavat mixeru.
 
 2. opravit chyb v UI (aby to vypadalo stejne jak predtim)
    1. custom tile bar pro QDock widgety..
