@@ -12,14 +12,14 @@ CustomDockTitleBar::CustomDockTitleBar(
     setObjectName("CustomDockTitleBar");
     setStyleSheet(
         "QFrame#CustomDockTitleBar {"
-        "  background: #353a44;"
+        "  background: #2b2f37;"
         "  border-top-left-radius: 9px;"
         "  border-top-right-radius: 9px;"
-        "  margin-bottom: 2px; "
+        "  margin-bottom: 0px; "
         "}");
 
     QHBoxLayout* header_layout = new QHBoxLayout(this);
-    header_layout->setContentsMargins(10, 4, 10, 4);
+    header_layout->setContentsMargins(10, 0, 0, 0);
     header_layout->setSpacing(6);
 
     // Icon
@@ -48,13 +48,13 @@ CustomDockTitleBar::CustomDockTitleBar(
     defaultButtons->setObjectName("DefaultDockButtonsFrame");
     defaultButtons->setStyleSheet(
         "QFrame#DefaultDockButtonsFrame {"
-        " background: #232731;"
+        " background: #26292f;"
         " border-radius: 7px;"
-        " padding-left: 2px; padding-right: 2px;"
+        " padding-left: 0px; padding-right: 0px;"
         "}");
 
     QHBoxLayout* btnLayout = new QHBoxLayout(defaultButtons);
-    btnLayout->setContentsMargins(2, 0, 2, 0);
+    btnLayout->setContentsMargins(2, 2, 2, 2);
     btnLayout->setSpacing(0);
 
     QPushButton* floatBtn = createDefaultButton(QIcon(":/icons/maximize.svg"), "Undock", SLOT(onFloatClicked()));
@@ -82,6 +82,7 @@ void CustomDockTitleBar::setCustomButtonWidget(QWidget* widget) {
     customButtons = widget;
     if (customButtons) {
         customButtons->setParent(this);
+        customButtons->setStyleSheet("QWidget { background: transparent; }");
         customButtons->show();
     }
 }

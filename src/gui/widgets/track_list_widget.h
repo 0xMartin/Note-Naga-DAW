@@ -24,8 +24,13 @@ public:
      */
     explicit TrackListWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
+    /**
+     * @brief Gets the title widget that will be inserted into the dock title bar.
+     * @return Pointer to the title widget.
+     */
+    QWidget *getTitleWidget() const { return this->title_widget; }
+
 private slots:
-    void initUI();
     void reloadTracks(NoteNagaMidiSeq *seq);
     void handlePlayingNote(const NN_Note_t& note);
 
@@ -35,9 +40,12 @@ private:
     int selected_row;
     std::vector<TrackWidget*> track_widgets;
 
+    QWidget *title_widget;
     QScrollArea* scroll_area;
     QWidget* container;
     QVBoxLayout* vbox;
 
+    void initTitleUI();
+    void initUI();
     void updateSelection(NoteNagaMidiSeq *sequence, int widget_idx);
 };

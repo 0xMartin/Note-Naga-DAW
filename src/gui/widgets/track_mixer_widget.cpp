@@ -10,40 +10,29 @@ TrackMixerWidget::TrackMixerWidget(NoteNagaEngine *engine_, QWidget *parent)
             &TrackMixerWidget::handlePlayingNote);
     connect(engine->getMixer(), &NoteNagaMixer::routingEntryStackChanged, this,
             &TrackMixerWidget::refresh_routing_table);
+    
+    this->title_widget = nullptr;
+    initTitleUI();
     initUI();
+}
+
+void TrackMixerWidget::initTitleUI() {
+    if (this->title_widget) return;
+    this->title_widget = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(title_widget);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    QPushButton *btn_settings = create_small_button(
+        ":/icons/settings.svg", "Mixer Settings", "MixerSettingsButton");
+
+    layout->addWidget(btn_settings, 0, Qt::AlignRight);
 }
 
 void TrackMixerWidget::initUI() {
     QVBoxLayout *main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(5, 5, 5, 5);
     main_layout->setSpacing(0);
-
-    // Header frame
-    QFrame *header_frame = new QFrame();
-    header_frame->setObjectName("MixerHeaderFrame");
-    header_frame->setStyleSheet("QFrame#MixerHeaderFrame { background: #353a44; "
-                                "border-radius: 9px; margin-bottom: 8px; }");
-    QHBoxLayout *header_layout = new QHBoxLayout(header_frame);
-    header_layout->setContentsMargins(10, 5, 10, 5);
-    header_layout->setSpacing(12);
-
-    QLabel *header_icon = new QLabel();
-    header_icon->setPixmap(QIcon(":/icons/mixer.svg").pixmap(23, 23));
-    header_icon->setFixedSize(23, 23);
-
-    QLabel *title = new QLabel("Track Mixer");
-    title->setStyleSheet(
-        "font-size: 20px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;");
-    header_layout->addWidget(header_icon, 0, Qt::AlignVCenter);
-    header_layout->addWidget(title, 0, Qt::AlignVCenter);
-    header_layout->addStretch(1);
-
-    QPushButton *btn_settings = create_small_button(
-        ":/icons/settings.svg", "Mixer Settings", "MixerSettingsButton");
-    btn_settings->setCheckable(true);
-    header_layout->addWidget(btn_settings, 0, Qt::AlignRight);
-
-    main_layout->addWidget(header_frame);
 
     // Controls frame
     QFrame *controls_frame = new QFrame();

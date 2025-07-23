@@ -33,6 +33,12 @@ public:
      */
     explicit TrackMixerWidget(NoteNagaEngine* engine, QWidget* parent = nullptr);
 
+    /**
+     * @brief Gets the title widget that will be inserted into the dock title bar.
+     * @return Pointer to the title widget.
+     */
+    QWidget *getTitleWidget() const { return this->title_widget; }
+
 public slots:
     /**
      * @brief Refreshes the routing table GUI with active routing entries.
@@ -62,6 +68,8 @@ private:
 
     std::vector<RoutingEntryWidget*> entry_widgets;
 
+    QWidget *title_widget;
+    
     AudioDial* dial_min;
     AudioDial* dial_max;
     AudioDialCentered* dial_offset;
@@ -77,6 +85,7 @@ private:
     QScrollArea* routing_scroll;
 
     void initUI();
+    void initTitleUI();
     void setChannelOutputValue(const std::string& device, int channel_idx, float value, int time_ms = -1);
     void updateEntrySelection(int idx);
 };

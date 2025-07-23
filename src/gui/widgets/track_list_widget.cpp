@@ -5,6 +5,8 @@
 
 TrackListWidget::TrackListWidget(NoteNagaEngine *engine_, QWidget *parent)
     : QWidget(parent), engine(engine_), selected_row(-1) {
+    this->title_widget = nullptr;
+    initTitleUI();
     initUI();
 
     NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
@@ -17,28 +19,14 @@ TrackListWidget::TrackListWidget(NoteNagaEngine *engine_, QWidget *parent)
             &TrackListWidget::handlePlayingNote);
 }
 
-void TrackListWidget::initUI() {
-    // --- Moderní světlý header s ikonou a titulkem ---
-    QFrame *header_frame = new QFrame();
-    header_frame->setObjectName("TrackListHeaderFrame");
-    header_frame->setStyleSheet("QFrame#TrackListHeaderFrame { background: #353a44; "
-                                "border-radius: 9px; margin-bottom: 8px; }");
-    QHBoxLayout *header_layout = new QHBoxLayout(header_frame);
-    header_layout->setContentsMargins(10, 5, 10, 5);
-    header_layout->setSpacing(4);
+void TrackListWidget::initTitleUI()
+{
+    if (this->title_widget) return;
+    this->title_widget = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(title_widget);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
 
-    QLabel *header_icon = new QLabel();
-    header_icon->setPixmap(QIcon(":/icons/track.svg").pixmap(23, 23));
-    header_icon->setFixedSize(23, 23);
-
-    QLabel *title = new QLabel("Tracks");
-    title->setStyleSheet(
-        "font-size: 20px; font-weight: bold; color: #79b8ff; letter-spacing: 1.2px;");
-    header_layout->addWidget(header_icon, 0, Qt::AlignVCenter);
-    header_layout->addWidget(title, 0, Qt::AlignVCenter);
-    header_layout->addStretch(1);
-
-    // --- Ovládací prvky ---
     QPushButton *btn_add = create_small_button(":/icons/add.svg", "Add new Track", "AddButton");
 
     QPushButton *btn_remove =
@@ -50,13 +38,13 @@ void TrackListWidget::initUI() {
     QPushButton *btn_reload =
         create_small_button(":/icons/reload.svg", "Reload Tracks from MIDI", "ReloadButton");
 
-    header_layout->addStretch(1);
-    header_layout->addWidget(btn_add, 0, Qt::AlignRight);
-    header_layout->addWidget(btn_remove, 0, Qt::AlignRight);
-    header_layout->addWidget(btn_clear, 0, Qt::AlignRight);
-    header_layout->addWidget(btn_reload, 0, Qt::AlignRight);
+    layout->addWidget(btn_add, 0, Qt::AlignRight);
+    layout->addWidget(btn_remove, 0, Qt::AlignRight);
+    layout->addWidget(btn_clear, 0, Qt::AlignRight);
+    layout->addWidget(btn_reload, 0, Qt::AlignRight);
+}
 
-    // --- Scrollovací oblast tracků ---
+void TrackListWidget::initUI() {
     scroll_area = new QScrollArea(this);
     scroll_area->setWidgetResizable(true);
     scroll_area->setFrameShape(QFrame::NoFrame);
@@ -73,8 +61,6 @@ void TrackListWidget::initUI() {
     // --- Layout pro celý widget ---
     QVBoxLayout *main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(5, 5, 5, 5);
-    main_layout->setSpacing(0);
-    main_layout->addWidget(header_frame);
     main_layout->addWidget(scroll_area, 1);
     setLayout(main_layout);
 }
