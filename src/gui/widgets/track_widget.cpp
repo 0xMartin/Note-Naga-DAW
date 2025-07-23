@@ -5,7 +5,7 @@
 #include <QHBoxLayout>
 #include <QDialog>
 
-#include "../icons.h"
+#include "../nn_gui_utils.h"
 #include "../dialogs/instrument_selector_dialog.h"
 
 TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget *parent)

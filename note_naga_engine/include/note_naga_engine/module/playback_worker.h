@@ -12,108 +12,8 @@
 #include <unordered_map>
 #include <vector>
 
-/*******************************************************************************************************/
-// Playback Thread Worker
-/*******************************************************************************************************/
-
-/**
- * @brief Worker class responsible for running playback logic in a separate thread.
- */
-class NOTE_NAGA_ENGINE_API PlaybackThreadWorker {
-public:
-    using CallbackId = std::uint64_t;               ///< Type for callback identifier
-    using FinishedCallback = std::function<void()>; ///< Callback type for finished event
-    using PositionChangedCallback =
-        std::function<void(int)>; ///< Callback type for position changed event
-
-    /**
-     * @brief Constructs the worker.
-     * @param project Pointer to NoteNagaProject instance.
-     * @param mixer Pointer to NoteNagaMixer instance.
-     * @param timer_interval Timer interval in milliseconds.
-     */
-    PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMixer *mixer,
-                         double timer_interval);
-
-    /**
-     * @brief Recalculates the tempo based on current project settings.
-     */
-    void recalculateTempo();
-
-    /**
-     * @brief Requests playback to stop (thread-safe).
-     */
-    void stop();
-
-    /**
-     * @brief Main execution loop to be run in a separate thread.
-     */
-    void run();
-
-    /**
-     * @brief Adds a callback for when playback finishes.
-     * @param cb Callback function.
-     * @return Unique callback ID.
-     */
-    CallbackId addFinishedCallback(FinishedCallback cb);
-
-    /**
-     * @brief Adds a callback for when playback position changes.
-     * @param cb Callback function taking the tick position.
-     * @return Unique callback ID.
-     */
-    CallbackId addPositionChangedCallback(PositionChangedCallback cb);
-
-    /**
-     * @brief Removes a finished callback by its ID.
-     * @param id Callback ID to remove.
-     */
-    void removeFinishedCallback(CallbackId id);
-
-    /**
-     * @brief Removes a position changed callback by its ID.
-     * @param id Callback ID to remove.
-     */
-    void removePositionChangedCallback(CallbackId id);
-
-    std::atomic<bool> should_stop{false}; ///< Flag to signal worker thread should stop
-
-private:
-    NoteNagaProject *project; ///< Pointer to project data (not owned)
-    NoteNagaMixer *mixer;     ///< Pointer to mixer (not owned)
-
-    // Timing
-    // ////////////////////////////////////////////////////////////////////////////////
-
-    double timer_interval; ///< Timer interval in milliseconds
-    double ms_per_tick;    ///< Milliseconds per tick, for timing
-    std::chrono::high_resolution_clock::time_point
-        start_time_point;    ///< Start time of playback
-    int start_tick_at_start; ///< Tick at which playback started
-
-    // Callbacks
-    // ////////////////////////////////////////////////////////////////////////////////
-
-    CallbackId last_id = 0; ///< Last assigned callback ID
-    std::vector<std::pair<CallbackId, FinishedCallback>>
-        finished_callbacks; ///< List of finished callbacks
-    std::vector<std::pair<CallbackId, PositionChangedCallback>>
-        position_changed_callbacks; ///< List of position changed callbacks
-
-    // Private Methods
-    // //////////////////////////////////////////////////////////////////////////
-
-    /**
-     * @brief Emits all registered finished callbacks.
-     */
-    void emitFinished();
-
-    /**
-     * @brief Emits all registered position changed callbacks with the given tick.
-     * @param tick Current playback tick.
-     */
-    void emitPositionChanged(int tick);
-};
+// Forward declarations
+class NOTE_NAGA_ENGINE_API PlaybackThreadWorker;
 
 /*******************************************************************************************************/
 // Playback Worker
@@ -223,6 +123,8 @@ private:
     std::thread worker_thread;             ///< Thread running the playback logic
     PlaybackThreadWorker *worker{nullptr}; ///< Pointer to the thread worker
 
+    std::atomic<bool> pending_cleanup{false}; ///< Flag: worker needs to be deleted in next play()
+
     // Callbacks
     // ////////////////////////////////////////////////////////////////////////////////
 
@@ -279,4 +181,107 @@ Q_SIGNALS:
      */
     void playingStateChanged(bool playing_val);
 #endif
+};
+
+/*******************************************************************************************************/
+// Playback Thread Worker
+/*******************************************************************************************************/
+
+/**
+ * @brief Worker class responsible for running playback logic in a separate thread.
+ */
+class NOTE_NAGA_ENGINE_API PlaybackThreadWorker {
+public:
+    using CallbackId = std::uint64_t;               ///< Type for callback identifier
+    using FinishedCallback = std::function<void()>; ///< Callback type for finished event
+    using PositionChangedCallback =
+        std::function<void(int)>; ///< Callback type for position changed event
+
+    /**
+     * @brief Constructs the worker.
+     * @param project Pointer to NoteNagaProject instance.
+     * @param mixer Pointer to NoteNagaMixer instance.
+     * @param timer_interval Timer interval in milliseconds.
+     */
+    PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMixer *mixer,
+                         double timer_interval);
+
+    /**
+     * @brief Recalculates the tempo based on current project settings.
+     */
+    void recalculateTempo();
+
+    /**
+     * @brief Requests playback to stop (thread-safe).
+     */
+    void stop();
+
+    /**
+     * @brief Main execution loop to be run in a separate thread.
+     */
+    void run();
+
+    /**
+     * @brief Adds a callback for when playback finishes.
+     * @param cb Callback function.
+     * @return Unique callback ID.
+     */
+    CallbackId addFinishedCallback(FinishedCallback cb);
+
+    /**
+     * @brief Adds a callback for when playback position changes.
+     * @param cb Callback function taking the tick position.
+     * @return Unique callback ID.
+     */
+    CallbackId addPositionChangedCallback(PositionChangedCallback cb);
+
+    /**
+     * @brief Removes a finished callback by its ID.
+     * @param id Callback ID to remove.
+     */
+    void removeFinishedCallback(CallbackId id);
+
+    /**
+     * @brief Removes a position changed callback by its ID.
+     * @param id Callback ID to remove.
+     */
+    void removePositionChangedCallback(CallbackId id);
+
+    std::atomic<bool> should_stop{false}; ///< Flag to signal worker thread should stop
+
+private:
+    NoteNagaProject *project; ///< Pointer to project data (not owned)
+    NoteNagaMixer *mixer;     ///< Pointer to mixer (not owned)
+
+    // Timing
+    // ////////////////////////////////////////////////////////////////////////////////
+
+    double timer_interval; ///< Timer interval in milliseconds
+    double ms_per_tick;    ///< Milliseconds per tick, for timing
+    std::chrono::high_resolution_clock::time_point
+        start_time_point;    ///< Start time of playback
+    int start_tick_at_start; ///< Tick at which playback started
+
+    // Callbacks
+    // ////////////////////////////////////////////////////////////////////////////////
+
+    CallbackId last_id = 0; ///< Last assigned callback ID
+    std::vector<std::pair<CallbackId, FinishedCallback>>
+        finished_callbacks; ///< List of finished callbacks
+    std::vector<std::pair<CallbackId, PositionChangedCallback>>
+        position_changed_callbacks; ///< List of position changed callbacks
+
+    // Private Methods
+    // //////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Emits all registered finished callbacks.
+     */
+    void emitFinished();
+
+    /**
+     * @brief Emits all registered position changed callbacks with the given tick.
+     * @param tick Current playback tick.
+     */
+    void emitPositionChanged(int tick);
 };

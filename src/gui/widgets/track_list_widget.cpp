@@ -1,5 +1,6 @@
 #include "track_list_widget.h"
-#include <QDebug>
+
+#include "../nn_gui_utils.h"
 #include <QMouseEvent>
 
 TrackListWidget::TrackListWidget(NoteNagaEngine *engine_, QWidget *parent)
@@ -38,31 +39,16 @@ void TrackListWidget::initUI() {
     header_layout->addStretch(1);
 
     // --- Ovládací prvky ---
-    auto make_btn = [](const QString &iconPath, const QString &tooltip,
-                       const char *objname) -> QPushButton * {
-        QPushButton *btn = new QPushButton();
-        btn->setObjectName(objname);
-        btn->setIcon(QIcon(iconPath));
-        btn->setToolTip(tooltip);
-        btn->setFlat(true);
-        btn->setFixedSize(26, 26);
-        btn->setStyleSheet("QPushButton { background: transparent; border: none; "
-                           "border-radius: 6px; min-width: 24px; max-width: 24px; "
-                           "min-height: 24px; max-height: 24px; padding: 0px;}"
-                           "QPushButton:hover { background: #3477c0; color: #fff; }");
-        return btn;
-    };
-
-    QPushButton *btn_add = make_btn(":/icons/add.svg", "Add new Track", "AddButton");
+    QPushButton *btn_add = create_small_button(":/icons/add.svg", "Add new Track", "AddButton");
 
     QPushButton *btn_remove =
-        make_btn(":/icons/remove.svg", "Remove selected Track", "RemoveButton");
+        create_small_button(":/icons/remove.svg", "Remove selected Track", "RemoveButton");
 
     QPushButton *btn_clear =
-        make_btn(":/icons/clear.svg", "Clear all Tracks", "ClearButton");
+        create_small_button(":/icons/clear.svg", "Clear all Tracks", "ClearButton");
 
     QPushButton *btn_reload =
-        make_btn(":/icons/reload.svg", "Reload Tracks from MIDI", "ReloadButton");
+        create_small_button(":/icons/reload.svg", "Reload Tracks from MIDI", "ReloadButton");
 
     header_layout->addStretch(1);
     header_layout->addWidget(btn_add, 0, Qt::AlignRight);

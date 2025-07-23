@@ -28,7 +28,7 @@ add_subdirectory(note_naga_engine)
 
 set(HEADER_FILES
     # gui
-    src/gui/icons.h
+    src/gui/nn_gui_utils.h
     src/gui/main_window.h
     # gui/components
     src/gui/components/animated_time_label.h
@@ -54,7 +54,7 @@ set(SOURCE_FILES
     # src
     src/main.cpp
     # gui
-    src/gui/icons.cpp
+    src/gui/nn_gui_utils.cpp
     src/gui/main_window.cpp
     # gui/components
     src/gui/components/animated_time_label.cpp

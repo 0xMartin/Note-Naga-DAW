@@ -2,7 +2,7 @@
 
 #include <QColor>
 #include <QIcon>
-#include <QMainWindow>
+#include <QPushButton>
 #include <QString>
 
 // SVG icon string for colored square
@@ -15,7 +15,8 @@ extern const QString COLOR_SVG_ICON;
  * done by replacing "CURRENT_COLOR" in the SVG string.
  * @param size The size of the icon, default is 32.
  */
-extern QIcon svg_str_icon(const QString &svg, const QColor &color = QColor(), int size = 32);
+extern QIcon svg_str_icon(const QString &svg, const QColor &color = QColor(),
+                          int size = 32);
 
 /**
  * @brief Get an instrument icon by its name.
@@ -23,3 +24,14 @@ extern QIcon svg_str_icon(const QString &svg, const QColor &color = QColor(), in
  * If the icon is not found, it will return a default vinyl icon.
  */
 extern QIcon instrument_icon(const QString &instrument_name = "piano");
+
+/**
+ * Creates a small button with an icon and tooltip. Used for UI elements like
+ * small action buttons in widgets.
+ * @param iconPath Path to the icon file.
+ * @param tooltip Tooltip text for the button.
+ * @param objname Object name for the button.
+ * @return Pointer to the created QPushButton.
+ */
+extern QPushButton *create_small_button(const QString &iconPath, const QString &tooltip,
+                                        const char *objname);

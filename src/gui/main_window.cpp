@@ -140,7 +140,7 @@ void MainWindow::setup_dock_layout() {
     midi_editor->setMinimumHeight(250);
 
     midi_keyboard_ruler = new MidiKeyboardRuler(this->engine, 16, this);
-    midi_keyboard_ruler->setFixedWidth(80);
+    midi_keyboard_ruler->setFixedWidth(70);
 
     midi_tact_ruler = new MidiTactRuler(this->engine, this);
     midi_tact_ruler->setTimeScale(midi_editor->getTimeScale());

@@ -1,6 +1,7 @@
 #include "track_mixer_widget.h"
 
 #include <QIcon>
+#include "../nn_gui_utils.h"
 
 TrackMixerWidget::TrackMixerWidget(NoteNagaEngine *engine_, QWidget *parent)
     : QWidget(parent), engine(engine_), selected_entry_index(-1), selected_row(-1) {
@@ -36,6 +37,11 @@ void TrackMixerWidget::initUI() {
     header_layout->addWidget(header_icon, 0, Qt::AlignVCenter);
     header_layout->addWidget(title, 0, Qt::AlignVCenter);
     header_layout->addStretch(1);
+
+    QPushButton *btn_settings = create_small_button(
+        ":/icons/settings.svg", "Mixer Settings", "MixerSettingsButton");
+    btn_settings->setCheckable(true);
+    header_layout->addWidget(btn_settings, 0, Qt::AlignRight);
 
     main_layout->addWidget(header_frame);
 
@@ -185,53 +191,39 @@ void TrackMixerWidget::initUI() {
 
     routing_label_controls_layout->addStretch(1);
 
-    auto make_btn = [](const QString &iconPath, const QString &tooltip,
-                       const char *objname) -> QPushButton * {
-        QPushButton *btn = new QPushButton();
-        btn->setObjectName(objname);
-        btn->setIcon(QIcon(iconPath));
-        btn->setToolTip(tooltip);
-        btn->setFlat(true);
-        btn->setFixedSize(26, 26);
-        btn->setStyleSheet(
-            "QPushButton { background: transparent; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background: #3477c0; color: #fff; }");
-        return btn;
-    };
-
     QPushButton *btn_add =
-        make_btn(":/icons/add.svg", "Add new routing entry", "RoutingAddButton");
+        create_small_button(":/icons/add.svg", "Add new routing entry", "RoutingAddButton");
     connect(btn_add, &QPushButton::clicked, this, &TrackMixerWidget::onAddEntry);
 
-    QPushButton *btn_remove = make_btn(
+    QPushButton *btn_remove = create_small_button(
         ":/icons/remove.svg", "Remove selected routing entry", "RoutingRemoveButton");
     connect(btn_remove, &QPushButton::clicked, this,
             &TrackMixerWidget::onRemoveSelectedEntry);
 
     QPushButton *btn_clear =
-        make_btn(":/icons/clear.svg", "Clear all routing entries", "RoutingClearButton");
+        create_small_button(":/icons/clear.svg", "Clear all routing entries", "RoutingClearButton");
     connect(btn_clear, &QPushButton::clicked, this,
             &TrackMixerWidget::onClearRoutingTable);
 
-    QPushButton *btn_default = make_btn(
+    QPushButton *btn_default = create_small_button(
         ":/icons/reload.svg", "Set default routing (one entry per track, Fluidsynth)",
         "RoutingDefaultButton");
     connect(btn_default, &QPushButton::clicked, this,
             &TrackMixerWidget::onDefaultEntries);
 
-    QPushButton *btn_max_volume = make_btn(
+    QPushButton *btn_max_volume = create_small_button(
         ":/icons/sound-on.svg", "Toggle max volume for all tracks",
         "MaxVolumeAllTracksButton");
     btn_max_volume->setCheckable(true);
     connect(btn_max_volume, &QPushButton::clicked, this, &TrackMixerWidget::onMaxVolumeAllTracks);
 
-    QPushButton *btn_min_volume = make_btn(
+    QPushButton *btn_min_volume = create_small_button(
         ":/icons/sound-off.svg", "Set min volume for all tracks",
         "MinVolumeAllTracksButton");
     btn_min_volume->setCheckable(true);
     connect(btn_min_volume, &QPushButton::clicked, this, &TrackMixerWidget::onMinVolumeAllTracks);
 
-    QPushButton *btn_output_device = make_btn(
+    QPushButton *btn_output_device = create_small_button(
         ":/icons/device.svg", "Set output device for all tracks",
         "OutputDeviceAllTracksButton");
     btn_output_device->setCheckable(true);

@@ -1,10 +1,5 @@
 ## Build 
 
-bug: kdyz jsem na konci tracku a dam play tak to spadne
-
-tlacitka u mixeru:
-   -> set output for all (replace ouput)
-
 1. opravit chyb v UI (aby to vypadalo stejne jak predtim)
    1. custom tile bar pro QDock widgety..
    2. Dock Panel Nefunguje jak by mel: reset layout, nachyta se presne na dane pozice jak by mel
@@ -22,9 +17,9 @@ midi editor optimalizace
 
 midi control bar: impelemnatce celkoveho nahledu tracku (nahradi time label)
 
-velocity editor, ...
+nastaveni editoru + gui dialog
 
-nastaveni editor + gui
+velocity editor, ...
 
 implementace editor modu:
    -> select tool

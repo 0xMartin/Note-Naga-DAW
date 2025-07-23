@@ -59,6 +59,26 @@ struct NOTE_NAGA_ENGINE_API NN_Color_t {
         return red == other.red && green == other.green && blue == other.blue;
     }
 
+    /**
+     * @brief Make the color lighter
+     * @param factor Brightness factor (default is 120).
+     * @return Lighter color.
+     */
+    NN_Color_t lighter(int factor = 120) const {
+        return NN_Color_t(std::min(255, red + factor), std::min(255, green + factor),
+                          std::min(255, blue + factor));
+    }
+
+    /**
+     * @brief Make the color darker
+     * @param factor Darkness factor (default is 120).
+     * @return Darker color.
+     */
+    NN_Color_t darker(int factor = 120) const {
+        return NN_Color_t(std::max(0, red - factor), std::max(0, green - factor),
+                          std::max(0, blue - factor));
+    }
+
 #ifndef QT_DEACTIVATED
     /**
      * @brief Converts NNColor to QColor (Qt).
@@ -89,8 +109,15 @@ NOTE_NAGA_ENGINE_API extern const std::vector<NN_Color_t> DEFAULT_CHANNEL_COLORS
  * @param opacity Opacity of the foreground color (0.0-1.0).
  * @return Blended NNColor.
  */
-NOTE_NAGA_ENGINE_API extern NN_Color_t nn_color_blend(const NN_Color_t &fg, const NN_Color_t &bg,
-                                                   double opacity);
+NOTE_NAGA_ENGINE_API extern NN_Color_t
+nn_color_blend(const NN_Color_t &fg, const NN_Color_t &bg, double opacity);
+
+/**
+ * @brief Converts NNColor to a string representation in the format "R,G,B".
+ * @param color NNColor to convert.
+ * @return String representation.
+ */
+NOTE_NAGA_ENGINE_API extern double nn_yiq_luminance(const NN_Color_t &color);
 
 /*******************************************************************************************************/
 // Forwards declarations
@@ -153,10 +180,10 @@ struct NOTE_NAGA_ENGINE_API NN_Note_t {
      * @param track_ (Unused) Optional track index.
      */
     NN_Note_t(unsigned long note_, NoteNagaTrack *parent_,
-                 const std::optional<int> &start_ = std::nullopt,
-                 const std::optional<int> &length_ = std::nullopt,
-                 const std::optional<int> &velocity_ = std::nullopt,
-                 const std::optional<int> &track_ = std::nullopt)
+              const std::optional<int> &start_ = std::nullopt,
+              const std::optional<int> &length_ = std::nullopt,
+              const std::optional<int> &velocity_ = std::nullopt,
+              const std::optional<int> &track_ = std::nullopt)
         : id(nn_generate_unique_note_id()), note(note_), start(start_), length(length_),
           velocity(velocity_), parent(parent_) {}
 };
@@ -349,21 +376,21 @@ public:
     void setVolume(float new_volume);
 
 protected:
-    int track_id;                         ///< Unique track ID
-    std::optional<int> instrument;        ///< Instrument index (optional)
-    std::optional<int> channel;           ///< MIDI channel (optional)
-    std::string name;                     ///< Track name
-    NN_Color_t color;                        ///< Track color
-    bool visible;                         ///< Track visibility
-    bool muted;                           ///< Track muted state
-    bool solo;                            ///< Track solo state
-    float volume;                         ///< Track volume (0.0 - 1.0)
+    int track_id;                      ///< Unique track ID
+    std::optional<int> instrument;     ///< Instrument index (optional)
+    std::optional<int> channel;        ///< MIDI channel (optional)
+    std::string name;                  ///< Track name
+    NN_Color_t color;                  ///< Track color
+    bool visible;                      ///< Track visibility
+    bool muted;                        ///< Track muted state
+    bool solo;                         ///< Track solo state
+    float volume;                      ///< Track volume (0.0 - 1.0)
     std::vector<NN_Note_t> midi_notes; ///< MIDI notes in this track
-    NoteNagaMidiSeq *parent;              ///< Pointer to parent MIDI sequence
+    NoteNagaMidiSeq *parent;           ///< Pointer to parent MIDI sequence
 
     // SIGNALS
     // ////////////////////////////////////////////////////////////////////////////////
-    
+
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
     /**
@@ -550,7 +577,7 @@ protected:
 
     // SIGNALS
     // ////////////////////////////////////////////////////////////////////////////////
-    
+
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
     /**
@@ -606,7 +633,8 @@ nn_find_instrument_by_name(const std::string &name);
  * @param index Instrument index.
  * @return Optional GMInstrument if found.
  */
-NOTE_NAGA_ENGINE_API std::optional<NN_GMInstrument_t> nn_find_instrument_by_index(int index);
+NOTE_NAGA_ENGINE_API std::optional<NN_GMInstrument_t>
+nn_find_instrument_by_index(int index);
 
 /*******************************************************************************************************/
 // Note Names Utils

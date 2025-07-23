@@ -24,6 +24,7 @@
     <file>icons/zoom-out.svg</file>
     <file>icons/mixer.svg</file>
     <file>icons/device.svg</file>
+    <file>icons/settings.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>
