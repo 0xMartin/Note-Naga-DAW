@@ -66,13 +66,19 @@ void MidiEditorWidget::initTitleUI() {
         ":/icons/zoom-in-horizontal.svg", "Horizontal Zoom In", "HZoomIn");
     QPushButton *btn_h_zoom_out = create_small_button(
         ":/icons/zoom-out-horizontal.svg", "Horizontal Zoom Out", "HZoomOut");
-
     QPushButton *btn_v_zoom_in = create_small_button(
         ":/icons/zoom-in-vertical.svg", "Vertical Zoom In", "VZoomIn");
     QPushButton *btn_v_zoom_out = create_small_button(
         ":/icons/zoom-out-vertical.svg", "Vertical Zoom Out", "VZoomOut");
 
+    QPushButton *btn_looping = create_small_button(
+        ":/icons/loop.svg", "Toggle Looping", "Looping");
+    QPushButton *btn_step = create_small_button(
+        ":/icons/step-forward.svg", "Step Forward", "StepForward");
 
+    layout->addWidget(btn_step, 0, Qt::AlignRight);
+    layout->addWidget(btn_looping, 0, Qt::AlignRight);
+    layout->addWidget(create_separator());
     layout->addWidget(btn_v_zoom_out, 0, Qt::AlignRight);
     layout->addWidget(btn_v_zoom_in, 0, Qt::AlignRight);
     layout->addWidget(btn_h_zoom_out, 0, Qt::AlignRight);

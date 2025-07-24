@@ -294,16 +294,21 @@ void MainWindow::reset_layout() {
 }
 
 void MainWindow::connect_signals() {
+    // Connect engine signals
     connect(engine->getPlaybackWorker(), &PlaybackWorker::playingStateChanged, this,
             &MainWindow::on_playing_state_changed);
     connect(engine->getProject(), &NoteNagaProject::currentTickChanged, this,
             &MainWindow::current_tick_position_changed);
 
+    // Connect control bar signals
     connect(control_bar, &MidiControlBarWidget::playToggled, this,
             &MainWindow::toggle_play);
     connect(control_bar, &MidiControlBarWidget::goToStart, this, &MainWindow::goto_start);
     connect(control_bar, &MidiControlBarWidget::goToEnd, this, &MainWindow::goto_end);
+    connect(control_bar, &MidiControlBarWidget::playPositionChanged, this,
+            &MainWindow::onControlBarPositionClicked);
 
+    // editor scroll signals
     auto *hbar = midi_editor->horizontalScrollBar();
     auto *vbar = midi_editor->verticalScrollBar();
     connect(hbar, &QScrollBar::valueChanged, midi_tact_ruler,
@@ -336,10 +341,7 @@ void MainWindow::zoom_out_x() {
 }
 
 void MainWindow::on_playing_state_changed(bool playing) {
-    action_toolbar_play->setIcon(
-        QIcon(playing ? ":/icons/stop.svg" : ":/icons/play.svg"));
-    if (!playing) { midi_keyboard_ruler->clearHighlights(); }
-    control_bar->setPlaying(playing);
+    action_toolbar_play->setIcon(QIcon(playing ? ":/icons/stop.svg" : ":/icons/play.svg"));
 }
 
 void MainWindow::goto_start() {
@@ -351,6 +353,15 @@ void MainWindow::goto_end() {
     this->engine->setPlaybackPosition(this->engine->getProject()->getMaxTick());
     midi_editor->horizontalScrollBar()->setValue(
         midi_editor->horizontalScrollBar()->maximum());
+}
+
+void MainWindow::onControlBarPositionClicked(float seconds, int tick_position) {
+    int marker_x = int(tick_position * midi_editor->getTimeScale());
+    int width = midi_editor->viewport()->width();
+    int margin = width / 2;
+    int value = std::max(0, marker_x - margin);
+    midi_editor->horizontalScrollBar()->setValue(value);
+    midi_tact_ruler->setHorizontalScroll(value);
 }
 
 void MainWindow::open_midi() {
@@ -376,14 +387,13 @@ void MainWindow::export_midi() {
 
 void MainWindow::current_tick_position_changed(int current_tick) {
     if (auto_follow && engine->isPlaying()) {
-        int marker_x = int(this->engine->getProject()->getCurrentTick() *
-                           midi_editor->getTimeScale());
+        int marker_x = int(current_tick * midi_editor->getTimeScale());
         int width = midi_editor->viewport()->width();
         int margin = width / 2;
         int value = std::max(0, marker_x - margin);
         midi_editor->horizontalScrollBar()->setValue(value);
+        midi_tact_ruler->setHorizontalScroll(value);
     }
-    midi_tact_ruler->setHorizontalScroll(midi_editor->horizontalScrollBar()->value());
 }
 
 void MainWindow::reset_all_colors() {

@@ -55,11 +55,15 @@ public:
     QColor position_indicator_color;
 
 signals:
-    void positionClicked(float seconds);
+    void positionPressed(float seconds);
+    void positionDragged(float seconds);
+    void positionReleased(float seconds);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
     QString formatTime(float seconds) const;
 
@@ -74,4 +78,6 @@ private:
     QImage waveform_img;
     int waveform_img_width;
     int waveform_img_height;
+
+    float mapMouseEventToTime(QMouseEvent *event) const;
 };

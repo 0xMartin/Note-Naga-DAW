@@ -698,3 +698,17 @@ std::string nn_note_name(int n) {
 }
 
 int nn_index_in_octave(int n) { return n % 12; }
+
+/*******************************************************************************************************/
+// Time / Tick Utils
+/*******************************************************************************************************/
+
+double nn_seconds_to_ticks(double seconds, int ppq, int tempo) {
+    double us_per_tick = double(tempo) / double(ppq);
+    return seconds * 1'000'000.0 / us_per_tick;
+}
+
+double nn_ticks_to_seconds(int ticks, int ppq, int tempo) {
+    double us_per_tick = double(tempo) / double(ppq);
+    return ticks * us_per_tick / 1'000'000.0;
+}

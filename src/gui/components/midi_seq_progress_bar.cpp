@@ -56,7 +56,7 @@ void MidiSequenceProgressBar::resizeEvent(QResizeEvent *event) {
 }
 
 void MidiSequenceProgressBar::setCurrentTime(float seconds) {
-    if (std::abs(std::ceil(current_time) - std::ceil(seconds)) < 1) return;
+    //if (std::abs(current_time - seconds) < 0.25) return;
     current_time = std::clamp(seconds, 0.f, total_time);
     update();
 }
@@ -191,25 +191,41 @@ void MidiSequenceProgressBar::paintEvent(QPaintEvent *event) {
     p.end();
 }
 
-// --- Mouse click for seeking ---
-void MidiSequenceProgressBar::mousePressEvent(QMouseEvent *event) {
+// --- Mouse seeking ---
+float MidiSequenceProgressBar::mapMouseEventToTime(QMouseEvent *event) const {
     int w = width();
     int label_width = 34;
-    int label_padding = 11; // match above
+    int label_padding = 11;
     int box_pad = 2;
     int bar_left = label_width + label_padding;
     int bar_right = w - (label_width + label_padding);
     int bar_width = bar_right - bar_left;
     int bar_top = box_pad;
     int bar_bottom = height() - box_pad - 1;
-    int bar_height = bar_bottom - bar_top + 1;
-    if (event->y() < bar_top || event->y() > bar_bottom) return;
 
-    if (event->x() >= bar_left && event->x() <= bar_right) {
-        float rel = float(event->x() - bar_left) / bar_width;
-        float sec = rel * total_time;
-        emit positionClicked(sec);
-    }
+    if (event->position().x() < bar_left || event->position().y() > bar_bottom) return -1.f;
+    if (event->position().x() < bar_left || event->position().x() > bar_right) return -1.f;
+
+    float rel = float(event->position().x() - bar_left) / bar_width;
+    return rel * total_time;
+}
+
+void MidiSequenceProgressBar::mousePressEvent(QMouseEvent *event) {
+    float sec = mapMouseEventToTime(event);
+    if (sec >= 0.f)
+        emit positionPressed(sec);
+}
+
+void MidiSequenceProgressBar::mouseMoveEvent(QMouseEvent *event) {
+    float sec = mapMouseEventToTime(event);
+    if (sec >= 0.f)
+        emit positionDragged(sec);
+}
+
+void MidiSequenceProgressBar::mouseReleaseEvent(QMouseEvent *event) {
+    float sec = mapMouseEventToTime(event);
+    if (sec >= 0.f)
+        emit positionReleased(sec);
 }
 
 // --- Waveform: Precompute from MIDI sequence ---
@@ -253,10 +269,16 @@ void MidiSequenceProgressBar::refreshWaveform() {
         }
     }
 
-    float avg_val = std::accumulate(buckets.begin(), buckets.end(), 0.0f) / N;
+    std::vector<float> sorted_buckets = buckets;
+    std::sort(sorted_buckets.begin(), sorted_buckets.end());
+
+    float percentile = 0.98;
+    int idx = std::min(N-1, int(N * percentile));
+    float norm_value = sorted_buckets[idx];
+    if (norm_value < 1.0f) norm_value = 1.0f; 
+
     for (int i = 0; i < N; ++i) {
-        waveform[i] =
-            (avg_val > 0.01f) ? std::clamp(buckets[i] / avg_val, 0.f, 1.f) : 0.f;
+        waveform[i] = std::clamp(buckets[i] / norm_value, 0.f, 1.f);
         waveform[i] = std::pow(waveform[i], 0.7f);
-    }
+}
 }

@@ -40,17 +40,28 @@ QIcon instrument_icon(const QString &instrument_name) {
 }
 
 QPushButton *create_small_button(const QString &iconPath, const QString &tooltip,
-                                 const char *objname, QWidget *parent) {
+                                 const char *objname, int size, QWidget *parent) {
     QPushButton *btn = new QPushButton(parent);
     btn->setObjectName(objname);
     btn->setIcon(QIcon(iconPath));
     btn->setToolTip(tooltip);
     btn->setFlat(true);
-    btn->setFixedSize(26, 26);
-    btn->setStyleSheet("QPushButton { background: transparent; border: none; "
-                       "border-radius: 6px; min-width: 24px; max-width: 24px; "
-                       "min-height: 24px; max-height: 24px; padding: 0px;}"
-                       "QPushButton:hover { background: #3477c0; color: #fff; }");
+    btn->setFixedSize(size, size);
+    QString style = R"(
+        QPushButton { 
+            background: transparent; 
+            border: none; 
+            border-radius: %2; 
+            min-width: %1; 
+            max-width: %1; 
+            min-height: %1; 
+            max-height: %1; 
+            padding: 0px; 
+        }
+        QPushButton:hover { background: #3477c0; color: #fff; }
+        QPushButton:checked {background: #3477c0;border: 1px solid #79b8ff; }
+    )";
+    btn->setStyleSheet(style.arg(size - 2).arg(size / 5));
     return btn;
 };
 

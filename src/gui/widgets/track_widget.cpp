@@ -53,43 +53,22 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     connect(name_edit, &QLineEdit::editingFinished, this, &TrackWidget::onNameEdited);
     header_hbox->addWidget(name_edit, 1);
 
-    color_btn = new QPushButton();
-    color_btn->setObjectName("ColorButton");
-    color_btn->setToolTip("Change Track Color");
-    color_btn->setFlat(true);
-    color_btn->setCursor(Qt::PointingHandCursor);
-    color_btn->setIconSize(QSize(16, 16));
+    color_btn = create_small_button(":/icons/color.svg", "Change Track Color", "ColorButton", 18);
     connect(color_btn, &QPushButton::clicked, this, &TrackWidget::colorSelect);
     header_hbox->addWidget(color_btn, 0);
 
-    invisible_btn = new QPushButton();
-    invisible_btn->setObjectName("VisibilityButton");
+    invisible_btn = create_small_button(":/icons/eye-visible.svg", "Toggle Track Visibility", "InvisibleButton", 18);
     invisible_btn->setCheckable(true);
-    invisible_btn->setToolTip("Toggle Track Visibility");
-    invisible_btn->setFlat(true);
-    invisible_btn->setCursor(Qt::PointingHandCursor);
-    invisible_btn->setIconSize(QSize(16, 16));
     connect(invisible_btn, &QPushButton::clicked, this, &TrackWidget::onToggleVisibility);
     header_hbox->addWidget(invisible_btn, 0);
 
-    solo_btn = new QPushButton();
-    solo_btn->setObjectName("SoloButton");
+    solo_btn = create_small_button(":/icons/solo.svg", "Toggle Solo Mode", "SoloButton", 18);
     solo_btn->setCheckable(true);
-    solo_btn->setToolTip("Toggle Solo Mode");
-    solo_btn->setIcon(QIcon(":/icons/solo.svg"));
-    solo_btn->setFlat(true);
-    solo_btn->setCursor(Qt::PointingHandCursor);
-    solo_btn->setIconSize(QSize(16, 16));
     connect(solo_btn, &QPushButton::clicked, this, &TrackWidget::onToggleSolo);
     header_hbox->addWidget(solo_btn, 0);
 
-    mute_btn = new QPushButton();
-    mute_btn->setObjectName("MuteButton");
+    mute_btn = create_small_button(":/icons/sound-on.svg", "Toggle Track Mute/Play", "MuteButton", 18);
     mute_btn->setCheckable(true);
-    mute_btn->setToolTip("Toggle Track Mute/Play");
-    mute_btn->setFlat(true);
-    mute_btn->setCursor(Qt::PointingHandCursor);
-    mute_btn->setIconSize(QSize(16, 16));
     connect(mute_btn, &QPushButton::clicked, this, &TrackWidget::onToggleMute);
     header_hbox->addWidget(mute_btn, 0);
 
@@ -210,24 +189,6 @@ void TrackWidget::refreshStyle(bool selected, bool darker_bg)
             font-size: 11px;
             min-width: 18px; max-width: 18px;
             padding: 1px 3px;
-        }
-        QPushButton#ColorButton,
-        QPushButton#VisibilityButton,
-        QPushButton#MuteButton,
-        QPushButton#SoloButton {
-            min-width: 16px;
-            max-width: 16px;
-            min-height: 16px;
-            max-height: 16px;
-            padding: 0px;
-            border: none;
-            background: transparent;
-        }
-        QPushButton#MuteButton:checked,
-        QPushButton#VisibilityButton:checked,
-        QPushButton#SoloButton:checked {
-            background: #3477c0;
-            border: 1px solid #79b8ff;
         }
         QPushButton#InstrumentButton {
             min-width: 32px;

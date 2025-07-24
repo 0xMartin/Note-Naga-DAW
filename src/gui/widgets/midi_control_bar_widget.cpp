@@ -85,6 +85,12 @@ void MidiControlBarWidget::initUI() {
     // Midi progress bar
     progress_bar = new MidiSequenceProgressBar(this);
     progress_bar->setObjectName("midiProgressBar");
+    connect(progress_bar, &MidiSequenceProgressBar::positionPressed, this,
+            &MidiControlBarWidget::onProgressBarPositionPressed);
+    connect(progress_bar, &MidiSequenceProgressBar::positionDragged, this,
+            &MidiControlBarWidget::onProgressBarPositionDragged);
+    connect(progress_bar, &MidiSequenceProgressBar::positionReleased, this,
+            &MidiControlBarWidget::onProgressBarPositionReleased);
     hbox->addWidget(progress_bar);
 
     //////////////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +192,7 @@ void MidiControlBarWidget::setPlaying(bool is_playing) {
     } else {
         play_btn->setIcon(QIcon(":/icons/play.svg"));
     }
+    play_btn->update();
 }
 
 void MidiControlBarWidget::editTempo(QMouseEvent *event) {
@@ -216,6 +223,44 @@ bool MidiControlBarWidget::eventFilter(QObject *obj, QEvent *event) {
 void MidiControlBarWidget::metronomeBtnClicked() {
     metronome_on = metronome_btn->isChecked();
     emit metronomeToggled(metronome_on);
+}
+
+void MidiControlBarWidget::onProgressBarPositionPressed(float seconds) {
+    NoteNagaProject *project = this->engine->getProject();
+    if (!project) return;
+
+    // Calculate tick position based on seconds
+    int tick_position = nn_seconds_to_ticks(seconds, this->ppq, this->tempo);
+
+    // Set the current tick to the calculated position
+    was_playing = engine->isPlaying();
+    if (was_playing) engine->stopPlayback();
+    project->setCurrentTick(tick_position);
+
+    // Update the progress bar and other UI elements
+    updateProgressBar();
+
+    emit playPositionChanged(seconds, tick_position);
+}
+
+void MidiControlBarWidget::onProgressBarPositionDragged(float seconds) {
+    NoteNagaProject *project = this->engine->getProject();
+    if (!project) return;
+
+    // Calculate tick position based on seconds
+    int tick_position = nn_seconds_to_ticks(seconds, this->ppq, this->tempo);
+
+    // Set the current tick to the calculated position
+    project->setCurrentTick(tick_position);
+
+    // Update the progress bar and other UI elements
+    updateProgressBar();
+
+    emit playPositionChanged(seconds, tick_position);
+}
+
+void MidiControlBarWidget::onProgressBarPositionReleased(float seconds) {
+    if (was_playing) engine->startPlayback();
 }
 
 QString MidiControlBarWidget::format_time(double sec) {

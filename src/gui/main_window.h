@@ -31,6 +31,7 @@ private slots:
     void on_playing_state_changed(bool playing);
     void goto_start();
     void goto_end();
+    void onControlBarPositionClicked(float seconds, int tick_position);
     void open_midi();
     void export_midi();
     void current_tick_position_changed(int current_tick);

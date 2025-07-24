@@ -556,7 +556,7 @@ public:
     /**
      * @brief Sets the tempo (BPM). In microseconds per quarter note.
      * @param tempo Tempo value.
-     * @note seq->getTempo(60'000'000.0 / bpm); // Convert to BPM
+     * @note seq->getTempo(60'000'000.0 / bpm); // Convert to BPM in seconds in seconds
      */
     void setTempo(int tempo);
 
@@ -666,3 +666,25 @@ NOTE_NAGA_ENGINE_API extern std::string nn_note_name(int n);
  * @return Index in octave (0-11).
  */
 NOTE_NAGA_ENGINE_API extern int nn_index_in_octave(int n);
+
+/*******************************************************************************************************/
+// Time / Tick Utils
+/*******************************************************************************************************/
+
+/**
+ * @brief Converts seconds to ticks based on PPQ and tempo.
+ * @param seconds Time in seconds.
+ * @param ppq Pulses per quarter note (pulses per quarter note).
+ * @param tempo Tempo in BPM (In microseconds per quarter note).
+ * @return Number of ticks.
+ */
+NOTE_NAGA_ENGINE_API extern double nn_seconds_to_ticks(double seconds, int ppq, int tempo);
+
+/**
+ * @brief Converts ticks to seconds based on PPQ and tempo.
+ * @param ticks Number of ticks.
+ * @param ppq Pulses per quarter note (pulses per quarter note).
+ * @param tempo Tempo in BPM (In microseconds per quarter note).
+ * @return Time in seconds.
+ */
+NOTE_NAGA_ENGINE_API extern double nn_ticks_to_seconds(int ticks, int ppq, int tempo);

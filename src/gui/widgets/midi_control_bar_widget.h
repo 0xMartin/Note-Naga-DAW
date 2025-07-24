@@ -59,10 +59,21 @@ signals:
      */
     void metronomeToggled(bool state);
 
+    /**
+     * @brief Signal emitted when the progress bar position is changed.
+     * @param seconds Position in seconds.
+     * @param tick_position Position in ticks 
+     */
+    void playPositionChanged(float seconds, int tick_position);
+
 private slots:
     void updateBPM();
     void updateProgressBar();
     void metronomeBtnClicked();
+
+    void onProgressBarPositionPressed(float seconds);
+    void onProgressBarPositionDragged(float seconds);
+    void onProgressBarPositionReleased(float seconds);
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
@@ -74,6 +85,7 @@ private:
     int tempo;
     int max_tick;
     bool metronome_on;
+    bool was_playing;
 
     QLabel* tempo_label;
     QLabel* tempo_icon;

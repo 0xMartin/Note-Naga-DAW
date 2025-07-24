@@ -33,11 +33,13 @@ extern QIcon instrument_icon(const QString &instrument_name = "piano");
  * @param iconPath Path to the icon file.
  * @param tooltip Tooltip text for the button.
  * @param objname Object name for the button.
+ * @param size Size of the button, default is 32x32 pixels.
  * @param parent Parent widget for the button, default is nullptr.
  * @return Pointer to the created QPushButton.
  */
 extern QPushButton *create_small_button(const QString &iconPath, const QString &tooltip,
-                                        const char *objname, QWidget *parent = nullptr);
+                                        const char *objname, int size = 24,
+                                        QWidget *parent = nullptr);
 
 /**
  * @brief Create a separator widget with a specified orientation.

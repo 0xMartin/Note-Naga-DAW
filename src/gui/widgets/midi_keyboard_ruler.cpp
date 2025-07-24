@@ -20,9 +20,14 @@ MidiKeyboardRuler::MidiKeyboardRuler(NoteNagaEngine *engine_, int viewer_row_hei
       white_key_line_color("#b0b8c8"), black_key_line_color("#242a30"),
       hover_color("#7e93be"), press_color("#4f76c4"),
       c_key_label_color("rgba(28, 48, 94, 1)") {
+
     this->pressed_note.note = -1;
+
     connect(engine->getMixer(), &NoteNagaMixer::noteInSignal, this,
             &MidiKeyboardRuler::handleNotePlay);
+    connect(this->engine, &NoteNagaEngine::playbackStopped, this,
+            [this]() { this->clearHighlights(); });
+
     setObjectName("MidiKeyboardRuler");
     setMinimumWidth(60);
     setMouseTracking(true);
@@ -217,12 +222,10 @@ void MidiKeyboardRuler::leaveEvent(QEvent *event) {
 void MidiKeyboardRuler::mousePressEvent(QMouseEvent *event) {
     NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
     if (!seq) {
-        qDebug() << "No active sequence to play note on.";
         return;
     }
     NoteNagaTrack *track = seq->getActiveTrack();
     if (!track) {
-        qDebug() << "No active track to play note on.";
         return;
     }
 
