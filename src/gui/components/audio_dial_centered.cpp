@@ -34,7 +34,7 @@ AudioDialCentered::AudioDialCentered(QWidget* parent)
       _value_postfix(""),
       _value_decimals(2)
 {
-    setMinimumSize(40, 60);
+    setMinimumSize(30, 55);
     setMouseTracking(true);
     updateGeometryCache();
 }

@@ -29,8 +29,8 @@ void RoutingEntryWidget::setupUI() {
 
     // Main Layout
     QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(2, 1, 2, 1);
-    layout->setSpacing(5);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(3);
 
     // ----- Side Panel -----
     QWidget *sidePanel = new QWidget(this);
