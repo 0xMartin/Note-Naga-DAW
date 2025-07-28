@@ -42,6 +42,8 @@ set(HEADER_FILES
     src/gui/components/multi_channel_volume_bar.h
     src/gui/components/volume_bar.h
     src/gui/components/separator.h
+    src/gui/components/audio_vertical_slider.h
+    src/gui/components/button_group_widget.h
     # gui/dialogs
     src/gui/dialogs/instrument_selector_dialog.h
     # gui/widgets
@@ -73,6 +75,8 @@ set(SOURCE_FILES
     src/gui/components/multi_channel_volume_bar.cpp
     src/gui/components/volume_bar.cpp
     src/gui/components/separator.cpp
+    src/gui/components/audio_vertical_slider.cpp
+    src/gui/components/button_group_widget.cpp
     # gui/dialogs
     src/gui/dialogs/instrument_selector_dialog.cpp
     # gui/widgets

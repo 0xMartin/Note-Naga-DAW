@@ -10,6 +10,7 @@
 
 #include <note_naga_engine/note_naga_engine.h>
 #include "../components/midi_seq_progress_bar.h"
+#include "../components/button_group_widget.h"
 
 /**
  * @brief The MidiControlBarWidget class provides a control bar for MIDI playback.
@@ -90,12 +91,16 @@ private:
     QLabel* tempo_label;
     QLabel* tempo_icon;
     MidiSequenceProgressBar* progress_bar;
-    QPushButton* play_btn;
-    QPushButton* to_start_btn;
-    QPushButton* to_end_btn;
+    ButtonGroupWidget* playback_btn_group;
     QPushButton* metronome_btn;
 
     void initUI();
     void editTempo(QMouseEvent* event);
     static QString format_time(double sec);
+
+/*******************************************************************************************************/
+// Signal and Slots
+/*******************************************************************************************************/
+
+
 };

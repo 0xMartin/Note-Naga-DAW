@@ -255,9 +255,13 @@ void MidiKeyboardRuler::mouseReleaseEvent(QMouseEvent *event) {
     QWidget::mouseReleaseEvent(event);
 }
 
-void MidiKeyboardRuler::setVerticalScroll(float v, float row_height) {
-    viewer_row_height = int(row_height);
-    verticalScroll = -int(v);
+void MidiKeyboardRuler::setRowHeight(int height) {
+    this->viewer_row_height = height;
+    update();
+}
+
+void MidiKeyboardRuler::setVerticalScroll(float value) {
+    this->verticalScroll = -int(value);
     update();
 }
 

@@ -42,39 +42,6 @@ public:
     QColor press_color;
     QColor c_key_label_color;
 
-signals:
-    /**
-     * @brief Signal emitted when a note is pressed.
-     * @param note The NN_Note_t that was pressed.
-     */
-    void notePressed(const NN_Note_t &note);
-
-    /**
-     * @brief Signal emitted when a note is released.
-     * @param note The NN_Note_t that was released.
-     */
-    void noteReleased(const NN_Note_t &note);
-
-public slots:
-    /**
-     * @brief Slot to handle playing a note. Highlights the key with a color of note
-     * track.
-     * @param note The NN_Note_t to play.
-     */
-    void handleNotePlay(const NN_Note_t &note);
-
-    /**
-     * @brief Slot to clear all key highlights.
-     */
-    void clearHighlights();
-
-    /**
-     * @brief Slot to set the vertical scroll position and row height.
-     * @param v Vertical scroll position.
-     * @param row_height Height of each row in the viewer.
-     */
-    void setVerticalScroll(float v, float row_height);
-
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -110,4 +77,46 @@ private:
     static constexpr int BLACK_ORDER[5] = {1, 3, 6, 8, 10};
     static constexpr double WHITE_HEIGHT[12] = {1.5, 0.0, 2.0, 0.0, 1.5, 1.5,
                                                 0.0, 2.0, 0.0, 2.0, 0.0, 1.5};
+
+/*******************************************************************************************************/
+// Signal and Slots
+/*******************************************************************************************************/
+
+signals:
+    /**
+     * @brief Signal emitted when a note is pressed.
+     * @param note The NN_Note_t that was pressed.
+     */
+    void notePressed(const NN_Note_t &note);
+
+    /**
+     * @brief Signal emitted when a note is released.
+     * @param note The NN_Note_t that was released.
+     */
+    void noteReleased(const NN_Note_t &note);
+
+public slots:
+    /**
+     * @brief Slot to handle playing a note. Highlights the key with a color of note
+     * track.
+     * @param note The NN_Note_t to play.
+     */
+    void handleNotePlay(const NN_Note_t &note);
+
+    /**
+     * @brief Slot to clear all key highlights.
+     */
+    void clearHighlights();
+
+    /**
+     * @brief Slot to set the vertical scroll position.
+     * @param v Vertical scroll position.
+     */
+    void setRowHeight(int height);
+
+    /**
+     * @brief Slot to set the vertical scroll position and row height.
+     * @param value Vertical scroll position.
+     */
+    void setVerticalScroll(float value);
 };

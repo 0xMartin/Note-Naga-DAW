@@ -40,20 +40,6 @@ public:
      */
     IndicatorLedWidget *getIndicatorLed() const { return indicator_led; }
 
-public slots:
-    /**
-     * @brief Refreshes the style of the widget based on selection.
-     * @param selected True if the widget is selected, false otherwise.
-     * @param darker_bg True if the background should be darker, false otherwise.
-     */
-    void refreshStyle(bool selected, bool darker_bg);
-
-signals:
-    /**
-     * @brief Signal emitted when the routing entry is clicked.
-     */
-    void clicked();
-
 protected:
     void mousePressEvent(QMouseEvent *event) override;
 
@@ -74,6 +60,24 @@ private:
     void populateTrackComboBox(NoteNagaTrack *track);
     void populateOutputComboBox();
     void setComboBoxSelections();
+
+/*******************************************************************************************************/
+// Signal and Slots
+/*******************************************************************************************************/
+
+public slots:
+    /**
+     * @brief Refreshes the style of the widget based on selection.
+     * @param selected True if the widget is selected, false otherwise.
+     * @param darker_bg True if the background should be darker, false otherwise.
+     */
+    void refreshStyle(bool selected, bool darker_bg);
+
+signals:
+    /**
+     * @brief Signal emitted when the routing entry is clicked.
+     */
+    void clicked();
 
 private slots:
     void onTrackMetadataChanged(NoteNagaTrack *track);

@@ -30,10 +30,6 @@ public:
      */
     QWidget *getTitleWidget() const { return this->title_widget; }
 
-private slots:
-    void reloadTracks(NoteNagaMidiSeq *seq);
-    void handlePlayingNote(const NN_Note_t& note);
-
 private:
     NoteNagaEngine* engine;
 
@@ -48,4 +44,11 @@ private:
     void initTitleUI();
     void initUI();
     void updateSelection(NoteNagaMidiSeq *sequence, int widget_idx);
+
+/*******************************************************************************************************/
+// Signal and Slots
+/*******************************************************************************************************/
+private slots:
+    void reloadTracks(NoteNagaMidiSeq *seq);
+    void handlePlayingNote(const NN_Note_t& note);
 };

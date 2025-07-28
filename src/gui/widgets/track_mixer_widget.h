@@ -39,27 +39,6 @@ public:
      */
     QWidget *getTitleWidget() const { return this->title_widget; }
 
-public slots:
-    /**
-     * @brief Refreshes the routing table GUI with active routing entries.
-     */
-    void refresh_routing_table();
-
-private slots:
-    void onMinNoteChanged(float value);
-    void onMaxNoteChanged(float value);
-    void onGlobalOffsetChanged(float value);
-    void onGlobalVolumeChanged(float value);
-    void onGlobalPanChanged(float value);
-
-    void onAddEntry();
-    void onRemoveSelectedEntry();
-    void onClearRoutingTable();
-    void onDefaultEntries();
-    void onMaxVolumeAllTracks();
-    void onMinVolumeAllTracks();
-    void handlePlayingNote(const NN_Note_t& note, const std::string& device_name, int channel);
-
 private:
     NoteNagaEngine* engine;
 
@@ -88,4 +67,28 @@ private:
     void initTitleUI();
     void setChannelOutputValue(const std::string& device, int channel_idx, float value, int time_ms = -1);
     void updateEntrySelection(int idx);
+
+/*******************************************************************************************************/
+// Signal and Slots
+/*******************************************************************************************************/
+public slots:
+    /**
+     * @brief Refreshes the routing table GUI with active routing entries.
+     */
+    void refresh_routing_table();
+
+private slots:
+    void onMinNoteChanged(float value);
+    void onMaxNoteChanged(float value);
+    void onGlobalOffsetChanged(float value);
+    void onGlobalVolumeChanged(float value);
+    void onGlobalPanChanged(float value);
+
+    void onAddEntry();
+    void onRemoveSelectedEntry();
+    void onClearRoutingTable();
+    void onDefaultEntries();
+    void onMaxVolumeAllTracks();
+    void onMinVolumeAllTracks();
+    void handlePlayingNote(const NN_Note_t& note, const std::string& device_name, int channel);
 };

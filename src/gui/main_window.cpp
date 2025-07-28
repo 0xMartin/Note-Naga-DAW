@@ -39,11 +39,6 @@ void MainWindow::setup_actions() {
     action_quit = new QAction("Quit", this);
     connect(action_quit, &QAction::triggered, this, &MainWindow::close);
 
-    action_zoom_in = new QAction(QIcon(":/icons/zoom-in.svg"), "Zoom In", this);
-    connect(action_zoom_in, &QAction::triggered, this, &MainWindow::zoom_in_x);
-    action_zoom_out = new QAction(QIcon(":/icons/zoom-out.svg"), "Zoom Out", this);
-    connect(action_zoom_out, &QAction::triggered, this, &MainWindow::zoom_out_x);
-
     action_auto_follow = new QAction("Auto-Follow Playback", this);
     action_auto_follow->setCheckable(true);
     action_auto_follow->setChecked(auto_follow);
@@ -101,9 +96,6 @@ void MainWindow::setup_menu_bar() {
     file_menu->addAction(action_quit);
 
     QMenu *view_menu = menubar->addMenu("View");
-    view_menu->addAction(action_zoom_in);
-    view_menu->addAction(action_zoom_out);
-    view_menu->addSeparator();
     view_menu->addAction(action_auto_follow);
     view_menu->addSeparator();
     view_menu->addAction(action_toggle_editor);
@@ -131,8 +123,6 @@ void MainWindow::setup_toolbar() {
     toolbar->addAction(action_open);
     toolbar->addAction(action_export);
     toolbar->addSeparator();
-    toolbar->addAction(action_zoom_in);
-    toolbar->addAction(action_zoom_out);
 }
 
 void MainWindow::setup_dock_layout() {
@@ -150,7 +140,7 @@ void MainWindow::setup_dock_layout() {
     midi_keyboard_ruler = new MidiKeyboardRuler(this->engine, 16, this);
     midi_keyboard_ruler->setFixedWidth(60);
     midi_tact_ruler = new MidiTactRuler(this->engine, this);
-    midi_tact_ruler->setTimeScale(midi_editor->getTimeScale());
+    midi_tact_ruler->setTimeScale(midi_editor->getConfig()->time_scale);
 
     grid->addWidget(new QWidget(), 0, 0);
     grid->addWidget(midi_tact_ruler, 0, 1);
@@ -168,8 +158,8 @@ void MainWindow::setup_dock_layout() {
     QWidget *editor_container = new QWidget();
     editor_container->setLayout(editor_layout);
 
-    auto *editor_dock =
-        new AdvancedDockWidget("MIDI Editor", QIcon(":/icons/midi.svg"), midi_editor->getTitleWidget(), this);
+    auto *editor_dock = new AdvancedDockWidget("MIDI Editor", QIcon(":/icons/midi.svg"),
+                                               midi_editor->getTitleWidget(), this);
     editor_dock->setWidget(editor_container);
     editor_dock->setObjectName("editor");
     editor_dock->setAllowedAreas(Qt::AllDockWidgetAreas);
@@ -202,8 +192,8 @@ void MainWindow::setup_dock_layout() {
 
     // === Mixer dock ===
     mixer_widget = new TrackMixerWidget(this->engine, this);
-    auto *mixer_dock =
-        new AdvancedDockWidget("Track Mixer", QIcon(":/icons/mixer.svg"), mixer_widget->getTitleWidget(), this);
+    auto *mixer_dock = new AdvancedDockWidget("Track Mixer", QIcon(":/icons/mixer.svg"),
+                                              mixer_widget->getTitleWidget(), this);
     mixer_dock->setWidget(mixer_widget);
     mixer_dock->setObjectName("mixer");
     mixer_dock->setAllowedAreas(Qt::AllDockWidgetAreas);
@@ -297,8 +287,6 @@ void MainWindow::connect_signals() {
     // Connect engine signals
     connect(engine->getPlaybackWorker(), &PlaybackWorker::playingStateChanged, this,
             &MainWindow::on_playing_state_changed);
-    connect(engine->getProject(), &NoteNagaProject::currentTickChanged, this,
-            &MainWindow::current_tick_position_changed);
 
     // Connect control bar signals
     connect(control_bar, &MidiControlBarWidget::playToggled, this,
@@ -309,13 +297,14 @@ void MainWindow::connect_signals() {
             &MainWindow::onControlBarPositionClicked);
 
     // editor scroll signals
-    auto *hbar = midi_editor->horizontalScrollBar();
-    auto *vbar = midi_editor->verticalScrollBar();
-    connect(hbar, &QScrollBar::valueChanged, midi_tact_ruler,
+    connect(midi_editor, &MidiEditorWidget::horizontalScrollChanged, midi_tact_ruler,
             &MidiTactRuler::setHorizontalScroll);
-    connect(vbar, &QScrollBar::valueChanged, [this](int v) {
-        midi_keyboard_ruler->setVerticalScroll(v, midi_editor->getKeyHeight());
-    });
+    connect(midi_editor, &MidiEditorWidget::timeScaleChanged, midi_tact_ruler,
+            &MidiTactRuler::setTimeScale);
+    connect(midi_editor, &MidiEditorWidget::verticalScrollChanged, midi_keyboard_ruler,
+            &MidiKeyboardRuler::setVerticalScroll);
+    connect(midi_editor, &MidiEditorWidget::keyHeightChanged, midi_keyboard_ruler,
+            &MidiKeyboardRuler::setRowHeight);
 }
 
 void MainWindow::set_auto_follow(bool checked) { auto_follow = checked; }
@@ -328,20 +317,9 @@ void MainWindow::toggle_play() {
     }
 }
 
-void MainWindow::zoom_in_x() {
-    double scale = std::min(2.0, midi_editor->getTimeScale() * 1.3);
-    midi_editor->setTimeScale(scale);
-    midi_tact_ruler->setTimeScale(scale);
-}
-
-void MainWindow::zoom_out_x() {
-    double scale = std::max(0.02, midi_editor->getTimeScale() / 1.3);
-    midi_editor->setTimeScale(scale);
-    midi_tact_ruler->setTimeScale(scale);
-}
-
 void MainWindow::on_playing_state_changed(bool playing) {
-    action_toolbar_play->setIcon(QIcon(playing ? ":/icons/stop.svg" : ":/icons/play.svg"));
+    action_toolbar_play->setIcon(
+        QIcon(playing ? ":/icons/stop.svg" : ":/icons/play.svg"));
 }
 
 void MainWindow::goto_start() {
@@ -356,7 +334,7 @@ void MainWindow::goto_end() {
 }
 
 void MainWindow::onControlBarPositionClicked(float seconds, int tick_position) {
-    int marker_x = int(tick_position * midi_editor->getTimeScale());
+    int marker_x = int(tick_position * midi_editor->getConfig()->time_scale);
     int width = midi_editor->viewport()->width();
     int margin = width / 2;
     int value = std::max(0, marker_x - margin);
@@ -383,17 +361,6 @@ void MainWindow::open_midi() {
 void MainWindow::export_midi() {
     QString fname = QFileDialog::getSaveFileName(this, "Export as MIDI", "",
                                                  "MIDI Files (*.mid *.midi)");
-}
-
-void MainWindow::current_tick_position_changed(int current_tick) {
-    if (auto_follow && engine->isPlaying()) {
-        int marker_x = int(current_tick * midi_editor->getTimeScale());
-        int width = midi_editor->viewport()->width();
-        int margin = width / 2;
-        int value = std::max(0, marker_x - margin);
-        midi_editor->horizontalScrollBar()->setValue(value);
-        midi_tact_ruler->setHorizontalScroll(value);
-    }
 }
 
 void MainWindow::reset_all_colors() {

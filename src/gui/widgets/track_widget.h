@@ -45,6 +45,25 @@ public:
      */
     VolumeBar *getVolumeBar() const { return volume_bar; }
 
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+
+private:
+    NoteNagaTrack *track;
+    NoteNagaEngine *engine;
+
+    QPushButton *instrument_btn;
+    QLabel *index_lbl;
+    QLineEdit *name_edit;
+    QPushButton *color_btn;
+    QPushButton *invisible_btn;
+    QPushButton *solo_btn;
+    QPushButton *mute_btn;
+    VolumeBar *volume_bar;
+
+/*******************************************************************************************************/
+// Signal and Slots
+/*******************************************************************************************************/
 public slots:
     /**
      * @brief Refreshes the widget's style based on the track's state.
@@ -59,10 +78,7 @@ signals:
      * @param track_id ID of the clicked track.
      */
     void clicked(int track_id);
-
-protected:
-    void mousePressEvent(QMouseEvent *event) override;
-
+    
 private slots:
     void updateTrackInfo(NoteNagaTrack *track, const std::string &param);
     void onToggleVisibility();
@@ -71,17 +87,4 @@ private slots:
     void onNameEdited();
     void colorSelect();
     void instrumentSelect();
-
-private:
-    NoteNagaTrack *track;
-    NoteNagaEngine *engine;
-
-    QPushButton *instrument_btn;
-    QLabel *index_lbl;
-    QLineEdit *name_edit;
-    QPushButton *color_btn;
-    QPushButton *invisible_btn;
-    QPushButton *solo_btn;
-    QPushButton *mute_btn;
-    VolumeBar *volume_bar;
 };

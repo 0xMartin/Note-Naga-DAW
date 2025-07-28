@@ -54,32 +54,23 @@ void MidiControlBarWidget::initUI() {
     hbox->setSpacing(8);
 
     //////////////////////////////////////////////////////////////////////////////////////////
-    // Start button
-    to_start_btn = new QPushButton();
-    to_start_btn->setObjectName("toStartBtn");
-    to_start_btn->setIcon(QIcon(":/icons/media-backward-end.svg"));
-    to_start_btn->setIconSize(QSize(21, 21));
-    to_start_btn->setCursor(Qt::PointingHandCursor);
-    connect(to_start_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goToStart);
-    hbox->addWidget(to_start_btn);
+    // main playback control buttons
+    QStringList btnNames = { "toStartBtn", "playToggleBtn", "toEndBtn" };
+    QList<QIcon> btnIcons = {
+        QIcon(":/icons/media-backward-end.svg"),
+        QIcon(":/icons/play.svg"),
+        QIcon(":/icons/media-forward-end.svg")
+    };
+    QStringList btnTips = { "Go to start", "Play/Stop", "Go to end" };
 
-    // Play/stop toggle button
-    play_btn = new QPushButton();
-    play_btn->setObjectName("playToggleBtn");
-    play_btn->setIcon(QIcon(":/icons/play.svg"));
-    play_btn->setIconSize(QSize(21, 21));
-    play_btn->setCursor(Qt::PointingHandCursor);
-    connect(play_btn, &QPushButton::clicked, this, &MidiControlBarWidget::playToggled);
-    hbox->addWidget(play_btn);
-
-    // End button
-    to_end_btn = new QPushButton();
-    to_end_btn->setObjectName("toEndBtn");
-    to_end_btn->setIcon(QIcon(":/icons/media-forward-end.svg"));
-    to_end_btn->setIconSize(QSize(21, 21));
-    to_end_btn->setCursor(Qt::PointingHandCursor);
-    connect(to_end_btn, &QPushButton::clicked, this, &MidiControlBarWidget::goToEnd);
-    hbox->addWidget(to_end_btn);
+    playback_btn_group = new ButtonGroupWidget(btnNames, btnIcons, btnTips, QSize(21,21), false, this);
+    connect(playback_btn_group, &ButtonGroupWidget::buttonClicked, this, [this](const QString& btn){
+        if (btn == "toStartBtn") goToStart();
+        else if (btn == "playToggleBtn") playToggled();
+        else if (btn == "toEndBtn") goToEnd();
+    });
+    playback_btn_group->button("playToggleBtn")->setCheckable(true);
+    hbox->addWidget(playback_btn_group);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     // Midi progress bar
@@ -124,7 +115,7 @@ void MidiControlBarWidget::initUI() {
     // styles
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setStyleSheet(R"(
-        QPushButton#playToggleBtn, QPushButton#toStartBtn, QPushButton#toEndBtn, QPushButton#metronomeBtn {
+        QPushButton#metronomeBtn {
             min-width: 32px;
             max-width: 32px;
             min-height: 32px;
@@ -132,8 +123,6 @@ void MidiControlBarWidget::initUI() {
             padding: 0px;
             border-radius: 8px;
             background: transparent;
-        }
-        QPushButton#metronomeBtn {
             background: #253a4c;
             border: 1.6px solid #4866a0;
         }
@@ -187,10 +176,14 @@ void MidiControlBarWidget::updateProgressBar() {
 }
 
 void MidiControlBarWidget::setPlaying(bool is_playing) {
+    QPushButton *play_btn = playback_btn_group->button("playToggleBtn");
+    if (!play_btn) return;
     if (is_playing) {
         play_btn->setIcon(QIcon(":/icons/stop.svg"));
+        play_btn->setChecked(true);
     } else {
         play_btn->setIcon(QIcon(":/icons/play.svg"));
+        play_btn->setChecked(false);
     }
     play_btn->update();
 }

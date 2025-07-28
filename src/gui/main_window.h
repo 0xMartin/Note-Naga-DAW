@@ -26,15 +26,12 @@ protected:
 private slots:
     void set_auto_follow(bool checked);
     void toggle_play();
-    void zoom_in_x();
-    void zoom_out_x();
     void on_playing_state_changed(bool playing);
     void goto_start();
     void goto_end();
     void onControlBarPositionClicked(float seconds, int tick_position);
     void open_midi();
     void export_midi();
-    void current_tick_position_changed(int current_tick);
     void reset_all_colors();
     void randomize_all_colors();
     void about_dialog();
@@ -50,8 +47,6 @@ private:
     QAction *action_open;
     QAction *action_export;
     QAction *action_quit;
-    QAction *action_zoom_in;
-    QAction *action_zoom_out;
     QAction *action_auto_follow;
     QAction *action_reset_colors;
     QAction *action_randomize_colors;

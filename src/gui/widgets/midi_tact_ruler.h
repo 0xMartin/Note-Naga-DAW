@@ -35,6 +35,20 @@ public:
     QColor tact_bg_color;
     QColor tact_line_color;
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+
+private:
+    NoteNagaEngine *engine;
+
+    double time_scale;
+    int horizontalScroll;
+    QFont font;
+
+/*******************************************************************************************************/
+// Signal and Slots
+/*******************************************************************************************************/
 public slots:
     /**
      * @brief Sets the horizontal scroll position. Must be same as the horizontal scroll
@@ -49,15 +63,5 @@ signals:
      * @param tick The tick position selected.
      */
     void positionSelected(int tick);
-
-protected:
-    void paintEvent(QPaintEvent *event) override;
-    void mousePressEvent(QMouseEvent *event) override;
-
-private:
-    NoteNagaEngine *engine;
-
-    double time_scale;
-    int horizontalScroll;
-    QFont font;
+    
 };

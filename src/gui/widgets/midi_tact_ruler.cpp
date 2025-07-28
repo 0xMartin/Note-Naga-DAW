@@ -28,7 +28,7 @@ void MidiTactRuler::setTimeScale(double time_scale) {
 }
 
 void MidiTactRuler::setHorizontalScroll(int val) {
-    horizontalScroll = val;
+    this->horizontalScroll = val;
     update();
 }
 
