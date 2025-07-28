@@ -1,6 +1,7 @@
 #pragma once
 
 #include <note_naga_engine/core/note_naga_component.h>
+#include <note_naga_engine/core/note_naga_synthesizer.h>
 #include <note_naga_engine/core/project_data.h>
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_api.h>
@@ -9,15 +10,13 @@
 #include <QObject>
 #endif
 
-#include <RtMidi.h>
-#include <fluidsynth.h>
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <atomic>
 
 #define TRACK_ROUTING_ENTRY_ANY_DEVICE "any"
 
@@ -37,32 +36,10 @@ struct NOTE_NAGA_ENGINE_API NoteNagaRoutingEntry {
     int note_offset;      ///< Note number offset
     float pan;            ///< Stereo pan (-1.0 left, 1.0 right)
 
-    /**
-     * @brief Constructor for a routing entry.
-     * @param track Pointer to the track.
-     * @param device Output device name.
-     * @param channel MIDI channel.
-     * @param volume Output volume multiplier (default 1.0f).
-     * @param note_offset Note number offset (default 0).
-     * @param pan Stereo pan position (default 0.0f).
-     */
     NoteNagaRoutingEntry(NoteNagaTrack *track, const std::string &device, int channel,
                          float volume = 1.0f, int note_offset = 0, float pan = 0.0f)
         : track(track), output(device), channel(channel), volume(volume),
           note_offset(note_offset), pan(pan) {}
-};
-
-/*******************************************************************************************************/
-// Queue Message
-/*******************************************************************************************************/
-
-/**
- * @brief Represents a message for the Note Naga Mixer queue. Place this struct in the queue
- * to communicate with the mixer component (thread safe and lock-free from multiple threads).
- */
-struct NOTE_NAGA_ENGINE_API NN_MixerMessage_t {
-    NN_Note_t note; /// <MIDI note to play or stop>
-    bool play; /// <True to play note, false to stop>
 };
 
 /*******************************************************************************************************/
@@ -78,11 +55,11 @@ struct NOTE_NAGA_ENGINE_API NN_MixerMessage_t {
 #ifndef QT_DEACTIVATED
 class NOTE_NAGA_ENGINE_API NoteNagaMixer
     : public QObject,
-      public NoteNagaEngineComponent<NN_MixerMessage_t, 1024> {
+      public NoteNagaEngineComponent<NN_SynthMessage_t, 1024> {
     Q_OBJECT
 #else
-class NOTE_NAGA_ENGINE_API NoteNagaMixer,
-    public NoteNagaEngineComponent<NN_MixerMessage_t, 1024> {
+class NOTE_NAGA_ENGINE_API NoteNagaMixer
+    : public NoteNagaEngineComponent<NN_SynthMessage_t, 1024> {
 #endif
 
 public:
@@ -97,6 +74,13 @@ public:
      * @brief Destroys the mixer, releasing all resources.
      */
     virtual ~NoteNagaMixer();
+
+    /**
+     * @brief Initializes the mixer and synthesizers.
+     */
+    void setSynthVectorRef(std::vector<NoteNagaSynthesizer *> *synthesizers) {
+        this->synthesizers = synthesizers;
+    }
 
     /**
      * @brief Detects available MIDI output devices.
@@ -199,6 +183,11 @@ public:
      */
     bool isPercussion(NoteNagaTrack *track) const;
 
+    /**
+     * @brief Buffer incoming play/stop notes and send them all at once to synthesizers.
+     */
+    void flushNotes();
+
     // GETTERS AND SETTERS for master controls
 
     float getMasterVolume() const { return master_volume.load(); }
@@ -218,103 +207,27 @@ protected:
      * @brief Thread-safe method to handle a dequeued item.
      * @param value The item to process.
      */
-    void onItem(const NN_MixerMessage_t &value) override;
+    void onItem(const NN_SynthMessage_t &value) override;
 
 private:
-    /********************************************************************************************************/
-    // Custom private types
-    /********************************************************************************************************/
-
-    /**
-     * @brief Represents a currently played note, including its device and channel.
-     */
-    struct PlayedNote {
-        int note_num;          ///< MIDI note number
-        unsigned long note_id; ///< Unique note identifier
-        std::string device;    ///< Output device name
-        int channel;           ///< MIDI channel
-    };
-
-    // Map from track pointer to a list of played notes
-    using TrackNotesMap = std::unordered_map<NoteNagaTrack *, std::vector<PlayedNote>>;
-
-    // Map from sequence pointer to map of track pointer to list of played notes
-    using SequenceNotesMap = std::unordered_map<NoteNagaMidiSeq *, TrackNotesMap>;
-
-    // Typedef for program/pan state (pair of ints)
-    using ProgramPanState = std::pair<int, int>;
-
-    // Map from channel (int) to (program, pan) state
-    using ChannelStateMap = std::unordered_map<int, ProgramPanState>;
-
-    // Map from device name to channel state map
-    using DeviceChannelStateMap = std::unordered_map<std::string, ChannelStateMap>;
-
-    // Map from device name to RtMidiOut pointer
-    using MidiOutputsMap = std::unordered_map<std::string, RtMidiOut *>;
-
-    /********************************************************************************************************/
-    // Private data members
-    /********************************************************************************************************/
-
     NoteNagaProject *project; ///< Pointer to the associated project
-    std::string sf2_path;     ///< Path to the SoundFont file
+    std::vector<NoteNagaSynthesizer *>
+        *synthesizers;    ///< List of synthesizers used by the mixer
+    std::string sf2_path; ///< Path to the SoundFont file
 
     std::vector<std::string>
         available_outputs;      ///< Names of available MIDI output devices
     std::string default_output; ///< Default output device name
     std::vector<NoteNagaRoutingEntry> routing_entries; ///< Current routing entries
 
-    MidiOutputsMap midi_outputs; ///< Map of output device names to RtMidiOut pointers
-    fluid_synth_t *fluidsynth;   ///< FluidSynth synthesizer instance
-    fluid_audio_driver_t *audio_driver; ///< FluidSynth audio driver
-    fluid_settings_t *synth_settings;   ///< FluidSynth settings
-
-    SequenceNotesMap playing_notes;       ///< Map of currently playing notes
-    DeviceChannelStateMap channel_states; ///< Map of device/channel state (program, pan)
-
-    // MASTER CONTROLS
     std::atomic<float> master_volume;    ///< Master volume multiplier
     std::atomic<int> master_min_note;    ///< Master minimum note value
     std::atomic<int> master_max_note;    ///< Master maximum note value
     std::atomic<int> master_note_offset; ///< Master note number offset
     std::atomic<float> master_pan;       ///< Master stereo pan position
 
-    /********************************************************************************************************/
-    // Private methods
-    /********************************************************************************************************/
-
-    /**
-     * @brief Helper to play a note on a specific output and channel.
-     * @param output Output device name.
-     * @param ch MIDI channel.
-     * @param note_num MIDI note number.
-     * @param velocity Note velocity.
-     * @param prog Program (instrument).
-     * @param pan_cc Pan control value.
-     * @param midi_note MIDI note data.
-     * @param seq Pointer to the MIDI sequence.
-     * @param track Pointer to the track.
-     */
-    void playNoteOnOutputDevice(const std::string &output, int ch, int note_num,
-                                int velocity, int prog, int pan_cc,
-                                const NN_Note_t &midi_note, NoteNagaMidiSeq *seq,
-                                NoteNagaTrack *track);
-
-    /**
-     * @brief Ensures that FluidSynth is initialized.
-     */
-    void ensureFluidsynth();
-
-    /**
-     * @brief Ensures that a MIDI output device is available and returns its pointer.
-     * @param device Output device name.
-     * @return Pointer to RtMidiOut.
-     */
-    RtMidiOut *ensureMidiOutput(const std::string &device);
-
-    // SIGNALS
-    // ////////////////////////////////////////////////////////////////////////////////
+    // Buffer for "flushNotes"
+    std::vector<NN_SynthMessage_t> note_buffer_;
 
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:

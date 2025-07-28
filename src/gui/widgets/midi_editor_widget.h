@@ -24,6 +24,7 @@ struct MidiEditorConfig {
     double time_scale; 
     int key_height;    
     int tact_subdiv;
+    bool looping;
     MidiEditorFollowMode follow_mode;
 };
 
@@ -88,6 +89,7 @@ private:
     QPushButton *btn_follow_left;
     QPushButton *btn_follow_step;
     QPushButton *btn_follow_none;
+    QPushButton *btn_looping;
 
     // --- Graphics scene and items ---
     QGraphicsScene *scene;
@@ -163,6 +165,12 @@ signals:
      */
     void keyHeightChanged(int height);
 
+    /**
+     * @brief Signal emitted when the looping state changes.
+     * @param enabled True if looping is enabled, false otherwise.
+     */
+    void loopingChanged(bool enabled);
+
 public slots:
     /**
      * @brief Sets the current MIDI sequence to edit.
@@ -186,4 +194,5 @@ private slots:
 
     // Control methods
     void selectFollowMode(MidiEditorFollowMode mode);
+    void enableLooping(bool enabled);
 };

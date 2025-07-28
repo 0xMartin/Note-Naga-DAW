@@ -5,6 +5,7 @@
 #include <note_naga_engine/core/project_data.h>
 #include <note_naga_engine/module/mixer.h>
 #include <note_naga_engine/module/playback_worker.h>
+#include <note_naga_engine/core/note_naga_synthesizer.h>
 
 #ifndef QT_DEACTIVATED
 #include <QObject>
@@ -120,6 +121,12 @@ public:
      */
     void soloTrack(NoteNagaTrack *track, bool solo = true);
 
+    /**
+     * @brief Enables or disables looping for the current sequence.
+     * @param enabled True to enable looping, false to disable.
+     */
+    void enableLooping(bool enabled);
+
     // --- Getters for main components ---
 
     /**
@@ -140,6 +147,12 @@ public:
      */
     PlaybackWorker *getPlaybackWorker() { return this->playback_worker; }
 
+    /**
+     * @brief Gets the list of available synthesizers.
+     * @return Vector of pointers to NoteNagaSynthesizer instances.
+     */
+    std::vector<NoteNagaSynthesizer*> getSynthesizers() { return this->synthesizers; }
+
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
     /**
@@ -156,4 +169,5 @@ protected:
     NoteNagaProject *project;        ///< Pointer to the current project instance
     NoteNagaMixer *mixer;            ///< Pointer to the mixer instance
     PlaybackWorker *playback_worker; ///< Pointer to the playback worker instance
+    std::vector<NoteNagaSynthesizer*> synthesizers; ///< List of synthesizers used by the engine
 };

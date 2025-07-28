@@ -26,6 +26,7 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     this->config.time_scale = 0.2; 
     this->config.key_height = 16;  
     this->config.tact_subdiv = 4;   
+    this->config.looping = false;
     
     this->content_width = 640;
     this->content_height = (127 - 0 + 1) * 16;
@@ -79,8 +80,6 @@ void MidiEditorWidget::setupConnections() {
 
     // scrollbars value changed'
     connect(horizontalScrollBar(), &QScrollBar::valueChanged, this,
-            &MidiEditorWidget::refreshAll);
-    connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
             &MidiEditorWidget::refreshAll);
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
             &MidiEditorWidget::refreshAll);
@@ -144,9 +143,13 @@ void MidiEditorWidget::initTitleUI() {
         setKeyHeight(config.key_height / 1.2);
     });
 
-    // looping and step buttons
-    QPushButton *btn_looping = create_small_button(
+    // looping button
+    btn_looping = create_small_button(
         ":/icons/loop.svg", "Toggle Looping", "Looping");
+    btn_looping->setCheckable(true);
+    connect(btn_looping, &QPushButton::clicked, this, &MidiEditorWidget::enableLooping);
+    enableLooping(btn_looping->isChecked());
+    // Step forward button
     QPushButton *btn_step = create_small_button(
         ":/icons/step-forward.svg", "Step Forward", "StepForward");
 
@@ -274,6 +277,13 @@ void MidiEditorWidget::selectFollowMode(MidiEditorFollowMode mode) {
     }
 
     emit followModeChanged(config.follow_mode);
+}
+
+void MidiEditorWidget::enableLooping(bool enabled) {
+    if (config.looping == enabled) return; // No change
+    config.looping = enabled;
+    this->engine->enableLooping(enabled);
+    emit loopingChanged(config.looping);
 }
 
 void MidiEditorWidget::setTimeScale(double scale) {

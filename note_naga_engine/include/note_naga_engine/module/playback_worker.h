@@ -72,6 +72,12 @@ public:
     bool stop();
 
     /**
+     * @brief Enables or disables looping.
+     * @param enabled True to enable looping, false to disable.
+     */
+    void enableLooping(bool enabled);
+
+    /**
      * @brief Adds a callback for the finished event.
      * @param cb Callback function.
      * @return Unique callback ID.
@@ -118,11 +124,11 @@ private:
     // ////////////////////////////////////////////////////////////////////////////////
 
     double timer_interval;                 ///< Timer interval in milliseconds
+    bool looping;                          ///< Looping is enabled
     std::atomic<bool> playing{false};      ///< Whether playback is currently running
     std::atomic<bool> should_stop{false};  ///< Flag to signal playback should stop
     std::thread worker_thread;             ///< Thread running the playback logic
     PlaybackThreadWorker *worker{nullptr}; ///< Pointer to the thread worker
-
     std::atomic<bool> pending_cleanup{false}; ///< Flag: worker needs to be deleted in next play()
 
     // Callbacks
@@ -222,6 +228,12 @@ public:
     void run();
 
     /**
+     * @brief Enables or disables looping.
+     * @param enabled True to enable looping, false to disable.
+     */
+    void enableLooping(bool enabled);
+
+    /**
      * @brief Adds a callback for when playback finishes.
      * @param cb Callback function.
      * @return Unique callback ID.
@@ -261,6 +273,7 @@ private:
     std::chrono::high_resolution_clock::time_point
         start_time_point;    ///< Start time of playback
     int start_tick_at_start; ///< Tick at which playback started
+    bool looping; ///< Looping is enabled
 
     // Callbacks
     // ////////////////////////////////////////////////////////////////////////////////

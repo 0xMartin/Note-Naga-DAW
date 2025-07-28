@@ -38,11 +38,14 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/core/note_naga_component.h
     ./include/note_naga_engine/core/project_data.h
     ./include/note_naga_engine/core/types.h
+    ./include/note_naga_engine/core/note_naga_synthesizer.h
     # include/note_naga_engine/io
     ./include/note_naga_engine/io/midi_file.h
     # include/note_naga_engine/module
     ./include/note_naga_engine/module/mixer.h
     ./include/note_naga_engine/module/playback_worker.h
+    # include/note_naga_engine/synth
+    ./include/note_naga_engine/synth/synth_fluidsynth.h
 )
 
 set(SOURCE_FILES
@@ -57,6 +60,8 @@ set(SOURCE_FILES
     # module
     ./module/mixer.cpp
     ./module/playback_worker.cpp
+    # note_naga_engine/synth
+    ./synth/synth_fluidsynth.cpp
 )
 
 # GLIB2, FluidSynth, and RtMidi dependencies (REQUIRED)

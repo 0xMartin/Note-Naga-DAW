@@ -45,7 +45,6 @@ ButtonGroupWidget::ButtonGroupWidget(
         m_layout->addWidget(btn);
         m_buttonOrder.append(btn);          // pořadí!
         m_buttons.insert(buttonNames[i], btn); // lookup
-        qDebug() << "Button created:" << buttonNames[i];
     }
 
     updateButtonStyles();
@@ -116,7 +115,6 @@ void ButtonGroupWidget::updateButtonStyles()
             style += "QPushButton { border-radius: 0px; }";
         }
         btn->setStyleSheet(style);
-        qDebug() << "Button index:" << i << "of" << n << "\n" << btn->objectName();
     }
     // Skupina jako celek: oválný vzhled
     setStyleSheet(QString(

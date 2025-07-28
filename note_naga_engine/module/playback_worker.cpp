@@ -132,6 +132,7 @@ bool PlaybackWorker::play() {
 
     should_stop = false;
     worker = new PlaybackThreadWorker(project, mixer, timer_interval);
+    worker->enableLooping(this->looping);
 
     // Forward events from thread worker to this worker
     worker->addPositionChangedCallback([this](int tick) { emitPositionChanged(tick); });
@@ -168,6 +169,15 @@ bool PlaybackWorker::stop() {
     return true;
 }
 
+void PlaybackWorker::enableLooping(bool enabled) {
+    this->looping = enabled;
+    if (worker) {
+        worker->enableLooping(this->looping);
+    } else {
+        NOTE_NAGA_LOG_ERROR("Worker is not running, cannot enable looping");
+    }
+}
+
 void PlaybackWorker::cleanupThread() {
     if (worker) {
         delete worker;
@@ -189,6 +199,7 @@ PlaybackThreadWorker::PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMix
     this->timer_interval = timer_interval;
     this->start_tick_at_start = 0;
     this->last_id = 0;
+    this->looping = false;
 }
 
 PlaybackThreadWorker::CallbackId
@@ -234,6 +245,10 @@ void PlaybackThreadWorker::recalculateTempo() {
                        ", ms per tick: " + std::to_string(ms_per_tick));
 }
 
+void PlaybackThreadWorker::enableLooping(bool enabled) {
+    this->looping = enabled;
+}
+
 void PlaybackThreadWorker::emitFinished() {
     for (auto &cb : finished_callbacks)
         cb.second();
@@ -245,17 +260,25 @@ void PlaybackThreadWorker::emitPositionChanged(int tick) {
 }
 
 void PlaybackThreadWorker::run() {
+    // Ensure we have a valid project and active sequence
     NoteNagaMidiSeq *active_sequence = this->project->getActiveSequence();
     if (!active_sequence) {
         emitFinished();
         return;
     }
 
+    // Ensure we start from a valid tick
+    if (this->project->getCurrentTick() >= active_sequence->getMaxTick()) {
+        this->project->setCurrentTick(0);
+        NOTE_NAGA_LOG_WARNING("Current tick is already at or beyond max tick, go back to start");
+    }
+
+    // Initialize timing
     int current_tick = this->project->getCurrentTick();
     recalculateTempo();
 
+    // Playback loop
     using clock = std::chrono::high_resolution_clock;
-
     while (!should_stop) {
         auto now = clock::now();
         double elapsed_ms =
@@ -270,7 +293,7 @@ void PlaybackThreadWorker::run() {
         // Stop playback on reaching max tick
         if (current_tick >= active_sequence->getMaxTick()) {
             current_tick = active_sequence->getMaxTick();
-            should_stop = true;
+            if (!this->looping) this->should_stop = true;
         }
 
         if (active_sequence->getSoloTrack()) {
@@ -281,10 +304,10 @@ void PlaybackThreadWorker::run() {
                     if (note.start.has_value() && note.length.has_value()) {
                         if (last_tick < note.start.value() &&
                             note.start.value() <= current_tick)
-                            mixer->pushToQueue(NN_MixerMessage_t{note, true});
+                            mixer->pushToQueue(NN_SynthMessage_t{note, true});
                         if (last_tick < note.start.value() + note.length.value() &&
                             note.start.value() + note.length.value() <= current_tick)
-                            mixer->pushToQueue(NN_MixerMessage_t{note, false});
+                            mixer->pushToQueue(NN_SynthMessage_t{note, false});
                     }
                 }
             }
@@ -296,17 +319,26 @@ void PlaybackThreadWorker::run() {
                     if (note.start.has_value() && note.length.has_value()) {
                         if (last_tick < note.start.value() &&
                             note.start.value() <= current_tick)
-                            mixer->pushToQueue(NN_MixerMessage_t{note, true});
+                            mixer->pushToQueue(NN_SynthMessage_t{note, true});
                         if (last_tick < note.start.value() + note.length.value() &&
                             note.start.value() + note.length.value() <= current_tick)
-                            mixer->pushToQueue(NN_MixerMessage_t{note, false});
+                            mixer->pushToQueue(NN_SynthMessage_t{note, false});
                     }
                 }
             }
         }
 
-        this->emitPositionChanged(current_tick);
+        // Looping if enabled
+        if (this->looping && current_tick >= active_sequence->getMaxTick()) {
+            current_tick = 0; // Loop back to start
+            this->project->setCurrentTick(current_tick);
+            recalculateTempo();
+            NOTE_NAGA_LOG_INFO("Reached max tick, looping back to start");
+        } 
 
+        // Emit position changed event
+        this->emitPositionChanged(current_tick);
+        // Sleep for the timer interval
         std::this_thread::sleep_for(std::chrono::duration<double>(timer_interval));
     }
 

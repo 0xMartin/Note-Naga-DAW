@@ -35,12 +35,16 @@ NoteNagaEngine::~NoteNagaEngine() {
 
 bool NoteNagaEngine::initialize() {
     if (!this->project) this->project = new NoteNagaProject();
-    if (!this->mixer) this->mixer = new NoteNagaMixer(this->project, "./FluidR3_GM.sf2");
+    if (!this->mixer) {
+        this->mixer = new NoteNagaMixer(this->project, "./FluidR3_GM.sf2");
+        this->mixer->setSynthVectorRef(&this->synthesizers); // Set the engine reference in the mixer
+    }
     if (!this->playback_worker) {
         this->playback_worker = new PlaybackWorker(this->project, this->mixer, 30.0);
 
         this->playback_worker->addFinishedCallback([this]() {
             if (mixer) mixer->stopAllNotes();
+            NN_QT_EMIT(this->playbackStopped());
         });
     }
     bool status = this->project && this->mixer && this->playback_worker;
@@ -75,7 +79,7 @@ bool NoteNagaEngine::startPlayback() {
 bool NoteNagaEngine::stopPlayback() {
     if (playback_worker) {
         if (playback_worker->stop()) {
-            NN_QT_EMIT(this->playbackStopped());
+            // playbackStopped is emitted from thread finished callback
             return true;
         }
     }
@@ -119,5 +123,13 @@ void NoteNagaEngine::soloTrack(NoteNagaTrack *track, bool solo) {
         mixer->soloTrack(track, solo);
     } else {
         NOTE_NAGA_LOG_ERROR("Failed to solo track: Mixer is not initialized");
+    }
+}
+
+void NoteNagaEngine::enableLooping(bool enabled) {
+    if (playback_worker) {
+        playback_worker->enableLooping(enabled);
+    } else {
+        NOTE_NAGA_LOG_ERROR("Failed to enable looping: Playback worker is not initialized");
     }
 }
