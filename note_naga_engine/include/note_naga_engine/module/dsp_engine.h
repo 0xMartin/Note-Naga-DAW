@@ -1,33 +1,23 @@
 #pragma once
 
-#include <note_naga_engine/core/note_naga_component.h>
-
-#include <note_naga_engine/core/audio_buffer.h>
 #include <vector>
 #include <mutex>
+#include <note_naga_engine/core/types.h>
+#include <note_naga_engine/core/note_naga_synthesizer.h>
 
-struct MixedBuffer {
-    std::vector<float> left;
-    std::vector<float> right;
-    size_t frames;
-};
-
-class AudioWorker; // forward
-
-class DSPEngine : public NoteNagaEngineComponent<NN_AudioBuffer_t, 256> {
+class NoteNagaDSPEngine {
 public:
-    DSPEngine();
-    void setAudioWorker(AudioWorker* w);
+    void addSynth(INoteNagaSoftSynth* synth);
+    void removeSynth(INoteNagaSoftSynth* synth);
 
-protected:
-    void onItem(const NN_AudioBuffer_t& buffer) override;
+    // Main mix/render function called from AudioWorker for each block
+    void renderBlock(float* output, size_t num_frames);
 
-    // Mixovací buffer (interní fronta, thread-safe pokud potřeba)
-    std::mutex mix_mutex;
-    MixedBuffer mixed;
-    AudioWorker* audioWorker = nullptr;
+private:
+    std::vector<INoteNagaSoftSynth*> synths_;
+    std::mutex synths_mutex_;
 
-    void mixAudio(const NN_AudioBuffer_t& buffer);
-    void flushMixedBuffer(); // až je buffer plný, pushne se do audioWorker
-    static constexpr size_t BLOCK_SIZE = 512; // velikost výstupního bloku
+    // Mixing buffers (always resized as needed)
+    std::vector<float> mix_left_;
+    std::vector<float> mix_right_;
 };

@@ -34,7 +34,6 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/note_naga_engine.h
     # include/note_naga_engine/core
     ./include/note_naga_engine/core/types.h
-    ./include/note_naga_engine/core/audio_buffer.h
     ./include/note_naga_engine/core/lock_free_spsc_queue.h
     ./include/note_naga_engine/core/lock_free_mpmc_queue.h
     ./include/note_naga_engine/core/note_naga_component.h

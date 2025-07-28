@@ -1,14 +1,18 @@
 #pragma once
 
 #include <note_naga_engine/core/note_naga_synthesizer.h>
+#include <note_naga_engine/core/types.h>
 #include <fluidsynth.h>
 #include <string>
 #include <unordered_map>
+#include <mutex>
+
+class DSPEngine;
 
 /**
  * FluidSynth syntetizér pro NoteNagaEngine.
  */
-class NoteNagaSynthFluidSynth : public NoteNagaSynthesizer {
+class NoteNagaSynthFluidSynth : public NoteNagaSynthesizer, public INoteNagaSoftSynth {
 public:
     NoteNagaSynthFluidSynth(const std::string &name, const std::string &sf2_path);
     ~NoteNagaSynthFluidSynth() override;
@@ -17,10 +21,12 @@ public:
     void stopNote(const NN_Note_t &note) override;
     void stopAllNotes(NoteNagaMidiSeq *seq = nullptr, NoteNagaTrack *track = nullptr) override;
 
+    void renderAudio(size_t num_frames, NN_AudioBuffer_t& left, NN_AudioBuffer_t& right) override;
+
 protected:
     void ensureFluidsynth();
 
+    // FluidSynth interní struktury
     fluid_settings_t *synth_settings_;
     fluid_synth_t *fluidsynth_;
-    fluid_audio_driver_t *audio_driver_;
 };

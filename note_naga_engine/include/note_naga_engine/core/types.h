@@ -688,3 +688,16 @@ NOTE_NAGA_ENGINE_API extern double nn_seconds_to_ticks(double seconds, int ppq, 
  * @return Time in seconds.
  */
 NOTE_NAGA_ENGINE_API extern double nn_ticks_to_seconds(int ticks, int ppq, int tempo);
+
+/*******************************************************************************************************/
+// Audio Buffer
+/*******************************************************************************************************/
+
+/**
+ * @brief Audio buffer structure, always mono.
+ */
+struct NN_AudioBuffer_t {
+    std::vector<float> data;     // Audio samples, mono
+    size_t frames = 0;           // Number of frames
+    bool left_channel = true;    // True=left, false=right
+};

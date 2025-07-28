@@ -42,6 +42,7 @@
  *     return 0;
  * }
  */
+// AsyncQueueComponent
 template <typename T, size_t QueueSize>
 class NOTE_NAGA_ENGINE_API NoteNagaEngineComponent {
 public:

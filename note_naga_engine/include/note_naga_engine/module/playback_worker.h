@@ -25,10 +25,10 @@ class NOTE_NAGA_ENGINE_API PlaybackThreadWorker;
  * This class manages a playback thread and provides signals/callbacks for playback state.
  */
 #ifndef QT_DEACTIVATED
-class NOTE_NAGA_ENGINE_API PlaybackWorker : public QObject {
+class NOTE_NAGA_ENGINE_API NoteNagaPlaybackWorker : public QObject {
     Q_OBJECT
 #else
-class NOTE_NAGA_ENGINE_API PlaybackWorker {
+class NOTE_NAGA_ENGINE_API NoteNagaPlaybackWorker {
 #endif
 
 public:
@@ -45,7 +45,7 @@ public:
      * @param mixer Pointer to NoteNagaMixer.
      * @param timer_interval_ms Worker timer interval in milliseconds.
      */
-    explicit PlaybackWorker(NoteNagaProject *project, NoteNagaMixer *mixer,
+    explicit NoteNagaPlaybackWorker(NoteNagaProject *project, NoteNagaMixer *mixer,
                             double timer_interval_ms);
 
     /**

@@ -1,39 +1,39 @@
 #include <note_naga_engine/module/dsp_engine.h>
 
-#include "audio_worker.h"
+#include <algorithm>
+#include <cstring>
 
-DSPEngine::DSPEngine() {
-    mixed.left.resize(BLOCK_SIZE, 0.0f);
-    mixed.right.resize(BLOCK_SIZE, 0.0f);
-    mixed.frames = 0;
-}
-void DSPEngine::setAudioWorker(AudioWorker* w) {
-    audioWorker = w;
+void NoteNagaDSPEngine::addSynth(INoteNagaSoftSynth* synth) {
+    std::lock_guard<std::mutex> lock(synths_mutex_);
+    synths_.push_back(synth);
 }
 
-// Mixuje přicházející buffer do interního mix bufferu
-void DSPEngine::onItem(const NN_AudioBuffer_t& buffer) {
-    std::lock_guard<std::mutex> lock(mix_mutex);
+void NoteNagaDSPEngine::removeSynth(INoteNagaSoftSynth* synth) {
+    std::lock_guard<std::mutex> lock(synths_mutex_);
+    synths_.erase(std::remove(synths_.begin(), synths_.end(), synth), synths_.end());
+}
 
-    // Pokud je nový blok, vynuluj (nebo podle timestamp)
-    if (mixed.frames == 0) {
-        std::fill(mixed.left.begin(), mixed.left.end(), 0.0f);
-        std::fill(mixed.right.begin(), mixed.right.end(), 0.0f);
-    }
+void NoteNagaDSPEngine::renderBlock(float* output, size_t num_frames) {
+    // Prepare mix buffers
+    if (mix_left_.size() < num_frames) mix_left_.resize(num_frames, 0.0f);
+    if (mix_right_.size() < num_frames) mix_right_.resize(num_frames, 0.0f);
+    std::fill(mix_left_.begin(), mix_left_.begin() + num_frames, 0.0f);
+    std::fill(mix_right_.begin(), mix_right_.begin() + num_frames, 0.0f);
 
-    // Mixuj podle kanálu
-    for (size_t i = 0; i < buffer.frames && i < BLOCK_SIZE; ++i) {
-        if (buffer.left_channel) {
-            mixed.left[i] += buffer.data[i];
-        } else {
-            mixed.right[i] += buffer.data[i];
+    // Render all synths and mix
+    std::lock_guard<std::mutex> lock(synths_mutex_);
+    for (auto* synth : synths_) {
+        NN_AudioBuffer_t left, right;
+        synth->renderAudio(num_frames, left, right);
+        for (size_t i = 0; i < num_frames; ++i) {
+            mix_left_[i] += left.data[i];
+            mix_right_[i] += right.data[i];
         }
     }
-    mixed.frames = std::max(mixed.frames, buffer.frames);
 
-    // Pokud je mixovací buffer plný, push do audioWorker
-    if (mixed.frames >= BLOCK_SIZE && audioWorker) {
-        audioWorker->pushToQueue(mixed); // předáváme kopii
-        mixed.frames = 0;
+    // Interleave and write to output buffer
+    for (size_t i = 0; i < num_frames; ++i) {
+        output[2 * i] = mix_left_[i];
+        output[2 * i + 1] = mix_right_[i];
     }
 }

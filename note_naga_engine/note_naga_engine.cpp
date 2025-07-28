@@ -12,12 +12,23 @@ NoteNagaEngine::NoteNagaEngine()
     this->project = nullptr;
     this->mixer = nullptr;
     this->playback_worker = nullptr;
+    this->dsp_engine = nullptr;
+    this->audio_worker = nullptr;
     NOTE_NAGA_LOG_INFO("Instance created. Version: " + std::string(NOTE_NAGA_VERSION_STR));
 }
 
 NoteNagaEngine::~NoteNagaEngine() {
     if (playback_worker) playback_worker->stop();
-    if (mixer) mixer->close();
+
+    if (dsp_engine) {
+        delete dsp_engine;
+        dsp_engine = nullptr;
+    }
+
+    if (audio_worker) {
+        delete audio_worker;
+        audio_worker = nullptr;
+    }
 
     if (mixer) {
         delete mixer;
@@ -29,13 +40,13 @@ NoteNagaEngine::~NoteNagaEngine() {
         playback_worker = nullptr;
     }
 
+    for (auto *synth : this->synthesizers) {
+        delete synth;
+    }
+
     if (project) {
         delete project;
         project = nullptr;
-    }
-
-    for (auto* synth : this->synthesizers) {
-        delete synth;
     }
 
     NOTE_NAGA_LOG_INFO("Instance destroyed");
@@ -44,20 +55,19 @@ NoteNagaEngine::~NoteNagaEngine() {
 bool NoteNagaEngine::initialize() {
     // Initialize synthesizers
     if (this->synthesizers.empty()) {
-        this->synthesizers.push_back(new NoteNagaSynthFluidSynth("FluidSynth 1", "./FluidR3_GM.sf2"));
+        this->synthesizers.push_back(
+            new NoteNagaSynthFluidSynth("FluidSynth 1", "./FluidR3_GM.sf2"));
     }
 
     // project
     if (!this->project) this->project = new NoteNagaProject();
 
     // mixer
-    if (!this->mixer) {
-        this->mixer = new NoteNagaMixer(this->project, &this->synthesizers);
-    }
-    
+    if (!this->mixer) { this->mixer = new NoteNagaMixer(this->project, &this->synthesizers); }
+
     // playback worker
     if (!this->playback_worker) {
-        this->playback_worker = new PlaybackWorker(this->project, this->mixer, 30.0);
+        this->playback_worker = new NoteNagaPlaybackWorker(this->project, this->mixer, 30.0);
 
         this->playback_worker->addFinishedCallback([this]() {
             if (mixer) mixer->stopAllNotes();
@@ -65,7 +75,21 @@ bool NoteNagaEngine::initialize() {
         });
     }
 
-    bool status = this->project && this->mixer && this->playback_worker && !this->synthesizers.empty();
+    // dsp engine
+    if (!this->dsp_engine) {
+        this->dsp_engine = new NoteNagaDSPEngine();
+        for (auto *synth : this->synthesizers) {
+            if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
+                this->dsp_engine->addSynth(softSynth);
+            }
+        }
+    }
+
+    // audio worker
+    if (!this->audio_worker) { this->audio_worker = new NoteNagaAudioWorker(this->dsp_engine); }
+
+    bool status =
+        this->project && this->mixer && this->playback_worker && !this->synthesizers.empty();
     if (status) {
         NOTE_NAGA_LOG_INFO("Initialized successfully");
     } else {
@@ -75,9 +99,9 @@ bool NoteNagaEngine::initialize() {
 }
 
 bool NoteNagaEngine::loadProject(const std::string &midi_file_path) {
-    if (!this->project) { 
+    if (!this->project) {
         NOTE_NAGA_LOG_ERROR("Project is not initialized");
-        return false; 
+        return false;
     }
     this->stopPlayback();
     return this->project->loadProject(midi_file_path);
@@ -85,6 +109,7 @@ bool NoteNagaEngine::loadProject(const std::string &midi_file_path) {
 
 bool NoteNagaEngine::startPlayback() {
     if (playback_worker) {
+        this->audio_worker->start(44100, 512);
         if (playback_worker->play()) {
             NN_QT_EMIT(this->playbackStarted());
             return true;
@@ -96,6 +121,7 @@ bool NoteNagaEngine::startPlayback() {
 
 bool NoteNagaEngine::stopPlayback() {
     if (playback_worker) {
+        this->audio_worker->stop();
         if (playback_worker->stop()) {
             // playbackStopped is emitted from thread finished callback
             return true;
@@ -108,16 +134,16 @@ bool NoteNagaEngine::stopPlayback() {
 
 void NoteNagaEngine::setPlaybackPosition(int tick) {
     if (playback_worker && playback_worker->isPlaying()) { playback_worker->stop(); }
-    if (this->project) { 
-        this->project->setCurrentTick(tick); 
+    if (this->project) {
+        this->project->setCurrentTick(tick);
     } else {
         NOTE_NAGA_LOG_ERROR("Failed to set playback position: Project is not initialized");
     }
 }
 
 void NoteNagaEngine::changeTempo(int new_tempo) {
-    if (this->project) { 
-        this->project->setTempo(new_tempo); 
+    if (this->project) {
+        this->project->setTempo(new_tempo);
     } else {
         NOTE_NAGA_LOG_ERROR("Failed to change tempo: Project is not initialized");
     }
@@ -149,5 +175,24 @@ void NoteNagaEngine::enableLooping(bool enabled) {
         playback_worker->enableLooping(enabled);
     } else {
         NOTE_NAGA_LOG_ERROR("Failed to enable looping: Playback worker is not initialized");
+    }
+}
+
+void NoteNagaEngine::addSynthesizer(NoteNagaSynthesizer *synth) {
+    this->synthesizers.push_back(synth);
+    this->mixer->detectOutputs();
+    if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
+        this->dsp_engine->addSynth(softSynth);
+    }
+}
+
+void NoteNagaEngine::removeSynthesizer(NoteNagaSynthesizer *synth) {
+    auto it = std::find(this->synthesizers.begin(), this->synthesizers.end(), synth);
+    if (it != this->synthesizers.end()) {
+        this->synthesizers.erase(it);
+        this->mixer->detectOutputs();
+        if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
+            this->dsp_engine->removeSynth(softSynth);
+        }
     }
 }

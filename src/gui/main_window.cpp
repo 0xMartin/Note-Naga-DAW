@@ -285,7 +285,7 @@ void MainWindow::reset_layout() {
 
 void MainWindow::connect_signals() {
     // Connect engine signals
-    connect(engine->getPlaybackWorker(), &PlaybackWorker::playingStateChanged, this,
+    connect(engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged, this,
             &MainWindow::on_playing_state_changed);
 
     // Connect control bar signals

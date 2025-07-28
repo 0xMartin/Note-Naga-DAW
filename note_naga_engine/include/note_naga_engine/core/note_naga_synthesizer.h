@@ -106,3 +106,12 @@ protected:
             stopNote(value.note);
     }
 };
+
+/*******************************************************************************************************/
+// Interface for Soft Synthesizers
+/*******************************************************************************************************/
+
+class NOTE_NAGA_ENGINE_API INoteNagaSoftSynth {
+public: 
+    virtual void renderAudio(size_t num_frames, NN_AudioBuffer_t& left, NN_AudioBuffer_t& right) = 0;
+};

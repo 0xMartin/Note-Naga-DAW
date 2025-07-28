@@ -1,23 +1,61 @@
 #include <note_naga_engine/module/audio_worker.h>
 
-#include <RtAudio.h>
-#include <algorithm>
 #include <cstring>
+#include <iostream>
 
-// Jednoduchý přehrávač s pomocí RtAudio
-AudioWorker::AudioWorker() {}
+NoteNagaAudioWorker::NoteNagaAudioWorker(NoteNagaDSPEngine* dsp) {
+    this->setDSPEngine(dsp);
+}
 
-void AudioWorker::onItem(const MixedBuffer& buffer) {
-    // Implementace: pošli data na výstup (např. přes RtAudio)
-    // (Inicializace RtAudio a streamu je na tobě, zde jen zápis do streamu)
+NoteNagaAudioWorker::~NoteNagaAudioWorker() {
+    stop();
+}
 
-    // Ukázka: rtaudioStream.write(audio, nFrames)
-    // float* interleaved = ... // vytvoř interleaved stereo buffer
-    std::vector<float> interleaved(buffer.frames * 2);
-    for (size_t i = 0; i < buffer.frames; ++i) {
-        interleaved[2 * i] = buffer.left[i];
-        interleaved[2 * i + 1] = buffer.right[i];
+void NoteNagaAudioWorker::setDSPEngine(NoteNagaDSPEngine* dsp) {
+    dspEngine_ = dsp;
+}
+
+void NoteNagaAudioWorker::start(unsigned int sampleRate, unsigned int blockSize) {
+    // Pokud už běží, nejdřív zastav
+    stop();
+
+    sampleRate_ = sampleRate;
+    blockSize_ = blockSize;
+
+    RtAudio::StreamParameters params;
+    params.deviceId = audio_.getDefaultOutputDevice();
+    params.nChannels = 2;
+    params.firstChannel = 0;
+
+    audio_.openStream(&params, nullptr, RTAUDIO_FLOAT32, sampleRate_, &blockSize_, &NoteNagaAudioWorker::audioCallback, this);
+    audio_.startStream();
+    stream_open_ = true;
+}
+
+void NoteNagaAudioWorker::stop() {
+    if (stream_open_) {
+        try {
+            if (audio_.isStreamRunning()) {
+                audio_.stopStream();
+            }
+            if (audio_.isStreamOpen()) {
+                audio_.closeStream();
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Audio stop error: " << e.what() << std::endl;
+        }
+        stream_open_ = false;
     }
-    // rtaudio_stream.write(interleaved.data(), buffer.frames);
-    // (Ošetři případný underrun, případně blokuj na buffer-full)
+}
+
+int NoteNagaAudioWorker::audioCallback(void* outputBuffer, void*, unsigned int nFrames, double, RtAudioStreamStatus, void* userData) {
+    NoteNagaAudioWorker* self = static_cast<NoteNagaAudioWorker*>(userData);
+    float* out = static_cast<float*>(outputBuffer);
+
+    if (self->dspEngine_) {
+        self->dspEngine_->renderBlock(out, nFrames);
+    } else {
+        std::memset(out, 0, sizeof(float) * nFrames * 2);
+    }
+    return 0;
 }

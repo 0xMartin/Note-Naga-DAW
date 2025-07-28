@@ -4,13 +4,11 @@
 
 NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
                                                  const std::string &sf2_path)
-    : NoteNagaSynthesizer(name), synth_settings_(nullptr), fluidsynth_(nullptr),
-      audio_driver_(nullptr) {
+    : NoteNagaSynthesizer(name), synth_settings_(nullptr), fluidsynth_(nullptr) {
     // Initialize FluidSynth settings and synth
     synth_settings_ = new_fluid_settings();
     fluidsynth_ = new_fluid_synth(synth_settings_);
     int sfid = fluid_synth_sfload(fluidsynth_, sf2_path.c_str(), 1);
-    audio_driver_ = new_fluid_audio_driver(synth_settings_, fluidsynth_);
 
     // Initialize all channels with no program set
     for (int i = 0; i < 16; ++i) {
@@ -25,9 +23,23 @@ NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
 }
 
 NoteNagaSynthFluidSynth::~NoteNagaSynthFluidSynth() {
-    if (audio_driver_) delete_fluid_audio_driver(audio_driver_);
     if (fluidsynth_) delete_fluid_synth(fluidsynth_);
     if (synth_settings_) delete_fluid_settings(synth_settings_);
+}
+
+void NoteNagaSynthFluidSynth::renderAudio(size_t num_frames, NN_AudioBuffer_t& left, NN_AudioBuffer_t& right) {
+    left.data.resize(num_frames);
+    right.data.resize(num_frames);
+    left.frames = right.frames = num_frames;
+    left.left_channel = true;
+    right.left_channel = false;
+
+    // FluidSynth render přímo do oddělených mono kanálů:
+    fluid_synth_write_float(
+        fluidsynth_, num_frames,
+        left.data.data(), 0, 1,
+        right.data.data(), 0, 1
+    );
 }
 
 void NoteNagaSynthFluidSynth::playNote(const NN_Note_t &note, int channel, float pan) {

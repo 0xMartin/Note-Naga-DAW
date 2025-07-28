@@ -1,11 +1,15 @@
 #pragma once
 
-#include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_api.h>
+
+#include <note_naga_engine/core/types.h>
 #include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/note_naga_synthesizer.h>
+
 #include <note_naga_engine/module/mixer.h>
 #include <note_naga_engine/module/playback_worker.h>
-#include <note_naga_engine/core/note_naga_synthesizer.h>
+#include <note_naga_engine/module/dsp_engine.h>
+#include <note_naga_engine/module/audio_worker.h>
 
 #ifndef QT_DEACTIVATED
 #include <QObject>
@@ -145,13 +149,25 @@ public:
      * @brief Gets the playback worker instance.
      * @return Pointer to the PlaybackWorker.
      */
-    PlaybackWorker *getPlaybackWorker() { return this->playback_worker; }
+    NoteNagaPlaybackWorker *getPlaybackWorker() { return this->playback_worker; }
 
     /**
      * @brief Gets the list of available synthesizers.
      * @return Vector of pointers to NoteNagaSynthesizer instances.
      */
     std::vector<NoteNagaSynthesizer*> getSynthesizers() { return this->synthesizers; }
+
+    /**
+     * @brief Adds a synthesizer to the engine.
+     * @param synth Pointer to the NoteNagaSynthesizer to add.
+     */
+    void addSynthesizer(NoteNagaSynthesizer *synth);
+
+    /**
+     * @brief Removes a synthesizer from the engine.
+     * @param synth Pointer to the NoteNagaSynthesizer to remove.
+     */
+    void removeSynthesizer(NoteNagaSynthesizer *synth);
 
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
@@ -166,8 +182,10 @@ Q_SIGNALS:
 #endif
 
 protected:
-    NoteNagaProject *project;        ///< Pointer to the current project instance
-    NoteNagaMixer *mixer;            ///< Pointer to the mixer instance
-    PlaybackWorker *playback_worker; ///< Pointer to the playback worker instance
+    NoteNagaProject *project;                       ///< Pointer to the current project instance
+    NoteNagaPlaybackWorker *playback_worker;        ///< Pointer to the playback worker instance
+    NoteNagaMixer *mixer;                           ///< Pointer to the mixer instance
+    NoteNagaDSPEngine *dsp_engine;                  ///< Pointer to the DSP engine instance
+    NoteNagaAudioWorker *audio_worker;              ///< Pointer to the audio worker instance
     std::vector<NoteNagaSynthesizer*> synthesizers; ///< List of synthesizers used by the engine
 };
