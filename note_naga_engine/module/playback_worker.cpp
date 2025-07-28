@@ -29,16 +29,14 @@ PlaybackWorker::CallbackId PlaybackWorker::addFinishedCallback(FinishedCallback 
     return id;
 }
 
-PlaybackWorker::CallbackId
-PlaybackWorker::addPositionChangedCallback(PositionChangedCallback cb) {
+PlaybackWorker::CallbackId PlaybackWorker::addPositionChangedCallback(PositionChangedCallback cb) {
     CallbackId id = ++last_id;
     position_changed_callbacks.emplace_back(id, std::move(cb));
     NOTE_NAGA_LOG_INFO("Added position changed callback with ID: " + std::to_string(id));
     return id;
 }
 
-PlaybackWorker::CallbackId
-PlaybackWorker::addPlayingStateCallback(PlayingStateCallback cb) {
+PlaybackWorker::CallbackId PlaybackWorker::addPlayingStateCallback(PlayingStateCallback cb) {
     CallbackId id = ++last_id;
     playing_state_callbacks.emplace_back(id, std::move(cb));
     NOTE_NAGA_LOG_INFO("Added playing state callback with ID: " + std::to_string(id));
@@ -58,32 +56,26 @@ void PlaybackWorker::removeFinishedCallback(CallbackId id) {
 }
 
 void PlaybackWorker::removePositionChangedCallback(CallbackId id) {
-    auto it = std::remove_if(position_changed_callbacks.begin(),
-                             position_changed_callbacks.end(),
+    auto it = std::remove_if(position_changed_callbacks.begin(), position_changed_callbacks.end(),
                              [id](const auto &pair) { return pair.first == id; });
     bool removed = (it != position_changed_callbacks.end());
     position_changed_callbacks.erase(it, position_changed_callbacks.end());
     if (removed) {
-        NOTE_NAGA_LOG_INFO("Removed position changed callback with ID: " +
-                           std::to_string(id));
+        NOTE_NAGA_LOG_INFO("Removed position changed callback with ID: " + std::to_string(id));
     } else {
-        NOTE_NAGA_LOG_INFO("No position changed callback found with ID: " +
-                           std::to_string(id));
+        NOTE_NAGA_LOG_INFO("No position changed callback found with ID: " + std::to_string(id));
     }
 }
 
 void PlaybackWorker::removePlayingStateCallback(CallbackId id) {
-    auto it =
-        std::remove_if(playing_state_callbacks.begin(), playing_state_callbacks.end(),
-                       [id](const auto &pair) { return pair.first == id; });
+    auto it = std::remove_if(playing_state_callbacks.begin(), playing_state_callbacks.end(),
+                             [id](const auto &pair) { return pair.first == id; });
     bool removed = (it != playing_state_callbacks.end());
     playing_state_callbacks.erase(it, playing_state_callbacks.end());
     if (removed) {
-        NOTE_NAGA_LOG_INFO("Removed playing state callback with ID: " +
-                           std::to_string(id));
+        NOTE_NAGA_LOG_INFO("Removed playing state callback with ID: " + std::to_string(id));
     } else {
-        NOTE_NAGA_LOG_INFO("No playing state callback found with ID: " +
-                           std::to_string(id));
+        NOTE_NAGA_LOG_INFO("No playing state callback found with ID: " + std::to_string(id));
     }
 }
 
@@ -202,8 +194,7 @@ PlaybackThreadWorker::PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMix
     this->looping = false;
 }
 
-PlaybackThreadWorker::CallbackId
-PlaybackThreadWorker::addFinishedCallback(FinishedCallback cb) {
+PlaybackThreadWorker::CallbackId PlaybackThreadWorker::addFinishedCallback(FinishedCallback cb) {
     CallbackId id = ++last_id;
     finished_callbacks.emplace_back(id, std::move(cb));
     return id;
@@ -217,37 +208,32 @@ PlaybackThreadWorker::addPositionChangedCallback(PositionChangedCallback cb) {
 }
 
 void PlaybackThreadWorker::removeFinishedCallback(CallbackId id) {
-    finished_callbacks.erase(
-        std::remove_if(finished_callbacks.begin(), finished_callbacks.end(),
-                       [id](const auto &pair) { return pair.first == id; }),
-        finished_callbacks.end());
+    finished_callbacks.erase(std::remove_if(finished_callbacks.begin(), finished_callbacks.end(),
+                                            [id](const auto &pair) { return pair.first == id; }),
+                             finished_callbacks.end());
 }
 
 void PlaybackThreadWorker::removePositionChangedCallback(CallbackId id) {
     position_changed_callbacks.erase(
-        std::remove_if(position_changed_callbacks.begin(),
-                       position_changed_callbacks.end(),
+        std::remove_if(position_changed_callbacks.begin(), position_changed_callbacks.end(),
                        [id](const auto &pair) { return pair.first == id; }),
         position_changed_callbacks.end());
 }
 
 void PlaybackThreadWorker::recalculateTempo() {
     int current_tick = this->project->getCurrentTick();
-    double us_per_tick =
-        static_cast<double>(this->project->getTempo()) / this->project->getPPQ();
+    double us_per_tick = static_cast<double>(this->project->getTempo()) / this->project->getPPQ();
     ms_per_tick = us_per_tick / 1000.0;
     start_time_point = std::chrono::high_resolution_clock::now();
     start_tick_at_start = current_tick;
 
-    NOTE_NAGA_LOG_INFO("Recalculated tempo: " +
-                       std::to_string(60'000'000.0 / this->project->getTempo()) +
-                       " BPM, PPQ: " + std::to_string(this->project->getPPQ()) +
-                       ", ms per tick: " + std::to_string(ms_per_tick));
+    NOTE_NAGA_LOG_INFO(
+        "Recalculated tempo: " + std::to_string(60'000'000.0 / this->project->getTempo()) +
+        " BPM, PPQ: " + std::to_string(this->project->getPPQ()) +
+        ", ms per tick: " + std::to_string(ms_per_tick));
 }
 
-void PlaybackThreadWorker::enableLooping(bool enabled) {
-    this->looping = enabled;
-}
+void PlaybackThreadWorker::enableLooping(bool enabled) { this->looping = enabled; }
 
 void PlaybackThreadWorker::emitFinished() {
     for (auto &cb : finished_callbacks)
@@ -283,8 +269,7 @@ void PlaybackThreadWorker::run() {
         auto now = clock::now();
         double elapsed_ms =
             std::chrono::duration<double, std::milli>(now - start_time_point).count();
-        int target_tick =
-            start_tick_at_start + static_cast<int>(elapsed_ms / ms_per_tick);
+        int target_tick = start_tick_at_start + static_cast<int>(elapsed_ms / ms_per_tick);
         int tick_advance = std::max(1, target_tick - current_tick);
         int last_tick = current_tick;
         current_tick += tick_advance;
@@ -296,18 +281,22 @@ void PlaybackThreadWorker::run() {
             if (!this->looping) this->should_stop = true;
         }
 
+        bool flush = false;
         if (active_sequence->getSoloTrack()) {
             // play soloed track only
             auto track = active_sequence->getSoloTrack();
             if (track) {
                 for (const auto &note : track->getNotes()) {
                     if (note.start.has_value() && note.length.has_value()) {
-                        if (last_tick < note.start.value() &&
-                            note.start.value() <= current_tick)
+                        if (last_tick < note.start.value() && note.start.value() <= current_tick) {
                             mixer->pushToQueue(NN_SynthMessage_t{note, true});
+                            flush = true;
+                        }
                         if (last_tick < note.start.value() + note.length.value() &&
-                            note.start.value() + note.length.value() <= current_tick)
+                            note.start.value() + note.length.value() <= current_tick) {
                             mixer->pushToQueue(NN_SynthMessage_t{note, false});
+                            flush = true;
+                        }
                     }
                 }
             }
@@ -317,16 +306,21 @@ void PlaybackThreadWorker::run() {
                 if (track->isMuted()) continue;
                 for (const auto &note : track->getNotes()) {
                     if (note.start.has_value() && note.length.has_value()) {
-                        if (last_tick < note.start.value() &&
-                            note.start.value() <= current_tick)
+                        if (last_tick < note.start.value() && note.start.value() <= current_tick) {
                             mixer->pushToQueue(NN_SynthMessage_t{note, true});
+                            flush = true;
+                        }
                         if (last_tick < note.start.value() + note.length.value() &&
-                            note.start.value() + note.length.value() <= current_tick)
+                            note.start.value() + note.length.value() <= current_tick) {
                             mixer->pushToQueue(NN_SynthMessage_t{note, false});
+                            flush = true;
+                        }
                     }
                 }
             }
         }
+        // flush notes if needed
+        if (flush) mixer->flushNotes();
 
         // Looping if enabled
         if (this->looping && current_tick >= active_sequence->getMaxTick()) {
@@ -334,7 +328,7 @@ void PlaybackThreadWorker::run() {
             this->project->setCurrentTick(current_tick);
             recalculateTempo();
             NOTE_NAGA_LOG_INFO("Reached max tick, looping back to start");
-        } 
+        }
 
         // Emit position changed event
         this->emitPositionChanged(current_tick);

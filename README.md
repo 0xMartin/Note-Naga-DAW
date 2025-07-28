@@ -1,9 +1,5 @@
 ## Build 
 
-vice instanci syntetizeru (fluid synth, rti midi)
-
-implmenotvat mixer note flush ...
- 
 implementovat metronome
 
 ----

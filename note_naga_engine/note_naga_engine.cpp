@@ -2,6 +2,7 @@
 
 #include <note_naga_engine/logger.h>
 #include <note_naga_engine/note_naga_version.h>
+#include <note_naga_engine/synth/synth_fluidsynth.h>
 
 NoteNagaEngine::NoteNagaEngine()
 #ifndef QT_DEACTIVATED
@@ -22,23 +23,39 @@ NoteNagaEngine::~NoteNagaEngine() {
         delete mixer;
         mixer = nullptr;
     }
+
     if (playback_worker) {
         delete playback_worker;
         playback_worker = nullptr;
     }
+
     if (project) {
         delete project;
         project = nullptr;
     }
+
+    for (auto* synth : this->synthesizers) {
+        delete synth;
+    }
+
     NOTE_NAGA_LOG_INFO("Instance destroyed");
 }
 
 bool NoteNagaEngine::initialize() {
-    if (!this->project) this->project = new NoteNagaProject();
-    if (!this->mixer) {
-        this->mixer = new NoteNagaMixer(this->project, "./FluidR3_GM.sf2");
-        this->mixer->setSynthVectorRef(&this->synthesizers); // Set the engine reference in the mixer
+    // Initialize synthesizers
+    if (this->synthesizers.empty()) {
+        this->synthesizers.push_back(new NoteNagaSynthFluidSynth("FluidSynth 1", "./FluidR3_GM.sf2"));
     }
+
+    // project
+    if (!this->project) this->project = new NoteNagaProject();
+
+    // mixer
+    if (!this->mixer) {
+        this->mixer = new NoteNagaMixer(this->project, &this->synthesizers);
+    }
+    
+    // playback worker
     if (!this->playback_worker) {
         this->playback_worker = new PlaybackWorker(this->project, this->mixer, 30.0);
 
@@ -47,7 +64,8 @@ bool NoteNagaEngine::initialize() {
             NN_QT_EMIT(this->playbackStopped());
         });
     }
-    bool status = this->project && this->mixer && this->playback_worker;
+
+    bool status = this->project && this->mixer && this->playback_worker && !this->synthesizers.empty();
     if (status) {
         NOTE_NAGA_LOG_INFO("Initialized successfully");
     } else {

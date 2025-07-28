@@ -2,13 +2,25 @@
 
 #include <note_naga_engine/logger.h>
 
-NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &sf2_path)
-    : synth_settings_(nullptr), fluidsynth_(nullptr), audio_driver_(nullptr) {
-    // Inicializace fluidsynthu
+NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
+                                                 const std::string &sf2_path)
+    : NoteNagaSynthesizer(name), synth_settings_(nullptr), fluidsynth_(nullptr),
+      audio_driver_(nullptr) {
+    // Initialize FluidSynth settings and synth
     synth_settings_ = new_fluid_settings();
     fluidsynth_ = new_fluid_synth(synth_settings_);
     int sfid = fluid_synth_sfload(fluidsynth_, sf2_path.c_str(), 1);
     audio_driver_ = new_fluid_audio_driver(synth_settings_, fluidsynth_);
+
+    // Initialize all channels with no program set
+    for (int i = 0; i < 16; ++i) {
+        channel_programs_[i] = -1;
+    }
+    // Initialize all channels with no pan set
+    for (int i = 0; i < 16; ++i) {
+        channel_pan_[i] = 0.0f;
+    }
+
     NOTE_NAGA_LOG_INFO("FluidSynth loaded sfid=" + std::to_string(sfid));
 }
 
@@ -18,31 +30,65 @@ NoteNagaSynthFluidSynth::~NoteNagaSynthFluidSynth() {
     if (synth_settings_) delete_fluid_settings(synth_settings_);
 }
 
-void NoteNagaSynthFluidSynth::playNote(const NN_Note_t &note) {
+void NoteNagaSynthFluidSynth::playNote(const NN_Note_t &note, float pan) {
+    if (!note.velocity.has_value() || note.velocity.value() <= 0) return;
+
     NoteNagaTrack *track = note.parent;
     if (!track) return;
+
+    // get channel and program
     int channel = track->getChannel().value_or(0);
     int prog = track->getInstrument().value_or(0);
-    fluid_synth_program_change(fluidsynth_, channel, prog);
-    int velocity = note.velocity.value_or(100) * master_volume_;
-    fluid_synth_noteon(fluidsynth_, channel, note.note, velocity);
-    playing_notes_[track].push_back(note.note);
+
+    NOTE_NAGA_LOG_INFO(">>> " + name + " playNote: " + std::to_string(note.note) +
+                       " on channel " + std::to_string(channel) +
+                       " with velocity " + std::to_string(note.velocity.value()) +
+                       " pan: " + std::to_string(pan));
+
+    // Set program change if needed
+    if (channel_programs_[channel] != prog) {
+        fluid_synth_program_change(fluidsynth_, channel, prog);
+        channel_programs_[channel] = prog;
+    }
+
+    // Set pan if needed
+    if (std::abs(channel_pan_[channel] - pan) > 0.01f) {
+        int midiPan = static_cast<int>(std::round(pan * 63.5 + 63.5));
+        fluid_synth_cc(fluidsynth_, channel, 10, static_cast<int>(std::clamp(midiPan, 0, 127)));
+        channel_pan_[channel] = pan;
+    }
+
+    // Check if note is already playing
+    if (playing_notes_[track].find(note.id) != playing_notes_[track].end()) { return; }
+
+    // play note
+    fluid_synth_noteon(fluidsynth_, channel, note.note, note.velocity.value_or(100));
+
+    // Store the note in playing_notes_ for later stop
+    playing_notes_[track][note.id] = note;
 }
 
 void NoteNagaSynthFluidSynth::stopNote(const NN_Note_t &note) {
     NoteNagaTrack *track = note.parent;
     if (!track) return;
     int channel = track->getChannel().value_or(0);
-    fluid_synth_noteoff(fluidsynth_, channel, note.note);
-    auto &vec = playing_notes_[track];
-    vec.erase(std::remove(vec.begin(), vec.end(), note.note), vec.end());
+
+    // find note in playing notes by ID
+    TrackNotesMap &playingTrackNotes = playing_notes_[track];
+    auto it = playingTrackNotes.find(note.id);
+
+    // retrieve note parameters and stop it
+    if (it != playingTrackNotes.end()) {
+        fluid_synth_noteoff(fluidsynth_, channel, it->second.note);
+        playingTrackNotes.erase(it);
+    }
 }
 
 void NoteNagaSynthFluidSynth::stopAllNotes(NoteNagaMidiSeq *seq, NoteNagaTrack *track) {
     if (track) {
         int channel = track->getChannel().value_or(0);
-        for (int note : playing_notes_[track]) {
-            fluid_synth_noteoff(fluidsynth_, channel, note);
+        for (const auto &[id, note] : playing_notes_[track]) {
+            fluid_synth_noteoff(fluidsynth_, channel, note.note);
         }
         playing_notes_[track].clear();
     } else if (seq) {
@@ -50,17 +96,12 @@ void NoteNagaSynthFluidSynth::stopAllNotes(NoteNagaMidiSeq *seq, NoteNagaTrack *
             if (tr) stopAllNotes(nullptr, tr);
         }
     } else {
-        for (auto &[t, notes] : playing_notes_) {
-            int channel = t->getChannel().value_or(0);
-            for (int note : notes) {
-                fluid_synth_noteoff(fluidsynth_, channel, note);
+        for (auto &[track, notes] : playing_notes_) {
+            int channel = track->getChannel().value_or(0);
+            for (const auto &[id, note] : notes) {
+                fluid_synth_noteoff(fluidsynth_, channel, note.note);
             }
             notes.clear();
         }
     }
-}
-
-void NoteNagaSynthFluidSynth::setParam(const std::string &param, float value) {
-    if (param == "master_volume") master_volume_ = value;
-    // Další parametry...
 }

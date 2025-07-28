@@ -10,11 +10,12 @@
 struct NOTE_NAGA_ENGINE_API NN_SynthMessage_t {
     NN_Note_t note; /// <MIDI note to play or stop>
     bool play;      /// <True to play note, false to stop>
+    float pan;      /// <Stereo pan value (-1.0 left, 1.0 right)>
 };
 
 /**
- * Abstraktní třída syntetizéru pro NoteNagaEngine.
- * Dědí od NoteNagaEngineComponent, pracuje s NN_MixerMessage_t
+ * Abstract base class for Note Naga Synthesizers.
+ * This class defines the interface for synthesizers that can play MIDI notes.
  */
 class NOTE_NAGA_ENGINE_API NoteNagaSynthesizer
     : public NoteNagaEngineComponent<NN_SynthMessage_t, 1024> {
@@ -23,17 +24,24 @@ public:
     virtual ~NoteNagaSynthesizer() = default;
 
     /**
+     * @brief Set the name of the synthesizer.
+     * @param name Name of the synthesizer.
+     */
+    void setName(const std::string &name) { this->name = name; }
+
+    /**
      * @brief Sets a parameter for the synthesizer.
      * @param param Parameter name.
      * @param value Value to set.
      */
-    virtual std::string getName() { return this->name; }
+    std::string getName() const { return this->name; }
 
     /**
      * @brief Plays a MIDI note.
      * @param note The note to play.
+     * @param pan Stereo pan value (-1.0 left, 1.0 right).
      */
-    virtual void playNote(const NN_Note_t &note) = 0;
+    virtual void playNote(const NN_Note_t &note, float pan = 0.0f) = 0;
 
     /**
      * @brief Stops a MIDI note.
@@ -52,18 +60,19 @@ public:
                               NoteNagaTrack *track = nullptr) = 0;
 
     /**
-     * @brief Mutes or unmutes the specified track.
-     * @param track Pointer to the track.
-     * @param mute True to mute, false to unmute.
+     * @brief Sets a parameter for the synthesizer.
+     * @param param Parameter name.
+     * @param value Value to set.
+     * @note This method is optional and can be overridden by derived classes.
      */
-    virtual void setParam(const std::string &param, float value) = 0;
+    virtual void setParam(const std::string &param, float value) {}
 
 protected:
     std::string name; ///< Name of the synthesizer
 
     void onItem(const NN_SynthMessage_t &value) override {
         if (value.play)
-            playNote(value.note);
+            playNote(value.note, value.pan);
         else
             stopNote(value.note);
     }

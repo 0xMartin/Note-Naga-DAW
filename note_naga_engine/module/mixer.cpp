@@ -1,59 +1,56 @@
 #include <note_naga_engine/module/mixer.h>
 
-#include <note_naga_engine/logger.h>
 #include <algorithm>
+#include <note_naga_engine/logger.h>
 
 #ifndef QT_DEACTIVATED
-NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path)
+NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project,
+                             std::vector<NoteNagaSynthesizer *> *synthesizers)
     : NoteNagaEngineComponent(), QObject(nullptr)
 #else
-NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path)
+NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, std::vector<NoteNagaSynthesizer *> *synthesizers)
     : NoteNagaEngineComponent()
 #endif
 {
     this->project = project;
-    this->sf2_path = sf2_path;
+    this->synthesizers = synthesizers;
     this->master_volume = 1.0f;
     this->master_min_note = 0;
     this->master_max_note = 127;
     this->master_note_offset = 0;
     this->master_pan = 0.0f;
-    this->synthesizers = nullptr;
+    
 
 #ifndef QT_DEACTIVATED
     connect(project, &NoteNagaProject::projectFileLoaded, this,
             &NoteNagaMixer::createDefaultRouting);
 #endif
 
-    // Detekce dostupných výstupů pouze z existujících syntetizérů (přes engine později)
+    // Detect available outputs and set default
     available_outputs = detectOutputs();
-    if (!available_outputs.empty()) {
-        auto it = std::find(available_outputs.begin(), available_outputs.end(), "fluidsynth");
-        if (it != available_outputs.end()) {
-            default_output = "fluidsynth";
-        } else {
-            default_output = available_outputs.front();
-        }
+    if (available_outputs.empty()) {
+        default_output = TRACK_ROUTING_ENTRY_ANY_DEVICE; // Default to "any device"
+    } else {
+        default_output = available_outputs.front();
     }
     NOTE_NAGA_LOG_INFO("Default output device set on: " + default_output);
 
     NOTE_NAGA_LOG_INFO("Initialized successfully");
 }
 
-NoteNagaMixer::~NoteNagaMixer() {
-    close();
+NoteNagaMixer::~NoteNagaMixer() { close(); }
+
+void NoteNagaMixer::setSynthVectorRef(std::vector<NoteNagaSynthesizer *> *synthesizers) {
+    this->synthesizers = synthesizers;
+    this->detectOutputs();
 }
 
 std::vector<std::string> NoteNagaMixer::detectOutputs() {
-    // Zde lze případně zavolat přes engine všechny syntetizéry a získat stringy
-    // Prozatím vrací "fluidsynth" jako ukázku
     std::vector<std::string> outputs;
     if (this->synthesizers) {
-        for (auto* synth : *this->synthesizers) {
+        for (auto *synth : *this->synthesizers) {
             outputs.push_back(synth->getName());
         }
-    } else {
-        outputs.push_back("fluidsynth"); // fallback
     }
     return outputs;
 }
@@ -70,55 +67,63 @@ void NoteNagaMixer::close() {
 void NoteNagaMixer::createDefaultRouting() {
     routing_entries.clear();
     if (!project) return;
-    for (NoteNagaMidiSeq *seq : project->getSequences()) {
-        if (!seq) continue;
-        std::vector<bool> used_channels(16, false);
-        for (NoteNagaTrack *track : seq->getTracks()) {
-            if (!track) continue;
-            if (auto ch = track->getChannel(); ch.has_value()) {
-                int channel = ch.value();
-                if (channel >= 0 && channel < 16) used_channels[channel] = true;
-            }
-        }
-        for (NoteNagaTrack *track : seq->getTracks()) {
-            if (!track) continue;
-            int channel;
-            if (auto ch = track->getChannel(); ch.has_value()) {
-                channel = ch.value();
-            } else {
-                auto it = std::find(used_channels.begin(), used_channels.end(), false);
-                if (it != used_channels.end()) {
-                    channel = std::distance(used_channels.begin(), it);
-                    used_channels[channel] = true;
-                } else {
-                    channel = 15;
-                }
-            }
-            routing_entries.push_back(
-                NoteNagaRoutingEntry(track, default_output, channel));
+
+    // use active sequence
+    NoteNagaMidiSeq *seq = project->getActiveSequence();
+    if (!seq) return;
+
+    std::vector<bool> used_channels(16, false);
+
+    // Get and mark used channels for each track in sequence
+    for (NoteNagaTrack *track : seq->getTracks()) {
+        if (!track) continue;
+        if (auto ch = track->getChannel(); ch.has_value()) {
+            int channel = ch.value();
+            if (channel >= 0 && channel < 16) used_channels[channel] = true;
         }
     }
-    NOTE_NAGA_LOG_INFO("Default routing created with " +
-                       std::to_string(routing_entries.size()) + " entries");
+
+    // Create default routing entries for each track
+    for (NoteNagaTrack *track : seq->getTracks()) {
+        if (!track) continue;
+        int channel;
+        if (auto ch = track->getChannel(); ch.has_value()) {
+            channel = ch.value();
+        } else {
+            auto it = std::find(used_channels.begin(), used_channels.end(), false);
+            if (it != used_channels.end()) {
+                channel = std::distance(used_channels.begin(), it);
+                used_channels[channel] = true;
+            } else {
+                channel = 15;
+            }
+        }
+        routing_entries.push_back(NoteNagaRoutingEntry(track, default_output, channel));
+    }
+
+    NOTE_NAGA_LOG_INFO("Default routing created with " + std::to_string(routing_entries.size()) +
+                       " entries");
     NN_QT_EMIT(routingEntryStackChanged());
 }
 
 void NoteNagaMixer::setRouting(const std::vector<NoteNagaRoutingEntry> &entries) {
     routing_entries = entries;
-    NOTE_NAGA_LOG_INFO("Routing stack changed, now has " +
-                       std::to_string(routing_entries.size()) + " entries");
+    NOTE_NAGA_LOG_INFO("Routing stack changed, now has " + std::to_string(routing_entries.size()) +
+                       " entries");
     NN_QT_EMIT(routingEntryStackChanged());
 }
 
 bool NoteNagaMixer::addRoutingEntry(const std::optional<NoteNagaRoutingEntry> &entry) {
     if (entry.has_value()) {
+        // add entry if it has a valid track
         if (!entry.value().track) return false;
         routing_entries.push_back(entry.value());
-        NOTE_NAGA_LOG_INFO("Added routing entry for track Id: " +
-                           std::to_string(entry.value().track->getId()) +
-                           " on device: " + entry.value().output);
+        NOTE_NAGA_LOG_INFO(
+            "Added routing entry for track Id: " + std::to_string(entry.value().track->getId()) +
+            " on device: " + entry.value().output);
         NN_QT_EMIT(routingEntryStackChanged());
     } else {
+        // add default entry for active track (active track in active sequence)
         NoteNagaMidiSeq *seq = project->getActiveSequence();
         if (!seq) return false;
         NoteNagaTrack *track = seq->getActiveTrack();
@@ -126,8 +131,7 @@ bool NoteNagaMixer::addRoutingEntry(const std::optional<NoteNagaRoutingEntry> &e
         if (!track) return false;
         routing_entries.push_back(NoteNagaRoutingEntry(track, default_output, 0));
         NOTE_NAGA_LOG_INFO("Added default routing entry for track Id: " +
-                           std::to_string(track->getId()) +
-                           " on device: " + default_output);
+                           std::to_string(track->getId()) + " on device: " + default_output);
         NN_QT_EMIT(routingEntryStackChanged());
     }
     return true;
@@ -140,8 +144,7 @@ bool NoteNagaMixer::removeRoutingEntry(int index) {
         NN_QT_EMIT(routingEntryStackChanged());
         return true;
     }
-    NOTE_NAGA_LOG_WARNING("Failed to remove routing entry at index: " +
-                          std::to_string(index));
+    NOTE_NAGA_LOG_WARNING("Failed to remove routing entry at index: " + std::to_string(index));
     return false;
 }
 
@@ -151,71 +154,17 @@ void NoteNagaMixer::clearRoutingTable() {
     NN_QT_EMIT(routingEntryStackChanged());
 }
 
-void NoteNagaMixer::playNote(const NN_Note_t &midi_note) {
-    // Z důvodu zpětné kompatibility stále volá příslušné syntetizéry podle routingu
-    NoteNagaTrack *track = midi_note.parent;
-    if (!track) {
-        NOTE_NAGA_LOG_WARNING("Cannot play note, missing parent track");
-        return;
-    }
-    NoteNagaMidiSeq *seq = track->getParent();
-    if (!seq) {
-        NOTE_NAGA_LOG_WARNING("Cannot play note, missing parent sequence");
-        return;
-    }
-    NN_QT_EMIT(noteInSignal(midi_note));
-
-    // Pro každý routing nalezne správný syntetizér a pošle notu do jeho fronty
+bool NoteNagaMixer::isPercussion(NoteNagaTrack *track) const {
+    if (!track) return false;
     for (const NoteNagaRoutingEntry &entry : routing_entries) {
-        if (entry.track != track) continue;
-        int note_num = midi_note.note + entry.note_offset + master_note_offset;
-        if (note_num < 0 || note_num > 127) continue;
-        if (note_num < master_min_note || note_num > master_max_note) continue;
-        int velocity = int(std::min(127.0f, std::max(0.0f,
-            float(midi_note.velocity.value_or(100)) * entry.volume * master_volume)));
-        if (velocity <= 0) continue;
-
-        NN_SynthMessage_t msg;
-        msg.note = midi_note;
-        msg.note.note = note_num;
-        msg.note.velocity = velocity;
-        msg.play = true;
-
-        // najdi správný syntetizér podle jména
-        for (auto* synth : *this->synthesizers) {
-            if (synth->getName() == entry.output) {
-                synth->pushToQueue(msg);
-            }
-        }
+        if (entry.track == track && entry.channel == 9) { return true; }
     }
+    return false;
 }
 
-void NoteNagaMixer::stopNote(const NN_Note_t &midi_note) {
-    NoteNagaTrack *track = midi_note.parent;
-    if (!track) {
-        NOTE_NAGA_LOG_WARNING("Cannot stop note, missing parent track");
-        return;
-    }
-    // podobně jako playNote - předá zprávu správným syntetizérům
-    for (const NoteNagaRoutingEntry &entry : routing_entries) {
-        if (entry.track != track) continue;
-        NN_SynthMessage_t msg;
-        msg.note = midi_note;
-        msg.play = false;
-        for (auto* synth : *this->synthesizers) {
-            if (synth->getName() == entry.output) {
-                synth->pushToQueue(msg);
-            }
-        }
-    }
-}
-
-void NoteNagaMixer::stopAllNotes(NoteNagaMidiSeq *seq, NoteNagaTrack *track) {
-    // Předá požadavek všem syntetizérům
-    for (auto* synth : *this->synthesizers) {
-        synth->stopAllNotes(seq, track);
-    }
-}
+/*******************************************************************************************************/
+// Track control
+/*******************************************************************************************************/
 
 void NoteNagaMixer::muteTrack(NoteNagaTrack *track, bool mute) {
     if (!track) return;
@@ -242,29 +191,96 @@ void NoteNagaMixer::soloTrack(NoteNagaTrack *track, bool solo) {
     }
 }
 
-bool NoteNagaMixer::isPercussion(NoteNagaTrack *track) const {
-    if (!track) return false;
-    for (const NoteNagaRoutingEntry &entry : routing_entries) {
-        if (entry.track == track && entry.channel == 9) {
-            return true;
-        }
-    }
-    return false;
-}
+/*******************************************************************************************************/
+// Note play/stop methods
+/*******************************************************************************************************/
 
 void NoteNagaMixer::flushNotes() {
-    // Vloží všechny buffered noty do queue příslušných syntetizérů
-    for (const auto& msg : note_buffer_) {
-        for (auto* synth : *this->synthesizers) {
-            synth->pushToQueue(msg);
+    // for each synth, push all buffered notes
+    for (auto &pair : note_buffer_) {
+        // get synth name and vector of messages
+        const std::string &synth_name = pair.first;
+        std::vector<NN_SynthMessage_t> &vec = pair.second;
+
+        // push to synth queue
+        for (auto *synth : *this->synthesizers) {
+            if (synth->getName() == synth_name || synth_name == TRACK_ROUTING_ENTRY_ANY_DEVICE) {
+                for (auto &msg : vec) {
+                    synth->pushToQueue(msg);
+                }
+            }
         }
+
+        // clear the vector after pushing
+        vec.clear();
     }
     note_buffer_.clear();
 }
 
 void NoteNagaMixer::onItem(const NN_SynthMessage_t &value) {
-    // Odeslat zprávu do všech syntetizérů
-    for (auto* synth : *this->synthesizers) {
-        synth->pushToQueue(value);
+    // This method is called when a new item is dequeued from the component's queue.
+    // It processes the MIDI note play/stop messages.
+    if (value.play) {
+        // Handle note play
+        playNote(value.note);
+    } else {
+        // Handle note stop
+        stopNote(value.note);
+    }
+}
+
+void NoteNagaMixer::playNote(const NN_Note_t &midi_note) {
+    NoteNagaTrack *track = midi_note.parent;
+    if (!track) {
+        NOTE_NAGA_LOG_WARNING("Cannot play note, missing parent track");
+        return;
+    }
+    NoteNagaMidiSeq *seq = track->getParent();
+    if (!seq) {
+        NOTE_NAGA_LOG_WARNING("Cannot play note, missing parent sequence");
+        return;
+    }
+    NN_QT_EMIT(noteInSignal(midi_note));
+
+    for (const NoteNagaRoutingEntry &entry : routing_entries) {
+        if (entry.track != track) continue;
+        int note_num = midi_note.note + entry.note_offset + master_note_offset;
+        if (note_num < 0 || note_num > 127) continue;
+        if (note_num < master_min_note || note_num > master_max_note) continue;
+        int velocity = int(std::min(127.0f, std::max(0.0f, float(midi_note.velocity.value_or(100)) *
+                                                               entry.volume * master_volume)));
+        if (velocity <= 0) continue;
+
+        NN_SynthMessage_t msg;
+        msg.note = midi_note;
+        msg.note.note = note_num;
+        msg.note.velocity = velocity;
+        msg.pan = entry.pan + master_pan; 
+        msg.play = true;
+
+        // Ulož do bufferu podle jména výstupu (syntetizéru)
+        note_buffer_[entry.output].push_back(msg);
+    }
+}
+
+void NoteNagaMixer::stopNote(const NN_Note_t &midi_note) {
+    NoteNagaTrack *track = midi_note.parent;
+    if (!track) {
+        NOTE_NAGA_LOG_WARNING("Cannot stop note, missing parent track");
+        return;
+    }
+    for (const NoteNagaRoutingEntry &entry : routing_entries) {
+        if (entry.track != track) continue;
+        NN_SynthMessage_t msg;
+        msg.note = midi_note;
+        msg.play = false;
+        note_buffer_[entry.output].push_back(msg);
+    }
+}
+
+void NoteNagaMixer::stopAllNotes(NoteNagaMidiSeq *seq, NoteNagaTrack *track) {
+    // Předá požadavek všem syntetizérům
+    for (auto *synth : *this->synthesizers) {
+        synth->stopAllNotes(seq, track);
     }
 }

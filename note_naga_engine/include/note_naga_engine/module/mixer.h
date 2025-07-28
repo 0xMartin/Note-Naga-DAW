@@ -38,8 +38,8 @@ struct NOTE_NAGA_ENGINE_API NoteNagaRoutingEntry {
 
     NoteNagaRoutingEntry(NoteNagaTrack *track, const std::string &device, int channel,
                          float volume = 1.0f, int note_offset = 0, float pan = 0.0f)
-        : track(track), output(device), channel(channel), volume(volume),
-          note_offset(note_offset), pan(pan) {}
+        : track(track), output(device), channel(channel), volume(volume), note_offset(note_offset),
+          pan(pan) {}
 };
 
 /*******************************************************************************************************/
@@ -53,22 +53,21 @@ struct NOTE_NAGA_ENGINE_API NoteNagaRoutingEntry {
  * worker.
  */
 #ifndef QT_DEACTIVATED
-class NOTE_NAGA_ENGINE_API NoteNagaMixer
-    : public QObject,
-      public NoteNagaEngineComponent<NN_SynthMessage_t, 1024> {
+class NOTE_NAGA_ENGINE_API NoteNagaMixer : public QObject,
+                                           public NoteNagaEngineComponent<NN_SynthMessage_t, 1024> {
     Q_OBJECT
 #else
-class NOTE_NAGA_ENGINE_API NoteNagaMixer
-    : public NoteNagaEngineComponent<NN_SynthMessage_t, 1024> {
+class NOTE_NAGA_ENGINE_API NoteNagaMixer : public NoteNagaEngineComponent<NN_SynthMessage_t, 1024> {
 #endif
 
 public:
     /**
      * @brief Constructs the mixer and initializes the synthesizer and outputs.
      * @param project Pointer to the NoteNagaProject instance.
-     * @param sf2_path Path to the SoundFont file (default: FluidR3_GM.sf2).
+     * @param synthesizers Optional pointer to a vector of synthesizers to use.
      */
-    explicit NoteNagaMixer(NoteNagaProject *project, const std::string &sf2_path);
+    explicit NoteNagaMixer(NoteNagaProject *project,
+                           std::vector<NoteNagaSynthesizer *> *synthesizers);
 
     /**
      * @brief Destroys the mixer, releasing all resources.
@@ -78,9 +77,7 @@ public:
     /**
      * @brief Initializes the mixer and synthesizers.
      */
-    void setSynthVectorRef(std::vector<NoteNagaSynthesizer *> *synthesizers) {
-        this->synthesizers = synthesizers;
-    }
+    void setSynthVectorRef(std::vector<NoteNagaSynthesizer *> *synthesizers);
 
     /**
      * @brief Detects available MIDI output devices.
@@ -210,14 +207,13 @@ protected:
     void onItem(const NN_SynthMessage_t &value) override;
 
 private:
-    NoteNagaProject *project; ///< Pointer to the associated project
-    std::vector<NoteNagaSynthesizer *>
-        *synthesizers;    ///< List of synthesizers used by the mixer
-    std::string sf2_path; ///< Path to the SoundFont file
+    ///< Pointer to the associated project
+    NoteNagaProject *project;
+    ///< List of synthesizers used by the mixer
+    std::vector<NoteNagaSynthesizer *> *synthesizers;
 
-    std::vector<std::string>
-        available_outputs;      ///< Names of available MIDI output devices
-    std::string default_output; ///< Default output device name
+    std::vector<std::string> available_outputs;        ///< Names of available MIDI output devices
+    std::string default_output;                        ///< Default output device name
     std::vector<NoteNagaRoutingEntry> routing_entries; ///< Current routing entries
 
     std::atomic<float> master_volume;    ///< Master volume multiplier
@@ -227,7 +223,7 @@ private:
     std::atomic<float> master_pan;       ///< Master stereo pan position
 
     // Buffer for "flushNotes"
-    std::vector<NN_SynthMessage_t> note_buffer_;
+    std::unordered_map<std::string, std::vector<NN_SynthMessage_t>> note_buffer_;
 
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
@@ -248,7 +244,6 @@ Q_SIGNALS:
      * @param device_name Name of the output device.
      * @param channel MIDI channel.
      */
-    void noteOutSignal(const NN_Note_t &note, const std::string &device_name,
-                       int channel);
+    void noteOutSignal(const NN_Note_t &note, const std::string &device_name, int channel);
 #endif
 };
