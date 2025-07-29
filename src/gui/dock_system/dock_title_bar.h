@@ -8,7 +8,7 @@
 #include <QPushButton>
 #include <QFrame>
 
-#include "../components/vertical_title_label.h"
+#include "../components/vertical_label.h"
 
 // Forward declaration of AdvancedDockWidget to avoid circular dependency
 class AdvancedDockWidget;

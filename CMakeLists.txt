@@ -44,8 +44,9 @@ set(HEADER_FILES
     src/gui/components/separator.h
     src/gui/components/audio_vertical_slider.h
     src/gui/components/button_group_widget.h
-    src/gui/components/vertical_title_label.h
+    src/gui/components/vertical_label.h
     src/gui/components/stereo_volume_bar_widget.h
+    src/gui/components/audio_dial_grid_widget.h
     # gui/dialogs
     src/gui/dialogs/instrument_selector_dialog.h
     src/gui/dialogs/dsp_block_chooser_dialog.h
@@ -82,8 +83,9 @@ set(SOURCE_FILES
     src/gui/components/separator.cpp
     src/gui/components/audio_vertical_slider.cpp
     src/gui/components/button_group_widget.cpp
-    src/gui/components/vertical_title_label.cpp
+    src/gui/components/vertical_label.cpp
     src/gui/components/stereo_volume_bar_widget.cpp
+    src/gui/components/audio_dial_grid_widget.cpp
     # gui/dialogs
     src/gui/dialogs/instrument_selector_dialog.cpp
     src/gui/dialogs/dsp_block_chooser_dialog.cpp

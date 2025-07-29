@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QFrame>
+#include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -11,17 +12,15 @@
 #include "../components/audio_dial.h"
 #include "../components/audio_dial_centered.h"
 #include "../components/audio_vertical_slider.h"
+#include "../components/vertical_label.h"
+#include "../components/audio_dial_grid_widget.h"
 
-/**
- * @brief Widget for controlling a DSP block (auto-generates UI based on block parameters).
- */
 class DSPBlockWidget : public QFrame {
     Q_OBJECT
 public:
     explicit DSPBlockWidget(NoteNagaDSPBlockBase* block, QWidget* parent = nullptr);
 
     NoteNagaDSPBlockBase* block() const { return block_; }
-
     QSize minimumSizeHint() const override;
 
 protected:
@@ -41,36 +40,34 @@ private slots:
 private:
     void buildUi();
     void updateActivationButton();
-    void rebuildDialGrid();
 
     NoteNagaDSPBlockBase* block_;
 
-    QVBoxLayout* mainLayout_;
-    QFrame* topBar_;
-    QWidget* buttonBar_;
-    QHBoxLayout* buttonBarLayout_;
-    QPushButton* rightBtn_;
+    QHBoxLayout* mainLayout_;
+    QWidget* leftBar_;
+    QVBoxLayout* leftBarLayout_;
+    VerticalTitleLabel* titleLabel_;
     QPushButton* leftBtn_;
+    QPushButton* rightBtn_;
     QPushButton* deactivateBtn_;
     QPushButton* deleteBtn_;
+
+    QWidget* contentWidget_;
+    QVBoxLayout* contentLayout_;
+
+    QWidget* buttonBar_;
+    QHBoxLayout* buttonBarLayout_;
+    std::vector<QWidget*> buttonWidgets_;
 
     QWidget* centerWidget_;
     QHBoxLayout* centerLayout_;
 
     // Dial grid
-    QWidget* dialGridWidget_;
-    QGridLayout* dialGridLayout_;
+    AudioDialGridWidget* dialGridWidget_;
     std::vector<QWidget*> dialWidgets_;
 
     // Vertical slider stack
     QWidget* vSliderWidget_;
     QVBoxLayout* vSliderLayout_;
     std::vector<AudioVerticalSlider*> vSliderWidgets_;
-
-    // Param widget info
-    struct ParamWidget {
-        QWidget* control = nullptr;
-        DSControlType control_type;
-    };
-    std::vector<ParamWidget> paramWidgets_;
 };

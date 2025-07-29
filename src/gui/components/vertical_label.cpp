@@ -1,4 +1,4 @@
-#include "vertical_title_label.h"
+#include "vertical_label.h"
 
 #include <QPainter>
 #include <QFontMetrics>

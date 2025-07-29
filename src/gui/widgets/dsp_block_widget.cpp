@@ -1,29 +1,29 @@
 #include "dsp_block_widget.h"
 #include "../nn_gui_utils.h"
 #include <QButtonGroup>
-#include <QDebug>
 #include <QIcon>
 #include <QResizeEvent>
 #include <QSpacerItem>
 #include <cmath>
 
-static constexpr int DIAL_MIN_WIDTH = 40;
-static constexpr int DIAL_MIN_HEIGHT = 60;
-static constexpr int VSLIDER_WIDTH = 30;
+static constexpr int VSLIDER_WIDTH = 36;
 static constexpr int MAIN_PADDING = 4;
-static constexpr int BUTTON_BAR_HEIGHT = 32;
-static constexpr int TITLE_BAR_HEIGHT = 32;
+static constexpr int TITLE_BAR_WIDTH = 36;
 
 DSPBlockWidget::DSPBlockWidget(NoteNagaDSPBlockBase *block, QWidget *parent)
-    : QFrame(parent), block_(block), mainLayout_(nullptr), deactivateBtn_(nullptr),
-      deleteBtn_(nullptr), buttonBar_(nullptr), buttonBarLayout_(nullptr), dialGridWidget_(nullptr),
-      dialGridLayout_(nullptr), vSliderWidget_(nullptr), vSliderLayout_(nullptr) {
+    : QFrame(parent), block_(block)
+{
     setObjectName("DSPBlockWidget");
     setStyleSheet(R"(
         QFrame#DSPBlockWidget {
             background-color: #32353b;
             border: 1px solid #19191f;
             border-radius: 6px;
+        }
+        QWidget#LeftBar {
+            background: #2b2f37;
+            border-top-left-radius:6px;
+            border-bottom-left-radius:6px;
         }
     )");
     setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
@@ -32,72 +32,73 @@ DSPBlockWidget::DSPBlockWidget(NoteNagaDSPBlockBase *block, QWidget *parent)
 }
 
 void DSPBlockWidget::buildUi() {
-    // --- Main layout ---
-    if (mainLayout_) {
-        delete mainLayout_;
-        mainLayout_ = nullptr;
-    }
-    mainLayout_ = new QVBoxLayout(this);
-    mainLayout_->setContentsMargins(0, 0, 0, 0); // NO padding around whole widget
+    mainLayout_ = new QHBoxLayout(this);
+    mainLayout_->setContentsMargins(0, 0, 0, 0);
     mainLayout_->setSpacing(0);
 
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // TITLE BAR
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    topBar_ = new QFrame(this);
-    topBar_->setObjectName("TopBar");
-    topBar_->setFixedHeight(TITLE_BAR_HEIGHT);
-    topBar_->setStyleSheet("QFrame#TopBar {"
-                           "  background: #2b2f37;"
-                           "  border-bottom: 1px solid #19191f;"
-                           "  border-top-left-radius:6px;"
-                           "  border-top-right-radius:6px;"
-                           "  border-top: none;"
-                           "  border-left: none;"
-                           "  border-right: none;"
-                           "}");
-    auto *barLayout = new QHBoxLayout(topBar_);
-    barLayout->setContentsMargins(12, 2, 12, 2); // no padding outside of title bar
-    barLayout->setSpacing(3);
-    auto *title = new QLabel(QString::fromStdString(block_->getBlockName()), topBar_);
-    title->setStyleSheet("font-weight: bold; font-size: 15px; color: #fff;");
-    barLayout->addWidget(title);
-    barLayout->addStretch();
+    // Left side: vertical label + buttons at the bottom
+    leftBar_ = new QWidget(this);
+    leftBar_->setObjectName("LeftBar");
+    leftBar_->setFixedWidth(TITLE_BAR_WIDTH);
+    leftBarLayout_ = new QVBoxLayout(leftBar_);
+    leftBarLayout_->setContentsMargins(0, 8, 0, 8);
+    leftBarLayout_->setSpacing(6);
 
-    leftBtn_ = create_small_button(":/icons/left.svg", "Move block left", "leftBtn", 22, topBar_);
+    titleLabel_ = new VerticalTitleLabel(QString::fromStdString(block_->getBlockName()), leftBar_);
+    QFont f = font();
+    f.setBold(true);
+    f.setPointSize(12);
+    titleLabel_->setFont(f);
+    leftBarLayout_->addWidget(titleLabel_, 0);
+
+    leftBarLayout_->addStretch(1);
+
+    auto addCenteredButton = [&](QPushButton* btn) {
+        QWidget* wrapper = new QWidget(leftBar_);
+        wrapper->setStyleSheet("QWidget { background: transparent; }");
+        QHBoxLayout* hbox = new QHBoxLayout(wrapper);
+        hbox->setContentsMargins(0,0,0,0);
+        hbox->addStretch(1);
+        hbox->addWidget(btn);
+        hbox->addStretch(1);
+        leftBarLayout_->addWidget(wrapper, 0);
+    };
+
+    leftBtn_ = create_small_button(":/icons/left.svg", "Move block left", "leftBtn", 20, leftBar_);
     connect(leftBtn_, &QPushButton::clicked, this, &DSPBlockWidget::onLeftClicked);
-    barLayout->addWidget(leftBtn_);
+    addCenteredButton(leftBtn_);
 
-    rightBtn_ =
-        create_small_button(":/icons/right.svg", "Move block right", "rightBtn", 22, topBar_);
+    rightBtn_ = create_small_button(":/icons/right.svg", "Move block right", "rightBtn", 20, leftBar_);
     connect(rightBtn_, &QPushButton::clicked, this, &DSPBlockWidget::onRightClicked);
-    barLayout->addWidget(rightBtn_);
+    addCenteredButton(rightBtn_);
 
     deactivateBtn_ = create_small_button(":/icons/active.svg",
                                          block_->isActive() ? "Deactivate block" : "Activate block",
-                                         "deactivateBtn", 22, topBar_);
+                                         "deactivateBtn", 20, leftBar_);
     deactivateBtn_->setCheckable(true);
     connect(deactivateBtn_, &QPushButton::clicked, this, &DSPBlockWidget::onDeactivateClicked);
-    barLayout->addWidget(deactivateBtn_);
+    addCenteredButton(deactivateBtn_);
 
-    deleteBtn_ = create_small_button(":/icons/close.svg", "Delete block", "deleteBtn", 22, topBar_);
+    deleteBtn_ = create_small_button(":/icons/close.svg", "Delete block", "deleteBtn", 20, leftBar_);
     connect(deleteBtn_, &QPushButton::clicked, this, &DSPBlockWidget::onDeleteClicked);
-    barLayout->addWidget(deleteBtn_);
+    addCenteredButton(deleteBtn_);
 
-    mainLayout_->addWidget(topBar_);
+    mainLayout_->addWidget(leftBar_, 0);
 
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // BUTTON BAR
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    buttonBar_ = new QWidget(this);
-    buttonBar_->setMinimumHeight(BUTTON_BAR_HEIGHT);
+    // Content (right side)
+    contentWidget_ = new QWidget(this);
+    contentLayout_ = new QVBoxLayout(contentWidget_);
+    contentLayout_->setContentsMargins(MAIN_PADDING, MAIN_PADDING, MAIN_PADDING, MAIN_PADDING);
+    contentLayout_->setSpacing(8);
+
+    // Button bar at top
+    buttonBar_ = new QWidget(contentWidget_);
     buttonBarLayout_ = new QHBoxLayout(buttonBar_);
     buttonBarLayout_->setContentsMargins(4, 0, 4, 0);
     buttonBarLayout_->setSpacing(2);
 
-    // Buttony generované z parametru
     auto params = block_->getParamDescriptors();
-    paramWidgets_.clear();
+    buttonWidgets_.clear();
     dialWidgets_.clear();
     vSliderWidgets_.clear();
 
@@ -107,11 +108,10 @@ void DSPBlockWidget::buildUi() {
         QWidget *control = nullptr;
         switch (desc.control_type) {
         case DSControlType::PushButton: {
-            auto *btn =
-                create_small_button(":/icons/custom_btn.svg", QString::fromStdString(desc.name),
-                                    desc.name.c_str(), 24, buttonBar_);
+            auto *btn = create_small_button(":/icons/custom_btn.svg", QString::fromStdString(desc.name),
+                                            desc.name.c_str(), 24, buttonBar_);
             connect(btn, &QPushButton::clicked, this, [this, i]() {
-                block_->setParamValue(i, 1.0f); // nebo custom akce
+                block_->setParamValue(i, 1.0f);
             });
             buttonBarLayout_->addWidget(btn);
             control = btn;
@@ -119,9 +119,8 @@ void DSPBlockWidget::buildUi() {
             break;
         }
         case DSControlType::ToogleButton: {
-            auto *btn =
-                create_small_button(":/icons/toggle_btn.svg", QString::fromStdString(desc.name),
-                                    desc.name.c_str(), 24, buttonBar_);
+            auto *btn = create_small_button(":/icons/toggle_btn.svg", QString::fromStdString(desc.name),
+                                            desc.name.c_str(), 24, buttonBar_);
             btn->setCheckable(true);
             btn->setChecked(block_->getParamValue(i) > 0.5f);
             connect(btn, &QPushButton::clicked, this, [this, btn, i]() {
@@ -136,29 +135,21 @@ void DSPBlockWidget::buildUi() {
         default:
             break;
         }
-        if (control) paramWidgets_.push_back({control, desc.control_type});
+        if (control) buttonWidgets_.push_back(control);
     }
     buttonBarLayout_->addStretch(1);
-    // Hide button bar if no buttons
     buttonBar_->setVisible(buttonCount > 0);
-    if (buttonCount > 0) mainLayout_->addWidget(buttonBar_);
+    if (buttonCount > 0) contentLayout_->addWidget(buttonBar_);
 
-    // --- Center (Dial grid | Vertical slider bar) ---
-    centerWidget_ = new QWidget(this);
-    centerWidget_->setObjectName("DSPCenterWidget");
-    auto *centerLayout = new QHBoxLayout(centerWidget_);
-    centerLayout->setContentsMargins(MAIN_PADDING, MAIN_PADDING, MAIN_PADDING, MAIN_PADDING);
-    centerLayout->setSpacing(0);
+    // Center area (dial grid + vslider bar side by side)
+    centerWidget_ = new QWidget(contentWidget_);
+    centerLayout_ = new QHBoxLayout(centerWidget_);
+    centerLayout_->setContentsMargins(0, 0, 0, 0);
+    centerLayout_->setSpacing(8);
 
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // DIAL GRID
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    dialGridWidget_ = new QWidget(centerWidget_);
-    dialGridWidget_->setObjectName("DialGridWidget");
-    dialGridLayout_ = new QGridLayout(dialGridWidget_);
-    dialGridLayout_->setContentsMargins(0, 0, 0, 0);
-    dialGridLayout_->setSpacing(2);
-
+    // Dial grid (AudioDialGridWidget)
+    dialGridWidget_ = new AudioDialGridWidget(centerWidget_);
+    dialGridWidget_->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
     for (size_t i = 0; i < params.size(); ++i) {
         const auto &desc = params[i];
         QWidget *control = nullptr;
@@ -167,7 +158,7 @@ void DSPBlockWidget::buildUi() {
             float value = block_->getParamValue(i);
             if (desc.control_type == DSControlType::Dial) {
                 auto *dial = new AudioDial(dialGridWidget_);
-                dial->setMinimumSize(DIAL_MIN_WIDTH, DIAL_MIN_HEIGHT);
+                dial->setFixedSize(40, 60);
                 dial->setRange(desc.min_value, desc.max_value);
                 dial->setValue(value);
                 dial->setDefaultValue(desc.default_value);
@@ -181,7 +172,7 @@ void DSPBlockWidget::buildUi() {
                 control = dial;
             } else {
                 auto *dial = new AudioDialCentered(dialGridWidget_);
-                dial->setMinimumSize(DIAL_MIN_WIDTH, DIAL_MIN_HEIGHT);
+                dial->setFixedSize(40, 60);
                 dial->setRange(desc.min_value, desc.max_value);
                 dial->setValue(value);
                 dial->setDefaultValue(desc.default_value);
@@ -197,14 +188,14 @@ void DSPBlockWidget::buildUi() {
             dialWidgets_.push_back(control);
         }
     }
+    dialGridWidget_->setDials(dialWidgets_);
     bool showDialGrid = !dialWidgets_.empty();
 
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // VSLIDER BAR
-    ///////////////////////////////////////////////////////////////////////////////////////////
+    // VSlider bar
     vSliderWidget_ = new QWidget(centerWidget_);
     vSliderWidget_->setObjectName("VSliderWidget");
     vSliderWidget_->setFixedWidth(VSLIDER_WIDTH);
+    vSliderWidget_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
     vSliderLayout_ = new QVBoxLayout(vSliderWidget_);
     vSliderLayout_->setContentsMargins(0, 0, 0, 0);
     vSliderLayout_->setSpacing(2);
@@ -221,7 +212,7 @@ void DSPBlockWidget::buildUi() {
             slider->setLabelVisible(true);
             slider->setValueVisible(true);
             slider->setValueDecimals(2);
-            slider->setFixedWidth(VSLIDER_WIDTH); // fixní šířka!
+            slider->setFixedWidth(VSLIDER_WIDTH);
             connect(slider, &AudioVerticalSlider::valueChanged, this,
                     [this, i](float val) { block_->setParamValue(i, val); });
             vSliderLayout_->addWidget(slider);
@@ -230,61 +221,28 @@ void DSPBlockWidget::buildUi() {
     }
     bool showVSliderStack = !vSliderWidgets_.empty();
 
-    // Hide empty dial grid or vslider bar
     dialGridWidget_->setVisible(showDialGrid);
     vSliderWidget_->setVisible(showVSliderStack);
 
-    // Hlavní layout sekcí
-    if (showDialGrid) centerLayout->addWidget(dialGridWidget_, 2);
-    if (showDialGrid && showVSliderStack)
-        centerLayout->addSpacerItem(
-            new QSpacerItem(8, 8, QSizePolicy::Expanding, QSizePolicy::Expanding));
-    if (showVSliderStack) centerLayout->addWidget(vSliderWidget_, 0);
+    centerLayout_->addWidget(dialGridWidget_, 1);
+    centerLayout_->addWidget(vSliderWidget_, 0);
 
-    // Hide centerWidget if both sections are empty
     centerWidget_->setVisible(showDialGrid || showVSliderStack);
-    if (showDialGrid || showVSliderStack) mainLayout_->addWidget(centerWidget_, 1);
+    if (showDialGrid || showVSliderStack) contentLayout_->addWidget(centerWidget_, 1);
 
-    mainLayout_->addStretch();
+    contentWidget_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::MinimumExpanding);
+
+    mainLayout_->addWidget(contentWidget_, 1);
+
     updateActivationButton();
-
-    rebuildDialGrid();
 }
 
 void DSPBlockWidget::resizeEvent(QResizeEvent *event) {
     QFrame::resizeEvent(event);
-    rebuildDialGrid();
-}
-
-void DSPBlockWidget::rebuildDialGrid() {
-    // Dynamicky přepočítá grid dialů podle šířky
-    if (!dialGridLayout_ || dialWidgets_.empty()) return;
-    int gridW = dialGridWidget_->width();
-    int cols = std::max(1, gridW / DIAL_MIN_WIDTH);
-    int rows = (dialWidgets_.size() + cols - 1) / cols;
-    // Vyčistit grid
-    QLayoutItem *child;
-    while ((child = dialGridLayout_->takeAt(0)) != nullptr) {
-        if (child->widget()) child->widget()->setParent(nullptr);
-        delete child;
-    }
-    // Vložit dialy
-    int idx = 0;
-    for (int c = 0; c < cols; ++c) {
-        for (int r = 0; r < rows; ++r) {
-            if (idx < dialWidgets_.size()) {
-                dialGridLayout_->addWidget(dialWidgets_[idx], r, c);
-                ++idx;
-            }
-        }
-    }
-    // Spacer vyplní zbytek
-    dialGridLayout_->setRowStretch(rows, 1);
-    dialGridLayout_->setColumnStretch(cols, 1);
+    // AudioDialGridWidget automaticky reaguje na resize
 }
 
 void DSPBlockWidget::onLeftClicked() { emit moveLeftRequested(this); }
-
 void DSPBlockWidget::onRightClicked() { emit moveRightRequested(this); }
 
 void DSPBlockWidget::updateActivationButton() {
@@ -302,30 +260,17 @@ void DSPBlockWidget::onDeactivateClicked() {
 void DSPBlockWidget::onDeleteClicked() { emit deleteRequested(this); }
 
 QSize DSPBlockWidget::minimumSizeHint() const {
-    int minWidth = 120; // fallback
+    int minWidth = TITLE_BAR_WIDTH + 30;
 
-    // Pokud jsou dialy, vypočítej podle gridu
-    int dialCols = 0;
-    int dialCount = dialWidgets_.size();
-    if (dialCount > 0) {
-        dialCols = std::max(1, dialGridWidget_ ? dialGridWidget_->width() / DIAL_MIN_WIDTH : 1);
-        int gridWidth = dialCols * DIAL_MIN_WIDTH + (dialCols - 1) * 2;
-        minWidth = std::max(minWidth, gridWidth);
-    }
-    // Pokud jsou slidery, přičti jejich šířku
+    // DialGridWidget si řídí minWidth dynamicky, tady pro jistotu fallback
     int sliderCount = vSliderWidgets_.size();
     if (sliderCount > 0) {
-        int sliderWidth = VSLIDER_WIDTH + 4; // slider + mezera
+        int sliderWidth = VSLIDER_WIDTH + 4;
         minWidth += sliderWidth;
     }
-
-    // Pokud není žádný obsah, minimální šířka
-    if (dialCount == 0 && sliderCount == 0) { minWidth = 120; }
-
-    // Pokud je buttonBar, přičti jeho případnou šířku (např. 40px)
+    if (dialWidgets_.empty() && sliderCount == 0) minWidth = TITLE_BAR_WIDTH + 120;
     if (buttonBar_ && buttonBar_->isVisible()) {
-        minWidth = std::max(minWidth, buttonBar_->sizeHint().width() + 20);
+        minWidth = std::max(minWidth, TITLE_BAR_WIDTH + buttonBar_->sizeHint().width() + 20);
     }
-
     return QSize(minWidth, QFrame::minimumSizeHint().height());
 }
