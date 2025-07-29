@@ -1,5 +1,7 @@
 #include "dsp_widget.h"
 
+#include <note_naga_engine/dsp/dsp_factory.h>
+
 #include "../nn_gui_utils.h"
 #include <QFrame>
 #include <QHBoxLayout>
@@ -71,9 +73,8 @@ void DSPWidget::initUI() {
     /////////////////////////////////////////////////////////////////////////////////////////
     QFrame *info_panel = new QFrame();
     info_panel->setObjectName("InfoPanel");
-    info_panel->setStyleSheet(
-        "QFrame#InfoPanel { background: #2F3139; border: 1px solid #494d56; "
-        "border-radius: 8px; padding: 2px 0px 0px 0px; }");
+    info_panel->setStyleSheet("QFrame#InfoPanel { background: #2F3139; border: 1px solid #494d56; "
+                              "border-radius: 8px; padding: 2px 0px 0px 0px; }");
     info_panel->setFixedWidth(120);
 
     QVBoxLayout *info_layout = new QVBoxLayout(info_panel);
@@ -83,7 +84,7 @@ void DSPWidget::initUI() {
     // Output label nahoře, zarovnaný na střed
     QLabel *lbl_info = new QLabel("Output");
     lbl_info->setAlignment(Qt::AlignCenter);
-    lbl_info->setStyleSheet("font-size: 13px; color: #ccc;");
+    lbl_info->setStyleSheet("font-size: 13px; color: #ddd; font-weight: bold;");
     info_layout->addWidget(lbl_info);
 
     // Horizontální sekce: slider vlevo, volume bar vpravo
@@ -93,25 +94,23 @@ void DSPWidget::initUI() {
     center_layout->setContentsMargins(0, 0, 0, 0);
     center_layout->setSpacing(6);
 
-    // Audio slider 
+    // Audio slider
     AudioVerticalSlider *volume_slider = new AudioVerticalSlider(center_section);
     volume_slider->setRange(0, 100.0f);
     volume_slider->setValue(100.0f);
     volume_slider->setLabelText("Vol");
-    volume_slider->setFixedWidth(30); 
+    volume_slider->setFixedWidth(30);
     volume_slider->setValuePostfix(" %");
     volume_slider->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
     connect(volume_slider, &AudioVerticalSlider::valueChanged, this, [this](int value) {
-        if (engine) {
-            engine->getDSPEngine()->setOutputVolume(value / 100.0f);
-        }
+        if (engine) { engine->getDSPEngine()->setOutputVolume(value / 100.0f); }
     });
     center_layout->addWidget(volume_slider, 0, Qt::AlignLeft);
 
-    // Stereo volume bar 
+    // Stereo volume bar
     StereoVolumeBarWidget *volume_bar = new StereoVolumeBarWidget(center_section);
     volume_bar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    center_layout->addWidget(volume_bar, 1, Qt::AlignVCenter);
+    center_layout->addWidget(volume_bar, 1);
 
     // Přidat center_section do hlavního vertikálního layoutu
     info_layout->addWidget(center_section, 1);
@@ -127,5 +126,27 @@ void DSPWidget::initUI() {
             volume_bar->setVolumesDb(dbs.first, dbs.second);
         }
     });
-    timer->start(50); // obnovovat každých 50ms
+    timer->start(50);
+}
+
+void DSPWidget::addDSPClicked() {
+    // Instantiate a new DSP block widget and add it to the layout
+    NoteNagaDSPBlockBase *new_block = nn_create_audio_gain_block(1.0f);
+    if (!new_block) {
+        return;
+    }
+    engine->getDSPEngine()->addDSPBlock(new_block);
+
+    // Create UI for new DSP block
+    DSPBlockWidget *dsp_widget = new DSPBlockWidget(new_block);
+    dsp_widgets.push_back(dsp_widget);
+    dsp_layout->addWidget(dsp_widget);
+}
+
+void DSPWidget::removeDSPClicked() {
+
+}
+
+void DSPWidget::removeAllDSPClicked() {
+
 }

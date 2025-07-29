@@ -34,7 +34,6 @@ public:
 protected:
     void paintEvent(QPaintEvent* event) override;
     QSize minimumSizeHint() const override;
-    QSize sizeHint() const override;
 
 private:
     // Volume levels in dB

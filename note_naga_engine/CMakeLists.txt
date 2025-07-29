@@ -34,6 +34,7 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/note_naga_engine.h
     # include/note_naga_engine/core
     ./include/note_naga_engine/core/types.h
+    ./include/note_naga_engine/core/dsp_block_base.h
     ./include/note_naga_engine/core/lock_free_spsc_queue.h
     ./include/note_naga_engine/core/lock_free_mpmc_queue.h
     ./include/note_naga_engine/core/async_queue_component.h
@@ -49,6 +50,9 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/module/metronome.h
     # include/note_naga_engine/synth
     ./include/note_naga_engine/synth/synth_fluidsynth.h
+    # include/note_naga_engine/dsp
+    ./include/note_naga_engine/dsp/dsp_factory.h
+    ./include/note_naga_engine/dsp/dsp_block_gain.h
 )
 
 set(SOURCE_FILES
@@ -66,8 +70,11 @@ set(SOURCE_FILES
     ./module/audio_worker.cpp
     ./module/dsp_engine.cpp
     ./module/metronome.cpp
-    # note_naga_engine/synth
+    # synth
     ./synth/synth_fluidsynth.cpp
+    # dsp
+    ./dsp/dsp_factory.cpp
+    ./dsp/dsp_block_gain.cpp
 )
 
 # GLIB2, FluidSynth, and RtMidi dependencies (REQUIRED)

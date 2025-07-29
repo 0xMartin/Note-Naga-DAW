@@ -58,6 +58,7 @@ set(HEADER_FILES
     src/gui/widgets/track_mixer_widget.h
     src/gui/widgets/track_widget.h
     src/gui/widgets/dsp_widget.h
+    src/gui/widgets/dsp_block_widget.h
 )
 
 set(SOURCE_FILES
@@ -94,6 +95,7 @@ set(SOURCE_FILES
     src/gui/widgets/track_mixer_widget.cpp
     src/gui/widgets/track_widget.cpp
     src/gui/widgets/dsp_widget.cpp
+    src/gui/widgets/dsp_block_widget.cpp
 )
 
 if(WIN32)

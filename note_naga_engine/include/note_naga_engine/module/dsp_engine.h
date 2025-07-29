@@ -2,6 +2,7 @@
 
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/core/note_naga_synthesizer.h>
+#include <note_naga_engine/core/dsp_block_base.h>
 #include <note_naga_engine/module/metronome.h>
 #include <note_naga_engine/core/project_data.h>
 #include <vector>
@@ -21,6 +22,13 @@ public:
     NoteNagaDSPEngine(NoteNagaProject* project);
 
     /**
+     * @brief Render audio for the current project.
+     * @param output Pointer to the output buffer (interleaved left/right).
+     * @param num_frames Number of frames to render.
+     */
+    void render(float* output, size_t num_frames);
+
+    /**
      * @brief Add a synthesizer to the DSP engine.
      * @param synth Pointer to the synthesizer to add.
      */
@@ -33,11 +41,16 @@ public:
     void removeSynth(INoteNagaSoftSynth* synth);
 
     /**
-     * @brief Render a block of audio samples.
-     * @param output Pointer to the output buffer (interleaved left/right).
-     * @param num_frames Number of frames to render.
+     * @brief Add a DSP block to the engine.
+     * @param block Pointer to the DSP block to add.
      */
-    void renderBlock(float* output, size_t num_frames);
+    void addDSPBlock(NoteNagaDSPBlockBase* block);
+
+    /**
+     * @brief Remove a DSP block from the engine.
+     * @param block Pointer to the DSP block to remove.
+     */
+    void removeDSPBlock(NoteNagaDSPBlockBase* block);
 
     /**
      * @brief Get the current project.
@@ -60,7 +73,8 @@ public:
 private:
     NoteNagaProject *project_; ///< Pointer to the associated project
     std::vector<INoteNagaSoftSynth*> synths_; ///< List of synthesizers managed by the engine
-    std::mutex synths_mutex_; ///< Mutex for thread-safe access to the synths list
+    std::vector<NoteNagaDSPBlockBase*> dsp_blocks_;
+    std::mutex dsp_engine_mutex_; ///< Mutex for thread-safe access to the DSP blocks list, synths, and configuration
 
     // Output volume level (0.0 to 1.0)
     float output_volume_ = 1.0f; ///< Output volume level (0.0 to 1.0)

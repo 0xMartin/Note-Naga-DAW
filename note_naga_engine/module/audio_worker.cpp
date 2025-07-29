@@ -66,7 +66,7 @@ int NoteNagaAudioWorker::audioCallback(void *outputBuffer, void *, unsigned int 
     float *out = static_cast<float *>(outputBuffer);
 
     if (self->dspEngine_) {
-        self->dspEngine_->renderBlock(out, nFrames);
+        self->dspEngine_->render(out, nFrames);
     } else {
         std::memset(out, 0, sizeof(float) * nFrames * 2);
     }

@@ -10,17 +10,7 @@ NoteNagaDSPEngine::NoteNagaDSPEngine(NoteNagaProject *project){
     NOTE_NAGA_LOG_INFO("DSP Engine initialized");
 }
 
-void NoteNagaDSPEngine::addSynth(INoteNagaSoftSynth* synth) {
-    std::lock_guard<std::mutex> lock(synths_mutex_);
-    synths_.push_back(synth);
-}
-
-void NoteNagaDSPEngine::removeSynth(INoteNagaSoftSynth* synth) {
-    std::lock_guard<std::mutex> lock(synths_mutex_);
-    synths_.erase(std::remove(synths_.begin(), synths_.end(), synth), synths_.end());
-}
-
-void NoteNagaDSPEngine::renderBlock(float* output, size_t num_frames) {
+void NoteNagaDSPEngine::render(float* output, size_t num_frames) {
     // Prepare mix buffers
     if (mix_left_.size() < num_frames) mix_left_.resize(num_frames, 0.0f);
     if (mix_right_.size() < num_frames) mix_right_.resize(num_frames, 0.0f);
@@ -28,9 +18,14 @@ void NoteNagaDSPEngine::renderBlock(float* output, size_t num_frames) {
     std::fill(mix_right_.begin(), mix_right_.begin() + num_frames, 0.0f);
 
     // Render all synths and mix
-    std::lock_guard<std::mutex> lock(synths_mutex_);
-    for (auto* synth : synths_) {
+    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
+    for (INoteNagaSoftSynth* synth : this->synths_) {
         synth->renderAudio(mix_left_.data(), mix_right_.data(), num_frames);
+    }
+
+    // DSP blocks processing
+    for (NoteNagaDSPBlockBase* block : this->dsp_blocks_) {
+        block->process(mix_left_.data(), mix_right_.data(), num_frames);
     }
 
     // Metronome rendering
@@ -74,9 +69,29 @@ void NoteNagaDSPEngine::renderBlock(float* output, size_t num_frames) {
     }
 }
 
+void NoteNagaDSPEngine::addSynth(INoteNagaSoftSynth* synth) {
+    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
+    synths_.push_back(synth);
+}
+
+void NoteNagaDSPEngine::removeSynth(INoteNagaSoftSynth* synth) {
+    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
+    synths_.erase(std::remove(synths_.begin(), synths_.end(), synth), synths_.end());
+}
+
+void NoteNagaDSPEngine::addDSPBlock(NoteNagaDSPBlockBase* block) {
+    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
+    dsp_blocks_.push_back(block);
+}
+
+void NoteNagaDSPEngine::removeDSPBlock(NoteNagaDSPBlockBase* block) {
+    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
+    dsp_blocks_.erase(std::remove(dsp_blocks_.begin(), dsp_blocks_.end(), block), dsp_blocks_.end());
+}
+
 void NoteNagaDSPEngine::setOutputVolume(float volume) {
     // Ensure volume is within [0.0, 1.0] range
-    std::lock_guard<std::mutex> lock(synths_mutex_);
+    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
     this->output_volume_ = std::clamp(volume, 0.0f, 1.0f);
 }
 

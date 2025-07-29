@@ -57,10 +57,6 @@ QSize StereoVolumeBarWidget::minimumSizeHint() const {
     return QSize(48, 180);
 }
 
-QSize StereoVolumeBarWidget::sizeHint() const {
-    return QSize(64, 220);
-}
-
 void StereoVolumeBarWidget::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
     QPainter p(this);
@@ -90,13 +86,13 @@ void StereoVolumeBarWidget::paintEvent(QPaintEvent* event) {
     grad.setColorAt(0.7, QColor("#f7ff3c"));
     grad.setColorAt(1.0, QColor("#ff2929"));
 
-    // Draw bars
-    drawValueBar(p, left_x, bar_w, bar_h, margin, leftDb_, grad);
-    drawValueBar(p, right_x, bar_w, bar_h, margin, rightDb_, grad);
-
     // dB scale
     int scale_x = width() - label_width + 2;
     drawDbScale(p, left_x, right_x, bar_w, bar_h, margin, label_width, scale_x);
+
+    // Draw bars
+    drawValueBar(p, left_x, bar_w, bar_h, margin, leftDb_, grad);
+    drawValueBar(p, right_x, bar_w, bar_h, margin, rightDb_, grad);
 
     // L/R labels
     drawLabels(p, left_x, right_x, bar_w, margin);
@@ -177,6 +173,7 @@ void StereoVolumeBarWidget::drawLabels(QPainter& p, int left_x, int right_x, int
     QFont labelFont = font();
     labelFont.setPointSize(10);
     p.setFont(labelFont);
-    p.drawText(left_x, height() - margin - 3, bar_w, 12, Qt::AlignCenter, "L");
-    p.drawText(right_x, height() - margin - 3, bar_w, 12, Qt::AlignCenter, "R");
+    int textHeight = p.fontMetrics().height();
+    p.drawText(left_x, height() - textHeight, bar_w, textHeight, Qt::AlignCenter, "L");
+    p.drawText(right_x, height() - textHeight, bar_w, textHeight, Qt::AlignCenter, "R");
 }

@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
+#include "dsp_block_widget.h"
 #include "../components/stereo_volume_bar_widget.h"
 #include "../components/audio_vertical_slider.h"
 
@@ -32,6 +33,8 @@ public:
 private:
     NoteNagaEngine * engine;
 
+    std::vector<DSPBlockWidget*> dsp_widgets;
+
     QWidget *title_widget;
     AudioVerticalSlider *volume_slider;
     StereoVolumeBarWidget* volume_bar;
@@ -40,7 +43,7 @@ private:
     void initTitleUI();
     void initUI();
 
-signals:
+private slots:
     void addDSPClicked();
     void removeDSPClicked();
     void removeAllDSPClicked();
