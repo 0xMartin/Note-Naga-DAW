@@ -30,6 +30,19 @@ public:
     void setValuePrefix(const QString& prefix);
     void setValuePostfix(const QString& postfix);
 
+    // --- PUBLIC COLORS ---
+    QColor grooveBgColor = QColor("#232731");
+    QColor grooveOutlineColor = QColor("#4a4d56");
+    QColor grooveGradientStart = QColor("#6cb0ff");
+    QColor grooveGradientEnd = QColor("#ff50f9");
+    QColor scaleMajorColor = QColor("#4a4d56");
+    QColor scaleMinorColor = QColor("#494d56");
+    QColor handleFillColor = QColor("#2b2e33");
+    QColor handleOutlineColor = QColor("#232731");
+    QColor handleGrooveColor = QColor("#44474c");
+    QColor labelColor = Qt::white;
+    QColor valueColor = QColor("#b1b1b1");
+
 signals:
     void valueChanged(int value);
 
@@ -61,5 +74,8 @@ private:
     QString m_valuePostfix;
 
     int m_labelFontSize = 10;
-    int m_valueFontSize = 10;
+    int m_valueFontSize = 8;
+
+    // Pomocné: zajištění dorazu handle
+    int limitHandleY(int y, int handleH, const QRect& groove) const;
 };

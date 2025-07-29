@@ -84,8 +84,16 @@ public:
      */
     void setValueDecimals(int decimals);
 
-signals:
-    void valueChanged(float value);
+    // --- PUBLIC COLORS ---
+    QColor bg_color = QColor("#3a3f45");
+    QColor inner_outline = QColor("#111");
+    QColor arc_bg_color = QColor("#1e1e20");
+    QColor tick_color = QColor("#6cb0ff");
+    QColor tick_end_color = QColor("#ff50f9");
+    QColor gradient_start = QColor("#6cb0ff");
+    QColor gradient_end = QColor("#ae6cff");
+    QColor center_gradient_start = QColor("#232731");
+    QColor center_gradient_end = QColor("#3e4a5a");
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -125,16 +133,6 @@ private:
     int _start_angle;
     int _angle_range;
 
-    QColor bg_color;
-    QColor inner_outline;
-    QColor arc_bg_color;
-    QColor tick_color;
-    QColor tick_end_color;
-    QColor gradient_start;
-    QColor gradient_end;
-    QColor center_gradient_start;
-    QColor center_gradient_end;
-
     bool _pressed;
 
     QString _label;
@@ -149,4 +147,7 @@ private:
     mutable bool _last_label, _last_value;
     mutable QString _last_label_text;
     mutable int _last_decimals;
+
+signals:
+    void valueChanged(float value);
 };

@@ -247,3 +247,10 @@ void NoteNagaEngine::enableMetronome(bool enabled) {
 bool NoteNagaEngine::isMetronomeEnabled() const {
     return dsp_engine ? dsp_engine->metronome()->isEnabled() : false;
 }
+
+std::pair<float, float> NoteNagaEngine::getCurrentVolumeDb() {
+    if (this->dsp_engine) {
+        return dsp_engine->getCurrentVolumeDb();
+    }
+    return {-100.0f, -100.0f};
+}

@@ -13,10 +13,7 @@
 
 AudioDial::AudioDial(QWidget *parent)
     : QWidget(parent), _min(0.0f), _max(100.0f), _value(0.0f), _default_value(0.0f),
-      _start_angle(-135), _angle_range(270), bg_color("#3a3f45"), inner_outline("#111"),
-      arc_bg_color("#1e1e20"), tick_color("#6cb0ff"), tick_end_color("#ff50f9"),
-      gradient_start("#6cb0ff"), gradient_end("#ae6cff"),
-      center_gradient_start("#232731"), center_gradient_end("#3e4a5a"), _pressed(false),
+      _start_angle(-135), _angle_range(270), _pressed(false),
       _label("Volume"), _show_label(true), _show_value(true), _value_prefix(""),
       _value_postfix(""), _value_decimals(2) {
     setMinimumSize(40, 60);

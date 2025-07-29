@@ -1,19 +1,16 @@
 #include "audio_vertical_slider.h"
-
-#include <QFontMetrics>
 #include <QDebug>
+#include <QFontMetrics>
+#include <QPainterPath>
 
-AudioVerticalSlider::AudioVerticalSlider(QWidget* parent)
-    : QWidget(parent)
-{
+AudioVerticalSlider::AudioVerticalSlider(QWidget *parent) : QWidget(parent) {
     setMinimumWidth(30);
     setMinimumHeight(120);
     setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
     updateTextSizes();
 }
 
-void AudioVerticalSlider::setRange(int min, int max)
-{
+void AudioVerticalSlider::setRange(int min, int max) {
     m_min = min;
     m_max = max;
     if (m_value < m_min) m_value = m_min;
@@ -21,94 +18,91 @@ void AudioVerticalSlider::setRange(int min, int max)
     update();
 }
 
-void AudioVerticalSlider::setValue(int v)
-{
-    if (v < m_min) v = m_min;
-    if (v > m_max) v = m_max;
-    if (m_value != v) {
+void AudioVerticalSlider::setValue(int v) {
+    int oldValue = m_value;
+    v = std::max(m_min, std::min(v, m_max));
+    if (oldValue != v) {
         m_value = v;
         emit valueChanged(m_value);
         update();
     }
 }
 
-void AudioVerticalSlider::setLabelVisible(bool visible)
-{
+void AudioVerticalSlider::setLabelVisible(bool visible) {
     m_labelVisible = visible;
     update();
 }
 
-void AudioVerticalSlider::setValueVisible(bool visible)
-{
+void AudioVerticalSlider::setValueVisible(bool visible) {
     m_valueVisible = visible;
     update();
 }
 
-void AudioVerticalSlider::setLabelText(const QString& text)
-{
+void AudioVerticalSlider::setLabelText(const QString &text) {
     m_labelText = text;
     update();
 }
 
-void AudioVerticalSlider::setValuePrefix(const QString& prefix)
-{
+void AudioVerticalSlider::setValuePrefix(const QString &prefix) {
     m_valuePrefix = prefix;
     update();
 }
 
-void AudioVerticalSlider::setValuePostfix(const QString& postfix)
-{
+void AudioVerticalSlider::setValuePostfix(const QString &postfix) {
     m_valuePostfix = postfix;
     update();
 }
 
-void AudioVerticalSlider::resizeEvent(QResizeEvent*)
-{
-    updateTextSizes();
-}
+void AudioVerticalSlider::resizeEvent(QResizeEvent *) { updateTextSizes(); }
 
-void AudioVerticalSlider::updateTextSizes()
-{
+void AudioVerticalSlider::updateTextSizes() {
     int w = width();
     m_labelFontSize = std::max(8, w / 4);
-    m_valueFontSize = std::max(8, w / 3);
+    m_valueFontSize = m_labelFontSize; // value size = label size
     update();
 }
 
-QRect AudioVerticalSlider::sliderGrooveRect() const
-{
-    int margin = width() / 3;
-    return QRect(width() / 2 - margin / 2, m_labelVisible ? m_labelFontSize + 6 : 4,
-                 margin, height() - (m_labelVisible ? m_labelFontSize + 6 : 4) - (m_valueVisible ? m_valueFontSize + 6 : 8));
+QRect AudioVerticalSlider::sliderGrooveRect() const {
+    int labelH = m_labelVisible ? m_labelFontSize + 6 : 4;
+    int valueH = m_valueVisible ? m_valueFontSize + 8 : 8;
+    int grooveW = std::max(10, width() / 3);
+    return QRect(width() / 2 - grooveW / 2, labelH + 4, grooveW, height() - labelH - valueH - 8);
 }
 
-QRect AudioVerticalSlider::handleRect() const
-{
+int AudioVerticalSlider::limitHandleY(int y, int handleH, const QRect &groove) const {
+    int minY = groove.top() + handleH / 2;
+    int maxY = groove.bottom() - handleH / 2;
+    return std::min(std::max(y, minY), maxY);
+}
+
+QRect AudioVerticalSlider::handleRect() const {
     QRect groove = sliderGrooveRect();
-    int handleW = groove.width() + 8;
-    int handleH = groove.width() + 8;
+    int handleW = int((groove.width() + 4) * 1.2);
+    int handleH = int(std::max(20.0, groove.width() * 1.4) * 1.3);
     int y = positionFromValue(m_value);
+    y = limitHandleY(y, handleH, groove);
     return QRect(groove.center().x() - handleW / 2, y - handleH / 2, handleW, handleH);
 }
 
-int AudioVerticalSlider::positionFromValue(int value) const
-{
+int AudioVerticalSlider::positionFromValue(int value) const {
     QRect groove = sliderGrooveRect();
     double f = 1.0 - double(value - m_min) / (m_max - m_min);
     int y = groove.top() + f * groove.height();
-    return y;
+    int handleH = int(std::max(20.0, groove.width() * 1.4) * 1.3);
+    return limitHandleY(y, handleH, groove);
 }
 
-int AudioVerticalSlider::valueFromPosition(int y) const
-{
+int AudioVerticalSlider::valueFromPosition(int y) const {
     QRect groove = sliderGrooveRect();
+    int handleH = int(std::max(20.0, groove.width() * 1.4) * 1.3);
+    if (y <= groove.top() + handleH / 2) return m_max;
+    if (y >= groove.bottom() - handleH / 2) return m_min;
     double f = double(y - groove.top()) / groove.height();
     int value = m_min + (1.0 - f) * (m_max - m_min);
     return std::clamp(value, m_min, m_max);
 }
 
-void AudioVerticalSlider::mousePressEvent(QMouseEvent* event)
-{
+void AudioVerticalSlider::mousePressEvent(QMouseEvent *event) {
     if (handleRect().contains(event->pos())) {
         m_dragging = true;
         m_dragOffset = event->pos().y() - handleRect().center().y();
@@ -117,77 +111,112 @@ void AudioVerticalSlider::mousePressEvent(QMouseEvent* event)
     }
 }
 
-void AudioVerticalSlider::mouseMoveEvent(QMouseEvent* event)
-{
+void AudioVerticalSlider::mouseMoveEvent(QMouseEvent *event) {
     if (m_dragging) {
+        QRect groove = sliderGrooveRect();
+        int handleH = int(std::max(20.0, groove.width() * 1.4) * 1.3);
         int y = event->pos().y() - m_dragOffset;
-        setValue(valueFromPosition(y));
+        if (y <= groove.top() + handleH / 2)
+            setValue(m_max);
+        else if (y >= groove.bottom() - handleH / 2)
+            setValue(m_min);
+        else
+            setValue(valueFromPosition(y));
     }
 }
 
-void AudioVerticalSlider::mouseReleaseEvent(QMouseEvent*)
-{
-    m_dragging = false;
-}
+void AudioVerticalSlider::mouseReleaseEvent(QMouseEvent *) { m_dragging = false; }
 
-void AudioVerticalSlider::paintEvent(QPaintEvent*)
-{
+void AudioVerticalSlider::paintEvent(QPaintEvent *) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
     QRect groove = sliderGrooveRect();
+    groove.setX(groove.left() - 1);
 
-    // draw background (transparent)
-    p.fillRect(rect(), Qt::transparent);
-
-    // groove shadow (dark thin line)
-    QPen grooveShadowPen(QColor(30, 34, 38), groove.width() + 2, Qt::SolidLine, Qt::RoundCap);
-    p.setPen(grooveShadowPen);
-    p.drawLine(groove.center().x(), groove.top(), groove.center().x(), groove.bottom());
-
-    // groove (green, thick, flat)
-    QPen groovePen(QColor(183, 215, 101), groove.width(), Qt::SolidLine, Qt::RoundCap);
-    p.setPen(groovePen);
-    p.drawLine(groove.center().x(), groove.top(), groove.center().x(), groove.bottom());
-
-    // handle (rounded, green/yellow gradient, subtle shadow)
-    QRect hRect = handleRect();
-    QLinearGradient grad(hRect.topLeft(), hRect.bottomLeft());
-    grad.setColorAt(0, QColor(200, 240, 140));
-    grad.setColorAt(0.45, QColor(180, 220, 100));
-    grad.setColorAt(0.5, QColor(170, 210, 60));
-    grad.setColorAt(1, QColor(154, 176, 87));
-    p.setBrush(grad);
-    p.setPen(QPen(QColor(100, 110, 65, 150), 2));
-    p.drawRoundedRect(hRect.adjusted(1, 1, -1, -1), hRect.height() / 3.4, hRect.height() / 3.4);
-
-    // subtle shadow under handle
-    QRectF shadowRect = hRect.translated(0, 2);
-    QRadialGradient shadowGrad(shadowRect.center(), hRect.width() / 1.6);
-    shadowGrad.setColorAt(0, QColor(0,0,0,60));
-    shadowGrad.setColorAt(1, Qt::transparent);
-    p.setBrush(shadowGrad);
-    p.setPen(Qt::NoPen);
-    p.drawEllipse(shadowRect);
-
-    // draw label
+    // --- DRAW LABEL ---
     if (m_labelVisible) {
         QFont font = p.font();
         font.setPointSize(m_labelFontSize);
+        font.setBold(true);
         p.setFont(font);
-        p.setPen(Qt::white);
+        p.setPen(labelColor);
         QRect labelRect(0, 2, width(), m_labelFontSize + 4);
         p.drawText(labelRect, Qt::AlignHCenter | Qt::AlignVCenter, m_labelText);
     }
 
-    // draw value
+    // --- DRAW VALUE ---
     if (m_valueVisible) {
         QFont font = p.font();
         font.setPointSize(m_valueFontSize);
+        font.setBold(false);
         p.setFont(font);
-        p.setPen(QColor(210, 235, 180));
+        p.setPen(valueColor);
         QString valueStr = QString("%1%2%3").arg(m_valuePrefix).arg(m_value).arg(m_valuePostfix);
-        QRect valueRect(0, height() - (m_valueFontSize + 6), width(), m_valueFontSize + 4);
+        QRect valueRect(0, height() - (m_valueFontSize + 8), width(), m_valueFontSize + 4);
         p.drawText(valueRect, Qt::AlignHCenter | Qt::AlignVCenter, valueStr);
+    }
+
+    // --- DRAW GROOVE BACKGROUND ---
+    p.setPen(Qt::NoPen);
+    p.setBrush(grooveBgColor);
+    int grooveRadius = 2;
+    p.drawRoundedRect(groove, grooveRadius, grooveRadius);
+
+    // --- DRAW GROOVE OUTLINE ---
+    QPen groovePen(grooveOutlineColor, 1, Qt::SolidLine, Qt::RoundCap);
+    p.setPen(groovePen);
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(groove, grooveRadius, grooveRadius);
+
+    // --- DRAW PROGRESS FILL ---
+    int valueY = positionFromValue(m_value);
+    QRect grooveFillRect(groove.left() + 2, valueY, groove.width() - 4, groove.bottom() - valueY);
+    QLinearGradient fillGrad(groove.left(), groove.top(), groove.left(), groove.bottom());
+    fillGrad.setColorAt(1.0, grooveGradientStart);
+    fillGrad.setColorAt(0.0, grooveGradientEnd);
+    p.setPen(Qt::NoPen);
+    p.setBrush(fillGrad);
+    QPainterPath fillPath;
+    fillPath.addRoundedRect(QRectF(grooveFillRect), grooveRadius, grooveRadius);
+    if (grooveFillRect.height() < groove.height()) {
+        fillPath = QPainterPath();
+        fillPath.moveTo(grooveFillRect.left(), grooveFillRect.top());
+        fillPath.lineTo(grooveFillRect.right() + 1, grooveFillRect.top());
+        fillPath.lineTo(grooveFillRect.right() + 1, grooveFillRect.bottom());
+        fillPath.lineTo(grooveFillRect.left(), grooveFillRect.bottom());
+        fillPath.lineTo(grooveFillRect.left(), grooveFillRect.top());
+    }
+    p.drawPath(fillPath);
+
+    // --- DRAW SCALE ---
+    int scaleX = groove.right() + 3;
+    int tickLenMajor = 7, tickLenMinor = 3;
+    int nTicks = 9;
+    for (int i = 0; i < nTicks; ++i) {
+        double relY = double(i) / (nTicks - 1);
+        int y = groove.top() + relY * groove.height();
+        bool major = (i == 0 || i == nTicks - 1 || i == nTicks / 2);
+        p.setPen(major ? scaleMajorColor : scaleMinorColor);
+        int len = major ? tickLenMajor : tickLenMinor;
+        p.drawLine(scaleX, y, scaleX + len, y);
+    }
+
+    // --- DRAW HANDLE ---
+    QRect hRect = handleRect();
+    int handleRadius = 3;
+    p.setPen(handleOutlineColor);
+    p.setBrush(handleFillColor);
+    p.drawRoundedRect(hRect, handleRadius, handleRadius);
+
+    // --- DRAW GROOVE LINES ---
+    p.setPen(handleGrooveColor);
+    int nGrooves = 6;
+    int grooveSpacing = hRect.height() / (nGrooves + 1);
+    int grooveLeft = hRect.left() + 1 + hRect.width() * 0.2;
+    int grooveRight = hRect.right() + 1 - hRect.width() * 0.2;
+    for (int i = 1; i <= nGrooves; ++i) {
+        int y = hRect.top() + i * grooveSpacing;
+        p.drawLine(grooveLeft, y, grooveRight, y);
     }
 }

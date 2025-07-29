@@ -45,6 +45,7 @@ set(HEADER_FILES
     src/gui/components/audio_vertical_slider.h
     src/gui/components/button_group_widget.h
     src/gui/components/vertical_title_label.h
+    src/gui/components/stereo_volume_bar_widget.h
     # gui/dialogs
     src/gui/dialogs/instrument_selector_dialog.h
     # gui/widgets
@@ -80,6 +81,7 @@ set(SOURCE_FILES
     src/gui/components/audio_vertical_slider.cpp
     src/gui/components/button_group_widget.cpp
     src/gui/components/vertical_title_label.cpp
+    src/gui/components/stereo_volume_bar_widget.cpp
     # gui/dialogs
     src/gui/dialogs/instrument_selector_dialog.cpp
     # gui/widgets

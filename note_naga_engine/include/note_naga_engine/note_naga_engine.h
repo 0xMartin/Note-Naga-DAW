@@ -189,6 +189,12 @@ public:
      */
     bool isMetronomeEnabled() const;
 
+    /**
+     * @brief Get the current volume in dB.
+     * @return A pair containing the left and right channel volume in dB.
+     */
+    std::pair<float, float> getCurrentVolumeDb();
+
     /*******************************************************************************************************/
     // Getters for main components
     /*******************************************************************************************************/

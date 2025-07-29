@@ -14,6 +14,8 @@
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
+#include "../components/stereo_volume_bar_widget.h"
+#include "../components/audio_vertical_slider.h"
 
 /**
  * @brief DSPWidget provides a user interface for managing DSP modules in the application.
@@ -31,11 +33,8 @@ private:
     NoteNagaEngine * engine;
 
     QWidget *title_widget;
-    QWidget *dsp_container;
-    QScrollArea *dsp_scroll_area;
-    QWidget *info_panel;
-
-    QHBoxLayout *main_layout;
+    AudioVerticalSlider *volume_slider;
+    StereoVolumeBarWidget* volume_bar;
     QHBoxLayout *dsp_layout;
 
     void initTitleUI();
