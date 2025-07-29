@@ -15,7 +15,7 @@
 /**
  * @brief Widget for controlling a DSP block (auto-generates UI based on block parameters).
  */
-class DSPBlockWidget : public QWidget {
+class DSPBlockWidget : public QFrame {
     Q_OBJECT
 public:
     explicit DSPBlockWidget(NoteNagaDSPBlockBase* block, QWidget* parent = nullptr);

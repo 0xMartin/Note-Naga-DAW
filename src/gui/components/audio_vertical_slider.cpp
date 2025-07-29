@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QFontMetrics>
 #include <QPainterPath>
+#include <cmath>
 
 AudioVerticalSlider::AudioVerticalSlider(QWidget *parent) : QWidget(parent) {
     setMinimumWidth(30);
@@ -10,7 +11,7 @@ AudioVerticalSlider::AudioVerticalSlider(QWidget *parent) : QWidget(parent) {
     updateTextSizes();
 }
 
-void AudioVerticalSlider::setRange(int min, int max) {
+void AudioVerticalSlider::setRange(float min, float max) {
     m_min = min;
     m_max = max;
     if (m_value < m_min) m_value = m_min;
@@ -18,10 +19,10 @@ void AudioVerticalSlider::setRange(int min, int max) {
     update();
 }
 
-void AudioVerticalSlider::setValue(int v) {
-    int oldValue = m_value;
+void AudioVerticalSlider::setValue(float v) {
+    float oldValue = m_value;
     v = std::max(m_min, std::min(v, m_max));
-    if (oldValue != v) {
+    if (std::abs(oldValue - v) > 1e-6f) {
         m_value = v;
         emit valueChanged(m_value);
         update();
@@ -50,6 +51,11 @@ void AudioVerticalSlider::setValuePrefix(const QString &prefix) {
 
 void AudioVerticalSlider::setValuePostfix(const QString &postfix) {
     m_valuePostfix = postfix;
+    update();
+}
+
+void AudioVerticalSlider::setValueDecimals(int decimals) {
+    m_valueDecimals = std::max(0, decimals);
     update();
 }
 
@@ -84,21 +90,21 @@ QRect AudioVerticalSlider::handleRect() const {
     return QRect(groove.center().x() - handleW / 2, y - handleH / 2, handleW, handleH);
 }
 
-int AudioVerticalSlider::positionFromValue(int value) const {
+int AudioVerticalSlider::positionFromValue(float value) const {
     QRect groove = sliderGrooveRect();
-    double f = 1.0 - double(value - m_min) / (m_max - m_min);
+    float f = 1.0f - (value - m_min) / (m_max - m_min);
     int y = groove.top() + f * groove.height();
     int handleH = int(std::max(20.0, groove.width() * 1.4) * 1.3);
     return limitHandleY(y, handleH, groove);
 }
 
-int AudioVerticalSlider::valueFromPosition(int y) const {
+float AudioVerticalSlider::valueFromPosition(int y) const {
     QRect groove = sliderGrooveRect();
     int handleH = int(std::max(20.0, groove.width() * 1.4) * 1.3);
     if (y <= groove.top() + handleH / 2) return m_max;
     if (y >= groove.bottom() - handleH / 2) return m_min;
-    double f = double(y - groove.top()) / groove.height();
-    int value = m_min + (1.0 - f) * (m_max - m_min);
+    float f = float(y - groove.top()) / groove.height();
+    float value = m_min + (1.0f - f) * (m_max - m_min);
     return std::clamp(value, m_min, m_max);
 }
 
@@ -152,7 +158,10 @@ void AudioVerticalSlider::paintEvent(QPaintEvent *) {
         font.setBold(false);
         p.setFont(font);
         p.setPen(valueColor);
-        QString valueStr = QString("%1%2%3").arg(m_valuePrefix).arg(m_value).arg(m_valuePostfix);
+        QString valueStr = QString("%1%2%3")
+            .arg(m_valuePrefix)
+            .arg(QString::number(m_value, 'f', m_valueDecimals))
+            .arg(m_valuePostfix);
         QRect valueRect(0, height() - (m_valueFontSize + 8), width(), m_valueFontSize + 4);
         p.drawText(valueRect, Qt::AlignHCenter | Qt::AlignVCenter, valueStr);
     }

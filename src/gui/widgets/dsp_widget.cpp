@@ -98,6 +98,7 @@ void DSPWidget::initUI() {
     AudioVerticalSlider *volume_slider = new AudioVerticalSlider(center_section);
     volume_slider->setRange(0, 100.0f);
     volume_slider->setValue(100.0f);
+    volume_slider->setValueDecimals(0);
     volume_slider->setLabelText("Vol");
     volume_slider->setFixedWidth(30);
     volume_slider->setValuePostfix(" %");
