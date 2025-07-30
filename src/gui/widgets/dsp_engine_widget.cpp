@@ -27,14 +27,18 @@ void DSPEngineWidget::initTitleUI() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    QPushButton *btn_add = create_small_button(":/icons/add.svg", "Add DSP module", "btn_add");
-    QPushButton *btn_clear = create_small_button(":/icons/clear.svg", "Remove all DSP modules", "btn_clear");
+    btn_add = create_small_button(":/icons/add.svg", "Add DSP module", "btn_add");
+    btn_clear = create_small_button(":/icons/clear.svg", "Remove all DSP modules", "btn_clear");
+    btn_enable = create_small_button(":/icons/active.svg", "Enable / Disable DSP", "btn_enable");
+    btn_enable->setCheckable(true);
 
     layout->addWidget(btn_add, 0, Qt::AlignBottom | Qt::AlignHCenter);
     layout->addWidget(btn_clear, 0, Qt::AlignBottom | Qt::AlignHCenter);
+    layout->addWidget(btn_enable, 0, Qt::AlignBottom | Qt::AlignHCenter);
 
     connect(btn_add, &QPushButton::clicked, this, &DSPEngineWidget::addDSPClicked);
     connect(btn_clear, &QPushButton::clicked, this, &DSPEngineWidget::removeAllDSPClicked);
+    connect(btn_enable, &QPushButton::clicked, this, &DSPEngineWidget::toggleDSPEnabled);
 }
 
 void DSPEngineWidget::initUI() {
@@ -68,7 +72,7 @@ void DSPEngineWidget::initUI() {
     info_panel->setObjectName("InfoPanel");
     info_panel->setStyleSheet("QFrame#InfoPanel { background: #2F3139; border: 1px solid #494d56; "
                               "border-radius: 8px; padding: 2px 0px 0px 0px; }");
-    info_panel->setFixedWidth(120);
+    info_panel->setFixedWidth(320);
 
     QVBoxLayout *info_layout = new QVBoxLayout(info_panel);
     info_layout->setContentsMargins(4, 4, 4, 4);
@@ -87,12 +91,16 @@ void DSPEngineWidget::initUI() {
     center_layout->setSpacing(6);
     center_layout->addStretch(1);
 
+    spectrum_analyzer = new SpectrumAnalyzer(this->engine->getSpectrumAnalyzer(), center_section);
+    spectrum_analyzer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    center_layout->addWidget(spectrum_analyzer, 1);
+
     AudioVerticalSlider *volume_slider = new AudioVerticalSlider(center_section);
     volume_slider->setRange(0, 100.0f);
     volume_slider->setValue(100.0f);
     volume_slider->setValueDecimals(0);
     volume_slider->setLabelText("Vol");
-    volume_slider->setFixedWidth(30);
+    volume_slider->setFixedWidth(35);
     volume_slider->setValuePostfix(" %");
     volume_slider->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
     connect(volume_slider, &AudioVerticalSlider::valueChanged, this, [this](int value) {
@@ -174,4 +182,12 @@ void DSPEngineWidget::removeAllDSPClicked() {
         delete dsp_widget->block();
     }
     dsp_widgets.clear();
+}
+
+void DSPEngineWidget::toggleDSPEnabled() {
+    bool enabled = !btn_enable->isChecked();
+    btn_enable->setIcon(QIcon(enabled ? ":/icons/active.svg" : ":/icons/inactive.svg"));
+    if (engine) {
+        engine->getDSPEngine()->setEnableDSP(enabled);
+    }
 }

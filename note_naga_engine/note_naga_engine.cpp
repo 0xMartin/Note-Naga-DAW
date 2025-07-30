@@ -49,6 +49,16 @@ NoteNagaEngine::~NoteNagaEngine() {
         project = nullptr;
     }
 
+    if (spectrum_analyzer) {
+        delete spectrum_analyzer;
+        spectrum_analyzer = nullptr;
+    }
+
+    if (metronome) {
+        delete metronome;
+        metronome = nullptr;
+    }
+
     NOTE_NAGA_LOG_INFO("Instance destroyed");
 }
 
@@ -61,6 +71,18 @@ bool NoteNagaEngine::initialize() {
     if (this->synthesizers.empty()) {
         this->synthesizers.push_back(
             new NoteNagaSynthFluidSynth("FluidSynth 1", "./FluidR3_GM.sf2"));
+    }
+
+    // Initialize spectrum analyzer
+    if (!this->spectrum_analyzer) {
+        this->spectrum_analyzer = new NoteNagaSpectrumAnalyzer(2048);
+    }
+
+    // Initialize metronome
+    if (!this->metronome) {
+        this->metronome = new NoteNagaMetronome();
+        this->metronome->setSampleRate(44100);
+        this->metronome->setProject(this->project);
     }
 
     // project
@@ -81,7 +103,7 @@ bool NoteNagaEngine::initialize() {
 
     // dsp engine
     if (!this->dsp_engine) {
-        this->dsp_engine = new NoteNagaDSPEngine(this->project);
+        this->dsp_engine = new NoteNagaDSPEngine(this->metronome, this->spectrum_analyzer);
         for (auto *synth : this->synthesizers) {
             if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
                 this->dsp_engine->addSynth(softSynth);
@@ -239,13 +261,13 @@ void NoteNagaEngine::removeSynthesizer(NoteNagaSynthesizer *synth) {
 /*******************************************************************************************************/
 
 void NoteNagaEngine::enableMetronome(bool enabled) {
-    if (dsp_engine) {
-        dsp_engine->metronome()->setEnabled(enabled);
+    if (this->metronome) {
+        this->metronome->setEnabled(enabled);
     }
 }
 
 bool NoteNagaEngine::isMetronomeEnabled() const {
-    return dsp_engine ? dsp_engine->metronome()->isEnabled() : false;
+    return this->metronome ? this->metronome->isEnabled() : false;
 }
 
 std::pair<float, float> NoteNagaEngine::getCurrentVolumeDb() {

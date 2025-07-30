@@ -160,7 +160,7 @@ void AudioVerticalSlider::mouseMoveEvent(QMouseEvent *event) {
 void AudioVerticalSlider::mouseReleaseEvent(QMouseEvent *) { m_dragging = false; }
 
 void AudioVerticalSlider::wheelEvent(QWheelEvent *event) {
-    float step = (m_max - m_min) / 100.0f; // 1% step
+    float step = (m_max - m_min) / 500.0f;
     if (event->angleDelta().y() > 0) {
         setValue(value() + step);
     } else {

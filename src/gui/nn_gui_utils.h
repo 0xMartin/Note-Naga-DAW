@@ -6,6 +6,7 @@
 #include <QIcon>
 #include <QPushButton>
 #include <QString>
+#include <QStringList>
 
 // SVG icon string for colored square
 extern const QString COLOR_SVG_ICON;
@@ -51,3 +52,10 @@ extern QPushButton *create_small_button(const QString &iconPath, const QString &
 extern Separator *create_separator(int orientation = Separator::Vertical,
                                    const QColor &color = QColor("#19191f"),
                                    QWidget *parent = nullptr);
+
+/**
+ * @brief Convert a vector of std::string to QStringList.
+ * @param list The vector of std::string to convert.
+ * @return QStringList containing the converted strings.
+ */                                  
+extern QStringList nn_std_string_list_to_qstringlist(const std::vector<std::string> &list);

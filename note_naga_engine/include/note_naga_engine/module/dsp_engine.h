@@ -1,10 +1,13 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/core/note_naga_synthesizer.h>
 #include <note_naga_engine/core/dsp_block_base.h>
 #include <note_naga_engine/module/metronome.h>
+#include <note_naga_engine/module/spectrum_analyzer.h>
 #include <note_naga_engine/core/project_data.h>
+
 #include <vector>
 #include <mutex>
 
@@ -13,13 +16,14 @@
  * It manages audio rendering, synthesizers, and the metronome.
  * It provides methods to add/remove synthesizers and render audio blocks.
  */
-class NoteNagaDSPEngine {
+class NOTE_NAGA_ENGINE_API NoteNagaDSPEngine {
 public:
     /**
      * @brief Construct a new NoteNagaDSPEngine object.
-     * @param project Pointer to the NoteNagaProject instance.
+     * @param metronome Pointer to the metronome instance.
+     * @param spectrum_analyzer Pointer to the spectrum analyzer instance.
      */
-    NoteNagaDSPEngine(NoteNagaProject* project);
+    NoteNagaDSPEngine(NoteNagaMetronome* metronome, NoteNagaSpectrumAnalyzer * spectrum_analyzer);
 
     /**
      * @brief Render audio for the current project.
@@ -27,6 +31,18 @@ public:
      * @param num_frames Number of frames to render.
      */
     void render(float* output, size_t num_frames);
+
+    /**
+     * @brief Enable or disable DSP processing.
+     * @param enable True to enable, false to disable.
+     */
+    void setEnableDSP(bool enable);
+
+    /**
+     * @brief Check if DSP processing is enabled.
+     * @return True if enabled, false otherwise.
+     */
+    bool isDSPEnabled() const { return enable_dsp_; }
 
     /**
      * @brief Add a synthesizer to the DSP engine.
@@ -71,17 +87,13 @@ public:
      */
     std::pair<float, float> getCurrentVolumeDb() const;
 
-    /**
-     * @brief Get the metronome instance.
-     * @return Pointer to the NoteNagaMetronome instance.
-     */
-    NoteNagaMetronome* metronome() { return &metronome_; }
-
 private:
     NoteNagaProject *project_; ///< Pointer to the associated project
     std::vector<INoteNagaSoftSynth*> synths_; ///< List of synthesizers managed by the engine
     std::vector<NoteNagaDSPBlockBase*> dsp_blocks_;
     std::mutex dsp_engine_mutex_; ///< Mutex for thread-safe access to the DSP blocks list, synths, and configuration
+
+    bool enable_dsp_ = true; ///< Flag to enable/disable DSP processing
 
     // Output volume level (0.0 to 1.0)
     float output_volume_ = 1.0f; ///< Output volume level (0.0 to 1.0)
@@ -94,7 +106,9 @@ private:
     float last_rms_left_ = -100.0f;
     float last_rms_right_ = -100.0f;
 
-    NoteNagaMetronome metronome_;
+    // Pointer to engine components
+    NoteNagaMetronome* metronome_;
+    NoteNagaSpectrumAnalyzer *spectrum_analyzer_; 
 
     /**
      * @brief Calculate RMS values for the current mix.

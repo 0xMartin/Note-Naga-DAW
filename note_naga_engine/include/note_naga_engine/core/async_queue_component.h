@@ -13,6 +13,14 @@
 #include <optional>
 #include <thread>
 
+// empty notify message type
+typedef NOTE_NAGA_ENGINE_API struct NN_AsyncTriggerMessage_t {
+    // This is an empty message type used to trigger the queue processing
+    // It can be extended with additional fields if needed in the future
+    // Currently, it serves as a simple notification mechanism
+    NN_AsyncTriggerMessage_t() = default;
+} NN_AsyncTriggerMessage_t;
+
 /**
  * @brief Abstract class for Note Naga components utilizing a lock-free MPMC queue.
  *        Supports safe thread lifetime management.

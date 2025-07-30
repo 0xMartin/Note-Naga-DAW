@@ -209,9 +209,15 @@ void AudioDialCentered::paintEvent(QPaintEvent *event) {
     if (_show_value) {
         QString value_str;
         if (_value_decimals <= 0) {
-            value_str =
-                QString("%1%2%3").arg(_value_prefix).arg(int(_value)).arg(_value_postfix);
+            if (_option_names.empty()) {
+                // int value with prefix/postfix
+                value_str = QString("%1%2%3").arg(_value_prefix).arg(int(_value)).arg(_value_postfix);
+            } else {
+                // name of option
+                value_str = _value < 0 || _value >= _option_names.size() ? QString("Unknown") : _option_names.at(int(_value));
+            }
         } else {
+            // float value with prefix/postfix
             value_str = QString("%1%2%3")
                             .arg(_value_prefix)
                             .arg(QString::number(_value, 'f', _value_decimals))
@@ -267,7 +273,6 @@ void AudioDialCentered::mouseMoveEvent(QMouseEvent *event) {
         }
 
         float value = _min + ((angle - _start_angle) / _angle_range) * (_max - _min);
-        qDebug() << "Angle:" << angle << "Value:" << value;
         setValue(value);
         event->accept();
     }
@@ -282,7 +287,7 @@ void AudioDialCentered::mouseReleaseEvent(QMouseEvent *event) {
 
 void AudioDialCentered::wheelEvent(QWheelEvent *event) {
     float step = 1.0f;
-    if (_value_decimals > 0) { step = (_max - _min) / 50.0f; }
+    if (_value_decimals > 0) { step = (_max - _min) / 500.0f; }
     if (event->angleDelta().y() > 0) {
         setValue(_value + step);
     } else {

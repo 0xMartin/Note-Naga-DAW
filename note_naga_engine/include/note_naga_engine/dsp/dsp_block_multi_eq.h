@@ -1,5 +1,7 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
+
 #include <note_naga_engine/core/dsp_block_base.h>
 #include <vector>
 #include <cmath>
@@ -8,7 +10,7 @@
 /**
  * @brief DSP Block for a multi-band EQ with fixed frequencies and only gain controls.
  */
-class DSPBlockMultiSimpleEQ : public NoteNagaDSPBlockBase {
+class NOTE_NAGA_ENGINE_API DSPBlockMultiSimpleEQ : public NoteNagaDSPBlockBase {
 public:
     DSPBlockMultiSimpleEQ(const std::vector<float>& freqs, float q = 1.0f);
 

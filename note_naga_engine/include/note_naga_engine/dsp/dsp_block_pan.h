@@ -1,5 +1,7 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
+
 #include <note_naga_engine/core/dsp_block_base.h>
 
 /**
@@ -7,7 +9,7 @@
  *
  * This block implements a basic panning effect with adjustable parameters.
  */
-class DSPBlockPan : public NoteNagaDSPBlockBase {
+class NOTE_NAGA_ENGINE_API DSPBlockPan : public NoteNagaDSPBlockBase {
 public:
     /**
      * @brief Constructor for the pan block.

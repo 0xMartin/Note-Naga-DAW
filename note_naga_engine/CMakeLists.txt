@@ -48,15 +48,28 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/module/audio_worker.h
     ./include/note_naga_engine/module/dsp_engine.h
     ./include/note_naga_engine/module/metronome.h
+    ./include/note_naga_engine/module/spectrum_analyzer.h
     # include/note_naga_engine/synth
     ./include/note_naga_engine/synth/synth_fluidsynth.h
     # include/note_naga_engine/dsp
-    ./include/note_naga_engine/dsp/dsp_factory.h
     ./include/note_naga_engine/dsp/dsp_block_gain.h
     ./include/note_naga_engine/dsp/dsp_block_pan.h
     ./include/note_naga_engine/dsp/dsp_block_single_eq.h
     ./include/note_naga_engine/dsp/dsp_block_compressor.h
     ./include/note_naga_engine/dsp/dsp_block_multi_eq.h
+    ./include/note_naga_engine/dsp/dsp_block_limiter.h
+    ./include/note_naga_engine/dsp/dsp_block_delay.h
+    ./include/note_naga_engine/dsp/dsp_block_reverb.h
+    ./include/note_naga_engine/dsp/dsp_block_bitcrusher.h
+    ./include/note_naga_engine/dsp/dsp_block_tremolo.h
+    ./include/note_naga_engine/dsp/dsp_block_filter.h
+    ./include/note_naga_engine/dsp/dsp_block_chorus.h
+    ./include/note_naga_engine/dsp/dsp_block_phaser.h
+    ./include/note_naga_engine/dsp/dsp_block_flanger.h
+    ./include/note_naga_engine/dsp/dsp_block_noise_gate.h
+    ./include/note_naga_engine/dsp/dsp_block_saturator.h
+    ./include/note_naga_engine/dsp/dsp_block_exciter.h
+    ./include/note_naga_engine/dsp/dsp_block_stereo_imager.h
 )
 
 set(SOURCE_FILES
@@ -74,15 +87,28 @@ set(SOURCE_FILES
     ./module/audio_worker.cpp
     ./module/dsp_engine.cpp
     ./module/metronome.cpp
+    ./module/spectrum_analyzer.cpp
     # synth
     ./synth/synth_fluidsynth.cpp
     # dsp
-    ./dsp/dsp_factory.cpp
     ./dsp/dsp_block_gain.cpp
     ./dsp/dsp_block_pan.cpp
     ./dsp/dsp_block_single_eq.cpp
     ./dsp/dsp_block_compressor.cpp
     ./dsp/dsp_block_multi_eq.cpp
+    ./dsp/dsp_block_limiter.cpp
+    ./dsp/dsp_block_delay.cpp
+    ./dsp/dsp_block_reverb.cpp
+    ./dsp/dsp_block_bitcrusher.cpp
+    ./dsp/dsp_block_tremolo.cpp
+    ./dsp/dsp_block_filter.cpp
+    ./dsp/dsp_block_chorus.cpp
+    ./dsp/dsp_block_phaser.cpp
+    ./dsp/dsp_block_flanger.cpp
+    ./dsp/dsp_block_noise_gate.cpp
+    ./dsp/dsp_block_saturator.cpp
+    ./dsp/dsp_block_exciter.cpp
+    ./dsp/dsp_block_stereo_imager.cpp
 )
 
 # GLIB2, FluidSynth, and RtMidi dependencies (REQUIRED)

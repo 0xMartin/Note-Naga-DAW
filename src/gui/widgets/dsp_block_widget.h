@@ -74,6 +74,13 @@ private:
     QHBoxLayout* vSliderLayout_;
     std::vector<AudioVerticalSlider*> vSliderWidgets_;
 
-    void buildUi();
+    void buildUI();
     void updateActivationButton();
+
+    // --- UI build helpers ---
+    void buildLeftBar();
+    void buildButtonBar();
+    void buildDialGrid();
+    void buildVSliderStack();
+    void buildCenterArea();
 };

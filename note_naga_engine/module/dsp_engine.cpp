@@ -1,12 +1,15 @@
 #include <note_naga_engine/module/dsp_engine.h>
 
+#include <note_naga_engine/core/types.h>
+
+#include <cmath>
 #include <algorithm>
 #include <cstring>
 
-NoteNagaDSPEngine::NoteNagaDSPEngine(NoteNagaProject *project) {
-    this->project_ = project;
-    metronome_.setProject(project);
-    metronome_.setSampleRate(44100);
+NoteNagaDSPEngine::NoteNagaDSPEngine(NoteNagaMetronome* metronome, NoteNagaSpectrumAnalyzer * spectrum_analyzer) {
+    this->metronome_ = metronome;
+    this->spectrum_analyzer_ = spectrum_analyzer;
+    this->enable_dsp_ = true;
     NOTE_NAGA_LOG_INFO("DSP Engine initialized");
 }
 
@@ -24,12 +27,16 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames) {
     }
 
     // DSP blocks processing
-    for (NoteNagaDSPBlockBase *block : this->dsp_blocks_) {
-        block->process(mix_left_.data(), mix_right_.data(), num_frames);
+    if (this->enable_dsp_) {
+        for (NoteNagaDSPBlockBase *block : this->dsp_blocks_) {
+            block->process(mix_left_.data(), mix_right_.data(), num_frames);
+        }
     }
 
     // Metronome rendering
-    metronome_.render(mix_left_.data(), mix_right_.data(), num_frames);
+    if (this->metronome_) {
+        this->metronome_->render(mix_left_.data(), mix_right_.data(), num_frames);
+    }
 
     // apply master volume with logarithmic effect
     if (output_volume_ < 1.0f) {
@@ -43,6 +50,12 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames) {
 
     // Calculate RMS for visualization
     this->calculateRMS(mix_left_.data(), mix_right_.data(), num_frames);
+
+    // push to spectrum analyzer
+    if (this->spectrum_analyzer_) {
+        this->spectrum_analyzer_->pushSamplesToLeftBuffer(mix_left_.data(), num_frames);
+        this->spectrum_analyzer_->pushSamplesToRightBuffer(mix_right_.data(), num_frames);
+    }
 
     // Interleave left and right channels using pointer arithmetic for efficiency
     float *left = mix_left_.data();
@@ -67,6 +80,11 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames) {
         *out++ = left[i];
         *out++ = right[i];
     }
+}
+
+void NoteNagaDSPEngine::setEnableDSP(bool enable) {
+    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
+    this->enable_dsp_ = enable;
 }
 
 void NoteNagaDSPEngine::addSynth(INoteNagaSoftSynth *synth) {

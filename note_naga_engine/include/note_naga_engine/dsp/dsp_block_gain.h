@@ -1,11 +1,13 @@
 #pragma once
 
+#include <note_naga_engine/note_naga_api.h>
+
 #include <note_naga_engine/core/dsp_block_base.h>
 
 /** 
  * @brief DSP Block for a gain effect.
  */
-class DSPBlockGain : public NoteNagaDSPBlockBase {
+class NOTE_NAGA_ENGINE_API DSPBlockGain : public NoteNagaDSPBlockBase {
 public:
     /**
      * @brief Constructor for the gain block.

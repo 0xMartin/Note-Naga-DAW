@@ -9,8 +9,8 @@ NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
     synth_settings_ = new_fluid_settings();
     fluidsynth_ = new_fluid_synth(synth_settings_);
     int sfid = fluid_synth_sfload(fluidsynth_, sf2_path.c_str(), 1);
-    fluid_synth_set_reverb_on(fluidsynth_, 1);
-    fluid_synth_set_reverb(fluidsynth_, 0.8f, 0.5f, 0.9f, 0.3f); // roomsize, damping, width, level
+    // fluid_synth_set_reverb_on(fluidsynth_, 1);
+    // fluid_synth_set_reverb(fluidsynth_, 0.8f, 0.5f, 0.9f, 0.3f);
 
     // Initialize all channels with no program set
     for (int i = 0; i < 16; ++i) {

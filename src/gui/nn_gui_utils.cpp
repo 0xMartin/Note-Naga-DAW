@@ -43,7 +43,7 @@ QPushButton *create_small_button(const QString &iconPath, const QString &tooltip
                                  const char *objname, int size, QWidget *parent) {
     QPushButton *btn = new QPushButton(parent);
     btn->setObjectName(objname);
-    btn->setIcon(QIcon(iconPath));
+    if (!iconPath.isEmpty()) btn->setIcon(QIcon(iconPath));
     btn->setToolTip(tooltip);
     btn->setFlat(true);
     btn->setFixedSize(size, size);
@@ -67,4 +67,12 @@ QPushButton *create_small_button(const QString &iconPath, const QString &tooltip
 
 Separator *create_separator(int orientation, const QColor &color, QWidget *parent) {
     return new Separator(static_cast<Separator::Orientation>(orientation), color, parent);
+}
+
+QStringList nn_std_string_list_to_qstringlist(const std::vector<std::string> &list) {
+    QStringList result;
+    for (const auto &str : list) {
+        result.append(QString::fromStdString(str));
+    }
+    return result;
 }

@@ -2,14 +2,16 @@
 
 #include <note_naga_engine/note_naga_api.h>
 
-#include <note_naga_engine/core/types.h>
-#include <note_naga_engine/core/project_data.h>
 #include <note_naga_engine/core/note_naga_synthesizer.h>
+#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/types.h>
 
+#include <note_naga_engine/module/audio_worker.h>
+#include <note_naga_engine/module/dsp_engine.h>
 #include <note_naga_engine/module/mixer.h>
 #include <note_naga_engine/module/playback_worker.h>
-#include <note_naga_engine/module/dsp_engine.h>
-#include <note_naga_engine/module/audio_worker.h>
+#include <note_naga_engine/module/spectrum_analyzer.h>
+#include <note_naga_engine/module/metronome.h>
 
 #ifndef QT_DEACTIVATED
 #include <QObject>
@@ -112,9 +114,7 @@ public:
      * @brief Returns whether playback is currently running.
      * @return True if playing, false otherwise.
      */
-    bool isPlaying() const {
-        return playback_worker ? playback_worker->isPlaying() : false;
-    }
+    bool isPlaying() const { return playback_worker ? playback_worker->isPlaying() : false; }
 
     /*******************************************************************************************************/
     // Project Control
@@ -159,7 +159,7 @@ public:
      * @brief Gets the list of available synthesizers.
      * @return Vector of pointers to NoteNagaSynthesizer instances.
      */
-    std::vector<NoteNagaSynthesizer*> getSynthesizers() { return this->synthesizers; }
+    std::vector<NoteNagaSynthesizer *> getSynthesizers() { return this->synthesizers; }
 
     /**
      * @brief Adds a synthesizer to the engine.
@@ -229,12 +229,24 @@ public:
      */
     NoteNagaAudioWorker *getAudioWorker() { return this->audio_worker; }
 
+    /**
+     * @brief Gets the metronome instance.
+     * @return Pointer to the NoteNagaMetronome.
+     */
+    NoteNagaMetronome *getMetronome() { return this->metronome; }
+
+    /**
+     * @brief Gets the spectrum analyzer instance.
+     * @return Pointer to the NoteNagaSpectrumAnalyzer.
+     */
+    NoteNagaSpectrumAnalyzer *getSpectrumAnalyzer() { return this->spectrum_analyzer; }
+
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
     /**
      * @brief Signal emitted when playback starts.
      */
-    void playbackStarted(); 
+    void playbackStarted();
     /**
      * @brief Signal emitted when playback stops.
      */
@@ -242,10 +254,12 @@ Q_SIGNALS:
 #endif
 
 protected:
-    NoteNagaProject *project;                       ///< Pointer to the current project instance
-    NoteNagaPlaybackWorker *playback_worker;        ///< Pointer to the playback worker instance
-    NoteNagaMixer *mixer;                           ///< Pointer to the mixer instance
-    NoteNagaDSPEngine *dsp_engine;                  ///< Pointer to the DSP engine instance
-    NoteNagaAudioWorker *audio_worker;              ///< Pointer to the audio worker instance
-    std::vector<NoteNagaSynthesizer*> synthesizers; ///< List of synthesizers used by the engine
+    NoteNagaProject *project;                        ///< Pointer to the current project instance
+    NoteNagaPlaybackWorker *playback_worker;         ///< Pointer to the playback worker instance
+    NoteNagaMixer *mixer;                            ///< Pointer to the mixer instance
+    NoteNagaDSPEngine *dsp_engine;                   ///< Pointer to the DSP engine instance
+    NoteNagaAudioWorker *audio_worker;               ///< Pointer to the audio worker instance
+    NoteNagaSpectrumAnalyzer *spectrum_analyzer;     ///< Pointer to the spectrum analyzer instance
+    NoteNagaMetronome *metronome;                    ///< Pointer to the metronome instance
+    std::vector<NoteNagaSynthesizer *> synthesizers; ///< List of synthesizers used by the engine
 };

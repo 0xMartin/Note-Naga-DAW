@@ -53,7 +53,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     connect(name_edit, &QLineEdit::editingFinished, this, &TrackWidget::onNameEdited);
     header_hbox->addWidget(name_edit, 1);
 
-    color_btn = create_small_button(":/icons/color.svg", "Change Track Color", "ColorButton", 18);
+    color_btn = create_small_button("", "Change Track Color", "ColorButton", 18);
     connect(color_btn, &QPushButton::clicked, this, &TrackWidget::colorSelect);
     header_hbox->addWidget(color_btn, 0);
 

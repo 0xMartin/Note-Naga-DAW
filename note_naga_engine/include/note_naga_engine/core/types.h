@@ -8,6 +8,7 @@
 #include <QObject>
 #endif
 
+#include <complex>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -690,5 +691,13 @@ NOTE_NAGA_ENGINE_API extern double nn_seconds_to_ticks(double seconds, int ppq, 
 NOTE_NAGA_ENGINE_API extern double nn_ticks_to_seconds(int ticks, int ppq, int tempo);
 
 /*******************************************************************************************************/
-// Audio Buffer
+// Audio Analysis Utils
 /*******************************************************************************************************/
+
+/**
+ * @brief Computes the root mean square (RMS) of an audio buffer.
+ * @param buffer Pointer to the audio buffer.
+ * @param num_frames Number of frames in the buffer.
+ * @return RMS value.
+ */
+NOTE_NAGA_ENGINE_API extern void nn_fft(std::vector<std::complex<float>>& a);

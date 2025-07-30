@@ -79,10 +79,18 @@ public:
     void setValuePostfix(const QString &postfix);
 
     /**
-     * @brief Set the number of decimal places for the value displayed below the dial.
+     * @brief Set the number of decimal places for the value displayed below the dial. Swith to integer mode if set to 0.
      * @param decimals The number of decimal places to display.
      */
     void setValueDecimals(int decimals);
+
+    /**
+     * @brief Set the names of options for the dial. Available only in integer mode (set number of decimals to 0).
+     * @param names A list of option names to display.
+     */
+    void setOptionNames(QStringList names) {
+        _option_names = std::move(names);
+    }
 
     // --- PUBLIC COLORS ---
     QColor bg_color = QColor("#3a3f45");
@@ -138,6 +146,7 @@ private:
     QString _label;
     bool _show_label;
     bool _show_value;
+    QStringList _option_names;
     QString _value_prefix;
     QString _value_postfix;
     int _value_decimals;

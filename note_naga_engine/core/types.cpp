@@ -73,8 +73,7 @@ NoteNagaTrack::NoteNagaTrack()
     NOTE_NAGA_LOG_INFO("Created default Track with ID: " + std::to_string(track_id));
 }
 
-NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent,
-                             const std::string &name,
+NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent, const std::string &name,
                              const std::optional<int> &instrument,
                              const std::optional<int> &channel)
 #ifndef QT_DEACTIVATED
@@ -98,18 +97,16 @@ NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent,
 void NoteNagaTrack::setInstrument(std::optional<int> instrument) {
     if (this->instrument == instrument) return;
     this->instrument = instrument;
-    NOTE_NAGA_LOG_INFO(
-        "Instrument changed for Track ID: " + std::to_string(track_id) +
-        " to: " + (instrument.has_value() ? std::to_string(instrument.value()) : "None"));
+    NOTE_NAGA_LOG_INFO("Instrument changed for Track ID: " + std::to_string(track_id) + " to: " +
+                       (instrument.has_value() ? std::to_string(instrument.value()) : "None"));
     NN_QT_EMIT(metadataChanged(this, "instrument"));
 }
 
 void NoteNagaTrack::setChannel(std::optional<int> channel) {
     if (this->channel == channel) return;
     this->channel = channel;
-    NOTE_NAGA_LOG_INFO(
-        "Channel changed for Track ID: " + std::to_string(track_id) +
-        " to: " + (channel.has_value() ? std::to_string(channel.value()) : "None"));
+    NOTE_NAGA_LOG_INFO("Channel changed for Track ID: " + std::to_string(track_id) +
+                       " to: " + (channel.has_value() ? std::to_string(channel.value()) : "None"));
     NN_QT_EMIT(metadataChanged(this, "channel"));
 }
 
@@ -209,8 +206,8 @@ void NoteNagaMidiSeq::clear() {
 
 void NoteNagaMidiSeq::setId(int new_id) {
     if (this->sequence_id == new_id) return;
-    NOTE_NAGA_LOG_INFO("ID of MIDI sequence changed from: " +
-                       std::to_string(sequence_id) + " to: " + std::to_string(new_id));
+    NOTE_NAGA_LOG_INFO("ID of MIDI sequence changed from: " + std::to_string(sequence_id) +
+                       " to: " + std::to_string(new_id));
     sequence_id = new_id;
     NN_QT_EMIT(metadataChanged(this, "id"));
 }
@@ -238,9 +235,9 @@ void NoteNagaMidiSeq::setSoloTrack(NoteNagaTrack *track) {
         for (NoteNagaTrack *tr : this->tracks) {
             if (tr == track) {
                 this->solo_track = track;
-                NOTE_NAGA_LOG_INFO("Track with ID: " + std::to_string(track->getId()) +
-                                   " set as solo track for MIDI sequence ID: " +
-                                   std::to_string(sequence_id));
+                NOTE_NAGA_LOG_INFO(
+                    "Track with ID: " + std::to_string(track->getId()) +
+                    " set as solo track for MIDI sequence ID: " + std::to_string(sequence_id));
                 break;
             }
         }
@@ -260,9 +257,9 @@ void NoteNagaMidiSeq::setActiveTrack(NoteNagaTrack *track) {
         for (NoteNagaTrack *tr : this->tracks) {
             if (tr == track) {
                 this->active_track = track;
-                NOTE_NAGA_LOG_INFO("Track with ID: " + std::to_string(track->getId()) +
-                                   " set as active track for MIDI sequence ID: " +
-                                   std::to_string(sequence_id));
+                NOTE_NAGA_LOG_INFO(
+                    "Track with ID: " + std::to_string(track->getId()) +
+                    " set as active track for MIDI sequence ID: " + std::to_string(sequence_id));
                 break;
             }
         }
@@ -290,8 +287,7 @@ int NoteNagaMidiSeq::computeMaxTick() {
     for (const auto &track : this->tracks) {
         for (const auto &note : track->getNotes()) {
             if (note.start.has_value() && note.length.has_value())
-                this->max_tick =
-                    std::max(this->max_tick, note.start.value() + note.length.value());
+                this->max_tick = std::max(this->max_tick, note.start.value() + note.length.value());
         }
     }
     NN_QT_EMIT(metadataChanged(this, "max_tick"));
@@ -369,8 +365,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_TRACK_NAME) {
             std::string track_name(evt.meta_data.begin(), evt.meta_data.end());
             size_t endpos = track_name.find_last_not_of('\0');
-            if (endpos != std::string::npos)
-                track_name = track_name.substr(0, endpos + 1);
+            if (endpos != std::string::npos) track_name = track_name.substr(0, endpos + 1);
             for (int ch = 0; ch < 16; ++ch) {
                 channel_names[ch] = track_name;
             }
@@ -382,8 +377,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         // Tempo change: only once
         if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_SET_TEMPO) {
             if (evt.meta_data.size() == 3) {
-                tempo =
-                    (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) | evt.meta_data[2];
+                tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) | evt.meta_data[2];
             }
         }
         // Note on: register note start per channel
@@ -395,8 +389,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         }
         // Note off: finish note per channel
         else if ((evt.type == MidiEventType::NoteOff) ||
-                 (evt.type == MidiEventType::NoteOn && !evt.data.empty() &&
-                  evt.data[1] == 0)) {
+                 (evt.type == MidiEventType::NoteOn && !evt.data.empty() && evt.data[1] == 0)) {
             int note = evt.data[0];
             int channel = evt.channel;
             auto key = std::make_pair(note, channel);
@@ -418,18 +411,13 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType0Tracks(const MidiFile *mi
         std::vector<NN_Note_t> &note_buffer = pair.second;
         if (note_buffer.empty()) continue;
 
-        std::string name = channel_names.count(channel)
-                               ? channel_names[channel]
-                               : "Channel " + std::to_string(channel + 1);
-        int instrument =
-            channel_instruments.count(channel) ? channel_instruments[channel] : 0;
+        std::string name = channel_names.count(channel) ? channel_names[channel]
+                                                        : "Channel " + std::to_string(channel + 1);
+        int instrument = channel_instruments.count(channel) ? channel_instruments[channel] : 0;
 
-        NoteNagaTrack *nn_track =
-            new NoteNagaTrack(t_id, this, name, instrument, channel);
+        NoteNagaTrack *nn_track = new NoteNagaTrack(t_id, this, name, instrument, channel);
         std::sort(note_buffer.begin(), note_buffer.end(),
-                  [](const NN_Note_t &a, const NN_Note_t &b) {
-                      return a.start < b.start;
-                  });
+                  [](const NN_Note_t &a, const NN_Note_t &b) { return a.start < b.start; });
         for (auto &note : note_buffer) {
             note.parent = nn_track;
         }
@@ -468,12 +456,10 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
             abs_time += evt.delta_time;
 
             // Track name
-            if (evt.type == MidiEventType::Meta &&
-                evt.meta_type == MIDI_META_TRACK_NAME) {
+            if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_TRACK_NAME) {
                 std::string track_name(evt.meta_data.begin(), evt.meta_data.end());
                 size_t endpos = track_name.find_last_not_of('\0');
-                if (endpos != std::string::npos)
-                    track_name = track_name.substr(0, endpos + 1);
+                if (endpos != std::string::npos) track_name = track_name.substr(0, endpos + 1);
                 name = track_name;
             }
             // Program change: store instrument
@@ -487,24 +473,20 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
             if (evt.type == MidiEventType::Meta && evt.meta_type == MIDI_META_SET_TEMPO &&
                 track_idx == 0) {
                 if (evt.meta_data.size() == 3) {
-                    tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) |
-                            evt.meta_data[2];
+                    tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) | evt.meta_data[2];
                 }
             }
             // Note on
-            if (evt.type == MidiEventType::NoteOn && !evt.data.empty() &&
-                evt.data[1] > 0) {
+            if (evt.type == MidiEventType::NoteOn && !evt.data.empty() && evt.data[1] > 0) {
                 int note = evt.data[0];
                 int velocity = evt.data[1];
                 int channel = evt.channel;
                 if (!channel_used.has_value()) channel_used = channel;
-                notes_on[std::make_pair(note, channel)] =
-                    std::make_pair(abs_time, velocity);
+                notes_on[std::make_pair(note, channel)] = std::make_pair(abs_time, velocity);
             }
             // Note off
             else if ((evt.type == MidiEventType::NoteOff) ||
-                     (evt.type == MidiEventType::NoteOn && !evt.data.empty() &&
-                      evt.data[1] == 0)) {
+                     (evt.type == MidiEventType::NoteOn && !evt.data.empty() && evt.data[1] == 0)) {
                 int note = evt.data[0];
                 int channel = evt.channel;
                 auto key = std::make_pair(note, channel);
@@ -521,9 +503,7 @@ std::vector<NoteNagaTrack *> NoteNagaMidiSeq::loadType1Tracks(const MidiFile *mi
 
         // sort notes by start time and store in track
         std::sort(note_buffer.begin(), note_buffer.end(),
-                  [](const NN_Note_t &a, const NN_Note_t &b) {
-                      return a.start < b.start;
-                  });
+                  [](const NN_Note_t &a, const NN_Note_t &b) { return a.start < b.start; });
         nn_track->setNotes(note_buffer);
         // set channel and instrument
         nn_track->setChannel(channel_used);
@@ -671,17 +651,16 @@ const std::vector<NN_GMInstrument_t> GM_INSTRUMENTS = {
     {127, "Gunshot", "vinyl"}};
 
 std::optional<NN_GMInstrument_t> nn_find_instrument_by_name(const std::string &name) {
-    auto it = std::find_if(
-        GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
-        [&](const NN_GMInstrument_t &instr) { return instr.name.compare(name) == 0; });
+    auto it =
+        std::find_if(GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
+                     [&](const NN_GMInstrument_t &instr) { return instr.name.compare(name) == 0; });
     if (it != GM_INSTRUMENTS.end()) return *it;
     return std::nullopt;
 }
 
 std::optional<NN_GMInstrument_t> nn_find_instrument_by_index(int index) {
-    auto it =
-        std::find_if(GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
-                     [&](const NN_GMInstrument_t &instr) { return instr.index == index; });
+    auto it = std::find_if(GM_INSTRUMENTS.begin(), GM_INSTRUMENTS.end(),
+                           [&](const NN_GMInstrument_t &instr) { return instr.index == index; });
     if (it != GM_INSTRUMENTS.end()) return *it;
     return std::nullopt;
 }
@@ -693,9 +672,7 @@ std::optional<NN_GMInstrument_t> nn_find_instrument_by_index(int index) {
 const std::vector<std::string> NOTE_NAMES = {"C",  "C#", "D",  "D#", "E",  "F",
                                              "F#", "G",  "G#", "A",  "A#", "B"};
 
-std::string nn_note_name(int n) {
-    return NOTE_NAMES.at(n % 12) + std::to_string(n / 12 - 1);
-}
+std::string nn_note_name(int n) { return NOTE_NAMES.at(n % 12) + std::to_string(n / 12 - 1); }
 
 int nn_index_in_octave(int n) { return n % 12; }
 
@@ -711,4 +688,36 @@ double nn_seconds_to_ticks(double seconds, int ppq, int tempo) {
 double nn_ticks_to_seconds(int ticks, int ppq, int tempo) {
     double us_per_tick = double(tempo) / double(ppq);
     return ticks * us_per_tick / 1'000'000.0;
+}
+
+/*******************************************************************************************************/
+// Audio Analysis Utils
+/*******************************************************************************************************/
+
+void nn_fft(std::vector<std::complex<float>>& a) {
+    const size_t N = a.size();
+    size_t j = 0;
+    for (size_t i = 1; i < N; ++i) {
+        size_t bit = N >> 1;
+        while (j & bit) {
+            j ^= bit;
+            bit >>= 1;
+        }
+        j ^= bit;
+        if (i < j) std::swap(a[i], a[j]);
+    }
+    for (size_t len = 2; len <= N; len <<= 1) {
+        float ang = -2 * M_PI / len;
+        std::complex<float> wlen(cosf(ang), sinf(ang));
+        for (size_t i = 0; i < N; i += len) {
+            std::complex<float> w(1);
+            for (size_t j = 0; j < len / 2; ++j) {
+                auto u = a[i + j];
+                auto v = a[i + j + len / 2] * w;
+                a[i + j] = u + v;
+                a[i + j + len / 2] = u - v;
+                w *= wlen;
+            }
+        }
+    }
 }

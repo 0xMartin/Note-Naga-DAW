@@ -32,7 +32,7 @@ void DSPBlockCompressor::process(float* left, float* right, size_t numFrames) {
 
 std::vector<DSPParamDescriptor> DSPBlockCompressor::getParamDescriptors() {
     return {
-        { "Threshold", DSPParamType::Float, DSControlType::SliderVertical, -36.0f, 0.0f, -18.0f },
+        { "Threshold", DSPParamType::Float, DSControlType::SliderVertical, -50.0f, 0.0f, -18.0f },
         { "Ratio",     DSPParamType::Float, DSControlType::Dial, 1.0f, 20.0f, 4.0f },
         { "Attack",    DSPParamType::Float, DSControlType::Dial, 0.5f, 100.0f, 10.0f },
         { "Release",   DSPParamType::Float, DSControlType::DialCentered, 5.0f, 500.0f, 80.0f },

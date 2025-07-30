@@ -88,8 +88,11 @@ std::vector<DSPParamDescriptor> DSPBlockMultiSimpleEQ::getParamDescriptors() {
     std::vector<DSPParamDescriptor> descs;
     for (size_t i = 0; i < bands_.size(); ++i) {
         char name[32];
-        snprintf(name, sizeof(name), "%.0f Hz", bands_[i].freq);
-        descs.push_back({ name, DSPParamType::Float, DSControlType::SliderVertical, -24.0f, 24.0f, bands_[i].gain });
+        if (bands_[i].freq >= 1000.0f)
+            snprintf(name, sizeof(name), "%.0f kHz", bands_[i].freq / 1000.0f);
+        else
+            snprintf(name, sizeof(name), "%.0f Hz", bands_[i].freq);
+        descs.push_back({ name, DSPParamType::Float, DSControlType::SliderVertical, -20.0f, 20.0f, bands_[i].gain });
     }
     return descs;
 }
