@@ -195,8 +195,8 @@ void DSPBlockWidget::buildUi() {
     vSliderWidget_ = new QWidget(centerWidget_);
     vSliderWidget_->setObjectName("VSliderWidget");
     vSliderWidget_->setFixedWidth(VSLIDER_WIDTH);
-    vSliderWidget_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
-    vSliderLayout_ = new QVBoxLayout(vSliderWidget_);
+    vSliderWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    vSliderLayout_ = new QHBoxLayout(vSliderWidget_);
     vSliderLayout_->setContentsMargins(0, 0, 0, 0);
     vSliderLayout_->setSpacing(2);
 
@@ -212,6 +212,7 @@ void DSPBlockWidget::buildUi() {
             slider->setLabelVisible(true);
             slider->setValueVisible(true);
             slider->setValueDecimals(2);
+            slider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
             slider->setFixedWidth(VSLIDER_WIDTH);
             connect(slider, &AudioVerticalSlider::valueChanged, this,
                     [this, i](float val) { block_->setParamValue(i, val); });
@@ -239,7 +240,6 @@ void DSPBlockWidget::buildUi() {
 
 void DSPBlockWidget::resizeEvent(QResizeEvent *event) {
     QFrame::resizeEvent(event);
-    // AudioDialGridWidget automaticky reaguje na resize
 }
 
 void DSPBlockWidget::onLeftClicked() { emit moveLeftRequested(this); }

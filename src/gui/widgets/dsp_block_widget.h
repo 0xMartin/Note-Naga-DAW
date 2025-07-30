@@ -38,12 +38,13 @@ private slots:
     void onDeleteClicked();
 
 private:
-    void buildUi();
-    void updateActivationButton();
-
+    // DSP backend
     NoteNagaDSPBlockBase* block_;
 
+    // Main layout
     QHBoxLayout* mainLayout_;
+
+    // Left side: title label and buttons
     QWidget* leftBar_;
     QVBoxLayout* leftBarLayout_;
     VerticalTitleLabel* titleLabel_;
@@ -52,9 +53,11 @@ private:
     QPushButton* deactivateBtn_;
     QPushButton* deleteBtn_;
 
+    // Content area
     QWidget* contentWidget_;
     QVBoxLayout* contentLayout_;
 
+    // Button bar
     QWidget* buttonBar_;
     QHBoxLayout* buttonBarLayout_;
     std::vector<QWidget*> buttonWidgets_;
@@ -68,6 +71,9 @@ private:
 
     // Vertical slider stack
     QWidget* vSliderWidget_;
-    QVBoxLayout* vSliderLayout_;
+    QHBoxLayout* vSliderLayout_;
     std::vector<AudioVerticalSlider*> vSliderWidgets_;
+
+    void buildUi();
+    void updateActivationButton();
 };
