@@ -17,7 +17,6 @@
 #include "dsp_block_widget.h"
 #include "../components/stereo_volume_bar_widget.h"
 #include "../components/audio_vertical_slider.h"
-#include "../components/spectrum_analyzer.h"
 
 /**
  * @brief DSPWidget provides a user interface for managing DSP modules in the application.
@@ -39,7 +38,6 @@ private:
     QWidget *title_widget;
     AudioVerticalSlider *volume_slider;
     StereoVolumeBarWidget* volume_bar;
-    SpectrumAnalyzer* spectrum_analyzer;
     QHBoxLayout *dsp_layout;
 
     QPushButton *btn_add;

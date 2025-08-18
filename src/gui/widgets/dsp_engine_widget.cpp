@@ -72,7 +72,7 @@ void DSPEngineWidget::initUI() {
     info_panel->setObjectName("InfoPanel");
     info_panel->setStyleSheet("QFrame#InfoPanel { background: #2F3139; border: 1px solid #494d56; "
                               "border-radius: 8px; padding: 2px 0px 0px 0px; }");
-    info_panel->setFixedWidth(320);
+    info_panel->setFixedWidth(130);
 
     QVBoxLayout *info_layout = new QVBoxLayout(info_panel);
     info_layout->setContentsMargins(4, 4, 4, 4);
@@ -90,10 +90,6 @@ void DSPEngineWidget::initUI() {
     center_layout->setContentsMargins(0, 0, 0, 0);
     center_layout->setSpacing(6);
     center_layout->addStretch(1);
-
-    spectrum_analyzer = new SpectrumAnalyzer(this->engine->getSpectrumAnalyzer(), center_section);
-    spectrum_analyzer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    center_layout->addWidget(spectrum_analyzer, 1);
 
     AudioVerticalSlider *volume_slider = new AudioVerticalSlider(center_section);
     volume_slider->setRange(0, 100.0f);
