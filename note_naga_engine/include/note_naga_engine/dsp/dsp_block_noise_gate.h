@@ -5,7 +5,6 @@
 #include <note_naga_engine/core/dsp_block_base.h>
 #include <vector>
 #include <string>
-#include <cmath>
 
 /**
  * @brief DSP Block for a noise gate effect.

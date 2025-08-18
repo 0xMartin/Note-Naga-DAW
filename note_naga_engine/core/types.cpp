@@ -27,7 +27,7 @@ NN_Color_t nn_color_blend(const NN_Color_t &fg, const NN_Color_t &bg, double opa
 }
 
 double nn_yiq_luminance(const NN_Color_t &color) {
-    return (color.red * 299 + color.green * 587 + color.blue * 114) / 1000;
+    return (double)(color.red * 299 + color.green * 587 + color.blue * 114) / 1000.0;
 }
 
 /*******************************************************************************************************/

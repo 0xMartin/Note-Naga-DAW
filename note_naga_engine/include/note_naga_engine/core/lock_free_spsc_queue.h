@@ -4,7 +4,6 @@
 
 #include <atomic>
 #include <cstddef>
-#include <memory>
 #include <optional>
 
 /**

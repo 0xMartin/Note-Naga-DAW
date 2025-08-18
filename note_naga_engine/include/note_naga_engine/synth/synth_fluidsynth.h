@@ -4,8 +4,6 @@
 #include <note_naga_engine/core/types.h>
 #include <fluidsynth.h>
 #include <string>
-#include <unordered_map>
-#include <mutex>
 
 class DSPEngine;
 

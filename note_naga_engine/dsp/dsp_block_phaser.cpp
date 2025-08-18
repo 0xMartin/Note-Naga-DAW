@@ -1,5 +1,5 @@
 #include <note_naga_engine/dsp/dsp_block_phaser.h>
-#include <algorithm>
+
 #include <cmath>
 
 DSPBlockPhaser::DSPBlockPhaser(float speed, float depth, float feedback, float mix)

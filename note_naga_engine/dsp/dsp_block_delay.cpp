@@ -1,7 +1,6 @@
 #include <note_naga_engine/dsp/dsp_block_delay.h>
 
 #include <algorithm>
-#include <cmath>
 
 DSPBlockDelay::DSPBlockDelay(float time_ms, float feedback, float mix)
     : time_ms_(time_ms), feedback_(feedback), mix_(mix)

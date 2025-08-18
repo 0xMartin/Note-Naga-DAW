@@ -1,5 +1,5 @@
 #include <note_naga_engine/dsp/dsp_block_saturator.h>
-#include <algorithm>
+
 #include <cmath>
 
 DSPBlockSaturator::DSPBlockSaturator(float drive, float mix)

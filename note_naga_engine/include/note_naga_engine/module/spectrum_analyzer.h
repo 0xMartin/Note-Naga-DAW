@@ -29,6 +29,20 @@ public:
     explicit NoteNagaSpectrumAnalyzer(size_t fft_size, ChannelMode mode = ChannelMode::Merged);
 
     /**
+     * @brief Enable or disable spectrum analysis.
+     * @param enable True to enable, false to disable.
+     */
+    void setEnableSpectrumAnalysis(bool enable) {
+        this->enable_ = enable;
+    }    
+    
+    /**
+     * @brief Check if spectrum analysis is enabled.
+     * @return True if enabled, false otherwise.
+     */
+    bool isEnabled() const { return enable_; }
+
+    /**
      * @brief Push audio samples to the analyzer.
      * @param samples Pointer to the audio samples buffer.
      * @param num_samples Number of samples in the buffer.
@@ -64,6 +78,7 @@ public:
     }
 
 private:
+    bool enable_; /// Enable/disable spectrum analysis
     size_t fft_size_;        /// Required FFT size for the spectrum analysis
 
     // Buffers for audio samples

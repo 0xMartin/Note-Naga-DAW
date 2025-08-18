@@ -1,7 +1,6 @@
 #include <note_naga_engine/dsp/dsp_block_reverb.h>
 
 #include <algorithm>
-#include <cmath>
 
 // Comb filter implementation
 float DSPBlockReverb::CombFilter::process(float inp) {

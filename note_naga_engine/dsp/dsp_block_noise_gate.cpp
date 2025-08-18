@@ -1,6 +1,5 @@
 #include <note_naga_engine/dsp/dsp_block_noise_gate.h>
 
-#include <algorithm>
 #include <cmath>
 
 DSPBlockNoiseGate::DSPBlockNoiseGate(float threshold, float attack, float release)

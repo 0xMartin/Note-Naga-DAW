@@ -1,6 +1,7 @@
+#include <note_naga_engine/dsp/dsp_block_filter.h>
+
 #include <algorithm>
 #include <cmath>
-#include <note_naga_engine/dsp/dsp_block_filter.h>
 
 DSPBlockFilter::DSPBlockFilter(FilterType type, float cutoff, float resonance, float mix)
     : type_(type), cutoff_(cutoff), resonance_(resonance), mix_(mix) {

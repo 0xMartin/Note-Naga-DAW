@@ -1,6 +1,5 @@
 #include <note_naga_engine/dsp/dsp_block_flanger.h>
 
-#include <algorithm>
 #include <cmath>
 
 DSPBlockFlanger::DSPBlockFlanger(float speed, float depth, float feedback, float mix)

@@ -3,8 +3,6 @@
 #include <note_naga_engine/note_naga_api.h>
 
 #include <cstdint>
-#include <map>
-#include <memory>
 #include <string>
 #include <vector>
 

@@ -2,8 +2,6 @@
 
 #include <note_naga_engine/note_naga_api.h>
 #include <note_naga_engine/core/project_data.h>
-#include <vector>
-#include <atomic>
 
 /**
  * @brief Sample-accurate metronome driven by project ticks.

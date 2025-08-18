@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <functional>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 // Forward declarations

@@ -1,6 +1,5 @@
 #include <note_naga_engine/dsp/dsp_block_exciter.h>
 
-#include <algorithm>
 #include <cmath>
 
 DSPBlockExciter::DSPBlockExciter(float freq, float drive, float mix)

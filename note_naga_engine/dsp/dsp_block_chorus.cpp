@@ -1,5 +1,5 @@
 #include <note_naga_engine/dsp/dsp_block_chorus.h>
-#include <algorithm>
+
 #include <cmath>
 
 DSPBlockChorus::DSPBlockChorus(float speed, float depth, float mix)

@@ -4,7 +4,6 @@
 
 #include <note_naga_engine/core/dsp_block_base.h>
 #include <vector>
-#include <cmath>
 #include <string>
 
 /**

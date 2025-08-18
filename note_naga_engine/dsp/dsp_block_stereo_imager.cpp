@@ -1,8 +1,5 @@
 #include <note_naga_engine/dsp/dsp_block_stereo_imager.h>
 
-#include <algorithm>
-#include <cmath>
-
 DSPBlockStereoImager::DSPBlockStereoImager(float width)
     : width_(width)
 {}

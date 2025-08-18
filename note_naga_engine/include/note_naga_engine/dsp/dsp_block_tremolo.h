@@ -2,7 +2,6 @@
 
 #include <note_naga_engine/note_naga_api.h>
 
-#include <cmath>
 #include <note_naga_engine/core/dsp_block_base.h>
 #include <string>
 

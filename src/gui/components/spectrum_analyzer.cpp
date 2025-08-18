@@ -1,10 +1,12 @@
 #include "spectrum_analyzer.h"
+
 #include <QColor>
 #include <QDateTime>
 #include <QPainter>
 #include <QPainterPath>
 #include <cmath>
 #include <algorithm>
+#include <vector>
 
 SpectrumAnalyzer::SpectrumAnalyzer(NoteNagaSpectrumAnalyzer *spectrumAnalyzer, QWidget *parent)
     : QWidget(parent), spectrumAnalyzer_(spectrumAnalyzer) {
@@ -13,16 +15,13 @@ SpectrumAnalyzer::SpectrumAnalyzer(NoteNagaSpectrumAnalyzer *spectrumAnalyzer, Q
 
     connect(spectrumAnalyzer_, &NoteNagaSpectrumAnalyzer::spectrumUpdated, this,
             &SpectrumAnalyzer::updateSpectrum);
+
+    precomputedX_.resize(0);
+    cachedSpectrumPathValid_ = false;
+    cachedPeakPathValid_ = false;
 }
 
 void SpectrumAnalyzer::updateSpectrum(const std::vector<float> &spectrum) {
-    qDebug() << "Spectrum updated with size:" << spectrum.size();
-    int i = 0;
-    for (float value : spectrum) {
-        //qDebug() << "Index: " << i << " has invalid value:" << value;
-        i++;
-    }
-
     spectrum_ = spectrum;
     fftSize_ = int(spectrum_.size() * 2);
     if (peakHoldVals_.size() != spectrum_.size()) {
@@ -30,12 +29,33 @@ void SpectrumAnalyzer::updateSpectrum(const std::vector<float> &spectrum) {
         peakHoldTimes_.resize(spectrum_.size(), 0);
     }
     updatePeakHold();
+    cachedSpectrumPathValid_ = false;
+    cachedPeakPathValid_ = false;
     update();
 }
 
+void SpectrumAnalyzer::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    precomputeXPositions();
+    cachedSpectrumPathValid_ = false;
+    cachedPeakPathValid_ = false;
+}
+
+void SpectrumAnalyzer::precomputeXPositions() {
+    int w = width();
+    precomputedX_.resize(spectrum_.size());
+    for (int i = 0; i < int(spectrum_.size()); ++i) {
+        float freq = freqForBin(i);
+        // Precompute log10 scaling
+        precomputedX_[i] = log10(freq / 20.0f + 1) / log10(20000.0f / 20.0f + 1) * w;
+    }
+}
+
 void SpectrumAnalyzer::paintEvent(QPaintEvent *) {
+    qint64 startTime = QDateTime::currentMSecsSinceEpoch();
+
     QPainter p(this);
-    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setRenderHint(QPainter::Antialiasing, false);
 
     int w = width();
     int h = height();
@@ -51,6 +71,9 @@ void SpectrumAnalyzer::paintEvent(QPaintEvent *) {
 
     // Draw peak hold curve
     drawPeakCurve(p);
+
+    qint64 endTime = QDateTime::currentMSecsSinceEpoch();
+    qDebug() << "paintEvent duration:" << (endTime - startTime) << "ms";
 }
 
 void SpectrumAnalyzer::drawGrid(QPainter &p) {
@@ -100,8 +123,25 @@ void SpectrumAnalyzer::drawCurve(QPainter &p) {
     int w = width();
     int h = height();
 
-    QPainterPath path;
-    bool first = true;
+    if (!cachedSpectrumPathValid_) {
+        cachedSpectrumPath_ = QPainterPath();
+        bool first = true;
+        const float minShowValue = 0.01f; // -40dB threshold
+        for (int i = 0; i < int(spectrum_.size()); ++i) {
+            float x = (precomputedX_.size() == spectrum_.size()) ? precomputedX_[i] : 
+                (log10(freqForBin(i) / 20.0f + 1) / log10(20000.0f / 20.0f + 1) * w);
+            float value = std::clamp(spectrum_[i], 0.0f, 1.0f);
+            float db = value > minShowValue ? 20.0f * log10(value) : -100.0f;
+            float y = h - ((db + 100.0f) / 100.0f * h);
+            if (first) {
+                cachedSpectrumPath_.moveTo(x, y);
+                first = false;
+            } else {
+                cachedSpectrumPath_.lineTo(x, y);
+            }
+        }
+        cachedSpectrumPathValid_ = true;
+    }
 
     // Color gradient for main curve
     QLinearGradient grad(0, 0, w, 0);
@@ -109,24 +149,7 @@ void SpectrumAnalyzer::drawCurve(QPainter &p) {
     grad.setColorAt(0.5, QColor(120, 255, 150));
     grad.setColorAt(1.0, QColor(255, 90, 90));
     p.setPen(QPen(QBrush(grad), 2));
-
-    const float minShowValue = 0.01f; // -40dB threshold
-
-    for (int i = 0; i < int(spectrum_.size()); ++i) {
-        float freq = freqForBin(i);
-        float x = log10(freq / 20.0f + 1) / log10(20000.0f / 20.0f + 1) * w;
-        float value = std::clamp(spectrum_[i], 0.0f, 1.0f);
-        float db = value > minShowValue ? 20.0f * log10(value) : -100.0f;
-        qDebug() << "Bin:" << i << "Freq:" << freq << "Value:" << value << "dB:" << db;
-        float y = h - ((db + 100.0f) / 100.0f * h);
-        if (first) {
-            path.moveTo(x, y);
-            first = false;
-        } else {
-            path.lineTo(x, y);
-        }
-    }
-    p.drawPath(path);
+    p.drawPath(cachedSpectrumPath_);
 }
 
 void SpectrumAnalyzer::drawPeakCurve(QPainter &p) {
@@ -134,31 +157,32 @@ void SpectrumAnalyzer::drawPeakCurve(QPainter &p) {
     int w = width();
     int h = height();
 
-    QPainterPath path;
-    bool first = true;
+    if (!cachedPeakPathValid_) {
+        cachedPeakPath_ = QPainterPath();
+        bool first = true;
+        const float minShowValue = 0.01f; // -40dB threshold
+        for (int i = 0; i < int(peakHoldVals_.size()); ++i) {
+            float x = (precomputedX_.size() == peakHoldVals_.size()) ? precomputedX_[i] :
+                (log10(freqForBin(i) / 20.0f + 1) / log10(20000.0f / 20.0f + 1) * w);
+            float value = std::clamp(peakHoldVals_[i], 0.0f, 1.0f);
+            float db = value > minShowValue ? 20.0f * log10(value) : -100.0f;
+            float y = h - ((db + 100.0f) / 100.0f * h);
+            if (first) {
+                cachedPeakPath_.moveTo(x, y);
+                first = false;
+            } else {
+                cachedPeakPath_.lineTo(x, y);
+            }
+        }
+        cachedPeakPathValid_ = true;
+    }
 
     // Color gradient for peak hold curve (yellow-orange)
     QLinearGradient grad(0, 0, w, 0);
     grad.setColorAt(0.0, QColor(255, 210, 40));
     grad.setColorAt(1.0, QColor(255, 110, 20));
     p.setPen(QPen(QBrush(grad), 2, Qt::DashLine));
-
-    const float minShowValue = 0.01f; // -40dB threshold
-
-    for (int i = 0; i < int(peakHoldVals_.size()); ++i) {
-        float freq = freqForBin(i);
-        float x = log10(freq / 20.0f + 1) / log10(20000.0f / 20.0f + 1) * w;
-        float value = std::clamp(peakHoldVals_[i], 0.0f, 1.0f);
-        float db = value > minShowValue ? 20.0f * log10(value) : -100.0f;
-        float y = h - ((db + 100.0f) / 100.0f * h);
-        if (first) {
-            path.moveTo(x, y);
-            first = false;
-        } else {
-            path.lineTo(x, y);
-        }
-    }
-    p.drawPath(path);
+    p.drawPath(cachedPeakPath_);
 }
 
 void SpectrumAnalyzer::updatePeakHold() {

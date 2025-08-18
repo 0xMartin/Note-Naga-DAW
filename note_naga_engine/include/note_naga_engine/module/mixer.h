@@ -11,11 +11,9 @@
 #endif
 
 #include <atomic>
-#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #define TRACK_ROUTING_ENTRY_ANY_DEVICE "any"

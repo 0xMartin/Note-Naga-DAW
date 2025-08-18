@@ -3,7 +3,6 @@
 #include <note_naga_engine/note_naga_api.h>
 
 #include <note_naga_engine/core/dsp_block_base.h>
-#include <cmath>
 
 /**
  * @brief DSP Block for a single band EQ effect (peak filter, biquad).

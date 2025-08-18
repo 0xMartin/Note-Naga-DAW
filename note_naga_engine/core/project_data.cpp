@@ -1,9 +1,6 @@
 #include <note_naga_engine/core/project_data.h>
 
 #include <algorithm>
-#include <iostream>
-#include <memory>
-
 #include <note_naga_engine/logger.h>
 
 NoteNagaProject::NoteNagaProject()
