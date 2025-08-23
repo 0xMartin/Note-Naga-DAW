@@ -3,6 +3,7 @@
 #include <note_naga_engine/logger.h>
 #include <note_naga_engine/note_naga_version.h>
 #include <note_naga_engine/synth/synth_fluidsynth.h>
+#include <note_naga_engine/core/soundfont_finder.h>
 
 NoteNagaEngine::NoteNagaEngine()
 #ifndef QT_DEACTIVATED
@@ -69,8 +70,9 @@ NoteNagaEngine::~NoteNagaEngine() {
 bool NoteNagaEngine::initialize() {
     // Initialize synthesizers
     if (this->synthesizers.empty()) {
+        std::string soundfontPath = SoundFontFinder::findSoundFont();
         this->synthesizers.push_back(
-            new NoteNagaSynthFluidSynth("FluidSynth 1", "./FluidR3_GM.sf2"));
+            new NoteNagaSynthFluidSynth("FluidSynth 1", soundfontPath));
     }
 
     // Initialize spectrum analyzer

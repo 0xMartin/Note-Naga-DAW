@@ -33,6 +33,7 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/note_naga_api.h
     ./include/note_naga_engine/note_naga_engine.h
     # include/note_naga_engine/core
+    ./include/note_naga_engine/core/soundfont_finder.h
     ./include/note_naga_engine/core/types.h
     ./include/note_naga_engine/core/dsp_block_base.h
     ./include/note_naga_engine/core/lock_free_spsc_queue.h
@@ -78,6 +79,7 @@ set(SOURCE_FILES
     ./logger.cpp
     ./note_naga_engine.cpp
     # core
+    ./core/soundfont_finder.cpp
     ./core/project_data.cpp
     ./core/types.cpp
     # io
