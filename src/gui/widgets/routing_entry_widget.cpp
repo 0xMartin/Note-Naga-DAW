@@ -1,5 +1,8 @@
 #include "routing_entry_widget.h"
 
+#include <note_naga_engine/synth/synth_fluidsynth.h>
+#include <note_naga_engine/synth/synth_external_midi.h>
+
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
@@ -11,8 +14,7 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_,
 
     // ComboBox initialization
     populateTrackComboBox(entry->track);
-    populateOutputComboBox();
-    setComboBoxSelections();
+    updateOutputLabel();
 
     // Connect to track info changed (refresh combos)
     connect(entry->track, &NoteNagaTrack::metadataChanged, this,
@@ -61,7 +63,7 @@ void RoutingEntryWidget::setupUI() {
     // ----- Central UI -----
     // Combo column
     QVBoxLayout *combo_col = new QVBoxLayout();
-    combo_col->setContentsMargins(0, 0, 0, 0);
+    combo_col->setContentsMargins(0, 5, 0, 0);
     combo_col->setSpacing(2);
 
     // Track row
@@ -85,7 +87,7 @@ void RoutingEntryWidget::setupUI() {
     track_row->addWidget(track_combo, 1);
     combo_col->addLayout(track_row);
 
-    // Device row
+    // Device/Output row - now using a label instead of combobox
     QHBoxLayout *device_row = new QHBoxLayout();
     device_row->setContentsMargins(0, 0, 0, 0);
     device_row->setSpacing(4);
@@ -99,11 +101,11 @@ void RoutingEntryWidget::setupUI() {
     device_icon->setPixmap(QIcon(":/icons/route.svg").pixmap(16, 16));
     device_row->addWidget(device_icon, Qt::AlignVCenter);
 
-    output_combo = new QComboBox();
-    output_combo->setMaximumWidth(300);
-    connect(output_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &RoutingEntryWidget::onDeviceChanged);
-    device_row->addWidget(output_combo, 1);
+    // Output label instead of combo box
+    output_label = new QLabel();
+    output_label->setMaximumWidth(300);
+    output_label->setStyleSheet("color: #79b8ff; font-weight: bold;");
+    device_row->addWidget(output_label, 1);
     combo_col->addLayout(device_row);
 
     // --- Dials ---
@@ -192,31 +194,16 @@ void RoutingEntryWidget::populateTrackComboBox(NoteNagaTrack *track) {
     }
 }
 
-void RoutingEntryWidget::populateOutputComboBox() {
-    output_combo->blockSignals(true);
-    output_combo->clear();
-    for (const std::string &out : engine->getMixer()->getAvailableOutputs()) {
-        output_combo->addItem(QString::fromStdString(out));
-    }
-    output_combo->addItem(TRACK_ROUTING_ENTRY_ANY_DEVICE);
-    int idx = output_combo->findText(QString::fromStdString(entry->output));
-    if (idx >= 0) output_combo->setCurrentIndex(idx);
-    output_combo->blockSignals(false);
-}
-
-void RoutingEntryWidget::setComboBoxSelections() {
-    if (entry->track) {
-        int track_idx = track_combo->findData(entry->track->getId());
-        if (track_idx >= 0) track_combo->setCurrentIndex(track_idx);
-    }
-
-    int dev_idx = output_combo->findText(QString::fromStdString(entry->output));
-    if (dev_idx >= 0) output_combo->setCurrentIndex(dev_idx);
+void RoutingEntryWidget::updateOutputLabel() {
+    // Update the label to show the currently assigned output
+    QString outputText = QString::fromStdString(entry->output);
+    
+    output_label->setText(outputText);
 }
 
 void RoutingEntryWidget::onTrackMetadataChanged(NoteNagaTrack *track) {
     populateTrackComboBox(track);
-    populateOutputComboBox();
+    updateOutputLabel();
 }
 
 void RoutingEntryWidget::onTrackChanged(int idx) {
@@ -231,11 +218,6 @@ void RoutingEntryWidget::onTrackChanged(int idx) {
     if (!new_track) return;
 
     entry->track = new_track;
-}
-
-void RoutingEntryWidget::onDeviceChanged(int idx) {
-    QString new_device = output_combo->currentText();
-    entry->output = new_device.toStdString();
 }
 
 void RoutingEntryWidget::onChannelChanged(float val) { entry->channel = int(val - 1); }

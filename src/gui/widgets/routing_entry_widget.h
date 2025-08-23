@@ -48,7 +48,7 @@ private:
     NoteNagaEngine *engine;
 
     QComboBox *track_combo;
-    QComboBox *output_combo;
+    QLabel *output_label;   // Changed from QComboBox to QLabel
 
     AudioDial *channel_dial;
     AudioDial *volume_dial;
@@ -58,8 +58,7 @@ private:
 
     void setupUI();
     void populateTrackComboBox(NoteNagaTrack *track);
-    void populateOutputComboBox();
-    void setComboBoxSelections();
+    void updateOutputLabel();  // New method to update output display
 
 /*******************************************************************************************************/
 // Signal and Slots
@@ -82,7 +81,6 @@ signals:
 private slots:
     void onTrackMetadataChanged(NoteNagaTrack *track);
     void onTrackChanged(int idx);
-    void onDeviceChanged(int idx);
     void onChannelChanged(float val);
     void onVolumeChanged(float val);
     void onOffsetChanged(float val);

@@ -2,15 +2,30 @@
 
 #include "../nn_gui_utils.h"
 #include "../dialogs/mixer_settings_dialog.h"
+#include "note_naga_engine/core/note_naga_synthesizer.h"
+#include "note_naga_engine/core/types.h"
 #include <QIcon>
 
 TrackMixerWidget::TrackMixerWidget(NoteNagaEngine *engine_, QWidget *parent)
-    : QWidget(parent), engine(engine_), selected_entry_index(-1), selected_row(-1) {
+    : QWidget(parent), engine(engine_), selected_entry_index(-1),
+      current_synth_name(TRACK_ROUTING_ENTRY_ANY_DEVICE) {
     setObjectName("TrackMixerWidget");
+    
+    // Connect to engine signals
     connect(engine->getMixer(), &NoteNagaMixer::noteOutSignal, this,
             &TrackMixerWidget::handlePlayingNote);
     connect(engine->getMixer(), &NoteNagaMixer::routingEntryStackChanged, this,
             &TrackMixerWidget::refresh_routing_table);
+    
+    // Connect to synthesizer signals
+#ifndef QT_DEACTIVATED
+    connect(engine, &NoteNagaEngine::synthAdded, this,
+            &TrackMixerWidget::onSynthesizerAdded);
+    connect(engine, &NoteNagaEngine::synthRemoved, this,
+            &TrackMixerWidget::onSynthesizerRemoved);
+    connect(engine, &NoteNagaEngine::synthUpdated, this,
+            &TrackMixerWidget::onSynthesizerUpdated);
+#endif
 
     this->title_widget = nullptr;
     initTitleUI();
@@ -108,32 +123,39 @@ void TrackMixerWidget::initUI() {
     main_layout->addWidget(controls_frame);
     main_layout->addSpacing(5);
     
-    // Channel Output section with device selector
+    // Synthesizer selector frame
+    QFrame *synth_selector_frame = new QFrame();
+    synth_selector_frame->setObjectName("SynthSelectorFrame");
+    synth_selector_frame->setStyleSheet(
+        "QFrame#SynthSelectorFrame { background: #3c424e; border: 1px solid #282b32; }");
+    QHBoxLayout *synth_selector_layout = new QHBoxLayout(synth_selector_frame);
+    synth_selector_layout->setContentsMargins(12, 5, 12, 5);
+    
+    QLabel *synth_label = new QLabel("Selected Synth");
+    synth_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #79b8ff;");
+    synth_selector_layout->addWidget(synth_label, 0, Qt::AlignLeft);
+    
+    synth_selector = new QComboBox();
+    synth_selector->setMinimumWidth(180);
+    synth_selector->setMaximumWidth(300);
+    synth_selector->setStyleSheet(
+        "QComboBox { background: #232731; color: #79b8ff; font-weight: bold; "
+        "border-radius: 5px; padding: 3px 8px; }");
+    
+    synth_selector_layout->addStretch(1);
+    synth_selector_layout->addWidget(synth_selector, 0, Qt::AlignRight);
+    
+    main_layout->addWidget(synth_selector_frame);
+    
+    // Channel Output section (now with the channel output label and volume bars together)
     QFrame *channel_output_frame = new QFrame();
     channel_output_frame->setObjectName("MixerSectionLabelFrame");
     channel_output_frame->setStyleSheet(
         "QFrame#MixerSectionLabelFrame { background: #3c424e; border: 1px solid #282b32; "
         "margin-bottom: 0px; }");
-    QHBoxLayout *channel_output_label_layout = new QHBoxLayout(channel_output_frame);
-    channel_output_label_layout->setContentsMargins(12, 5, 12, 5);
-
-    QLabel *channel_output_label = new QLabel("Channel Output");
-    channel_output_label->setStyleSheet(
-        "font-size: 15px; font-weight: bold; color: #79b8ff;");
-    channel_output_label_layout->addWidget(channel_output_label, 0, Qt::AlignLeft);
-
-    device_selector = new QComboBox();
-    device_selector->setMinimumWidth(130);
-    device_selector->setMaximumWidth(220);
-    device_selector->setStyleSheet(
-        "QComboBox { background: #232731; color: #79b8ff; font-weight: bold; "
-        "border-radius: 5px; padding: 3px 8px; }");
-    channel_output_label_layout->addStretch(1);
-    channel_output_label_layout->addWidget(device_selector, 0, Qt::AlignRight);
-
     main_layout->addWidget(channel_output_frame);
 
-    // MultiChannelVolumeBar for each device
+    // MultiChannelVolumeBar for each device - only create these once
     std::vector<std::string> outputs = engine->getMixer()->getAvailableOutputs();
     for (const std::string &dev : outputs) {
         MultiChannelVolumeBar *bar = new MultiChannelVolumeBar(16);
@@ -144,28 +166,22 @@ void TrackMixerWidget::initUI() {
         channel_volume_bars[QString::fromStdString(dev)] = bar;
         main_layout->addWidget(bar);
     }
-    if (!outputs.empty()) {
-        QStringList list;
-        for (const auto &s : outputs) {
-            list << QString::fromStdString(s);
-        }
-        device_selector->addItems(list);
+    
+    // Set default visible channel volume bar
+    if (!outputs.empty() && !channel_volume_bars.empty()) {
         current_channel_device = QString::fromStdString(outputs[0]);
-        channel_volume_bars[current_channel_device]->setVisible(true);
+        if (channel_volume_bars.contains(current_channel_device)) {
+            channel_volume_bars[current_channel_device]->setVisible(true);
+        }
     }
-    connect(device_selector, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [=](int idx) {
-                QString selected = device_selector->itemText(idx);
-                for (auto it = channel_volume_bars.begin();
-                     it != channel_volume_bars.end(); ++it) {
-                    it.value()->setVisible(false);
-                }
-                if (channel_volume_bars.contains(selected)) {
-                    channel_volume_bars[selected]->setVisible(true);
-                    current_channel_device = selected;
-                }
-            });
-
+    
+    // Fill the synthesizer selector with available synthesizers
+    updateSynthesizerSelector();
+    
+    // Connect the selector to the handler
+    connect(synth_selector, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &TrackMixerWidget::onSynthesizerSelectionChanged);
+    
     // Routing Table section
     QFrame *routing_label_controls_frame = new QFrame();
     routing_label_controls_frame->setObjectName("RoutingLabelControlsFrame");
@@ -205,21 +221,14 @@ void TrackMixerWidget::initUI() {
     QPushButton *btn_max_volume =
         create_small_button(":/icons/sound-on.svg", "Toggle max volume for all tracks",
                             "MaxVolumeAllTracksButton");
-    btn_max_volume->setCheckable(true);
     connect(btn_max_volume, &QPushButton::clicked, this,
             &TrackMixerWidget::onMaxVolumeAllTracks);
 
     QPushButton *btn_min_volume =
         create_small_button(":/icons/sound-off.svg", "Set min volume for all tracks",
                             "MinVolumeAllTracksButton");
-    btn_min_volume->setCheckable(true);
     connect(btn_min_volume, &QPushButton::clicked, this,
             &TrackMixerWidget::onMinVolumeAllTracks);
-
-    QPushButton *btn_output_device =
-        create_small_button(":/icons/device.svg", "Set output device for all tracks",
-                            "OutputDeviceAllTracksButton");
-    btn_output_device->setCheckable(true);
 
     routing_label_controls_layout->addWidget(btn_add, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_remove, 0, Qt::AlignRight);
@@ -227,7 +236,6 @@ void TrackMixerWidget::initUI() {
     routing_label_controls_layout->addWidget(btn_default, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_max_volume, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_min_volume, 0, Qt::AlignRight);
-    routing_label_controls_layout->addWidget(btn_output_device, 0, Qt::AlignRight);
 
     main_layout->addWidget(routing_label_controls_frame);
 
@@ -250,6 +258,112 @@ void TrackMixerWidget::initUI() {
     setStyleSheet("QWidget#TrackMixerWidget { background: transparent; border: none; "
                   "padding: 0px; }");
 
+    refresh_routing_table();
+}
+
+void TrackMixerWidget::updateSynthesizerSelector() {
+    // Save current selection if any
+    QString currentSelection;
+    if (synth_selector->currentIndex() >= 0) {
+        currentSelection = synth_selector->currentText();
+    }
+    
+    synth_selector->blockSignals(true);
+    synth_selector->clear();
+    
+    // Add synthesizers to the selector
+    auto synthesizers = engine->getSynthesizers();
+    for (NoteNagaSynthesizer* synth : synthesizers) {
+        QString displayName = QString::fromStdString(synth->getName());
+        
+        synth_selector->addItem(displayName, QVariant::fromValue(static_cast<void*>(synth)));
+    }
+    
+    synth_selector->addItem(TRACK_ROUTING_ENTRY_ANY_DEVICE);
+    
+    // Restore previous selection if it still exists
+    if (!currentSelection.isEmpty()) {
+        int index = synth_selector->findText(currentSelection);
+        if (index >= 0) {
+            synth_selector->setCurrentIndex(index);
+        }
+    }
+    
+    // After restoring the selection, update current_synth_name
+    int idx = synth_selector->currentIndex();
+    if (idx >= 0) {
+        if (synth_selector->itemText(idx) == TRACK_ROUTING_ENTRY_ANY_DEVICE) {
+            current_synth_name = TRACK_ROUTING_ENTRY_ANY_DEVICE;
+        } else if (void* synthPtr = synth_selector->itemData(idx).value<void*>()) {
+            NoteNagaSynthesizer* synth = static_cast<NoteNagaSynthesizer*>(synthPtr);
+            current_synth_name = synth->getName();
+        }
+    }
+    
+    synth_selector->blockSignals(false);
+    
+    // Clear the layout of old volume bars
+    for (auto it = channel_volume_bars.begin(); it != channel_volume_bars.end();) {
+        // Hide and remove the widget
+        it.value()->setVisible(false);
+        it.value()->deleteLater();
+        it = channel_volume_bars.erase(it);
+    }
+    
+    // Create new volume bars for all available synthesizers
+    for (NoteNagaSynthesizer* synth : synthesizers) {
+        QString synthName = QString::fromStdString(synth->getName());
+        MultiChannelVolumeBar *bar = new MultiChannelVolumeBar(16);
+        bar->setMinimumHeight(90);
+        bar->setMaximumHeight(120);
+        bar->setRange(0, 127);
+        bar->setVisible(false);
+        channel_volume_bars[synthName] = bar;
+        
+        // Add to layout
+        QVBoxLayout* mainLayout = qobject_cast<QVBoxLayout*>(layout());
+        if (mainLayout) {
+            // Add the bar just after the "Channel Output" frame
+            // Find position to insert (after channel output frame but before routing table)
+            int insertPos = 0;
+            for (int i = 0; i < mainLayout->count(); i++) {
+                QLayoutItem* item = mainLayout->itemAt(i);
+                if (item->widget() && item->widget()->objectName() == "MixerSectionLabelFrame") {
+                    insertPos = i + 1;
+                    break;
+                }
+            }
+            mainLayout->insertWidget(insertPos, bar);
+        }
+    }
+    
+    // Update the currently visible bar based on selection
+    onSynthesizerSelectionChanged(synth_selector->currentIndex());
+}
+
+void TrackMixerWidget::onSynthesizerSelectionChanged(int index) {
+    if (index < 0) return;
+    
+    // Get the selected synthesizer name
+    QString selectedSynth;
+    if (synth_selector->itemText(index) == TRACK_ROUTING_ENTRY_ANY_DEVICE) {
+        selectedSynth = TRACK_ROUTING_ENTRY_ANY_DEVICE;
+        current_synth_name = TRACK_ROUTING_ENTRY_ANY_DEVICE;
+    } else if (void* synthPtr = synth_selector->itemData(index).value<void*>()) {
+        NoteNagaSynthesizer* synth = static_cast<NoteNagaSynthesizer*>(synthPtr);
+        selectedSynth = QString::fromStdString(synth->getName());
+        current_synth_name = synth->getName();
+    }
+    
+    // Update channel volume bars visibility
+    for (auto it = channel_volume_bars.begin(); it != channel_volume_bars.end(); ++it) {
+        it.value()->setVisible(it.key() == selectedSynth);
+        if (it.key() == selectedSynth) {
+            current_channel_device = selectedSynth;
+        }
+    }
+    
+    // Important: Refresh the routing table to show only entries for this synth
     refresh_routing_table();
 }
 
@@ -280,6 +394,7 @@ void TrackMixerWidget::setChannelOutputValue(const std::string &device, int chan
 
 void TrackMixerWidget::refresh_routing_table() {
     QVBoxLayout *layout = routing_entries_layout;
+    if (layout == nullptr) return;
     selected_entry_index = -1;
     // Remove all widgets except last stretch
     for (int i = layout->count() - 2; i >= 0; --i) {
@@ -295,21 +410,65 @@ void TrackMixerWidget::refresh_routing_table() {
     }
     entry_widgets.clear();
 
-    // Populate with current routing entries
+    // Get all routing entries
     std::vector<NoteNagaRoutingEntry> &entries = engine->getMixer()->getRoutingEntries();
+    
+    // Filter entries based on currently selected synthesizer
+    int filteredIdx = 0;
     for (int idx = 0; idx < entries.size(); ++idx) {
-        RoutingEntryWidget *widget = new RoutingEntryWidget(engine, &entries[idx]);
+        NoteNagaRoutingEntry &entry = entries[idx];
+        
+        // Skip entries that don't match the current synthesizer
+        // Show all entries if "Any" is selected, or if the output matches current synth
+        if (current_synth_name != TRACK_ROUTING_ENTRY_ANY_DEVICE && 
+            entry.output != current_synth_name) {
+            continue;
+        }
+        
+        RoutingEntryWidget *widget = new RoutingEntryWidget(engine, &entry);
         widget->installEventFilter(this);
         widget->setMouseTracking(true);
-        widget->refreshStyle(false, idx % 2 == 0);
+        widget->refreshStyle(false, filteredIdx % 2 == 0);
+        
+        // Use original index for selection, not filtered index
+        int originalIdx = idx;
         connect(widget, &RoutingEntryWidget::clicked, this,
-                [this, idx]() { this->updateEntrySelection(idx); });
+                [this, originalIdx]() { this->updateEntrySelection(originalIdx); });
+                
         layout->insertWidget(layout->count() - 1, widget);
         entry_widgets.push_back(widget);
+        filteredIdx++;
     }
 }
 
-void TrackMixerWidget::onAddEntry() { engine->getMixer()->addRoutingEntry(); }
+void TrackMixerWidget::onSynthesizerAdded(NoteNagaSynthesizer* synth) {
+    updateSynthesizerSelector();
+    refresh_routing_table();
+}
+
+void TrackMixerWidget::onSynthesizerRemoved(NoteNagaSynthesizer* synth) {
+    updateSynthesizerSelector();
+    refresh_routing_table();
+}
+
+void TrackMixerWidget::onSynthesizerUpdated(NoteNagaSynthesizer* synth) {
+    updateSynthesizerSelector();
+    refresh_routing_table();
+}
+
+void TrackMixerWidget::onAddEntry() { 
+    // Create entry with the currently selected synthesizer as output
+    if (current_synth_name == TRACK_ROUTING_ENTRY_ANY_DEVICE) {
+        // If "Any" is selected, use the default behavior
+        engine->getMixer()->addRoutingEntry();
+    } else {
+        NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+        if (!seq) return;
+        // Create an entry with the selected synthesizer
+        NoteNagaRoutingEntry entry(seq->getActiveTrack(), current_synth_name, 0);
+        engine->getMixer()->addRoutingEntry(entry);
+    }
+}
 
 void TrackMixerWidget::onRemoveSelectedEntry() {
     if (selected_entry_index >= 0) {
@@ -331,7 +490,7 @@ void TrackMixerWidget::onClearRoutingTable() {
 void TrackMixerWidget::onDefaultEntries() {
     auto reply = QMessageBox::question(
         this, "Set Default Routing",
-        "This will clear all routing entries and set default routing. Continue?",
+        "This will clear all routing entries for all synths and set default routing. Do you want to continue?",
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (reply == QMessageBox::Yes) {
         engine->getMixer()->clearRoutingTable();
@@ -341,14 +500,22 @@ void TrackMixerWidget::onDefaultEntries() {
 
 void TrackMixerWidget::onMaxVolumeAllTracks() {
     for (auto &entry : engine->getMixer()->getRoutingEntries()) {
-        entry.volume = 1.0f;
+        // Only apply to entries matching current synthesizer if one is selected
+        if (current_synth_name == TRACK_ROUTING_ENTRY_ANY_DEVICE || 
+            entry.output == current_synth_name) {
+            entry.volume = 1.0f;
+        }
     }
     refresh_routing_table();
 }
 
 void TrackMixerWidget::onMinVolumeAllTracks() {
     for (auto &entry : engine->getMixer()->getRoutingEntries()) {
-        entry.volume = 0.0f;
+        // Only apply to entries matching current synthesizer if one is selected
+        if (current_synth_name == TRACK_ROUTING_ENTRY_ANY_DEVICE || 
+            entry.output == current_synth_name) {
+            entry.volume = 0.0f;
+        }
     }
     refresh_routing_table();
 }
@@ -377,9 +544,19 @@ void TrackMixerWidget::handlePlayingNote(const NN_Note_t &note,
 }
 
 void TrackMixerWidget::updateEntrySelection(int idx) {
-    selected_row = idx;
+    selected_entry_index = idx;
+        
+    // Find which widget corresponds to the selected entry
     for (size_t i = 0; i < entry_widgets.size(); ++i) {
-        entry_widgets[i]->refreshStyle(int(i) == idx, i % 2 == 0);
-        if (int(i) == idx) { selected_entry_index = int(i); }
+        RoutingEntryWidget* widget = entry_widgets[i];
+        NoteNagaRoutingEntry* entry = widget->getRoutingEntry();
+        
+        if (i == (size_t)idx) {
+            // This is the selected widget
+            widget->refreshStyle(true, i % 2 == 0);
+        } else {
+            // Not selected
+            widget->refreshStyle(false, i % 2 == 0);
+        }
     }
 }

@@ -245,8 +245,8 @@ void NoteNagaEngine::addSynthesizer(NoteNagaSynthesizer *synth) {
     this->mixer->detectOutputs();
     if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
         this->dsp_engine->addSynth(softSynth);
-        NN_QT_EMIT(this->synthAdded(synth));
     }
+    NN_QT_EMIT(this->synthAdded(synth));
 }
 
 void NoteNagaEngine::removeSynthesizer(NoteNagaSynthesizer *synth) {

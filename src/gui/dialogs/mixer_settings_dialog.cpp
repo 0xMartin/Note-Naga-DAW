@@ -126,13 +126,6 @@ void MixerSettingsDialog::populateSynthesizerList() {
   for (auto synth : synthesizers) {
     QString displayName = QString::fromStdString(synth->getName());
 
-    // Add type information to the display name
-    if (dynamic_cast<NoteNagaSynthFluidSynth *>(synth)) {
-      displayName += " (FluidSynth)";
-    } else if (dynamic_cast<NoteNagaSynthExternalMidi *>(synth)) {
-      displayName += " (External MIDI)";
-    }
-
     QListWidgetItem *item = new QListWidgetItem(displayName);
     item->setData(Qt::UserRole,
                   QVariant::fromValue(static_cast<void *>(synth)));

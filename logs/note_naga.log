@@ -180,3 +180,139 @@
 2025-07-28 17:35:52 [INFO   ] synth_fluidsynth: >>> FluidSynth 1 playNote: 38 on channel 1 with velocity 110 pan: 0.000000
 2025-07-28 17:35:52 [INFO   ] synth_fluidsynth: >>> FluidSynth 1 playNote: 50 on channel 1 with velocity 110 pan: 0.000000
 2025-07-28 17:35:52 [INFO   ] synth_fluidsynth: >>> FluidSynth 1 playNote: 38 on channel 1 with velocity 110 pan: 0.000000
+2025-08-23 14:16:36 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-23 14:16:36 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:16:36 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-23 14:16:36 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-23 14:16:36 [INFO   ] project_data: Project manager initialized
+2025-08-23 14:16:36 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:16:36 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-23 14:16:36 [INFO   ] mixer: Initialized successfully
+2025-08-23 14:16:36 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-23 14:16:36 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-23 14:16:36 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-23 14:16:36 [INFO   ] audio_worker: Audio worker initialized
+2025-08-23 14:16:37 [INFO   ] audio_worker: Audio worker started
+2025-08-23 14:16:37 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-23 14:17:14 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-23 14:17:14 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:17:14 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-23 14:17:14 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-23 14:17:14 [INFO   ] project_data: Project manager initialized
+2025-08-23 14:17:14 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:17:14 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-23 14:17:14 [INFO   ] mixer: Initialized successfully
+2025-08-23 14:17:14 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-23 14:17:14 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-23 14:17:14 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-23 14:17:14 [INFO   ] audio_worker: Audio worker initialized
+2025-08-23 14:17:15 [INFO   ] audio_worker: Audio worker started
+2025-08-23 14:17:15 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-23 14:17:47 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-23 14:17:47 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:17:47 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-23 14:17:47 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-23 14:17:47 [INFO   ] project_data: Project manager initialized
+2025-08-23 14:17:47 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:17:47 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-23 14:17:47 [INFO   ] mixer: Initialized successfully
+2025-08-23 14:17:47 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-23 14:17:47 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-23 14:17:47 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-23 14:17:47 [INFO   ] audio_worker: Audio worker initialized
+2025-08-23 14:17:48 [INFO   ] audio_worker: Audio worker started
+2025-08-23 14:17:48 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-23 14:21:40 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-23 14:21:40 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:21:40 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-23 14:21:40 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-23 14:21:40 [INFO   ] project_data: Project manager initialized
+2025-08-23 14:21:40 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:21:40 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-23 14:21:40 [INFO   ] mixer: Initialized successfully
+2025-08-23 14:21:40 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-23 14:21:40 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-23 14:21:40 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-23 14:21:40 [INFO   ] audio_worker: Audio worker initialized
+2025-08-23 14:21:40 [INFO   ] audio_worker: Audio worker started
+2025-08-23 14:21:40 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-23 14:22:04 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-23 14:22:04 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:22:04 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-23 14:22:04 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-23 14:22:04 [INFO   ] project_data: Project manager initialized
+2025-08-23 14:22:04 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:22:04 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-23 14:22:04 [INFO   ] mixer: Initialized successfully
+2025-08-23 14:22:04 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-23 14:22:04 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-23 14:22:04 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-23 14:22:04 [INFO   ] audio_worker: Audio worker initialized
+2025-08-23 14:22:05 [INFO   ] audio_worker: Audio worker started
+2025-08-23 14:22:05 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-23 14:23:04 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-23 14:23:04 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:23:04 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-23 14:23:04 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-23 14:23:04 [INFO   ] project_data: Project manager initialized
+2025-08-23 14:23:04 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:23:04 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-23 14:23:04 [INFO   ] mixer: Initialized successfully
+2025-08-23 14:23:04 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-23 14:23:04 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-23 14:23:04 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-23 14:23:04 [INFO   ] audio_worker: Audio worker initialized
+2025-08-23 14:23:04 [INFO   ] audio_worker: Audio worker started
+2025-08-23 14:23:04 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-23 14:24:22 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-23 14:24:22 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:24:22 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-23 14:24:22 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-23 14:24:22 [INFO   ] project_data: Project manager initialized
+2025-08-23 14:24:22 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:24:22 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-23 14:24:22 [INFO   ] mixer: Initialized successfully
+2025-08-23 14:24:22 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-23 14:24:22 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-23 14:24:22 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-23 14:24:22 [INFO   ] audio_worker: Audio worker initialized
+2025-08-23 14:24:22 [INFO   ] audio_worker: Audio worker started
+2025-08-23 14:24:22 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-23 14:24:33 [WARNING] playback_worker: Playback worker not currently playing
+2025-08-23 14:24:33 [WARNING] note_naga_engine: Failed to stop playback
+2025-08-23 14:24:33 [INFO   ] types: Clearing MIDI sequence with ID: 1
+2025-08-23 14:24:33 [INFO   ] types: Loading MIDI file from: /Users/martin/Downloads/midi/gloryhammer-hootsforce-20231123172205-nonstop2k.com.mid
+2025-08-23 14:24:33 [INFO   ] types: Clearing MIDI sequence with ID: 1
+2025-08-23 14:24:33 [INFO   ] types: Loading Type 1 MIDI tracks
+2025-08-23 14:24:33 [INFO   ] types: Created Track with ID: 0 and name: Track
+2025-08-23 14:24:33 [INFO   ] types: Instrument changed for Track ID: 0 to: 0
+2025-08-23 14:24:33 [INFO   ] types: Created Track with ID: 1 and name: Track
+2025-08-23 14:24:33 [INFO   ] types: Channel changed for Track ID: 1 to: 0
+2025-08-23 14:24:33 [INFO   ] types: Instrument changed for Track ID: 1 to: 85
+2025-08-23 14:24:33 [INFO   ] types: Created Track with ID: 2 and name: Track
+2025-08-23 14:24:33 [INFO   ] types: Channel changed for Track ID: 2 to: 8
+2025-08-23 14:24:33 [INFO   ] types: Instrument changed for Track ID: 2 to: 80
+2025-08-23 14:24:33 [INFO   ] types: Created Track with ID: 3 and name: Track
+2025-08-23 14:24:33 [INFO   ] types: Channel changed for Track ID: 3 to: 6
+2025-08-23 14:24:33 [INFO   ] types: Instrument changed for Track ID: 3 to: 48
+2025-08-23 14:24:33 [INFO   ] types: Created Track with ID: 4 and name: Track
+2025-08-23 14:24:33 [INFO   ] types: Channel changed for Track ID: 4 to: 11
+2025-08-23 14:24:33 [INFO   ] types: Instrument changed for Track ID: 4 to: 30
+2025-08-23 14:24:33 [INFO   ] types: Created Track with ID: 5 and name: Track
+2025-08-23 14:24:33 [INFO   ] types: Channel changed for Track ID: 5 to: 4
+2025-08-23 14:24:33 [INFO   ] types: Instrument changed for Track ID: 5 to: 30
+2025-08-23 14:24:33 [INFO   ] types: Created Track with ID: 6 and name: Track
+2025-08-23 14:24:33 [INFO   ] types: Channel changed for Track ID: 6 to: 2
+2025-08-23 14:24:33 [INFO   ] types: Instrument changed for Track ID: 6 to: 34
+2025-08-23 14:24:33 [INFO   ] types: Created Track with ID: 7 and name: Track
+2025-08-23 14:24:33 [INFO   ] types: Channel changed for Track ID: 7 to: 9
+2025-08-23 14:24:33 [INFO   ] types: Instrument changed for Track ID: 7 to: 0
+2025-08-23 14:24:33 [INFO   ] types: MIDI file loaded successfully. Num tracks: 8
+2025-08-23 14:24:33 [INFO   ] types: Track with ID: 0 set as active track for MIDI sequence ID: 1
+2025-08-23 14:24:33 [INFO   ] project_data: Added MIDI sequence with ID: 1
+2025-08-23 14:24:33 [INFO   ] mixer: Default routing created with 8 entries
+2025-08-23 14:24:33 [INFO   ] project_data: Project loaded from: /Users/martin/Downloads/midi/gloryhammer-hootsforce-20231123172205-nonstop2k.com.mid
+2025-08-23 14:24:47 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:24:47 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=-1
+2025-08-23 14:25:06 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-23 14:25:06 [INFO   ] synth_external_midi: External MIDI synthesizer connected to port: Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
