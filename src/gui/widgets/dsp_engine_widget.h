@@ -11,6 +11,7 @@
 #include <QSpacerItem>
 #include <QSlider>
 #include <QList>
+#include <QComboBox>
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -43,12 +44,25 @@ private:
     QPushButton *btn_add;
     QPushButton *btn_clear;
     QPushButton *btn_enable;
+    
+    // Combobox to select synthesizer
+    QComboBox *synth_selector;
+    
+    // Currently selected synth (nullptr for master)
+    INoteNagaSoftSynth *current_synth = nullptr;
 
     void initTitleUI();
     void initUI();
+    void refreshDSPWidgets();
+    void clearDSPWidgets();
 
 private slots:
     void addDSPClicked();
     void removeAllDSPClicked();
     void toggleDSPEnabled();
+    void onSynthesizerSelected(int index);
+    void onSynthAdded(NoteNagaSynthesizer *synth);
+    void onSynthRemoved(NoteNagaSynthesizer *synth);
+    void onSynthUpdated(NoteNagaSynthesizer *synth);
+    void updateSynthesizerSelector();
 };

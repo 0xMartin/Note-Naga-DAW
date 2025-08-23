@@ -16,6 +16,14 @@
 
 DSPEngineWidget::DSPEngineWidget(NoteNagaEngine *engine, QWidget *parent)
     : QWidget(parent), engine(engine), title_widget(nullptr), dsp_layout(nullptr) {
+    
+    // Connect to synthesizer signals
+#ifndef QT_DEACTIVATED
+    connect(engine, &NoteNagaEngine::synthAdded, this, &DSPEngineWidget::onSynthAdded);
+    connect(engine, &NoteNagaEngine::synthRemoved, this, &DSPEngineWidget::onSynthRemoved);
+    connect(engine, &NoteNagaEngine::synthUpdated, this, &DSPEngineWidget::onSynthUpdated);
+#endif
+
     initTitleUI();
     initUI();
 }
@@ -26,6 +34,24 @@ void DSPEngineWidget::initTitleUI() {
     QVBoxLayout *layout = new QVBoxLayout(title_widget);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
+
+    // Create vertical combobox for synth selection
+    synth_selector = new QComboBox();
+    synth_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    synth_selector->setFixedWidth(80);
+    synth_selector->setToolTip("Select synthesizer for DSP effects");
+    synth_selector->setStyleSheet("QComboBox { padding: 2px; }");
+    
+    // Fill synth selector
+    updateSynthesizerSelector();
+    
+    // Connect synth selector
+    connect(synth_selector, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &DSPEngineWidget::onSynthesizerSelected);
+    
+    // Add to layout
+    layout->addWidget(synth_selector, 0, Qt::AlignHCenter);
+    layout->addSpacing(10);
 
     btn_add = create_small_button(":/icons/add.svg", "Add DSP module", "btn_add");
     btn_clear = create_small_button(":/icons/clear.svg", "Remove all DSP modules", "btn_clear");
@@ -39,6 +65,147 @@ void DSPEngineWidget::initTitleUI() {
     connect(btn_add, &QPushButton::clicked, this, &DSPEngineWidget::addDSPClicked);
     connect(btn_clear, &QPushButton::clicked, this, &DSPEngineWidget::removeAllDSPClicked);
     connect(btn_enable, &QPushButton::clicked, this, &DSPEngineWidget::toggleDSPEnabled);
+}
+
+void DSPEngineWidget::updateSynthesizerSelector() {
+    synth_selector->blockSignals(true);
+    
+    // Remember current selection
+    QString current_text = synth_selector->currentText();
+    
+    // Clear and add "Master" as first option
+    synth_selector->clear();
+    synth_selector->addItem("Master", QVariant::fromValue(nullptr));
+    
+    // Add all available synthesizers
+    for (auto synth : engine->getSynthesizers()) {
+        if (auto soft_synth = dynamic_cast<INoteNagaSoftSynth*>(synth)) {
+            QString name = QString::fromStdString(synth->getName());
+            synth_selector->addItem(name, QVariant::fromValue(static_cast<void*>(soft_synth)));
+        }
+    }
+    
+    // Restore selection if possible
+    if (!current_text.isEmpty()) {
+        int idx = synth_selector->findText(current_text);
+        if (idx >= 0) {
+            synth_selector->setCurrentIndex(idx);
+        }
+    }
+    
+    synth_selector->blockSignals(false);
+}
+
+void DSPEngineWidget::onSynthesizerSelected(int index) {
+    if (index < 0) return;
+    
+    // Get the selected synth
+    if (index == 0) {
+        current_synth = nullptr; // Master
+    } else {
+        QVariant data = synth_selector->itemData(index);
+        if (data.isValid()) {
+            current_synth = static_cast<INoteNagaSoftSynth*>(data.value<void*>());
+        }
+    }
+    
+    // Update UI
+    refreshDSPWidgets();
+}
+
+void DSPEngineWidget::onSynthAdded(NoteNagaSynthesizer *synth) {
+    updateSynthesizerSelector();
+}
+
+void DSPEngineWidget::onSynthRemoved(NoteNagaSynthesizer *synth) {
+    // If removed synth is selected, switch to master
+    if (current_synth && dynamic_cast<NoteNagaSynthesizer*>(current_synth) == synth) {
+        synth_selector->setCurrentIndex(0); // Master
+    }
+    updateSynthesizerSelector();
+}
+
+void DSPEngineWidget::onSynthUpdated(NoteNagaSynthesizer *synth) {
+    updateSynthesizerSelector();
+}
+
+void DSPEngineWidget::clearDSPWidgets() {
+    // Remove all widgets
+    for (auto widget : dsp_widgets) {
+        dsp_layout->removeWidget(widget);
+        widget->deleteLater();
+    }
+    dsp_widgets.clear();
+}
+
+void DSPEngineWidget::refreshDSPWidgets() {
+    // Clear current widgets
+    clearDSPWidgets();
+    
+    if (!engine) return;
+    
+    // Get current DSP blocks (for master or synth)
+    std::vector<NoteNagaDSPBlockBase*> blocks;
+    if (current_synth == nullptr) {
+        // Master blocks
+        blocks = engine->getDSPEngine()->getDSPBlocks();
+    } else {
+        // Synth-specific blocks
+        blocks = engine->getDSPEngine()->getSynthDSPBlocks(current_synth);
+    }
+    
+    // Create widgets for each block
+    for (auto block : blocks) {
+        DSPBlockWidget *dsp_widget = new DSPBlockWidget(block);
+        dsp_widgets.push_back(dsp_widget);
+        dsp_layout->insertWidget(dsp_layout->count() - 1, dsp_widget);
+        
+        // Delete handler
+        connect(dsp_widget, &DSPBlockWidget::deleteRequested, this, [this, dsp_widget, block]() {
+            if (current_synth == nullptr) {
+                // Remove from master
+                engine->getDSPEngine()->removeDSPBlock(block);
+            } else {
+                // Remove from synth
+                engine->getDSPEngine()->removeSynthDSPBlock(current_synth, block);
+            }
+            dsp_layout->removeWidget(dsp_widget);
+            dsp_widgets.erase(std::remove(dsp_widgets.begin(), dsp_widgets.end(), dsp_widget), dsp_widgets.end());
+            dsp_widget->deleteLater();
+            delete block;
+        });
+
+        // Move left/right handlers
+        connect(dsp_widget, &DSPBlockWidget::moveLeftRequested, this, [this, dsp_widget, block]() {
+            int idx = std::distance(dsp_widgets.begin(), std::find(dsp_widgets.begin(), dsp_widgets.end(), dsp_widget));
+            if (idx > 0) {
+                if (current_synth == nullptr) {
+                    engine->getDSPEngine()->reorderDSPBlock(idx, idx-1);
+                } else {
+                    engine->getDSPEngine()->reorderSynthDSPBlock(current_synth, idx, idx-1);
+                }
+                dsp_widgets.erase(dsp_widgets.begin() + idx);
+                dsp_widgets.insert(dsp_widgets.begin() + idx-1, dsp_widget);
+                dsp_layout->removeWidget(dsp_widget);
+                dsp_layout->insertWidget(idx-1, dsp_widget);
+            }
+        });
+        
+        connect(dsp_widget, &DSPBlockWidget::moveRightRequested, this, [this, dsp_widget, block]() {
+            int idx = std::distance(dsp_widgets.begin(), std::find(dsp_widgets.begin(), dsp_widgets.end(), dsp_widget));
+            if (idx < int(dsp_widgets.size())-1) {
+                if (current_synth == nullptr) {
+                    engine->getDSPEngine()->reorderDSPBlock(idx, idx+1);
+                } else {
+                    engine->getDSPEngine()->reorderSynthDSPBlock(current_synth, idx, idx+1);
+                }
+                dsp_widgets.erase(dsp_widgets.begin() + idx);
+                dsp_widgets.insert(dsp_widgets.begin() + idx+1, dsp_widget);
+                dsp_layout->removeWidget(dsp_widget);
+                dsp_layout->insertWidget(idx+1, dsp_widget);
+            }
+        });
+    }
 }
 
 void DSPEngineWidget::initUI() {
@@ -121,6 +288,9 @@ void DSPEngineWidget::initUI() {
         }
     });
     timer->start(50);
+    
+    // Initialize with current DSP blocks (Master)
+    refreshDSPWidgets();
 }
 
 void DSPEngineWidget::addDSPClicked() {
@@ -133,51 +303,35 @@ void DSPEngineWidget::addDSPClicked() {
     NoteNagaDSPBlockBase *new_block = selected->create();
     if (!new_block) return;
 
-    engine->getDSPEngine()->addDSPBlock(new_block);
-
-    DSPBlockWidget *dsp_widget = new DSPBlockWidget(new_block);
-    dsp_widgets.push_back(dsp_widget);
-    dsp_layout->insertWidget(dsp_layout->count() - 1, dsp_widget);
-
-    connect(dsp_widget, &DSPBlockWidget::deleteRequested, this, [this, dsp_widget, new_block]() {
-        engine->getDSPEngine()->removeDSPBlock(new_block);
-        dsp_layout->removeWidget(dsp_widget);
-        dsp_widgets.erase(std::remove(dsp_widgets.begin(), dsp_widgets.end(), dsp_widget), dsp_widgets.end());
-        dsp_widget->deleteLater();
-        delete new_block;
-    });
-
-    // Move left/right signály (beze změny)
-    connect(dsp_widget, &DSPBlockWidget::moveLeftRequested, this, [this, dsp_widget, new_block]() {
-        int idx = std::distance(dsp_widgets.begin(), std::find(dsp_widgets.begin(), dsp_widgets.end(), dsp_widget));
-        if (idx > 0) {
-            engine->getDSPEngine()->reorderDSPBlock(idx, idx-1);
-            dsp_widgets.erase(dsp_widgets.begin() + idx);
-            dsp_widgets.insert(dsp_widgets.begin() + idx-1, dsp_widget);
-            dsp_layout->removeWidget(dsp_widget);
-            dsp_layout->insertWidget(idx-1, dsp_widget);
-        }
-    });
-    connect(dsp_widget, &DSPBlockWidget::moveRightRequested, this, [this, dsp_widget, new_block]() {
-        int idx = std::distance(dsp_widgets.begin(), std::find(dsp_widgets.begin(), dsp_widgets.end(), dsp_widget));
-        if (idx < int(dsp_widgets.size())-1) {
-            engine->getDSPEngine()->reorderDSPBlock(idx, idx+1);
-            dsp_widgets.erase(dsp_widgets.begin() + idx);
-            dsp_widgets.insert(dsp_widgets.begin() + idx+1, dsp_widget);
-            dsp_layout->removeWidget(dsp_widget);
-            dsp_layout->insertWidget(idx+1, dsp_widget);
-        }
-    });
+    if (current_synth == nullptr) {
+        // Add to master
+        engine->getDSPEngine()->addDSPBlock(new_block);
+    } else {
+        // Add to synth
+        engine->getDSPEngine()->addSynthDSPBlock(current_synth, new_block);
+    }
+    
+    // Refresh UI
+    refreshDSPWidgets();
 }
 
 void DSPEngineWidget::removeAllDSPClicked() {
-    for (auto *dsp_widget : dsp_widgets) {
-        engine->getDSPEngine()->removeDSPBlock(dsp_widget->block());
-        dsp_layout->removeWidget(dsp_widget);
-        dsp_widget->deleteLater();
-        delete dsp_widget->block();
+    if (current_synth == nullptr) {
+        // Remove all master DSP blocks
+        for (auto *dsp_widget : dsp_widgets) {
+            engine->getDSPEngine()->removeDSPBlock(dsp_widget->block());
+            delete dsp_widget->block();
+        }
+    } else {
+        // Remove all synth DSP blocks
+        for (auto *dsp_widget : dsp_widgets) {
+            engine->getDSPEngine()->removeSynthDSPBlock(current_synth, dsp_widget->block());
+            delete dsp_widget->block();
+        }
     }
-    dsp_widgets.clear();
+    
+    // Clear UI
+    clearDSPWidgets();
 }
 
 void DSPEngineWidget::toggleDSPEnabled() {
