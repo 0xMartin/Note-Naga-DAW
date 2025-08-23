@@ -23,7 +23,6 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames) {
     std::fill(mix_left_.begin(), mix_left_.begin() + num_frames, 0.0f);
     std::fill(mix_right_.begin(), mix_right_.begin() + num_frames, 0.0f);
 
-
     // Render all synths and mix
     std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
     for (INoteNagaSoftSynth *synth : this->synths_) {
