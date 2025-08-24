@@ -36,21 +36,18 @@ void DSPEngineWidget::initTitleUI() {
     layout->setSpacing(0);
 
     // Create vertical combobox for synth selection
-    synth_selector = new QComboBox();
-    synth_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    synth_selector->setFixedWidth(80);
+    synth_selector = new VerticalComboBox();
     synth_selector->setToolTip("Select synthesizer for DSP effects");
-    synth_selector->setStyleSheet("QComboBox { padding: 2px; }");
     
     // Fill synth selector
     updateSynthesizerSelector();
     
     // Connect synth selector
-    connect(synth_selector, QOverload<int>::of(&QComboBox::currentIndexChanged),
+    connect(synth_selector, &VerticalComboBox::currentIndexChanged,
             this, &DSPEngineWidget::onSynthesizerSelected);
     
     // Add to layout
-    layout->addWidget(synth_selector, 0, Qt::AlignHCenter);
+    layout->addWidget(synth_selector);
     layout->addSpacing(10);
 
     btn_add = create_small_button(":/icons/add.svg", "Add DSP module", "btn_add");

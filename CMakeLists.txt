@@ -48,6 +48,7 @@ set(HEADER_FILES
     src/gui/components/stereo_volume_bar_widget.h
     src/gui/components/audio_dial_grid_widget.h
     src/gui/components/spectrum_analyzer.h
+    src/gui/components/vertical_combo_box.h
     # gui/dialogs
     src/gui/dialogs/instrument_selector_dialog.h
     src/gui/dialogs/dsp_block_chooser_dialog.h
@@ -89,6 +90,7 @@ set(SOURCE_FILES
     src/gui/components/stereo_volume_bar_widget.cpp
     src/gui/components/audio_dial_grid_widget.cpp
     src/gui/components/spectrum_analyzer.cpp
+    src/gui/components/vertical_combo_box.cpp
     # gui/dialogs
     src/gui/dialogs/instrument_selector_dialog.cpp
     src/gui/dialogs/dsp_block_chooser_dialog.cpp

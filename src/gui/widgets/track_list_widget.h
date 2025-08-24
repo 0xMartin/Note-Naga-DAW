@@ -6,7 +6,6 @@
 #include <QFrame>
 #include <QColor>
 #include <vector>
-#include <memory>
 
 #include <note_naga_engine/note_naga_engine.h>
 #include "track_widget.h"
@@ -51,4 +50,8 @@ private:
 private slots:
     void reloadTracks(NoteNagaMidiSeq *seq);
     void handlePlayingNote(const NN_Note_t& note);
+    void onAddTrack();
+    void onRemoveTrack();
+    void onClearTracks();
+    void onReloadTracks();
 };

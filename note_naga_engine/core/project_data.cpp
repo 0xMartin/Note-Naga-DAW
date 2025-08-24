@@ -50,6 +50,9 @@ bool NoteNagaProject::loadProject(const std::string &project_path) {
             &NoteNagaProject::sequenceMetadataChanged);
     connect(sequence, &NoteNagaMidiSeq::trackMetadataChanged, this,
             &NoteNagaProject::trackMetaChanged);
+    connect(sequence, &NoteNagaMidiSeq::trackListChanged, this, [this, sequence](){
+        this->activeSequenceTrackListChanged(sequence);
+    });
 #endif
     NN_QT_EMIT(this->projectFileLoaded());
     NOTE_NAGA_LOG_INFO("Project loaded from: " + project_path);

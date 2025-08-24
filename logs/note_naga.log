@@ -316,3 +316,122 @@
 2025-08-23 14:24:47 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=-1
 2025-08-23 14:25:06 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
 2025-08-23 14:25:06 [INFO   ] synth_external_midi: External MIDI synthesizer connected to port: Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+2025-08-24 11:39:40 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-24 11:39:40 [INFO   ] soundfont_finder: Found SoundFont: /Users/martin/Library/Audio/Sounds/Banks/FluidR3_GM.sf2
+2025-08-24 11:39:40 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-24 11:39:40 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-24 11:39:40 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-24 11:39:40 [INFO   ] project_data: Project manager initialized
+2025-08-24 11:39:40 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-24 11:39:40 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-24 11:39:40 [INFO   ] mixer: Initialized successfully
+2025-08-24 11:39:40 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-24 11:39:40 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-24 11:39:40 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-24 11:39:40 [INFO   ] audio_worker: Audio worker initialized
+2025-08-24 11:39:40 [INFO   ] audio_worker: Audio worker started
+2025-08-24 11:39:40 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-24 11:39:48 [WARNING] playback_worker: Playback worker not currently playing
+2025-08-24 11:39:48 [WARNING] note_naga_engine: Failed to stop playback
+2025-08-24 11:39:48 [INFO   ] types: Clearing MIDI sequence with ID: 1
+2025-08-24 11:39:48 [INFO   ] types: Loading MIDI file from: /Users/martin/Downloads/midi/Une_vie__taimer__Lorien_Testard.mid
+2025-08-24 11:39:48 [INFO   ] types: Clearing MIDI sequence with ID: 1
+2025-08-24 11:39:48 [INFO   ] types: Loading Type 1 MIDI tracks
+2025-08-24 11:39:48 [INFO   ] types: Created Track with ID: 0 and name: Track
+2025-08-24 11:39:48 [INFO   ] types: Channel changed for Track ID: 0 to: 1
+2025-08-24 11:39:48 [INFO   ] types: Instrument changed for Track ID: 0 to: 44
+2025-08-24 11:39:48 [INFO   ] types: Created Track with ID: 1 and name: Track
+2025-08-24 11:39:48 [INFO   ] types: Channel changed for Track ID: 1 to: 0
+2025-08-24 11:39:48 [INFO   ] types: Instrument changed for Track ID: 1 to: 0
+2025-08-24 11:39:48 [INFO   ] types: Created Track with ID: 2 and name: Track
+2025-08-24 11:39:48 [INFO   ] types: Channel changed for Track ID: 2 to: 0
+2025-08-24 11:39:48 [INFO   ] types: Instrument changed for Track ID: 2 to: 0
+2025-08-24 11:39:48 [INFO   ] types: MIDI file loaded successfully. Num tracks: 3
+2025-08-24 11:39:48 [INFO   ] types: Track with ID: 0 set as active track for MIDI sequence ID: 1
+2025-08-24 11:39:48 [INFO   ] project_data: Added MIDI sequence with ID: 1
+2025-08-24 11:39:48 [INFO   ] mixer: Default routing created with 3 entries
+2025-08-24 11:39:48 [INFO   ] project_data: Project loaded from: /Users/martin/Downloads/midi/Une_vie__taimer__Lorien_Testard.mid
+2025-08-24 11:39:49 [INFO   ] types: Loading MIDI file from: /Users/martin/Downloads/midi/Une_vie__taimer__Lorien_Testard.mid
+2025-08-24 11:39:49 [INFO   ] types: Clearing MIDI sequence with ID: 1
+2025-08-24 11:43:29 [INFO   ] note_naga_engine: Instance created. Version: 1.0.0
+2025-08-24 11:43:30 [INFO   ] soundfont_finder: Found SoundFont: /Users/martin/Library/Audio/Sounds/Banks/FluidR3_GM.sf2
+2025-08-24 11:43:30 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-24 11:43:30 [INFO   ] synth_fluidsynth: FluidSynth loaded sfid=1
+2025-08-24 11:43:30 [INFO   ] async_queue_component: Engine Component initialized with queue size: 16
+2025-08-24 11:43:30 [INFO   ] project_data: Project manager initialized
+2025-08-24 11:43:30 [INFO   ] async_queue_component: Engine Component initialized with queue size: 1024
+2025-08-24 11:43:30 [INFO   ] mixer: Default output device set on: FluidSynth 1
+2025-08-24 11:43:30 [INFO   ] mixer: Initialized successfully
+2025-08-24 11:43:30 [INFO   ] playback_worker: Initialized successfully with timer interval: 30.000000 ms
+2025-08-24 11:43:30 [INFO   ] playback_worker: Added finished callback with ID: 1
+2025-08-24 11:43:30 [INFO   ] dsp_engine: DSP Engine initialized
+2025-08-24 11:43:30 [INFO   ] audio_worker: Audio worker initialized
+2025-08-24 11:43:30 [INFO   ] audio_worker: Audio worker started
+2025-08-24 11:43:30 [INFO   ] note_naga_engine: Initialized successfully
+2025-08-24 11:43:38 [WARNING] playback_worker: Playback worker not currently playing
+2025-08-24 11:43:38 [WARNING] note_naga_engine: Failed to stop playback
+2025-08-24 11:43:38 [INFO   ] types: Clearing MIDI sequence with ID: 1
+2025-08-24 11:43:38 [INFO   ] types: Loading MIDI file from: /Users/martin/Downloads/midi/Victory_-_Two_Steps_From_Hell_Orchestra.mid
+2025-08-24 11:43:38 [INFO   ] types: Clearing MIDI sequence with ID: 1
+2025-08-24 11:43:38 [INFO   ] types: Loading Type 1 MIDI tracks
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 0 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 0 to: 6
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 0 to: 73
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 1 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 1 to: 2
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 1 to: 65
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 2 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 2 to: 4
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 2 to: 59
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 3 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 3 to: 7
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 3 to: 60
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 4 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 4 to: 8
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 4 to: 57
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 5 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 5 to: 15
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 5 to: 0
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 6 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 6 to: 15
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 6 to: 0
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 7 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 7 to: 10
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 7 to: 11
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 8 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 8 to: 10
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 8 to: 0
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 9 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 9 to: 1
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 9 to: 44
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 10 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 10 to: 13
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 10 to: 44
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 11 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 11 to: 3
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 11 to: 44
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 12 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 12 to: 6
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 12 to: 44
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 13 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 13 to: 10
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 13 to: 37
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 14 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 14 to: 13
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 14 to: 26
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 15 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 15 to: 9
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 15 to: 0
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 16 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 16 to: 9
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 16 to: 48
+2025-08-24 11:43:38 [INFO   ] types: Created Track with ID: 17 and name: Track
+2025-08-24 11:43:38 [INFO   ] types: Channel changed for Track ID: 17 to: 9
+2025-08-24 11:43:38 [INFO   ] types: Instrument changed for Track ID: 17 to: 0
+2025-08-24 11:43:38 [INFO   ] types: MIDI file loaded successfully. Num tracks: 18
+2025-08-24 11:43:38 [INFO   ] types: Track with ID: 0 set as active track for MIDI sequence ID: 1
+2025-08-24 11:43:38 [INFO   ] project_data: Added MIDI sequence with ID: 1
+2025-08-24 11:43:38 [INFO   ] mixer: Default routing created with 18 entries
+2025-08-24 11:43:38 [INFO   ] project_data: Project loaded from: /Users/martin/Downloads/midi/Victory_-_Two_Steps_From_Hell_Orchestra.mid
+2025-08-24 11:43:39 [INFO   ] types: Loading MIDI file from: /Users/martin/Downloads/midi/Victory_-_Two_Steps_From_Hell_Orchestra.mid
+2025-08-24 11:43:39 [INFO   ] types: Clearing MIDI sequence with ID: 1

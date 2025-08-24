@@ -460,6 +460,20 @@ public:
      */
     int computeMaxTick();
 
+        /**
+     * @brief Adds a new track to the sequence.
+     * @param instrument_index Index of the instrument to use for the new track.
+     * @return True if the track was added successfully, false otherwise.
+     */
+    bool addTrack(int instrument_index);
+
+    /**
+     * @brief Removes a track from the sequence.
+     * @param track_id_or_index ID or index of the track to remove.
+     * @return True if the track was removed successfully, false otherwise.
+     */
+    bool removeTrack(int track_id_or_index);
+
     /**
      * @brief Loads a MIDI file into the sequence from the specified path.
      * @param midi_file_path Path to the MIDI file.
@@ -539,6 +553,12 @@ public:
      */
     MidiFile *getMidiFile() const { return midi_file; }
 
+    /**
+     * @brief Gets the file path of the MIDI file.
+     * @return File path.
+     */
+    std::string getFilePath() const { return file_path; }
+
     // SETTERS
     // ///////////////////////////////////////////////////////////////////////////////
 
@@ -575,6 +595,7 @@ public:
 
 protected:
     int sequence_id;                     ///< Unique sequence ID
+    std::string file_path;               ///< Path to the MIDI file
     std::vector<NoteNagaTrack *> tracks; ///< All tracks in the sequence
     NoteNagaTrack *active_track;         ///< Pointer to the currently active track
     NoteNagaTrack *solo_track;           ///< Pointer to the currently soloed track
@@ -607,6 +628,12 @@ Q_SIGNALS:
      * @param track Pointer to the active track.
      */
     void activeTrackChanged(NoteNagaTrack *track);
+
+    /**
+     * @brief Signal emitted when the track list changes.
+     * @param track Pointer to the track.
+     */
+    void trackListChanged();
 #endif
 };
 

@@ -57,7 +57,7 @@ private:
     IndicatorLedWidget *indicator_led;
 
     void setupUI();
-    void populateTrackComboBox(NoteNagaTrack *track);
+    void populateTrackComboBox(NoteNagaMidiSeq *seq);
     void updateOutputLabel();  // New method to update output display
 
 /*******************************************************************************************************/
@@ -79,7 +79,7 @@ signals:
     void clicked();
 
 private slots:
-    void onTrackMetadataChanged(NoteNagaTrack *track);
+    void onTrackMetadataChanged(NoteNagaMidiSeq *seq);
     void onTrackChanged(int idx);
     void onChannelChanged(float val);
     void onVolumeChanged(float val);

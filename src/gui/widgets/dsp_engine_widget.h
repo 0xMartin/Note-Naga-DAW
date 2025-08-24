@@ -18,6 +18,7 @@
 #include "dsp_block_widget.h"
 #include "../components/stereo_volume_bar_widget.h"
 #include "../components/audio_vertical_slider.h"
+#include "../components/vertical_combo_box.h"
 
 /**
  * @brief DSPWidget provides a user interface for managing DSP modules in the application.
@@ -46,8 +47,8 @@ private:
     QPushButton *btn_enable;
     
     // Combobox to select synthesizer
-    QComboBox *synth_selector;
-    
+    VerticalComboBox *synth_selector;
+
     // Currently selected synth (nullptr for master)
     INoteNagaSoftSynth *current_synth = nullptr;
 

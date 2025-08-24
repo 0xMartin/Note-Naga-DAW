@@ -18,14 +18,12 @@ TrackMixerWidget::TrackMixerWidget(NoteNagaEngine *engine_, QWidget *parent)
             &TrackMixerWidget::refresh_routing_table);
     
     // Connect to synthesizer signals
-#ifndef QT_DEACTIVATED
     connect(engine, &NoteNagaEngine::synthAdded, this,
             &TrackMixerWidget::onSynthesizerAdded);
     connect(engine, &NoteNagaEngine::synthRemoved, this,
             &TrackMixerWidget::onSynthesizerRemoved);
     connect(engine, &NoteNagaEngine::synthUpdated, this,
             &TrackMixerWidget::onSynthesizerUpdated);
-#endif
 
     this->title_widget = nullptr;
     initTitleUI();

@@ -167,5 +167,11 @@ Q_SIGNALS:
      * @param seq Pointer to the new active sequence.
      */
     void activeSequenceChanged(NoteNagaMidiSeq *seq);
+
+    /**
+     * @brief Signal emitted when the track list changes.
+     * @param track Pointer to the track.
+     */
+    void activeSequenceTrackListChanged(NoteNagaMidiSeq *seq);
 #endif
 };
