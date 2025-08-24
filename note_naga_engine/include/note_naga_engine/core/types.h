@@ -243,6 +243,18 @@ public:
      */
     virtual ~NoteNagaTrack() = default;
 
+    /**
+     * @brief Adds a MIDI note to the track.
+     * @param note The MIDI note to add.
+     */
+    void addNote(const NN_Note_t &note);
+
+    /**
+     * @brief Removes a MIDI note from the track.
+     * @param note The MIDI note to remove.
+     */
+    void removeNote(const NN_Note_t &note);
+
     // GETTERS
     // ///////////////////////////////////////////////////////////////////////////////
 

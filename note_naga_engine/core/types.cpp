@@ -105,6 +105,20 @@ NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent,
                      " and name: " + this->name);
 }
 
+void NoteNagaTrack::addNote(const NN_Note_t &note) {
+    this->midi_notes.push_back(note);
+    NN_QT_EMIT(metadataChanged(this, "notes"));
+}
+
+void NoteNagaTrack::removeNote(const NN_Note_t &note) {
+    auto it = std::find_if(midi_notes.begin(), midi_notes.end(),
+                           [&note](const NN_Note_t &n) { return n.id == note.id; });
+    if (it != midi_notes.end()) {
+        midi_notes.erase(it);
+    }
+    NN_QT_EMIT(metadataChanged(this, "notes"));
+}
+
 void NoteNagaTrack::setInstrument(std::optional<int> instrument) {
   if (this->instrument == instrument)
     return;

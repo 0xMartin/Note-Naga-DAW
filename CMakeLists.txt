@@ -28,84 +28,88 @@ add_subdirectory(note_naga_engine)
 
 set(HEADER_FILES
     # gui
-    src/gui/nn_gui_utils.h
     src/gui/main_window.h
-    # gui/dock_system
-    src/gui/dock_system/dock_indicator_overlay.h
-    src/gui/dock_system/dock_title_bar.h
-    src/gui/dock_system/advanced_dock_widget.h
+    src/gui/nn_gui_utils.h
     # gui/components
-    src/gui/components/midi_seq_progress_bar.h
     src/gui/components/audio_dial.h
     src/gui/components/audio_dial_centered.h
-    src/gui/components/indicator_led_widget.h
-    src/gui/components/multi_channel_volume_bar.h
-    src/gui/components/volume_bar.h
-    src/gui/components/separator.h
+    src/gui/components/audio_dial_grid_widget.h
     src/gui/components/audio_vertical_slider.h
     src/gui/components/button_group_widget.h
-    src/gui/components/vertical_label.h
-    src/gui/components/stereo_volume_bar_widget.h
-    src/gui/components/audio_dial_grid_widget.h
+    src/gui/components/indicator_led_widget.h
+    src/gui/components/midi_seq_progress_bar.h
+    src/gui/components/multi_channel_volume_bar.h
+    src/gui/components/separator.h
     src/gui/components/spectrum_analyzer.h
+    src/gui/components/stereo_volume_bar_widget.h
     src/gui/components/vertical_combo_box.h
+    src/gui/components/vertical_label.h
+    src/gui/components/volume_bar.h
     # gui/dialogs
-    src/gui/dialogs/instrument_selector_dialog.h
     src/gui/dialogs/dsp_block_chooser_dialog.h
+    src/gui/dialogs/instrument_selector_dialog.h
     src/gui/dialogs/mixer_settings_dialog.h
+    # gui/dock_system
+    src/gui/dock_system/advanced_dock_widget.h
+    src/gui/dock_system/dock_indicator_overlay.h
+    src/gui/dock_system/dock_title_bar.h
+    # gui/editor
+    src/gui/editor/midi_editor_command.h
+    src/gui/editor/midi_editor_widget.h
     # gui/widgets
+    src/gui/widgets/dsp_block_widget.h
+    src/gui/widgets/dsp_engine_widget.h
     src/gui/widgets/midi_control_bar_widget.h
-    src/gui/widgets/midi_editor_widget.h
     src/gui/widgets/midi_keyboard_ruler.h
     src/gui/widgets/midi_tact_ruler.h
     src/gui/widgets/routing_entry_widget.h
     src/gui/widgets/track_list_widget.h
     src/gui/widgets/track_mixer_widget.h
     src/gui/widgets/track_widget.h
-    src/gui/widgets/dsp_engine_widget.h
-    src/gui/widgets/dsp_block_widget.h
 )
 
 set(SOURCE_FILES
     # src
     src/main.cpp
     # gui
-    src/gui/nn_gui_utils.cpp
     src/gui/main_window.cpp
-    # gui/dock_system
-    src/gui/dock_system/dock_indicator_overlay.cpp
-    src/gui/dock_system/dock_title_bar.cpp
-    src/gui/dock_system/advanced_dock_widget.cpp
+    src/gui/nn_gui_utils.cpp
     # gui/components
-    src/gui/components/midi_seq_progress_bar.cpp
     src/gui/components/audio_dial.cpp
     src/gui/components/audio_dial_centered.cpp
-    src/gui/components/indicator_led_widget.cpp
-    src/gui/components/multi_channel_volume_bar.cpp
-    src/gui/components/volume_bar.cpp
-    src/gui/components/separator.cpp
+    src/gui/components/audio_dial_grid_widget.cpp
     src/gui/components/audio_vertical_slider.cpp
     src/gui/components/button_group_widget.cpp
-    src/gui/components/vertical_label.cpp
-    src/gui/components/stereo_volume_bar_widget.cpp
-    src/gui/components/audio_dial_grid_widget.cpp
+    src/gui/components/indicator_led_widget.cpp
+    src/gui/components/midi_seq_progress_bar.cpp
+    src/gui/components/multi_channel_volume_bar.cpp
+    src/gui/components/separator.cpp
     src/gui/components/spectrum_analyzer.cpp
+    src/gui/components/stereo_volume_bar_widget.cpp
     src/gui/components/vertical_combo_box.cpp
+    src/gui/components/vertical_label.cpp
+    src/gui/components/volume_bar.cpp
     # gui/dialogs
-    src/gui/dialogs/instrument_selector_dialog.cpp
     src/gui/dialogs/dsp_block_chooser_dialog.cpp
+    src/gui/dialogs/instrument_selector_dialog.cpp
     src/gui/dialogs/mixer_settings_dialog.cpp
+    # gui/dock_system
+    src/gui/dock_system/advanced_dock_widget.cpp
+    src/gui/dock_system/dock_indicator_overlay.cpp
+    src/gui/dock_system/dock_title_bar.cpp
+    # gui/editor
+    src/gui/editor/midi_editor_command.cpp
+    src/gui/editor/midi_editor_widget.cpp
     # gui/widgets
+    src/gui/widgets/dsp_block_widget.cpp
+    src/gui/widgets/dsp_engine_widget.cpp
     src/gui/widgets/midi_control_bar_widget.cpp
-    src/gui/widgets/midi_editor_widget.cpp
     src/gui/widgets/midi_keyboard_ruler.cpp
     src/gui/widgets/midi_tact_ruler.cpp
     src/gui/widgets/routing_entry_widget.cpp
     src/gui/widgets/track_list_widget.cpp
     src/gui/widgets/track_mixer_widget.cpp
     src/gui/widgets/track_widget.cpp
-    src/gui/widgets/dsp_engine_widget.cpp
-    src/gui/widgets/dsp_block_widget.cpp
 )
 
 if(WIN32)

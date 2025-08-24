@@ -7,6 +7,9 @@
 #include <QGraphicsView>
 #include <QPushButton>
 #include <QMap>
+#include <QRubberBand>
+#include <QComboBox>
+#include <QLabel>
 #include <note_naga_engine/note_naga_engine.h>
 #include <vector>
 
@@ -27,6 +30,27 @@ struct MidiEditorConfig {
     MidiEditorFollowMode follow_mode;
 };
 
+/** Note duration values for the note size combo box */
+enum class NoteDuration {
+    Whole,      // 1/1
+    Half,       // 1/2
+    Quarter,    // 1/4
+    Eighth,     // 1/8
+    Sixteenth,  // 1/16
+    ThirtySecond // 1/32
+};
+
+/** Snap/grid resolution for note quantization */
+enum class GridResolution {
+    Whole,      // 1/1
+    Half,       // 1/2
+    Quarter,    // 1/4
+    Eighth,     // 1/8
+    Sixteenth,  // 1/16
+    ThirtySecond, // 1/32
+    Off         // No snap
+};
+
 /**
  * @brief The MidiEditorWidget class provides a graphical interface for editing MIDI
  * sequences. It allows users to visualize and manipulate MIDI notes, tracks, and
@@ -41,6 +65,7 @@ public:
      * @param parent Parent widget.
      */
     explicit MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent = nullptr);
+    ~MidiEditorWidget();
 
     /**
      * @brief Gets the title widget that will be inserted into the dock title bar.
@@ -68,11 +93,15 @@ public:
     QColor grid_row_color2;
     QColor grid_bar_label_color;
     QColor grid_subdiv_color;
+    QColor selection_color;
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     NoteNagaEngine *engine;
@@ -82,6 +111,33 @@ private:
     int content_width;  /// Width of the content area
     int content_height; /// Height of the content area
 
+    // --- Note selection and manipulation ---
+    struct NoteGraphics {
+        QGraphicsItem *item;                // Grafický objekt noty
+        QGraphicsSimpleTextItem *label;     // Textový popisek noty
+        NN_Note_t note;                     // Data noty
+        NoteNagaTrack *track;               // Stopa, ke které nota patří
+    };
+    QMap<int, std::vector<NoteGraphics>> note_items;  // Všechny grafické noty
+    QList<NoteGraphics*> selectedNotes;               // Vybrané noty
+    
+    // Drag state
+    enum class DragMode {
+        None,       // Žádná operace tažení
+        Select,     // Výběr pomocí rubber band
+        Move,       // Přesun noty
+        Resize      // Změna velikosti noty
+    };
+    
+    DragMode dragMode = DragMode::None;
+    QPointF dragStartPos;    // Pozice, kde začalo tažení
+    QPointF lastDragPos;     // Poslední pozice při tažení
+    QRubberBand *rubberBand = nullptr;  // Obdélník pro výběr více not
+    QPoint rubberBandOrigin; // Počáteční bod rubber bandu
+    
+    // Edge detection constants
+    const int resizeEdgeMargin = 5; // pixely od okraje pro detekci změny velikosti
+
     // --- UI controls ---
     QWidget *title_widget;
     QPushButton *btn_follow_center;
@@ -89,15 +145,11 @@ private:
     QPushButton *btn_follow_step;
     QPushButton *btn_follow_none;
     QPushButton *btn_looping;
+    QComboBox *combo_note_duration;
+    QComboBox *combo_grid_resolution;
 
     // --- Graphics scene and items ---
     QGraphicsScene *scene;
-
-    struct NoteGraphics {
-        QGraphicsItem *item;
-        QGraphicsSimpleTextItem *label;
-    };
-    QMap<int, std::vector<NoteGraphics>> note_items;
 
     QGraphicsLineItem *marker_line = nullptr;
     std::vector<QGraphicsLineItem *> grid_lines;
@@ -122,6 +174,27 @@ private:
     void clearScene();
     void clearNotes();
     void clearTrackNotes(int track_id);
+    
+    // --- Note Editing Functions ---
+    void selectNote(NoteGraphics *noteGraphics, bool clearPrevious = true);
+    void deselectNote(NoteGraphics *noteGraphics);
+    void clearSelection();
+    void selectNotesInRect(const QRectF &rect);
+    
+    NoteGraphics* findNoteUnderCursor(const QPointF &scenePos);
+    bool isNoteEdge(NoteGraphics *note, const QPointF &scenePos);
+    
+    void addNewNote(const QPointF &scenePos);
+    void moveSelectedNotes(const QPointF &delta);
+    void resizeSelectedNotes(const QPointF &delta);
+    void applyNoteChanges();
+    
+    // --- Coordinate conversion helpers ---
+    int sceneXToTick(qreal x) const;
+    int sceneYToNote(qreal y) const;
+    qreal tickToSceneX(int tick) const;
+    qreal noteToSceneY(int note) const;
+    QRectF getRealNoteRect(const NoteGraphics *ng) const;
 
 /*******************************************************************************************************/
 // Signal and Slots
@@ -170,10 +243,15 @@ signals:
      */
     void loopingChanged(bool enabled);
 
+    /**
+     * @brief Signal emitted when notes are modified.
+     */
+    void notesModified();
+
 public slots:
     /**
-     * @brief Sets the current MIDI sequence to edit.
-     * @param seq Pointer to the NoteNagaMidiSeq to edit.
+     * @brief Sets the current time scale for the MIDI editor.
+     * @param scale The new time scale.
      */
     void setTimeScale(double scale);
 

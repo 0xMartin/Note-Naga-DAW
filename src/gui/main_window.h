@@ -10,7 +10,7 @@
 
 #include "dock_system/advanced_dock_widget.h"
 #include "widgets/midi_control_bar_widget.h"
-#include "widgets/midi_editor_widget.h"
+#include "editor/midi_editor_widget.h"
 #include "widgets/midi_keyboard_ruler.h"
 #include "widgets/midi_tact_ruler.h"
 #include "widgets/track_list_widget.h"
