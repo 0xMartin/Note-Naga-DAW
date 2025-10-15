@@ -1,10 +1,13 @@
 #include "track_mixer_widget.h"
 
+#include <note_naga_engine/core/note_naga_synthesizer.h>
+#include <note_naga_engine/core/types.h>
+
+#include <QIcon>
+#include <QInputDialog>
+
 #include "../nn_gui_utils.h"
 #include "../dialogs/mixer_settings_dialog.h"
-#include "note_naga_engine/core/note_naga_synthesizer.h"
-#include "note_naga_engine/core/types.h"
-#include <QIcon>
 
 TrackMixerWidget::TrackMixerWidget(NoteNagaEngine *engine_, QWidget *parent)
     : QWidget(parent), engine(engine_), selected_entry_index(-1),
@@ -205,6 +208,10 @@ void TrackMixerWidget::initUI() {
     connect(btn_remove, &QPushButton::clicked, this,
             &TrackMixerWidget::onRemoveSelectedEntry);
 
+    QPushButton *btn_reassign = create_small_button(
+        ":/icons/reassign.svg", "Reassign selected entry to a different synth", "RoutingReassignButton");
+    connect(btn_reassign, &QPushButton::clicked, this, &TrackMixerWidget::onReassignSynth);
+
     QPushButton *btn_clear = create_small_button(
         ":/icons/clear.svg", "Clear all routing entries", "RoutingClearButton");
     connect(btn_clear, &QPushButton::clicked, this,
@@ -230,6 +237,7 @@ void TrackMixerWidget::initUI() {
 
     routing_label_controls_layout->addWidget(btn_add, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_remove, 0, Qt::AlignRight);
+    routing_label_controls_layout->addWidget(btn_reassign, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_clear, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_default, 0, Qt::AlignRight);
     routing_label_controls_layout->addWidget(btn_max_volume, 0, Qt::AlignRight);
@@ -477,6 +485,46 @@ void TrackMixerWidget::onRemoveSelectedEntry() {
     }
 }
 
+void TrackMixerWidget::onReassignSynth() {
+    // Zkontrolovat, zda je něco vybráno
+    if (selected_entry_index < 0) {
+        QMessageBox::warning(this, "No Entry Selected",
+                             "Please select a routing entry to reassign.", QMessageBox::Ok);
+        return;
+    }
+
+    // Získat seznam dostupných syntetizátorů
+    auto synthesizers = engine->getSynthesizers();
+    QStringList synth_names;
+    for (NoteNagaSynthesizer* synth : synthesizers) {
+        synth_names << QString::fromStdString(synth->getName());
+    }
+
+    if (synth_names.isEmpty()) {
+        QMessageBox::information(this, "No Synthesizers",
+                                 "There are no available synthesizers to assign to.", QMessageBox::Ok);
+        return;
+    }
+
+    // Zobrazit dialog pro výběr
+    bool ok;
+    QString new_synth_name = QInputDialog::getItem(this, "Reassign Synthesizer",
+                                                   "Select a new synthesizer for the entry:",
+                                                   synth_names, 0, false, &ok);
+
+    // Pokud uživatel potvrdil výběr, provést změnu
+    if (ok && !new_synth_name.isEmpty()) {
+        // Získat referenci na routovací položku
+        NoteNagaRoutingEntry &entry = engine->getMixer()->getRoutingEntries()[selected_entry_index];
+
+        // Změnit její výstup (output)
+        entry.output = new_synth_name.toStdString();
+
+        // Tato funkce znovu načte data z mixeru a překreslí seznam
+        engine->getMixer()->routingEntryStackChanged();
+    }
+}
+
 void TrackMixerWidget::onClearRoutingTable() {
     auto reply =
         QMessageBox::question(this, "Clear Routing Table",
@@ -542,18 +590,31 @@ void TrackMixerWidget::handlePlayingNote(const NN_Note_t &note,
 }
 
 void TrackMixerWidget::updateEntrySelection(int idx) {
-    selected_entry_index = idx;
-        
-    // Find which widget corresponds to the selected entry
+    selected_entry_index = idx; // Uložíme si původní, absolutní index. To je v pořádku.
+
+    // Bezpečnostní kontrola, jestli je index platný v hlavním seznamu
+    auto& all_entries = engine->getMixer()->getRoutingEntries();
+    if (idx < 0 || (size_t)idx >= all_entries.size()) {
+        // Pokud je index neplatný, raději odznačíme vše
+        for (size_t i = 0; i < entry_widgets.size(); ++i) {
+            entry_widgets[i]->refreshStyle(false, i % 2 == 0);
+        }
+        return;
+    }
+
+    // Získáme ukazatel na položku v enginu, která má být skutečně vybrána
+    NoteNagaRoutingEntry* target_entry = &all_entries[idx];
+
+    // Nyní projdeme všechny VIDITELNÉ widgety
     for (size_t i = 0; i < entry_widgets.size(); ++i) {
         RoutingEntryWidget* widget = entry_widgets[i];
-        NoteNagaRoutingEntry* entry = widget->getRoutingEntry();
         
-        if (i == (size_t)idx) {
-            // This is the selected widget
+        // A porovnáme, jestli widget ukazuje na stejnou položku, jaká má být vybrána
+        if (widget->getRoutingEntry() == target_entry) {
+            // Našli jsme správný widget, označíme ho
             widget->refreshStyle(true, i % 2 == 0);
         } else {
-            // Not selected
+            // Toto je jiný widget, odznačíme ho
             widget->refreshStyle(false, i % 2 == 0);
         }
     }

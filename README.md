@@ -2,10 +2,11 @@
 
 1. velocity editor
 
-2. moznost presunout vybrany mixer entry do jineho syntetizeru / device
+2. fix: sig fault after app closing
+3. fix: nove pridane noty se neprehravaji
 
 -------------
-3. project load / save
+1. project load / save
 open project
 save project
 
@@ -20,6 +21,8 @@ export as
     -> mp3
 
 5. project info: show opened file,...
+
+5. step sequencer   
 
 6. metronome
 

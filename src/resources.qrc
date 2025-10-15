@@ -43,6 +43,7 @@
     <file>icons/active.svg</file>
     <file>icons/left.svg</file>
     <file>icons/right.svg</file>
+    <file>icons/reassign.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>

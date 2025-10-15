@@ -1,13 +1,12 @@
 #include "main_window.h"
 
-// Přidáme potřebné hlavičkové soubory
 #include <QApplication>
 #include <QColor>
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QGridLayout>
 #include <QIcon>
-#include <QInputDialog> // Pro dialogy s uživatelem
+#include <QInputDialog> 
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QScrollBar>
@@ -15,7 +14,6 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
-// Zahrneme naši novou utility třídu
 #include <note_naga_engine/nn_utils.h>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true) {

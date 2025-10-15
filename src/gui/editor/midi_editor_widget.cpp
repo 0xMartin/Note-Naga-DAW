@@ -302,9 +302,6 @@ void MidiEditorWidget::currentTickChanged(int tick) {
 }
 
 void MidiEditorWidget::selectFollowMode(MidiEditorFollowMode mode) {
-    if (config.follow_mode == mode)
-        return; // No change
-
     config.follow_mode = mode;
     btn_follow_none->setChecked(false);
     btn_follow_center->setChecked(false);
@@ -528,6 +525,24 @@ void MidiEditorWidget::addNewNote(const QPointF &scenePos) {
     }
     newNote.length = std::max(1, noteLength); // Zajistíme minimální délku 1
 
+    // Zkontroluj, zda na cílové pozici již neexistuje jiná nota
+    for (const auto& existingNote : activeTrack->getNotes()) {
+        // Kontrolujeme pouze noty se stejnou výškou tónu
+        if (existingNote.note == newNote.note) {
+            // Získání časových intervalů pro porovnání
+            int newNoteStart = newNote.start.value_or(0);
+            int newNoteEnd = newNoteStart + newNote.length.value_or(0);
+            int existingNoteStart = existingNote.start.value_or(0);
+            int existingNoteEnd = existingNoteStart + existingNote.length.value_or(0);
+
+            // Podmínka pro detekci překrytí dvou intervalů
+            if (newNoteStart < existingNoteEnd && existingNoteStart < newNoteEnd) {
+                return; // Překryv nalezen, notu nepřidávej
+            }
+        }
+    }
+
+    // prida notu
     activeTrack->addNote(newNote);
     last_seq->computeMaxTick();
     

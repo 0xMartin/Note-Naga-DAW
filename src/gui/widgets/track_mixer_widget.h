@@ -110,6 +110,7 @@ private slots:
 
     void onAddEntry();
     void onRemoveSelectedEntry();
+    void onReassignSynth();
     void onClearRoutingTable();
     void onDefaultEntries();
     void onMaxVolumeAllTracks();
