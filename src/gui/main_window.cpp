@@ -1,17 +1,22 @@
 #include "main_window.h"
 
+// Přidáme potřebné hlavičkové soubory
 #include <QApplication>
 #include <QColor>
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QGridLayout>
 #include <QIcon>
+#include <QInputDialog> // Pro dialogy s uživatelem
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QScrollBar>
 #include <QToolBar>
 #include <QUrl>
 #include <QVBoxLayout>
+
+// Zahrneme naši novou utility třídu
+#include <note_naga_engine/nn_utils.h>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true) {
     setWindowTitle("Note Naga");
@@ -81,6 +86,46 @@ void MainWindow::setup_actions() {
             [this](bool checked) { show_hide_dock("mixer", checked); });
     action_reset_layout = new QAction("Reset Layout", this);
     connect(action_reset_layout, &QAction::triggered, this, &MainWindow::reset_layout);
+
+    // === Vytvoření nových akcí pro MIDI utility ===
+    action_quantize = new QAction("Quantize...", this);
+    connect(action_quantize, &QAction::triggered, this, &MainWindow::util_quantize);
+
+    action_humanize = new QAction("Humanize...", this);
+    connect(action_humanize, &QAction::triggered, this, &MainWindow::util_humanize);
+
+    action_transpose = new QAction("Transpose...", this);
+    connect(action_transpose, &QAction::triggered, this, &MainWindow::util_transpose);
+
+    action_set_velocity = new QAction("Set Fixed Velocity...", this);
+    connect(action_set_velocity, &QAction::triggered, this, &MainWindow::util_set_velocity);
+
+    action_scale_velocity = new QAction("Scale Velocity...", this);
+    connect(action_scale_velocity, &QAction::triggered, this, &MainWindow::util_scale_velocity);
+
+    action_set_duration = new QAction("Set Fixed Duration...", this);
+    connect(action_set_duration, &QAction::triggered, this, &MainWindow::util_set_duration);
+    
+    action_scale_duration = new QAction("Scale Duration...", this);
+    connect(action_scale_duration, &QAction::triggered, this, &MainWindow::util_scale_duration);
+
+    action_legato = new QAction("Legato...", this);
+    connect(action_legato, &QAction::triggered, this, &MainWindow::util_legato);
+    
+    action_staccato = new QAction("Staccato...", this);
+    connect(action_staccato, &QAction::triggered, this, &MainWindow::util_staccato);
+
+    action_invert = new QAction("Invert Selection...", this);
+    connect(action_invert, &QAction::triggered, this, &MainWindow::util_invert);
+
+    action_retrograde = new QAction("Retrograde (Reverse)", this);
+    connect(action_retrograde, &QAction::triggered, this, &MainWindow::util_retrograde);
+
+    action_delete_overlapping = new QAction("Delete Overlapping Notes", this);
+    connect(action_delete_overlapping, &QAction::triggered, this, &MainWindow::util_delete_overlapping);
+    
+    action_scale_timing = new QAction("Scale Timing...", this);
+    connect(action_scale_timing, &QAction::triggered, this, &MainWindow::util_scale_timing);
 }
 
 void MainWindow::setup_menu_bar() {
@@ -101,6 +146,28 @@ void MainWindow::setup_menu_bar() {
     view_menu->addAction(action_reset_layout);
 
     QMenu *tools_menu = menubar->addMenu("Tools");
+    
+    // === Vytvoření podmenu pro MIDI utility ===
+    QMenu *midi_util_menu = tools_menu->addMenu("MIDI Utilities");
+    midi_util_menu->addAction(action_quantize);
+    midi_util_menu->addAction(action_humanize);
+    midi_util_menu->addSeparator();
+    midi_util_menu->addAction(action_transpose);
+    midi_util_menu->addAction(action_set_velocity);
+    midi_util_menu->addAction(action_scale_velocity);
+    midi_util_menu->addAction(action_set_duration);
+    midi_util_menu->addAction(action_scale_duration);
+    midi_util_menu->addSeparator();
+    midi_util_menu->addAction(action_legato);
+    midi_util_menu->addAction(action_staccato);
+    midi_util_menu->addSeparator();
+    midi_util_menu->addAction(action_invert);
+    midi_util_menu->addAction(action_retrograde);
+    midi_util_menu->addAction(action_scale_timing);
+    midi_util_menu->addSeparator();
+    midi_util_menu->addAction(action_delete_overlapping);
+    
+    tools_menu->addSeparator();
     tools_menu->addAction(action_reset_colors);
     tools_menu->addAction(action_randomize_colors);
 
@@ -405,4 +472,171 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         this->engine = nullptr;
     }
     event->accept();
+}
+
+// === Implementace nových slotů pro MIDI utility ===
+
+void MainWindow::util_quantize() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int divisor = QInputDialog::getInt(this, "Quantize Notes", "Grid divisor (4=16th, 8=32nd, 3=8th triplet):", 4, 1, 64, 1, &ok);
+    if (ok) {
+        NN_Utils::quantize(*seq, divisor);
+    }
+}
+
+void MainWindow::util_humanize() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok_time, ok_vel;
+    int time_strength = QInputDialog::getInt(this, "Humanize Time", "Max time deviation (ticks):", 5, 0, 100, 1, &ok_time);
+    if (!ok_time) return;
+    int vel_strength = QInputDialog::getInt(this, "Humanize Velocity", "Max velocity deviation:", 5, 0, 127, 1, &ok_vel);
+    if (ok_vel) {
+        NN_Utils::humanize(*seq, time_strength, vel_strength);
+    }
+}
+
+void MainWindow::util_transpose() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int semitones = QInputDialog::getInt(this, "Transpose", "Semitones (+/-):", 12, -127, 127, 1, &ok);
+    if (ok) {
+        NN_Utils::transpose(*seq, semitones);
+    }
+}
+
+void MainWindow::util_set_velocity() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int value = QInputDialog::getInt(this, "Set Fixed Velocity", "New velocity (0-127):", 100, 0, 127, 1, &ok);
+    if (ok) {
+        NN_Utils::changeVelocity(*seq, value, false);
+    }
+}
+
+void MainWindow::util_scale_velocity() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int percent = QInputDialog::getInt(this, "Scale Velocity", "Scale factor (%):", 120, 0, 500, 1, &ok);
+    if (ok) {
+        NN_Utils::changeVelocity(*seq, percent, true);
+    }
+}
+
+void MainWindow::util_set_duration() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int ticks = QInputDialog::getInt(this, "Set Fixed Duration", "New duration (ticks):", seq->getPPQ() / 4, 1, 10000, 1, &ok);
+    if (ok) {
+        NN_Utils::changeDuration(*seq, ticks, false);
+    }
+}
+
+void MainWindow::util_scale_duration() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int percent = QInputDialog::getInt(this, "Scale Duration", "Scale factor (%):", 90, 1, 500, 1, &ok);
+    if (ok) {
+        NN_Utils::changeDuration(*seq, percent, true);
+    }
+}
+
+void MainWindow::util_legato() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int strength = QInputDialog::getInt(this, "Legato", "Strength (%):", 100, 1, 200, 1, &ok);
+    if (ok) {
+        NN_Utils::legato(*seq, strength);
+    }
+}
+
+void MainWindow::util_staccato() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int strength = QInputDialog::getInt(this, "Staccato", "New note length (% of original):", 50, 1, 99, 1, &ok);
+    if (ok) {
+        NN_Utils::staccato(*seq, strength);
+    }
+}
+
+void MainWindow::util_invert() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    int axis_note = QInputDialog::getInt(this, "Invert", "Axis MIDI Note (60 = C4):", 60, 0, 127, 1, &ok);
+    if (ok) {
+        NN_Utils::invert(*seq, axis_note);
+    }
+}
+
+void MainWindow::util_retrograde() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    NN_Utils::retrograde(*seq);
+    QMessageBox::information(this, "Success", "Note order has been reversed.");
+}
+
+void MainWindow::util_delete_overlapping() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    NN_Utils::deleteOverlappingNotes(*seq);
+    QMessageBox::information(this, "Success", "Overlapping notes have been removed.");
+}
+
+void MainWindow::util_scale_timing() {
+    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    if (!seq) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
+        return;
+    }
+    bool ok;
+    double factor = QInputDialog::getDouble(this, "Scale Timing", "Time factor (e.g., 2.0 = double tempo, 0.5 = half tempo):", 2.0, 0.1, 10.0, 2, &ok);
+    if (ok) {
+        NN_Utils::scaleTiming(*seq, factor);
+    }
 }

@@ -32,6 +32,7 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/logger.h
     ./include/note_naga_engine/note_naga_api.h
     ./include/note_naga_engine/note_naga_engine.h
+    ./include/note_naga_engine/nn_utils.h
     # include/note_naga_engine/core
     ./include/note_naga_engine/core/soundfont_finder.h
     ./include/note_naga_engine/core/types.h
@@ -78,6 +79,7 @@ set(SOURCE_FILES
     # src
     ./logger.cpp
     ./note_naga_engine.cpp
+    ./nn_utils.cpp
     # core
     ./core/soundfont_finder.cpp
     ./core/project_data.cpp

@@ -1,10 +1,8 @@
 ## Build 
 
-1. midi editor
+1. edit tools and effects: humanizer, quantizer, ...
 
-2. edit tools and effects: humanizer, quantizer, ...
-
-3. velocity editor
+2. velocity editor
 
 
 open project

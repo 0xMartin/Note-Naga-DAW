@@ -41,12 +41,29 @@ private slots:
     void reset_layout();
     void show_hide_dock(const QString &name, bool checked);
 
+    // === Nové sloty pro MIDI utility ===
+    void util_quantize();
+    void util_humanize();
+    void util_transpose();
+    void util_set_velocity();
+    void util_scale_velocity();
+    void util_set_duration();
+    void util_scale_duration();
+    void util_legato();
+    void util_staccato();
+    void util_invert();
+    void util_retrograde();
+    void util_delete_overlapping();
+    void util_scale_timing();
+
+
 private:
     NoteNagaEngine *engine;
 
     bool auto_follow;
     QMap<QString, AdvancedDockWidget *> docks;
 
+    // Původní akce
     QAction *action_open;
     QAction *action_export;
     QAction *action_quit;
@@ -63,15 +80,31 @@ private:
     QAction *action_toggle_mixer;
     QAction *action_reset_layout;
 
+    // === Nové akce pro MIDI utility ===
+    QAction *action_quantize;
+    QAction *action_humanize;
+    QAction *action_transpose;
+    QAction *action_set_velocity;
+    QAction *action_scale_velocity;
+    QAction *action_set_duration;
+    QAction *action_scale_duration;
+    QAction *action_legato;
+    QAction *action_staccato;
+    QAction *action_invert;
+    QAction *action_retrograde;
+    QAction *action_delete_overlapping;
+    QAction *action_scale_timing;
+
+    // Widgety
     MidiTactRuler *midi_tact_ruler;
     MidiKeyboardRuler *midi_keyboard_ruler;
     MidiEditorWidget *midi_editor;
     MidiControlBarWidget *control_bar;
-
     TrackListWidget *tracklist_widget;
     TrackMixerWidget *mixer_widget;
     DSPEngineWidget *dsp_widget;
 
+    // Funkce pro nastavení
     void setup_actions();
     void setup_menu_bar();
     void setup_toolbar();
