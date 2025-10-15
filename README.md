@@ -1,29 +1,29 @@
 ## Build 
 
-1. edit tools and effects: humanizer, quantizer, ...
-
-2. velocity editor
+1. velocity editor
 
 
+-------------
+1. project load / save
 open project
 save project
 
+import as:
+    -> midi
+
+-------------
+2. export as mp3, wav, ...
 export as
     -> midi
     -> wav
     -> mp3
 
-import as:
-    -> midi
+3. project info: show opened file,...
 
-1. project load / save
-2. export as mp3, wav, ...
-3. view toggle view dsp engine dock
- 
+3. metronome
 
-5. metronome
+4. export jako mp4 video??
 
-6. export jako mp4 video??
 
 
 
