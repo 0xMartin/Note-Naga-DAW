@@ -2,9 +2,10 @@
 
 1. velocity editor
 
+2. moznost presunout vybrany mixer entry do jineho syntetizeru / device
 
 -------------
-1. project load / save
+3. project load / save
 open project
 save project
 
@@ -12,17 +13,19 @@ import as:
     -> midi
 
 -------------
-2. export as mp3, wav, ...
+4. export as mp3, wav, ...
 export as
     -> midi
     -> wav
     -> mp3
 
-3. project info: show opened file,...
+5. project info: show opened file,...
 
-3. metronome
+6. metronome
 
-4. export jako mp4 video??
+7. export jako mp4 video??
+
+8. moznost jak nejak zobrazit spektrograf..
 
 
 
