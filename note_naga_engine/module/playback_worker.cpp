@@ -255,6 +255,10 @@ void PlaybackThreadWorker::run() {
         return;
     }
 
+    if (this->mixer) {
+        this->mixer->stopAllNotes();
+    }
+
     // Ensure we start from a valid tick
     if (this->project->getCurrentTick() >= active_sequence->getMaxTick()) {
         this->project->setCurrentTick(0);

@@ -1485,6 +1485,10 @@ NoteNaga_autogen/timestamp: \
 	/opt/homebrew/lib/cmake/Qt6WidgetsTools/Qt6WidgetsToolsTargets-release.cmake \
 	/opt/homebrew/lib/cmake/Qt6WidgetsTools/Qt6WidgetsToolsTargets.cmake \
 	/opt/homebrew/lib/cmake/Qt6WidgetsTools/Qt6WidgetsToolsVersionlessTargets.cmake \
+	/opt/homebrew/lib/cmake/opencv4/OpenCVConfig-version.cmake \
+	/opt/homebrew/lib/cmake/opencv4/OpenCVConfig.cmake \
+	/opt/homebrew/lib/cmake/opencv4/OpenCVModules-release.cmake \
+	/opt/homebrew/lib/cmake/opencv4/OpenCVModules.cmake \
 	/opt/homebrew/share/cmake/Modules/CMakeCXXInformation.cmake \
 	/opt/homebrew/share/cmake/Modules/CMakeCheckCompilerFlagCommonPatterns.cmake \
 	/opt/homebrew/share/cmake/Modules/CMakeCommonLanguageInclude.cmake \

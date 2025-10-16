@@ -44,6 +44,7 @@
     <file>icons/left.svg</file>
     <file>icons/right.svg</file>
     <file>icons/reassign.svg</file>
+    <file>icons/video.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>
@@ -74,6 +75,9 @@
     <file>instruments_icons/violin.svg</file>
     <file>instruments_icons/vinyl.svg</file>
     <file>instruments_icons/xylophone.svg</file>
+  </qresource>
+  <qresource prefix="/">
+    <file>images/sparkle.png</file>  
   </qresource>
   <qresource prefix="/">
     <file>note_naga_theme.qss</file>

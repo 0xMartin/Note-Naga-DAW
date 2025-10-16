@@ -42,7 +42,8 @@ template <> constexpr inline auto ExportDialog::qt_create_metaobjectdata<qt_meta
         "onPlayPauseClicked",
         "",
         "onStopClicked",
-        "updatePreview",
+        "onPlaybackTickChanged",
+        "tick",
         "seek",
         "value",
         "onExportClicked",
@@ -57,20 +58,22 @@ template <> constexpr inline auto ExportDialog::qt_create_metaobjectdata<qt_meta
         QtMocHelpers::SlotData<void()>(1, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'onStopClicked'
         QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'updatePreview'
-        QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onPlaybackTickChanged'
+        QtMocHelpers::SlotData<void(int)>(4, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 5 },
+        }}),
         // Slot 'seek'
-        QtMocHelpers::SlotData<void(int)>(5, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 6 },
+        QtMocHelpers::SlotData<void(int)>(6, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 7 },
         }}),
         // Slot 'onExportClicked'
-        QtMocHelpers::SlotData<void()>(7, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'updateProgress'
-        QtMocHelpers::SlotData<void(int, const QString &)>(8, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 9 }, { QMetaType::QString, 10 },
+        QtMocHelpers::SlotData<void(int, const QString &)>(9, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 10 }, { QMetaType::QString, 11 },
         }}),
         // Slot 'onExportFinished'
-        QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -96,7 +99,7 @@ void ExportDialog::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id
         switch (_id) {
         case 0: _t->onPlayPauseClicked(); break;
         case 1: _t->onStopClicked(); break;
-        case 2: _t->updatePreview(); break;
+        case 2: _t->onPlaybackTickChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
         case 3: _t->seek((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
         case 4: _t->onExportClicked(); break;
         case 5: _t->updateProgress((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;

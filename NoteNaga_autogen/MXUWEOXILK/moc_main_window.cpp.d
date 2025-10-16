@@ -810,6 +810,7 @@
   /Users/martin/Projects/NoteNagaCPlusPlus/src/gui/widgets/track_list_widget.h \
   /Users/martin/Projects/NoteNagaCPlusPlus/src/gui/widgets/track_mixer_widget.h \
   /Users/martin/Projects/NoteNagaCPlusPlus/src/gui/widgets/track_widget.h \
+  /Users/martin/Projects/NoteNagaCPlusPlus/src/video_export/export_dialog.h \
   /opt/homebrew/Cellar/qtbase/6.9.3/lib/QtCore.framework/Versions/A/Headers/QElapsedTimer \
   /opt/homebrew/Cellar/qtbase/6.9.3/lib/QtCore.framework/Versions/A/Headers/QList \
   /opt/homebrew/Cellar/qtbase/6.9.3/lib/QtCore.framework/Versions/A/Headers/QMap \

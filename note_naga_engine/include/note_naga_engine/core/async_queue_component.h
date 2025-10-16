@@ -55,7 +55,7 @@ class NOTE_NAGA_ENGINE_API AsyncQueueComponent {
 public:
     AsyncQueueComponent()
         : m_queue(std::make_unique<LockFreeMPMCQueue<T, QueueSize>>()),
-          m_stopThread(false) {
+          m_stopThread(false), m_manualMode(false) {
         m_thread = std::thread([this]() { this->threadFunc(); });
         NOTE_NAGA_LOG_INFO("Engine Component initialized with queue size: " +
                            std::to_string(QueueSize));
@@ -90,6 +90,27 @@ public:
     }
 
     /**
+     * @brief Switches the component to manual processing mode.
+     * The background thread will pause processing.
+     */
+    void enterManualMode() {
+        m_manualMode.store(true, std::memory_order_release);
+        // Probudíme vlákno, aby si všimlo změny režimu a šlo spát
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_cv.notify_one();
+    }
+
+    /**
+     * @brief Exits manual mode and resumes automatic background processing.
+     */
+    void exitManualMode() {
+        m_manualMode.store(false, std::memory_order_release);
+        // Probudíme vlákno, aby mohlo začít znovu pracovat
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_cv.notify_one();
+    }
+
+    /**
      * @brief Cleanly terminates the worker thread (blocking).
      */
     void killThread() {
@@ -111,21 +132,29 @@ protected:
 private:
     void threadFunc() {
         while (!m_stopThread.load(std::memory_order_acquire)) {
+            // Pokud jsme v manuálním režimu, vlákno jen čeká a nic nedělá.
+            if (m_manualMode.load(std::memory_order_acquire)) {
+                std::unique_lock<std::mutex> lock(m_mutex);
+                m_cv.wait(lock); // Čeká na probuzení (např. při vypnutí manuálního režimu)
+                continue; // Znovu zkontroluje podmínky smyčky
+            }
+
             std::optional<T> item = m_queue->dequeue();
             if (item) {
                 onItem(*item);
-                continue; // try next immediately (avoid sleeping)
+                continue;
             }
-            // Sleep until notified of new data or kill
+
             std::unique_lock<std::mutex> lock(m_mutex);
             m_cv.wait(lock, [this]() {
-                return m_stopThread.load(std::memory_order_acquire) || !m_queue->empty();
+                return m_stopThread.load(std::memory_order_acquire) || !m_queue->empty() || m_manualMode.load(std::memory_order_acquire);
             });
         }
     }
 
     std::unique_ptr<LockFreeMPMCQueue<T, QueueSize>> m_queue;
 
+    std::atomic<bool> m_manualMode;
     std::thread m_thread;
     std::atomic<bool> m_stopThread;
     std::mutex m_mutex;

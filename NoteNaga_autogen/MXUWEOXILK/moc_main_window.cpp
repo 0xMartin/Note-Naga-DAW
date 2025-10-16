@@ -59,6 +59,7 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
         "reset_layout",
         "show_hide_dock",
         "name",
+        "export_video",
         "util_quantize",
         "util_humanize",
         "util_transpose",
@@ -109,32 +110,34 @@ template <> constexpr inline auto MainWindow::qt_create_metaobjectdata<qt_meta_t
         QtMocHelpers::SlotData<void(const QString &, bool)>(18, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QString, 19 }, { QMetaType::Bool, 3 },
         }}),
-        // Slot 'util_quantize'
+        // Slot 'export_video'
         QtMocHelpers::SlotData<void()>(20, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_humanize'
+        // Slot 'util_quantize'
         QtMocHelpers::SlotData<void()>(21, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_transpose'
+        // Slot 'util_humanize'
         QtMocHelpers::SlotData<void()>(22, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_set_velocity'
+        // Slot 'util_transpose'
         QtMocHelpers::SlotData<void()>(23, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_scale_velocity'
+        // Slot 'util_set_velocity'
         QtMocHelpers::SlotData<void()>(24, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_set_duration'
+        // Slot 'util_scale_velocity'
         QtMocHelpers::SlotData<void()>(25, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_scale_duration'
+        // Slot 'util_set_duration'
         QtMocHelpers::SlotData<void()>(26, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_legato'
+        // Slot 'util_scale_duration'
         QtMocHelpers::SlotData<void()>(27, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_staccato'
+        // Slot 'util_legato'
         QtMocHelpers::SlotData<void()>(28, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_invert'
+        // Slot 'util_staccato'
         QtMocHelpers::SlotData<void()>(29, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_retrograde'
+        // Slot 'util_invert'
         QtMocHelpers::SlotData<void()>(30, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_delete_overlapping'
+        // Slot 'util_retrograde'
         QtMocHelpers::SlotData<void()>(31, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'util_scale_timing'
+        // Slot 'util_delete_overlapping'
         QtMocHelpers::SlotData<void()>(32, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'util_scale_timing'
+        QtMocHelpers::SlotData<void()>(33, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -171,19 +174,20 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 10: _t->about_dialog(); break;
         case 11: _t->reset_layout(); break;
         case 12: _t->show_hide_dock((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 13: _t->util_quantize(); break;
-        case 14: _t->util_humanize(); break;
-        case 15: _t->util_transpose(); break;
-        case 16: _t->util_set_velocity(); break;
-        case 17: _t->util_scale_velocity(); break;
-        case 18: _t->util_set_duration(); break;
-        case 19: _t->util_scale_duration(); break;
-        case 20: _t->util_legato(); break;
-        case 21: _t->util_staccato(); break;
-        case 22: _t->util_invert(); break;
-        case 23: _t->util_retrograde(); break;
-        case 24: _t->util_delete_overlapping(); break;
-        case 25: _t->util_scale_timing(); break;
+        case 13: _t->export_video(); break;
+        case 14: _t->util_quantize(); break;
+        case 15: _t->util_humanize(); break;
+        case 16: _t->util_transpose(); break;
+        case 17: _t->util_set_velocity(); break;
+        case 18: _t->util_scale_velocity(); break;
+        case 19: _t->util_set_duration(); break;
+        case 20: _t->util_scale_duration(); break;
+        case 21: _t->util_legato(); break;
+        case 22: _t->util_staccato(); break;
+        case 23: _t->util_invert(); break;
+        case 24: _t->util_retrograde(); break;
+        case 25: _t->util_delete_overlapping(); break;
+        case 26: _t->util_scale_timing(); break;
         default: ;
         }
     }
@@ -208,14 +212,14 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 26)
+        if (_id < 27)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 26;
+        _id -= 27;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 26)
+        if (_id < 27)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 26;
+        _id -= 27;
     }
     return _id;
 }

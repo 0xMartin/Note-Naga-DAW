@@ -1,4 +1,5 @@
 #include "video_exporter.h"
+
 #include "video_renderer.h"
 #include <note_naga_engine/note_naga_engine.h>
 #include <opencv2/opencv.hpp>
@@ -7,7 +8,35 @@
 #include <QProcess>
 #include <QFileInfo>
 
-// Konstruktor a doExport() zůstávají beze změny...
+/**************************************************************************************/
+// Util class to manage manual mode for engine components
+/**************************************************************************************/
+class ManualModeGuard {
+public:
+    ManualModeGuard(NoteNagaEngine* engine) : m_engine(engine) {
+        if (m_engine) {
+            m_engine->getMixer()->enterManualMode();
+            for (auto* synth : m_engine->getSynthesizers()) {
+                synth->enterManualMode();
+            }
+        }
+    }
+    ~ManualModeGuard() {
+        if (m_engine) {
+            m_engine->getMixer()->exitManualMode();
+            for (auto* synth : m_engine->getSynthesizers()) {
+                synth->exitManualMode();
+            }
+        }
+    }
+private:
+    NoteNagaEngine* m_engine;
+};
+
+/**************************************************************************************/
+// VideoExporter implementation
+/**************************************************************************************/
+
 VideoExporter::VideoExporter(NoteNagaMidiSeq *sequence, QString outputPath,
                              QSize resolution, int fps, NoteNagaEngine *m_engine, double secondsVisible, QObject *parent)
     : QObject(parent), m_sequence(sequence), m_outputPath(outputPath), m_resolution(resolution), m_fps(fps), m_engine(m_engine), m_secondsVisible(secondsVisible) {}
@@ -17,113 +46,135 @@ void VideoExporter::doExport()
     QString tempAudioPath = m_outputPath + ".tmp.wav";
     QString tempVideoPath = m_outputPath + ".tmp.mp4";
 
-    emit progressUpdated(0, tr("Phase 1/3: Rendering audio..."));
+    // Fáze 1: Export audia
+    emit progressUpdated(0, "Fáze 1/3: Renderování zvuku...");
     if (!exportAudio(tempAudioPath))
     {
-        emit error(tr("Failed to render audio."));
+        emit error("Nepodařilo se vyrenderovat zvuk.");
         return;
     }
-    emit progressUpdated(0, tr("Phase 2/3: Rendering video..."));
+
+    // Fáze 2: Export videa
+    emit progressUpdated(0, "Fáze 2/3: Renderování videa...");
     if (!exportVideo(tempVideoPath))
     {
-        emit error(tr("Failed to render video."));
+        emit error("Nepodařilo se vyrenderovat video.");
         QFile::remove(tempAudioPath);
         return;
     }
-    emit progressUpdated(0, tr("Phase 3/3: Muxing files..."));
+
+    // Fáze 3: Spojení audia a videa
+    emit progressUpdated(0, "Fáze 3/3: Spojování souborů (muxing)...");
     if (!combineAudioVideo(tempVideoPath, tempAudioPath, m_outputPath))
     {
-        emit error(tr("Failed to combine video and audio. Is FFmpeg installed and in the system PATH?"));
+        emit error("Nepodařilo se spojit video a zvuk. Je FFmpeg nainstalován a v systémové cestě (PATH)?");
     }
+
+    // Úklid dočasných souborů
     QFile::remove(tempAudioPath);
     QFile::remove(tempVideoPath);
+
     emit finished();
 }
 
-
-// --- ZDE JE OPRAVENÁ METODA EXPORTAUDIO ---
 bool VideoExporter::exportAudio(const QString &outputPath)
 {
+    ManualModeGuard manualMode(this->m_engine);
+
+    // --- Inicializace ---
     const int sampleRate = 44100;
     const int numChannels = 2;
-    const double totalDuration = nn_ticks_to_seconds(m_engine->getProject()->getActiveSequence()->getMaxTick(), m_engine->getProject()->getPPQ(), m_engine->getProject()->getTempo()) + 1.0;
+    const double totalDuration = nn_ticks_to_seconds(m_engine->getProject()->getActiveSequence()->getMaxTick(), m_engine->getProject()->getPPQ(), m_engine->getProject()->getTempo()) + 2.0; // Přidáme rezervu
     const int totalSamples = static_cast<int>(totalDuration * sampleRate);
-    const int bufferSizeSamples = 512; 
 
-    std::vector<float> audioBuffer(totalSamples * numChannels);
-    std::vector<float> chunkBuffer(bufferSizeSamples * numChannels);
+    std::vector<float> audioBuffer(totalSamples * numChannels, 0.0f);
 
     NoteNagaProject *project = m_engine->getProject();
     NoteNagaMidiSeq *activeSequence = project->getActiveSequence();
     NoteNagaMixer *mixer = m_engine->getMixer();
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    
-    // Získáme všechny syntezátory z enginu
     auto synthesizers = m_engine->getSynthesizers();
 
-    // Reset stavu před začátkem
+    // --- Krok 1: Vytvoření a seřazení všech MIDI událostí ---
+    struct MidiEvent {
+        int tick;
+        NN_Note_t note;
+        bool isNoteOn;
+    };
+
+    std::vector<MidiEvent> allEvents;
+    for (auto *track : activeSequence->getTracks()) {
+        if (track->isMuted() || (activeSequence->getSoloTrack() && activeSequence->getSoloTrack() != track)) continue;
+        for (const auto &note : track->getNotes()) {
+            if (note.start.has_value() && note.length.has_value()) {
+                allEvents.push_back({note.start.value(), note, true}); // Note On
+                allEvents.push_back({note.start.value() + note.length.value(), note, false}); // Note Off
+            }
+        }
+    }
+
+    // Seřadíme všechny události chronologicky podle času (ticku)
+    std::sort(allEvents.begin(), allEvents.end(), [](const MidiEvent &a, const MidiEvent &b) {
+        return a.tick < b.tick;
+    });
+
+    // --- Krok 2: Renderování řízené událostmi ---
     mixer->stopAllNotes(); 
     project->setCurrentTick(0);
     int last_tick = 0;
-    int samplesRendered = 0;
+    int totalSamplesRendered = 0;
 
-    while (samplesRendered < totalSamples)
-    {
-        int samplesToRender = std::min(bufferSizeSamples, totalSamples - samplesRendered);
-        double currentTime = (double)(samplesRendered + samplesToRender) / sampleRate;
-        int end_tick = nn_seconds_to_ticks(currentTime, project->getPPQ(), project->getTempo());
+    for (const auto& event : allEvents) {
+        // Vypočítáme, kolik ticků uplynulo od poslední události
+        int ticksToProcess = event.tick - last_tick;
+        if (ticksToProcess > 0) {
+            // Převedeme ticky na samply a vyrenderujeme "ticho" nebo dojezd not
+            double durationToRender = nn_ticks_to_seconds(ticksToProcess, project->getPPQ(), project->getTempo());
+            int samplesToRender = static_cast<int>(durationToRender * sampleRate);
 
-        for (auto *track : activeSequence->getTracks())
-        {
-            if (track->isMuted() || (activeSequence->getSoloTrack() && activeSequence->getSoloTrack() != track)) continue;
+            // Ujistíme se, že nepřetečeme buffer
+            if (totalSamplesRendered + samplesToRender > totalSamples) {
+                samplesToRender = totalSamples - totalSamplesRendered;
+            }
 
-            for (const auto &note : track->getNotes())
-            {
-                if (!note.start.has_value() || !note.length.has_value()) continue;
-                if (last_tick < note.start.value() && note.start.value() <= end_tick)
-                {
-                    mixer->playNote(note);
-                }
-                int note_end = note.start.value() + note.length.value();
-                if (last_tick < note_end && note_end <= end_tick)
-                {
-                    mixer->stopNote(note);
-                }
+            if (samplesToRender > 0) {
+                dspEngine->render(audioBuffer.data() + totalSamplesRendered * numChannels, samplesToRender);
+                totalSamplesRendered += samplesToRender;
             }
         }
         
-        // ======================== KLÍČOVÁ OPRAVA ZDE ========================
-        // 1. Zprávy z not se přesunou z bufferu mixéru do fronty mixéru.
-        mixer->flushNotes();
-        
-        // 2. Ručně zpracujeme frontu mixéru. Tím se zprávy rozešlou do front syntezátorů.
-        mixer->processQueue();
-
-        // 3. Ručně zpracujeme fronty VŠECH syntezátorů. Tím si aktualizují svůj vnitřní stav (které noty hrají).
-        for (auto* synth : synthesizers) {
-            synth->processQueue();
+        // Zpracujeme aktuální MIDI událost (Note On nebo Note Off)
+        if (event.isNoteOn) {
+            mixer->playNote(event.note);
+        } else {
+            mixer->stopNote(event.note);
         }
-        // ====================================================================
-
-        // Až TEĎ, když jsou všechny komponenty ve správném stavu, renderujeme audio.
-        dspEngine->render(chunkBuffer.data(), samplesToRender);
-
-        memcpy(audioBuffer.data() + (samplesRendered * numChannels), chunkBuffer.data(), samplesToRender * numChannels * sizeof(float));
-
-        samplesRendered += samplesToRender;
-        last_tick = end_tick;
-
-        emit progressUpdated((int)((double)samplesRendered / totalSamples * 100), tr("Rendering audio..."));
+        
+        last_tick = event.tick;
+        emit progressUpdated((int)((double)totalSamplesRendered / totalSamples * 100), tr("Rendering audio..."));
     }
 
+    // Zpracování front po každé události je klíčové
+    mixer->flushNotes();
+    mixer->processQueue();
+    for (auto* synth : synthesizers) {
+        synth->processQueue();
+    }
+
+    // Drenderujeme zbytek do konce (dojezd posledních not)
+    int remainingSamples = totalSamples - totalSamplesRendered;
+    if (remainingSamples > 0) {
+        dspEngine->render(audioBuffer.data() + totalSamplesRendered * numChannels, remainingSamples);
+    }
+
+    // --- Krok 3: Uložení do .wav souboru ---
     std::ofstream file(outputPath.toStdString(), std::ios::binary);
     if (!file.is_open()) return false;
 
     writeWavHeader(file, sampleRate, totalSamples);
 
     std::vector<int16_t> intBuffer(audioBuffer.size());
-    for (size_t i = 0; i < audioBuffer.size(); ++i)
-    {
+    for (size_t i = 0; i < audioBuffer.size(); ++i) {
         intBuffer[i] = static_cast<int16_t>(std::clamp(audioBuffer[i], -1.0f, 1.0f) * 32767.0f);
     }
     file.write(reinterpret_cast<const char *>(intBuffer.data()), intBuffer.size() * sizeof(int16_t));
@@ -131,7 +182,6 @@ bool VideoExporter::exportAudio(const QString &outputPath)
     return true;
 }
 
-// Ostatní metody (exportVideo, combineAudioVideo, writeWavHeader) zůstávají beze změny...
 bool VideoExporter::exportVideo(const QString &outputPath)
 {
     VideoRenderer renderer(m_engine->getProject()->getActiveSequence());
@@ -152,7 +202,7 @@ bool VideoExporter::exportVideo(const QString &outputPath)
         cv::Mat cvFrameBGR;
         cv::cvtColor(cvFrame, cvFrameBGR, cv::COLOR_RGBA2BGR);
         videoWriter.write(cvFrameBGR);
-        emit progressUpdated((int)((double)i / totalFrames * 100), tr("Rendering video..."));
+        emit progressUpdated((int)((double)i / totalFrames * 100), "Renderování videa...");
     }
     videoWriter.release();
     return true;
