@@ -1,5 +1,4 @@
 #include "video_exporter.h"
-
 #include "video_renderer.h"
 #include <note_naga_engine/note_naga_engine.h>
 #include <opencv2/opencv.hpp>
@@ -11,9 +10,6 @@
 #include <QFuture>
 #include <numeric>
 
-/**************************************************************************************/
-// Util class to manage manual mode for engine components (beze změny)
-/**************************************************************************************/
 class ManualModeGuard {
 public:
     ManualModeGuard(NoteNagaEngine* engine) : m_engine(engine) {
@@ -38,15 +34,12 @@ private:
     NoteNagaEngine* m_engine;
 };
 
-/**************************************************************************************/
-// VideoExporter implementation
-/**************************************************************************************/
-
 VideoExporter::VideoExporter(NoteNagaMidiSeq *sequence, QString outputPath,
-                             QSize resolution, int fps, NoteNagaEngine *engine, double secondsVisible, QObject *parent)
-    : QObject(parent), m_sequence(sequence), m_outputPath(outputPath), m_resolution(resolution), m_fps(fps), m_engine(engine), m_secondsVisible(secondsVisible)
+                             QSize resolution, int fps, NoteNagaEngine *engine,
+                             double secondsVisible, QObject *parent)
+    : QObject(parent), m_sequence(sequence), m_outputPath(outputPath),
+      m_resolution(resolution), m_fps(fps), m_engine(engine), m_secondsVisible(secondsVisible)
 {
-    // Propojíme signál 'finished' z OBOU sledovačů na JEDEN slot 'onTaskFinished'
     connect(&m_audioWatcher, &QFutureWatcher<bool>::finished, this, &VideoExporter::onTaskFinished);
     connect(&m_videoWatcher, &QFutureWatcher<bool>::finished, this, &VideoExporter::onTaskFinished);
 }
@@ -61,12 +54,10 @@ void VideoExporter::doExport()
     m_tempAudioPath = m_outputPath + ".tmp.wav";
     m_tempVideoPath = m_outputPath + ".tmp.mp4";
 
-    emit progressUpdated(0, "Fáze 1/2: Renderování audia a videa...");
+    emit statusTextChanged(tr("Rendering in progress..."));
 
-    // Vynulujeme počítadlo
     m_finishedTaskCount = 0;
 
-    // Spustíme úlohy pomocí lambda funkcí - je to robustnější pro kompilátor
     QFuture<bool> audioFuture = QtConcurrent::run([this]() {
         return this->exportAudio(m_tempAudioPath);
     });
@@ -75,44 +66,38 @@ void VideoExporter::doExport()
         return this->exportVideo(m_tempVideoPath);
     });
 
-    // Nastavíme sledovačům, které úlohy mají sledovat
     m_audioWatcher.setFuture(audioFuture);
     m_videoWatcher.setFuture(videoFuture);
 }
 
 void VideoExporter::onTaskFinished()
 {
-    // Atomicky zvýšíme počítadlo a získáme novou hodnotu
     if (m_finishedTaskCount.fetchAndAddOrdered(1) + 1 != 2) {
-        // Pokud je toto první dokončená úloha, jen skončíme.
-        // Slot se zavolá znovu pro druhou úlohu.
         return;
     }
 
-    // Pokud se dostaneme sem, obě úlohy jsou dokončené.
-    // Získáme jejich výsledky.
     bool audioSuccess = m_audioWatcher.future().result();
     bool videoSuccess = m_videoWatcher.future().result();
 
     if (!audioSuccess) {
-        emit error("Nepodařilo se vyrenderovat zvuk.");
+        emit error(tr("Failed to render audio."));
         cleanup();
         emit finished();
         return;
     }
 
     if (!videoSuccess) {
-        emit error("Nepodařilo se vyrenderovat video.");
+        emit error(tr("Failed to render video."));
         cleanup();
         emit finished();
         return;
     }
 
-    // Fáze 2: Spojení audia a videa
-    emit progressUpdated(100, "Fáze 2/2: Spojování souborů (muxing)...");
+    emit statusTextChanged(tr("Combining files (muxing)..."));
+
     if (!combineAudioVideo(m_tempVideoPath, m_tempAudioPath, m_outputPath))
     {
-        emit error("Nepodařilo se spojit video a zvuk. Je FFmpeg nainstalován a v systémové cestě (PATH)?");
+        emit error(tr("Failed to combine video and audio. Is FFmpeg installed and in the system PATH?"));
     }
 
     cleanup();
@@ -124,12 +109,6 @@ void VideoExporter::cleanup()
     if (!m_tempAudioPath.isEmpty()) QFile::remove(m_tempAudioPath);
     if (!m_tempVideoPath.isEmpty()) QFile::remove(m_tempVideoPath);
 }
-
-//
-// Zbytek souboru .cpp (metody exportAudio, exportVideo, atd.)
-// zůstává NAPROSTO STEJNÝ. Zkopírujte je z vaší poslední verze.
-// Pro jistotu je zde uvádím znovu.
-//
 
 bool VideoExporter::exportAudio(const QString &outputPath)
 {
@@ -148,12 +127,7 @@ bool VideoExporter::exportAudio(const QString &outputPath)
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
     auto synthesizers = m_engine->getSynthesizers();
 
-    struct MidiEvent {
-        int tick;
-        NN_Note_t note;
-        bool isNoteOn;
-    };
-
+    struct MidiEvent { int tick; NN_Note_t note; bool isNoteOn; };
     std::vector<MidiEvent> allEvents;
     for (auto *track : activeSequence->getTracks()) {
         if (track->isMuted() || (activeSequence->getSoloTrack() && activeSequence->getSoloTrack() != track)) continue;
@@ -164,10 +138,7 @@ bool VideoExporter::exportAudio(const QString &outputPath)
             }
         }
     }
-
-    std::sort(allEvents.begin(), allEvents.end(), [](const MidiEvent &a, const MidiEvent &b) {
-        return a.tick < b.tick;
-    });
+    std::sort(allEvents.begin(), allEvents.end(), [](const MidiEvent &a, const MidiEvent &b) { return a.tick < b.tick; });
 
     mixer->stopAllNotes();
     int last_tick = 0;
@@ -178,47 +149,28 @@ bool VideoExporter::exportAudio(const QString &outputPath)
         if (ticksToProcess > 0) {
             double durationToRender = nn_ticks_to_seconds(ticksToProcess, project->getPPQ(), project->getTempo());
             int samplesToRender = static_cast<int>(durationToRender * sampleRate);
-
-            if (totalSamplesRendered + samplesToRender > totalSamples) {
-                samplesToRender = totalSamples - totalSamplesRendered;
-            }
-
+            if (totalSamplesRendered + samplesToRender > totalSamples) { samplesToRender = totalSamples - totalSamplesRendered; }
             if (samplesToRender > 0) {
                 dspEngine->render(audioBuffer.data() + totalSamplesRendered * numChannels, samplesToRender, false);
                 totalSamplesRendered += samplesToRender;
             }
         }
-
-        if (event.isNoteOn) {
-            mixer->playNote(event.note);
-        } else {
-            mixer->stopNote(event.note);
-        }
-
+        if (event.isNoteOn) mixer->playNote(event.note); else mixer->stopNote(event.note);
         mixer->flushNotes();
         mixer->processQueue();
-        for (auto* synth : synthesizers) {
-            synth->processQueue();
-        }
-
+        for (auto* synth : synthesizers) { synth->processQueue(); }
         last_tick = event.tick;
-        emit progressUpdated((int)((double)totalSamplesRendered / totalSamples * 50), tr("Renderování zvuku..."));
+        emit audioProgressUpdated((int)((double)totalSamplesRendered * 100 / totalSamples));
     }
+    emit audioProgressUpdated(100);
 
     int remainingSamples = totalSamples - totalSamplesRendered;
-    if (remainingSamples > 0) {
-        dspEngine->render(audioBuffer.data() + totalSamplesRendered * numChannels, remainingSamples, false);
-    }
-
+    if (remainingSamples > 0) { dspEngine->render(audioBuffer.data() + totalSamplesRendered * numChannels, remainingSamples, false); }
     std::ofstream file(outputPath.toStdString(), std::ios::binary);
     if (!file.is_open()) return false;
-
     writeWavHeader(file, sampleRate, totalSamples);
-
     std::vector<int16_t> intBuffer(audioBuffer.size());
-    for (size_t i = 0; i < audioBuffer.size(); ++i) {
-        intBuffer[i] = static_cast<int16_t>(std::clamp(audioBuffer[i], -1.0f, 1.0f) * 32767.0f);
-    }
+    for (size_t i = 0; i < audioBuffer.size(); ++i) { intBuffer[i] = static_cast<int16_t>(std::clamp(audioBuffer[i], -1.0f, 1.0f) * 32767.0f); }
     file.write(reinterpret_cast<const char *>(intBuffer.data()), intBuffer.size() * sizeof(int16_t));
 
     return true;
@@ -230,20 +182,13 @@ bool VideoExporter::exportVideo(const QString &outputPath)
     if (!videoWriter.isOpened())
         return false;
 
+    VideoRenderer renderer(m_engine->getProject()->getActiveSequence());
+    renderer.setSecondsVisible(m_secondsVisible);
+
     double totalDuration = nn_ticks_to_seconds(m_engine->getProject()->getActiveSequence()->getMaxTick(), m_engine->getProject()->getPPQ(), m_engine->getProject()->getTempo()) + 1.0;
     const int totalFrames = static_cast<int>(totalDuration * m_fps);
 
-    QVector<int> frameNumbers(totalFrames);
-    std::iota(frameNumbers.begin(), frameNumbers.end(), 0);
-
-    QAtomicInt framesDone(0);
-
-    std::function<cv::Mat(int)> renderLambda =
-        [this, totalFrames, &framesDone](int i) -> cv::Mat {
-
-        VideoRenderer renderer(m_engine->getProject()->getActiveSequence());
-        renderer.setSecondsVisible(m_secondsVisible);
-
+    for (int i = 0; i < totalFrames; ++i) {
         double currentTime = static_cast<double>(i) / m_fps;
         QImage frame = renderer.renderFrame(currentTime, m_resolution);
 
@@ -251,21 +196,10 @@ bool VideoExporter::exportVideo(const QString &outputPath)
         cv::Mat cvFrameBGR;
         cv::cvtColor(cvFrame, cvFrameBGR, cv::COLOR_RGBA2BGR);
 
-        int doneCount = framesDone.fetchAndAddOrdered(1) + 1;
-        emit progressUpdated(50 + (int)((double)doneCount / totalFrames * 50), "Renderování videa...");
-
-        return cvFrameBGR;
-    };
-
-    QFuture<cv::Mat> renderFuture = QtConcurrent::mapped(frameNumbers.begin(), frameNumbers.end(), renderLambda);
-    renderFuture.waitForFinished();
-
-    QList<cv::Mat> renderedFrames = renderFuture.results();
-    for(const auto& frame : renderedFrames) {
-        if (!frame.empty()) {
-             videoWriter.write(frame);
-        }
+        videoWriter.write(cvFrameBGR);
+        emit videoProgressUpdated((i + 1) * 100 / totalFrames);
     }
+    emit videoProgressUpdated(100);
 
     videoWriter.release();
     return true;

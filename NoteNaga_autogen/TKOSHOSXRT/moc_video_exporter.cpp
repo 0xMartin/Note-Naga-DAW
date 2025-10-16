@@ -39,29 +39,42 @@ template <> constexpr inline auto VideoExporter::qt_create_metaobjectdata<qt_met
     namespace QMC = QtMocConstants;
     QtMocHelpers::StringRefStorage qt_stringData {
         "VideoExporter",
-        "progressUpdated",
+        "audioProgressUpdated",
         "",
         "percentage",
+        "videoProgressUpdated",
+        "statusTextChanged",
         "status",
         "finished",
         "error",
         "errorMessage",
-        "doExport"
+        "doExport",
+        "onTaskFinished"
     };
 
     QtMocHelpers::UintData qt_methods {
-        // Signal 'progressUpdated'
-        QtMocHelpers::SignalData<void(int, const QString &)>(1, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 3 }, { QMetaType::QString, 4 },
+        // Signal 'audioProgressUpdated'
+        QtMocHelpers::SignalData<void(int)>(1, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 3 },
+        }}),
+        // Signal 'videoProgressUpdated'
+        QtMocHelpers::SignalData<void(int)>(4, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 3 },
+        }}),
+        // Signal 'statusTextChanged'
+        QtMocHelpers::SignalData<void(const QString &)>(5, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QString, 6 },
         }}),
         // Signal 'finished'
-        QtMocHelpers::SignalData<void()>(5, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SignalData<void()>(7, 2, QMC::AccessPublic, QMetaType::Void),
         // Signal 'error'
-        QtMocHelpers::SignalData<void(const QString &)>(6, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QString, 7 },
+        QtMocHelpers::SignalData<void(const QString &)>(8, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QString, 9 },
         }}),
         // Slot 'doExport'
-        QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPublic, QMetaType::Void),
+        // Slot 'onTaskFinished'
+        QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -85,19 +98,26 @@ void VideoExporter::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
     auto *_t = static_cast<VideoExporter *>(_o);
     if (_c == QMetaObject::InvokeMetaMethod) {
         switch (_id) {
-        case 0: _t->progressUpdated((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
-        case 1: _t->finished(); break;
-        case 2: _t->error((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 3: _t->doExport(); break;
+        case 0: _t->audioProgressUpdated((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 1: _t->videoProgressUpdated((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 2: _t->statusTextChanged((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 3: _t->finished(); break;
+        case 4: _t->error((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 5: _t->doExport(); break;
+        case 6: _t->onTaskFinished(); break;
         default: ;
         }
     }
     if (_c == QMetaObject::IndexOfMethod) {
-        if (QtMocHelpers::indexOfMethod<void (VideoExporter::*)(int , const QString & )>(_a, &VideoExporter::progressUpdated, 0))
+        if (QtMocHelpers::indexOfMethod<void (VideoExporter::*)(int )>(_a, &VideoExporter::audioProgressUpdated, 0))
             return;
-        if (QtMocHelpers::indexOfMethod<void (VideoExporter::*)()>(_a, &VideoExporter::finished, 1))
+        if (QtMocHelpers::indexOfMethod<void (VideoExporter::*)(int )>(_a, &VideoExporter::videoProgressUpdated, 1))
             return;
-        if (QtMocHelpers::indexOfMethod<void (VideoExporter::*)(const QString & )>(_a, &VideoExporter::error, 2))
+        if (QtMocHelpers::indexOfMethod<void (VideoExporter::*)(const QString & )>(_a, &VideoExporter::statusTextChanged, 2))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (VideoExporter::*)()>(_a, &VideoExporter::finished, 3))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (VideoExporter::*)(const QString & )>(_a, &VideoExporter::error, 4))
             return;
     }
 }
@@ -121,33 +141,45 @@ int VideoExporter::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 4)
+        if (_id < 7)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 4;
+        _id -= 7;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 4)
+        if (_id < 7)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 4;
+        _id -= 7;
     }
     return _id;
 }
 
 // SIGNAL 0
-void VideoExporter::progressUpdated(int _t1, const QString & _t2)
+void VideoExporter::audioProgressUpdated(int _t1)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 0, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 0, nullptr, _t1);
 }
 
 // SIGNAL 1
-void VideoExporter::finished()
+void VideoExporter::videoProgressUpdated(int _t1)
 {
-    QMetaObject::activate(this, &staticMetaObject, 1, nullptr);
+    QMetaObject::activate<void>(this, &staticMetaObject, 1, nullptr, _t1);
 }
 
 // SIGNAL 2
-void VideoExporter::error(const QString & _t1)
+void VideoExporter::statusTextChanged(const QString & _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 2, nullptr, _t1);
+}
+
+// SIGNAL 3
+void VideoExporter::finished()
+{
+    QMetaObject::activate(this, &staticMetaObject, 3, nullptr);
+}
+
+// SIGNAL 4
+void VideoExporter::error(const QString & _t1)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 4, nullptr, _t1);
 }
 QT_WARNING_POP

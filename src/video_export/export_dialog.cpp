@@ -10,10 +10,10 @@ ExportDialog::ExportDialog(NoteNagaMidiSeq* sequence, NoteNagaEngine* engine, QW
 {
     setupUi();
     connectEngineSignals();
-    
+
     m_totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), m_sequence->getPPQ(), m_sequence->getTempo());
     m_timeSlider->setRange(0, (int)(m_totalDuration * 100));
-    
+
     connect(m_playPauseButton, &QPushButton::clicked, this, &ExportDialog::onPlayPauseClicked);
     connect(m_stopButton, &QPushButton::clicked, this, &ExportDialog::onStopClicked);
     connect(m_timeSlider, &QSlider::valueChanged, this, &ExportDialog::seek);
@@ -38,13 +38,6 @@ ExportDialog::~ExportDialog()
     }
 }
 
-void ExportDialog::connectEngineSignals() {
-    connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::currentTickChanged, this, &ExportDialog::onPlaybackTickChanged);
-    connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged, this, [this](bool playing){
-        m_playPauseButton->setText(playing ? tr("Pause") : tr("Play"));
-    });
-}
-
 void ExportDialog::setupUi()
 {
     setWindowTitle(tr("Export Video"));
@@ -52,9 +45,10 @@ void ExportDialog::setupUi()
 
     QGridLayout* mainLayout = new QGridLayout(this);
 
+    // --- Skupina pro náhled (beze změny) ---
     m_previewGroup = new QGroupBox(tr("Preview"));
     QVBoxLayout* previewLayout = new QVBoxLayout;
-    
+
     m_previewLabel = new QLabel;
     m_previewLabel->setAlignment(Qt::AlignCenter);
     m_previewLabel->setStyleSheet("background-color: black; border: 1px solid #444;");
@@ -75,9 +69,10 @@ void ExportDialog::setupUi()
 
     mainLayout->addWidget(m_previewGroup, 0, 0);
 
+    // --- Skupina pro nastavení (beze změny) ---
     m_settingsGroup = new QGroupBox(tr("Export Settings"));
     QFormLayout *formLayout = new QFormLayout;
-    
+
     m_resolutionCombo = new QComboBox;
     m_resolutionCombo->addItems({"1280x720 (720p)", "1920x1080 (1080p)"});
     m_fpsCombo = new QComboBox;
@@ -95,20 +90,45 @@ void ExportDialog::setupUi()
 
     mainLayout->addWidget(m_settingsGroup, 0, 1);
 
+    // --- Přepracovaná sekce pro export a progress ---
     QVBoxLayout* exportLayout = new QVBoxLayout;
     m_exportButton = new QPushButton(tr("Export to MP4"));
     m_exportButton->setFixedHeight(40);
-    m_progressBar = new QProgressBar;
-    m_progressBar->setVisible(false);
-    m_statusLabel = new QLabel;
     exportLayout->addWidget(m_exportButton);
-    exportLayout->addWidget(m_progressBar);
+
+    // Widget, který seskupuje progress bary a bude se skrývat/zobrazovat
+    m_progressWidget = new QWidget;
+    QFormLayout* progressFormLayout = new QFormLayout(m_progressWidget);
+    progressFormLayout->setContentsMargins(0, 10, 0, 0);
+
+    m_audioProgressBar = new QProgressBar;
+    m_videoProgressBar = new QProgressBar;
+    m_audioProgressLabel = new QLabel(tr("Audio Rendering:"));
+    m_videoProgressLabel = new QLabel(tr("Video Rendering:"));
+
+    progressFormLayout->addRow(m_audioProgressLabel, m_audioProgressBar);
+    progressFormLayout->addRow(m_videoProgressLabel, m_videoProgressBar);
+
+    exportLayout->addWidget(m_progressWidget);
+
+    m_statusLabel = new QLabel;
+    m_statusLabel->setAlignment(Qt::AlignCenter);
     exportLayout->addWidget(m_statusLabel);
-    
+    exportLayout->addStretch(1);
+
     mainLayout->addLayout(exportLayout, 1, 0, 1, 2);
 
     mainLayout->setColumnStretch(0, 3);
     mainLayout->setColumnStretch(1, 1);
+
+    m_progressWidget->setVisible(false); // Na začátku je skrytý
+}
+
+void ExportDialog::connectEngineSignals() {
+    connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::currentTickChanged, this, &ExportDialog::onPlaybackTickChanged);
+    connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged, this, [this](bool playing){
+        m_playPauseButton->setText(playing ? tr("Pause") : tr("Play"));
+    });
 }
 
 void ExportDialog::onPlayPauseClicked()
@@ -151,13 +171,18 @@ void ExportDialog::onExportClicked()
     m_exporter = new VideoExporter(m_sequence, outputPath, resolution, fps, this->m_engine, secondsVisible);
     m_exporter->moveToThread(m_exportThread);
 
+    // Propojení nových, specifických signálů a slotů
     connect(m_exportThread, &QThread::started, m_exporter, &VideoExporter::doExport);
     connect(m_exporter, &VideoExporter::finished, this, &ExportDialog::onExportFinished);
-    connect(m_exporter, &VideoExporter::progressUpdated, this, &ExportDialog::updateProgress);
     connect(m_exporter, &VideoExporter::error, this, [this](const QString &msg) {
         QMessageBox::critical(this, tr("Error"), msg);
-        onExportFinished(); 
+        onExportFinished();
     });
+
+    connect(m_exporter, &VideoExporter::audioProgressUpdated, this, &ExportDialog::updateAudioProgress);
+    connect(m_exporter, &VideoExporter::videoProgressUpdated, this, &ExportDialog::updateVideoProgress);
+    connect(m_exporter, &VideoExporter::statusTextChanged, this, &ExportDialog::updateStatusText);
+
     connect(m_exporter, &VideoExporter::finished, m_exportThread, &QThread::quit);
     connect(m_exporter, &VideoExporter::finished, m_exporter, &VideoExporter::deleteLater);
     connect(m_exportThread, &QThread::finished, m_exportThread, &QThread::deleteLater);
@@ -165,16 +190,25 @@ void ExportDialog::onExportClicked()
     m_exportThread->start();
 }
 
-void ExportDialog::updateProgress(int percentage, const QString &status)
+void ExportDialog::updateAudioProgress(int percentage)
 {
-    m_progressBar->setValue(percentage);
+    m_audioProgressBar->setValue(percentage);
+}
+
+void ExportDialog::updateVideoProgress(int percentage)
+{
+    m_videoProgressBar->setValue(percentage);
+}
+
+void ExportDialog::updateStatusText(const QString &status)
+{
     m_statusLabel->setText(status);
 }
 
 void ExportDialog::onExportFinished()
 {
     setControlsEnabled(true);
-    if (!m_statusLabel->text().contains(tr("Error", "error message context"))) {
+    if (!m_statusLabel->text().contains(tr("Error"), Qt::CaseInsensitive)) {
         QMessageBox::information(this, tr("Success"), tr("Video export finished successfully."));
     }
     m_exportThread = nullptr;
@@ -186,10 +220,14 @@ void ExportDialog::setControlsEnabled(bool enabled)
     m_previewGroup->setEnabled(enabled);
     m_settingsGroup->setEnabled(enabled);
     m_exportButton->setEnabled(enabled);
-    m_progressBar->setVisible(!enabled);
+    m_progressWidget->setVisible(!enabled);
+
     if (enabled)
     {
-        m_progressBar->setValue(0);
+        m_audioProgressBar->setValue(0);
+        m_audioProgressBar->setMaximum(100);
+        m_videoProgressBar->setValue(0);
+        m_videoProgressBar->setMaximum(100);
         m_statusLabel->clear();
     }
 }

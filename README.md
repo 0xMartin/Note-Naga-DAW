@@ -2,7 +2,6 @@
 
 fix: sig fault after app closing
 fix: nove pridane noty se neprehravaji
-fix: vyladit audio chyby v exportu
 
 1. vylepsit desing exportovaneho videa
 2. pridat moznost exportu ciste audia

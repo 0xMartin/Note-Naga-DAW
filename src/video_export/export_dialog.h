@@ -4,13 +4,12 @@
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_engine.h>
 
-// Forward deklarace Qt tříd pro rychlejší kompilaci
 QT_BEGIN_NAMESPACE
 class QLabel;
 class QPushButton;
 class QSlider;
 class QComboBox;
-class QProgressBar;
+class QProgressBar; 
 class QThread;
 class QDoubleSpinBox;
 class QGroupBox;
@@ -33,8 +32,12 @@ private slots:
     void onPlaybackTickChanged(int tick);
     void seek(int value);
     void onExportClicked();
-    void updateProgress(int percentage, const QString &status);
     void onExportFinished();
+
+    // NOVÉ: Specifické sloty pro aktualizaci UI
+    void updateAudioProgress(int percentage);
+    void updateVideoProgress(int percentage);
+    void updateStatusText(const QString &status);
 
 private:
     void setupUi();
@@ -54,16 +57,21 @@ private:
     QComboBox *m_fpsCombo;
     QDoubleSpinBox *m_scaleSpinBox;
     QPushButton *m_exportButton;
-    QProgressBar *m_progressBar;
+    
+    // ZMĚNA: Oddělené prvky pro progress
+    QProgressBar *m_audioProgressBar;
+    QProgressBar *m_videoProgressBar;
+    QLabel *m_audioProgressLabel;
+    QLabel *m_videoProgressLabel;
     QLabel *m_statusLabel;
+    
     QGroupBox *m_settingsGroup;
     QGroupBox *m_previewGroup;
+    QWidget *m_progressWidget;
 
-    // Přehrávání náhledu
     double m_currentTime;
     double m_totalDuration;
 
-    // Exportní vlákno
     QThread *m_exportThread;
     VideoExporter *m_exporter;
 };
