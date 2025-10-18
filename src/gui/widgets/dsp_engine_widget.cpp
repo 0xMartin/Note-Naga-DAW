@@ -280,6 +280,7 @@ void DSPEngineWidget::initUI() {
     QTimer *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, [this, volume_bar]() {
         if (engine) {
+            if (engine->getDSPEngine() == nullptr) return;
             auto dbs = engine->getDSPEngine()->getCurrentVolumeDb();
             volume_bar->setVolumesDb(dbs.first, dbs.second);
         }

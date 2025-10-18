@@ -1,6 +1,5 @@
 ## TODO -----------------------------------------------------
 
-fix: sig fault after app closing
 fix: nove pridane noty se neprehravaji
 
 video export desing: particle settings sekce se nemusi nachazet interne v sekci render.. chtel bych aby byla pod 
