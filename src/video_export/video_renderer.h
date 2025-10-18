@@ -11,24 +11,27 @@ class VideoRenderer {
 public:
     // Struktura pro všechna nastavení renderování
     struct RenderSettings {
-        bool renderParticles = true;
+       bool renderParticles = true;
         bool renderKeyboard = true;
         bool renderNotes = true;
         
         enum ParticleType { Resource, Circle, Custom };
         ParticleType particleType = Resource;
         
-        QImage customParticleImage; // Používáme QImage pro bezpečnost ve vláknech
+        QImage customParticleImage; 
         int particleCount = 15;
         double particleLifetime = 0.75; 
         double particleSpeed = 75.0; 
         double particleGravity = 200.0;
+        bool tintParticles = true;
+        double particleStartSize = 0.5;
+        double particleEndSize = 1.0;
 
-        // --- PŘIDANÁ NASTAVENÍ ---
-        bool tintParticles = true;        // Pro zapnutí/vypnutí tintu
-        double particleStartSize = 0.5; // Násobitel velikosti na začátku
-        double particleEndSize = 1.0;   // Násobitel velikosti na konci
-        // --- KONEC PŘIDANÝCH NASTAVENÍ ---
+        QColor backgroundColor = QColor(25, 25, 35);
+        QImage backgroundImage;
+        bool renderPianoGlow = true;
+        double noteStartOpacity = 1.0; 
+        double noteEndOpacity = 1.0; 
     };
 
     VideoRenderer(NoteNagaMidiSeq* sequence);

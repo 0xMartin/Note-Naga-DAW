@@ -1,14 +1,17 @@
 #include "export_dialog.h"
+
 #include "video_renderer.h"
 #include "video_exporter.h"
 #include <QtWidgets>
 #include <QScrollArea> 
+#include <QColorDialog>
 
 #include "../gui/components/midi_seq_progress_bar.h" 
 
 ExportDialog::ExportDialog(NoteNagaMidiSeq* sequence, NoteNagaEngine* engine, QWidget* parent)
     : QDialog(parent), m_engine(engine), m_sequence(sequence),
       m_renderer(new VideoRenderer(sequence)),
+      m_backgroundColor(QColor(25, 25, 35)),
       m_currentTime(0.0), m_exportThread(nullptr), m_exporter(nullptr)
 {
     setupUi();
@@ -19,6 +22,7 @@ ExportDialog::ExportDialog(NoteNagaMidiSeq* sequence, NoteNagaEngine* engine, QW
     m_progressBar->setMidiSequence(m_sequence);
     m_progressBar->updateMaxTime(); 
 
+    // --- Connect Signals ---
     connect(m_playPauseButton, &QPushButton::clicked, this, &ExportDialog::onPlayPauseClicked);
     
     connect(m_progressBar, &MidiSequenceProgressBar::positionPressed, this, &ExportDialog::seek);
@@ -27,13 +31,25 @@ ExportDialog::ExportDialog(NoteNagaMidiSeq* sequence, NoteNagaEngine* engine, QW
     
     connect(m_exportButton, &QPushButton::clicked, this, &ExportDialog::onExportClicked);
     
+    // Settings
+    connect(m_resolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ExportDialog::updatePreviewSettings);
     connect(m_scaleSpinBox, &QDoubleSpinBox::valueChanged, this, &ExportDialog::updatePreviewSettings);
 
+    // Background
+    connect(m_bgColorButton, &QPushButton::clicked, this, &ExportDialog::onSelectBgColor);
+    connect(m_bgImageButton, &QPushButton::clicked, this, &ExportDialog::onSelectBgImage);
+    connect(m_bgClearButton, &QPushButton::clicked, this, &ExportDialog::onClearBg);
+
+    // Render
     connect(m_renderNotesCheck, &QCheckBox::checkStateChanged, this, &ExportDialog::updatePreviewSettings);
     connect(m_renderKeyboardCheck, &QCheckBox::checkStateChanged, this, &ExportDialog::updatePreviewSettings);
     connect(m_renderParticlesCheck, &QCheckBox::checkStateChanged, this, &ExportDialog::updatePreviewSettings);
     connect(m_renderParticlesCheck, &QCheckBox::toggled, m_particleSettingsGroup, &QWidget::setEnabled);
-    
+    connect(m_pianoGlowCheck, &QCheckBox::checkStateChanged, this, &ExportDialog::updatePreviewSettings);
+    connect(m_noteStartOpacitySpin, &QDoubleSpinBox::valueChanged, this, &ExportDialog::updatePreviewSettings);
+    connect(m_noteEndOpacitySpin, &QDoubleSpinBox::valueChanged, this, &ExportDialog::updatePreviewSettings);
+
+    // Particles
     connect(m_particleTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ExportDialog::onParticleTypeChanged);
     connect(m_particleFileButton, &QPushButton::clicked, this, &ExportDialog::onSelectParticleFile);
     connect(m_particleCountSpin, &QSpinBox::valueChanged, this, &ExportDialog::updatePreviewSettings);
@@ -44,7 +60,9 @@ ExportDialog::ExportDialog(NoteNagaMidiSeq* sequence, NoteNagaEngine* engine, QW
     connect(m_particleEndSizeSpin, &QDoubleSpinBox::valueChanged, this, &ExportDialog::updatePreviewSettings);
     connect(m_particleTintCheck, &QCheckBox::checkStateChanged, this, &ExportDialog::updatePreviewSettings);
 
+    // --- Initial State ---
     onParticleTypeChanged(m_particleTypeCombo->currentIndex());
+    updateBgLabels();
     updatePreviewSettings(); 
     onPlaybackTickChanged(m_engine->getProject()->getCurrentTick());
 }
@@ -59,23 +77,34 @@ ExportDialog::~ExportDialog()
     }
 }
 
+QSize ExportDialog::getTargetResolution()
+{
+    return (m_resolutionCombo->currentIndex() == 0) ? QSize(1280, 720) : QSize(1920, 1080);
+}
+
+
 void ExportDialog::setupUi()
 {
     setWindowTitle(tr("Export Video"));
     setMinimumSize(900, 700); 
 
-    QGridLayout* mainLayout = new QGridLayout(this);
+    // Hlavní layout je nyní horizontální a drží splitter
+    QHBoxLayout* mainLayout = new QHBoxLayout(this);
+    m_mainSplitter = new QSplitter(Qt::Horizontal);
+    mainLayout->addWidget(m_mainSplitter);
 
-    // --- Skupina pro náhled ---
+    // --- Levá strana (Náhled) ---
+    m_leftWidget = new QWidget;
+    QVBoxLayout *leftLayout = new QVBoxLayout(m_leftWidget);
+    leftLayout->setContentsMargins(0,0,0,0);
+
     m_previewGroup = new QGroupBox(tr("Preview"));
     QVBoxLayout* previewLayout = new QVBoxLayout;
     m_previewLabel = new QLabel;
     m_previewLabel->setAlignment(Qt::AlignCenter);
     m_previewLabel->setStyleSheet("background-color: black; border: 1px solid #444;");
-    m_previewLabel->setMinimumHeight(300);
-    
     m_previewLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
+    
     previewLayout->addWidget(m_previewLabel, 1); // 1 = roztahovat vertikálně
     
     QHBoxLayout *timelineLayout = new QHBoxLayout;
@@ -115,8 +144,14 @@ void ExportDialog::setupUi()
 
     previewLayout->addLayout(timelineLayout); 
     m_previewGroup->setLayout(previewLayout);
+    leftLayout->addWidget(m_previewGroup);
+    
+    m_mainSplitter->addWidget(m_leftWidget);
 
-    mainLayout->addWidget(m_previewGroup, 0, 0); 
+    // --- Pravá strana (Nastavení a Export) ---
+    m_rightWidget = new QWidget;
+    QGridLayout *rightLayout = new QGridLayout(m_rightWidget);
+    rightLayout->setContentsMargins(0,0,0,0);
 
     // --- ScrollArea pro nastavení ---
     m_settingsScrollArea = new QScrollArea;
@@ -148,7 +183,32 @@ void ExportDialog::setupUi()
 
     settingsLayout->addWidget(exportGroup);
 
-    // --- Skupina 2: Render Settings ---
+    // --- Skupina 2: Background Settings ---
+    QGroupBox *bgGroup = new QGroupBox(tr("Background Settings"));
+    QGridLayout *bgLayout = new QGridLayout(bgGroup);
+    
+    m_bgColorButton = new QPushButton(tr("Select Color..."));
+    m_bgColorPreview = new QLabel;
+    m_bgColorPreview->setFixedSize(32, 32);
+    m_bgColorPreview->setStyleSheet("border: 1px solid #555;");
+    
+    m_bgImageButton = new QPushButton(tr("Select Image..."));
+    m_bgImagePreview = new QLabel(tr("None"));
+    m_bgImagePreview->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_bgImagePreview->setStyleSheet("color: #888;");
+
+    m_bgClearButton = new QPushButton(tr("Clear / Reset"));
+
+    bgLayout->addWidget(m_bgColorButton, 0, 0);
+    bgLayout->addWidget(m_bgColorPreview, 0, 1);
+    bgLayout->addWidget(m_bgImageButton, 1, 0);
+    bgLayout->addWidget(m_bgImagePreview, 1, 1);
+    bgLayout->addWidget(m_bgClearButton, 2, 0, 1, 2);
+    
+    settingsLayout->addWidget(bgGroup);
+
+
+    // --- Skupina 3: Render Settings ---
     QGroupBox *renderGroup = new QGroupBox(tr("Render Settings"));
     QVBoxLayout *renderLayout = new QVBoxLayout(renderGroup);
     
@@ -158,13 +218,31 @@ void ExportDialog::setupUi()
     m_renderKeyboardCheck->setChecked(true);
     m_renderParticlesCheck = new QCheckBox(tr("Render particles"));
     m_renderParticlesCheck->setChecked(true);
+    m_pianoGlowCheck = new QCheckBox(tr("Render piano glow effect"));
+    m_pianoGlowCheck->setChecked(true);
     
     renderLayout->addWidget(m_renderNotesCheck);
     renderLayout->addWidget(m_renderKeyboardCheck);
     renderLayout->addWidget(m_renderParticlesCheck);
+    renderLayout->addWidget(m_pianoGlowCheck);
     renderLayout->addSpacing(10);
 
-    // Skupina pro nastavení částic (vnořená)
+    QFormLayout *noteOpacityLayout = new QFormLayout;
+    m_noteStartOpacitySpin = new QDoubleSpinBox;
+    m_noteStartOpacitySpin->setRange(0.0, 1.0);
+    m_noteStartOpacitySpin->setSingleStep(0.1);
+    m_noteStartOpacitySpin->setValue(1.0);
+    m_noteEndOpacitySpin = new QDoubleSpinBox;
+    m_noteEndOpacitySpin->setRange(0.0, 1.0);
+    m_noteEndOpacitySpin->setSingleStep(0.1);
+    m_noteEndOpacitySpin->setValue(1.0);
+    noteOpacityLayout->addRow(tr("Note Opacity (Top):"), m_noteStartOpacitySpin);
+    noteOpacityLayout->addRow(tr("Note Opacity (Bottom):"), m_noteEndOpacitySpin);
+    renderLayout->addLayout(noteOpacityLayout);
+
+    settingsLayout->addWidget(renderGroup); 
+
+    // --- Skupina 4: Particle Settings (přesunuta sem) ---
     m_particleSettingsGroup = new QGroupBox(tr("Particle Settings"));
     QFormLayout *particleForm = new QFormLayout(m_particleSettingsGroup);
     
@@ -225,16 +303,15 @@ void ExportDialog::setupUi()
     m_particleTintCheck->setChecked(true);
     particleForm->addRow(m_particleTintCheck);
 
-    renderLayout->addWidget(m_particleSettingsGroup);
-    settingsLayout->addWidget(renderGroup); 
-    
+    settingsLayout->addWidget(m_particleSettingsGroup);
     settingsLayout->addStretch(1); 
 
     m_settingsScrollArea->setWidget(m_settingsWidget); 
-    mainLayout->addWidget(m_settingsScrollArea, 0, 1); 
+    rightLayout->addWidget(m_settingsScrollArea, 0, 0); // (řádek 0, sloupec 0)
 
-    // --- Sekce pro export a progress (pouze vpravo dole) ---
+    // --- Sekce pro export a progress (vpravo dole) ---
     QVBoxLayout* exportLayout = new QVBoxLayout;
+    exportLayout->setContentsMargins(10, 10, 10, 10);
     
     QHBoxLayout *buttonLayout = new QHBoxLayout;
     m_exportButton = new QPushButton(tr("Export to MP4"));
@@ -262,13 +339,13 @@ void ExportDialog::setupUi()
     exportLayout->addWidget(m_statusLabel);
     exportLayout->addStretch(1); 
 
-    mainLayout->addLayout(exportLayout, 1, 1); 
+    rightLayout->addLayout(exportLayout, 1, 0); // (řádek 1, sloupec 0)
 
-    mainLayout->setColumnStretch(0, 0); // Levý sloupec se neroztahuje
-    mainLayout->setColumnStretch(1, 1); // Pravý sloupec zabere všechno volné místo
-    
-    mainLayout->setRowStretch(0, 1); // Horní řádek se roztahuje
-    mainLayout->setRowStretch(1, 0); // Dolní řádek se nesmí roztahovat
+    rightLayout->setRowStretch(0, 1); // ScrollArea se roztahuje
+    rightLayout->setRowStretch(1, 0); // Export sekce se neroztahuje
+
+    m_mainSplitter->addWidget(m_rightWidget);
+    m_mainSplitter->setSizes({600, 300}); // Počáteční rozdělení
 
     m_progressWidget->setVisible(false);
 }
@@ -279,8 +356,6 @@ void ExportDialog::connectEngineSignals() {
     connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged, this, [this](bool playing){
         m_playPauseButton->setChecked(playing);
         m_playPauseButton->setToolTip(playing ? tr("Pause") : tr("Play"));
-        
-        // Používáme stop.svg, protože pause.svg nemáš v seznamu
         m_playPauseButton->setIcon(playing ? QIcon(":/icons/stop.svg") : QIcon(":/icons/play.svg"));
     });
 }
@@ -308,15 +383,25 @@ VideoRenderer::RenderSettings ExportDialog::getCurrentRenderSettings()
 {
     VideoRenderer::RenderSettings settings;
 
+    // Background
+    settings.backgroundColor = m_backgroundColor;
+    if (!m_backgroundImagePath.isEmpty()) {
+        settings.backgroundImage = QImage(m_backgroundImagePath);
+    }
+
+    // Render
     settings.renderNotes = m_renderNotesCheck->isChecked();
     settings.renderKeyboard = m_renderKeyboardCheck->isChecked();
     settings.renderParticles = m_renderParticlesCheck->isChecked();
+    settings.renderPianoGlow = m_pianoGlowCheck->isChecked();
+    settings.noteStartOpacity = m_noteStartOpacitySpin->value();
+    settings.noteEndOpacity = m_noteEndOpacitySpin->value();
 
+    // Particles
     settings.particleType = (VideoRenderer::RenderSettings::ParticleType)m_particleTypeCombo->currentIndex();
     if (settings.particleType == VideoRenderer::RenderSettings::Custom && !m_particleFilePath.isEmpty()) {
         settings.customParticleImage = QImage(m_particleFilePath);
     }
-    
     settings.particleCount = m_particleCountSpin->value();
     settings.particleLifetime = m_particleLifetimeSpin->value();
     settings.particleSpeed = m_particleSpeedSpin->value();
@@ -376,6 +461,49 @@ void ExportDialog::onSelectParticleFile()
     }
 }
 
+void ExportDialog::onSelectBgColor()
+{
+    QColor color = QColorDialog::getColor(m_backgroundColor, this, tr("Select Background Color"));
+    if (color.isValid()) {
+        m_backgroundColor = color;
+        m_backgroundImagePath.clear();
+        updateBgLabels();
+        updatePreviewSettings();
+    }
+}
+
+void ExportDialog::onSelectBgImage()
+{
+    QString path = QFileDialog::getOpenFileName(this, tr("Select Background Image"), "", tr("Images (*.png *.jpg *.bmp)"));
+    if (!path.isEmpty()) {
+        m_backgroundImagePath = path;
+        updateBgLabels();
+        updatePreviewSettings();
+    }
+}
+
+void ExportDialog::onClearBg()
+{
+    m_backgroundImagePath.clear();
+    m_backgroundColor = QColor(25, 25, 35); // Výchozí tmavá barva
+    updateBgLabels();
+    updatePreviewSettings();
+}
+
+void ExportDialog::updateBgLabels()
+{
+    m_bgColorPreview->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(m_backgroundColor.name()));
+    
+    if (!m_backgroundImagePath.isEmpty()) {
+        QFileInfo info(m_backgroundImagePath);
+        m_bgImagePreview->setText(info.fileName());
+        m_bgImagePreview->setStyleSheet("color: #DDD;"); // Světlejší text pro soubor
+    } else {
+        m_bgImagePreview->setText(tr("None"));
+        m_bgImagePreview->setStyleSheet("color: #888;"); // Tmavší text pro "None"
+    }
+}
+
 
 void ExportDialog::onExportClicked()
 {
@@ -383,7 +511,7 @@ void ExportDialog::onExportClicked()
     if (outputPath.isEmpty())
         return;
 
-    QSize resolution = (m_resolutionCombo->currentIndex() == 0) ? QSize(1280, 720) : QSize(1920, 1080);
+    QSize resolution = getTargetResolution();
     int fps = (m_fpsCombo->currentIndex() == 0) ? 30 : 60;
     double secondsVisible = m_scaleSpinBox->value();
 
@@ -459,10 +587,32 @@ void ExportDialog::setControlsEnabled(bool enabled)
 void ExportDialog::onPlaybackTickChanged(int tick) {
     m_currentTime = nn_ticks_to_seconds(tick, m_sequence->getPPQ(), m_sequence->getTempo());
 
-    QImage frame = m_renderer->renderFrame(m_currentTime, m_previewLabel->size());
-    
-    m_previewLabel->setPixmap(QPixmap::fromImage(frame.scaled(m_previewLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+    // --- Logika pro správný poměr stran náhledu ---
+    QSize targetRes = getTargetResolution();
+    QSize labelSize = m_previewLabel->size();
 
+    // Vypočítáme velikost renderu, která se vejde do labelu při zachování poměru stran
+    QSize renderSize = targetRes;
+    renderSize.scale(labelSize, Qt::KeepAspectRatio);
+    
+    // Vykreslíme frame v této vypočítané velikosti
+    QImage frame = m_renderer->renderFrame(m_currentTime, renderSize);
+    QPixmap pixmap = QPixmap::fromImage(frame);
+
+    // Vytvoříme finální pixmapu o velikosti labelu a vyplníme ji černě (pro letterbox)
+    QPixmap scaledPixmap(labelSize);
+    scaledPixmap.fill(Qt::black);
+
+    // Vykreslíme náš vyrenderovaný frame doprostřed
+    QPainter p(&scaledPixmap);
+    int x = (labelSize.width() - renderSize.width()) / 2;
+    int y = (labelSize.height() - renderSize.height()) / 2;
+    p.drawPixmap(x, y, pixmap);
+    p.end();
+    
+    m_previewLabel->setPixmap(scaledPixmap);
+
+    // --- Aktualizace progress baru ---
     m_progressBar->blockSignals(true);
     m_progressBar->setCurrentTime(m_currentTime);
     m_progressBar->blockSignals(false);

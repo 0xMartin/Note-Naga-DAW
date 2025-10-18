@@ -238,7 +238,7 @@ bool VideoExporter::exportVideo(const QString &outputPath)
 
         cv::Mat cvFrame(frame.height(), frame.width(), CV_8UC4, (void*)frame.constBits(), frame.bytesPerLine());
         cv::Mat cvFrameBGR;
-        cv::cvtColor(cvFrame, cvFrameBGR, cv::COLOR_RGBA2BGR);
+        cv::cvtColor(cvFrame, cvFrameBGR, cv::COLOR_BGRA2BGR);
 
         videoWriter.write(cvFrameBGR);
         emit videoProgressUpdated((i + 1) * 100 / totalFrames);

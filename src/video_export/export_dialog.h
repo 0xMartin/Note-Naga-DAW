@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QColor>
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_engine.h>
 #include "video_renderer.h"
@@ -17,6 +18,7 @@ class QGroupBox;
 class QCheckBox;
 class QSpinBox;
 class QScrollArea;
+class QSplitter;
 QT_END_NAMESPACE
 
 class VideoExporter;
@@ -41,7 +43,6 @@ public:
 private slots:
     // Playback controls
     void onPlayPauseClicked();
-    // void onStopClicked(); // Bod 1: Odstraněno
     void onPlaybackTickChanged(int tick);
     void seek(float seconds); 
     
@@ -58,6 +59,10 @@ private slots:
     void onParticleTypeChanged(int index);
     void onSelectParticleFile();
     void updatePreviewSettings(); 
+    void onSelectBgColor();
+    void onSelectBgImage();
+    void onClearBg();
+    void updateBgLabels();
 
 private:
     /**
@@ -82,15 +87,24 @@ private:
      */
     void setControlsEnabled(bool enabled);
 
+    /**
+     * @brief Gets the target resolution QSize from the UI.
+    */
+    QSize getTargetResolution();
+
     // Engine and data
     NoteNagaEngine *m_engine;
     NoteNagaMidiSeq *m_sequence;
     VideoRenderer *m_renderer;
 
+    // --- UI Components ---
+    QSplitter *m_mainSplitter;
+    QWidget *m_leftWidget;
+    QWidget *m_rightWidget;
+
     // Preview components
     QLabel *m_previewLabel;
     QPushButton *m_playPauseButton;
-    // QPushButton *m_stopButton; // Bod 1: Odstraněno
     MidiSequenceProgressBar *m_progressBar; 
     QPushButton *m_exportButton;
     
@@ -113,14 +127,23 @@ private:
     QComboBox *m_fpsCombo;
     QDoubleSpinBox *m_scaleSpinBox;
 
+    // Background settings
+    QPushButton *m_bgColorButton;
+    QPushButton *m_bgImageButton;
+    QPushButton *m_bgClearButton;
+    QLabel *m_bgColorPreview;
+    QLabel *m_bgImagePreview;
+
     // Render settings 
     QCheckBox *m_renderNotesCheck;
     QCheckBox *m_renderKeyboardCheck;
     QCheckBox *m_renderParticlesCheck;
+    QCheckBox *m_pianoGlowCheck;
+    QDoubleSpinBox *m_noteStartOpacitySpin;
+    QDoubleSpinBox *m_noteEndOpacitySpin;
     
-    QGroupBox *m_particleSettingsGroup; 
-
     // Particle settings
+    QGroupBox *m_particleSettingsGroup; 
     QComboBox *m_particleTypeCombo;
     QPushButton *m_particleFileButton;
     QLabel *m_particlePreviewLabel;
@@ -134,6 +157,8 @@ private:
 
     // State variables
     QString m_particleFilePath; 
+    QColor m_backgroundColor;
+    QString m_backgroundImagePath;
     double m_currentTime;
     double m_totalDuration;
 

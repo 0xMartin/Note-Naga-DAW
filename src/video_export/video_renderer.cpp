@@ -1,6 +1,8 @@
 #include "video_renderer.h"
+
 #include <QPainter>
-#include <cmath> // Pro M_PI a std::abs
+#include <cmath>
+#include <QLinearGradient>
 
 // Konstanty pro rozsah klaviatury
 const int FIRST_MIDI_NOTE = 21; // A0
@@ -220,7 +222,18 @@ QImage VideoRenderer::renderFrame(double currentTime, const QSize& size) {
     prepareKeyboardLayout(size);
 
     QImage frame(size, QImage::Format_ARGB32);
-    frame.fill(QColor(25, 25, 35));
+
+    // --- Kreslení pozadí (Bod 1) ---
+    if (!m_settings.backgroundImage.isNull()) {
+        // Vykreslíme obrázek na pozadí (roztažený na celou plochu)
+        QPainter bgPainter(&frame);
+        bgPainter.drawImage(frame.rect(), m_settings.backgroundImage);
+        bgPainter.end();
+    } else {
+        // Vyplníme barvou pozadí
+        frame.fill(m_settings.backgroundColor);
+    }
+    // --- Konec pozadí ---
 
     QPainter painter(&frame);
     painter.setRenderHint(QPainter::Antialiasing);
@@ -228,8 +241,6 @@ QImage VideoRenderer::renderFrame(double currentTime, const QSize& size) {
     double deltaTime = (m_lastFrameTime < 0) ? 0.0 : currentTime - m_lastFrameTime;
     m_lastFrameTime = currentTime;
 
-    // Vypočítáme škálovací faktor pro částice 
-    // Založeno na výšce 720p jako základ
     double resolutionScale = (double)size.height() / 720.0;
 
     const float keyboardHeight = size.height() * 0.25f;
@@ -248,7 +259,6 @@ QImage VideoRenderer::renderFrame(double currentTime, const QSize& size) {
                 currentActiveNotes[note.note_val] = true;
             }
 
-            // Vždy získáme info o klávese, i když je mimo rozsah (pro případnou chybu)
             if (m_keyboardLayout.find(note.note_val) == m_keyboardLayout.end()) continue;
             const KeyInfo& key = m_keyboardLayout.at(note.note_val);
             
@@ -256,24 +266,38 @@ QImage VideoRenderer::renderFrame(double currentTime, const QSize& size) {
             float y_end = render_area_height - (float)(note.end_time - currentTime) * pixels_per_second;
             QRectF note_rect(key.rect.x(), y_end, key.rect.width(), y_start - y_end);
             
+            // Omezení kreslení na oblast nad klávesnicí
+            note_rect = note_rect.intersected(QRectF(0, 0, size.width(), render_area_height));
+            if (note_rect.isEmpty()) continue;
+
             QColor note_color = note.color;
+
+            // --- Výpočet opacity noty (Bod 2) ---
+            // 'progress' = 0.0 nahoře (y=0), 1.0 dole (y=render_area_height)
+            float progress = std::clamp(y_start / render_area_height, 0.0f, 1.0f); 
+            qreal opacity = m_settings.noteStartOpacity + (m_settings.noteEndOpacity - m_settings.noteStartOpacity) * progress;
+            note_color.setAlphaF(std::clamp(opacity, 0.0, 1.0));
+            // --- Konec výpočtu opacity ---
+
 
             if (isActive) {
                 painter.setPen(Qt::NoPen);
                 for (int i = 0; i < 10; ++i) {
                     QColor glow_color = note_color;
-                    glow_color.setAlphaF(0.05);
+                    // Opacita záře je závislá na opacitě noty
+                    glow_color.setAlphaF(note_color.alphaF() * 0.05); 
                     painter.setBrush(glow_color);
                     painter.drawRect(note_rect.adjusted(-i, -i, i, i));
                 }
             }
             
             painter.setBrush(note_color);
-            painter.setPen(note_color.darker(120));
+            QColor penColor = note_color.darker(120);
+            penColor.setAlphaF(note_color.alphaF()); // Pero má stejnou opacitu
+            painter.setPen(penColor);
             painter.drawRect(note_rect);
         }
     } else {
-        // Pokud nekreslíme noty, musíme přesto zjistit, které jsou aktivní
          for (const auto& note : m_notes) {
             if (currentTime >= note.start_time && currentTime < note.end_time) {
                  currentActiveNotes[note.note_val] = true;
@@ -281,23 +305,19 @@ QImage VideoRenderer::renderFrame(double currentTime, const QSize& size) {
          }
     }
     
-    // --- Spouštění částic ---
-    // Zjistíme nově stisknuté noty
+    // ... (část pro spouštění částic beze změny) ...
     for(const auto& pair : currentActiveNotes) {
         if (m_activeNotesState.find(pair.first) == m_activeNotesState.end() || !m_activeNotesState[pair.first]) 
         {
-            // Toto je nová "note on" událost. Najdeme k ní data pro barvu atd.
             for(const auto& noteInfo : m_notes) {
                 if(noteInfo.note_val == pair.first) {
-                     // Zkontrolujeme, zda nota skutečně začíná "téměř" teď
-                     if (std::abs(noteInfo.start_time - currentTime) < 0.05) { // 50ms tolerance
-                        // Pouze pokud je povoleno
+                     if (std::abs(noteInfo.start_time - currentTime) < 0.05) {
                         if (m_settings.renderParticles) {
                              if (m_keyboardLayout.find(noteInfo.note_val) != m_keyboardLayout.end()) {
-                                spawnParticles(noteInfo, resolutionScale); // Předáme škálování
+                                spawnParticles(noteInfo, resolutionScale);
                              }
                         }
-                        break; // Našli jsme správnou notu, přestaneme hledat
+                        break;
                      }
                 }
             }
@@ -307,14 +327,12 @@ QImage VideoRenderer::renderFrame(double currentTime, const QSize& size) {
 
     // --- Kreslení klávesnice ---
     if (m_settings.renderKeyboard) {
-
-        // 1. KROK: Kreslíme VŠECHNY bílé klávesy (aktivní i neaktivní)
+        // ... (kreslení bílých a černých kláves beze změny) ...
         for (const auto& pair : m_keyboardLayout) {
             if (pair.second.is_white) {
                 bool isActive = (currentActiveNotes.find(pair.first) != currentActiveNotes.end());
                 if (isActive) {
-                    // Najdeme barvu aktivní noty
-                    QColor activeColor = QColor(150, 150, 255); // Výchozí modrá
+                    QColor activeColor = QColor(150, 150, 255);
                     for (const auto& note : m_notes) {
                         if (note.note_val == pair.first && currentTime >= note.start_time && currentTime < note.end_time) {
                             activeColor = note.color;
@@ -330,13 +348,11 @@ QImage VideoRenderer::renderFrame(double currentTime, const QSize& size) {
                 painter.drawRect(pair.second.rect);
             }
         }
-        
-        // 2. KROK: Kreslíme VŠECHNY černé klávesy (přes bílé)
         for (const auto& pair : m_keyboardLayout) {
             if (!pair.second.is_white) {
                  bool isActive = (currentActiveNotes.find(pair.first) != currentActiveNotes.end());
                  if (isActive) {
-                    QColor activeColor = QColor(150, 150, 255); // Výchozí modrá
+                    QColor activeColor = QColor(150, 150, 255);
                     for (const auto& note : m_notes) {
                         if (note.note_val == pair.first && currentTime >= note.start_time && currentTime < note.end_time) {
                             activeColor = note.color;
@@ -352,6 +368,22 @@ QImage VideoRenderer::renderFrame(double currentTime, const QSize& size) {
                  painter.drawRect(pair.second.rect);
             }
         }
+
+        // --- Kreslení "Piano Glow" efektu (Bod 3) ---
+        if (m_settings.renderPianoGlow) {
+            float glowHeight = 25.0f * resolutionScale; // Výška záře
+            QRectF glowRect(0, render_area_height - glowHeight, size.width(), glowHeight);
+            
+            QLinearGradient glow(0, render_area_height - glowHeight, 0, render_area_height);
+            glow.setColorAt(0.0, QColor(255, 255, 255, 0));
+            glow.setColorAt(0.8, QColor(255, 255, 255, 70));
+            glow.setColorAt(1.0, QColor(255, 255, 255, 100));
+            
+            painter.setCompositionMode(QPainter::CompositionMode_Plus); // Aditivní míchání
+            painter.fillRect(glowRect, glow);
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver); // Vrátit zpět
+        }
+        // --- Konec "Piano Glow" ---
     }
 
     // --- Kreslení částic (Bod 5) ---
