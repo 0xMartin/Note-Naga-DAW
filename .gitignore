@@ -11,7 +11,7 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 
-logs
+logs/
 build/
 build_win/
 build_linux/
@@ -19,6 +19,5 @@ out/
 
 vcpkg_installed
 .vcpkg
-.vscode
 FluidR3_GM.sf2
 Timbres_of_Heaven.sf2
