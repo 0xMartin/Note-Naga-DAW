@@ -1,37 +1,21 @@
-## Build 
+## TODO -----------------------------------------------------
 
 fix: sig fault after app closing
 fix: nove pridane noty se neprehravaji
 
-1. vylepsit desing exportovaneho videa
-2. pridat moznost exportu ciste audia
+1. pridat moznost exportu ciste audia
+2. pridat moznost exportovat jako midi
+3. project load / save
+4. velocity editor
+5. jednoducha historie (...)
 
--------------
-1. project load / save
-open project
-save project
 
-import as:
-    -> midi
 
--------------
-4. export as mp3, wav, ...
-export as
-    -> midi
-    -> wav
-    -> mp3
+## INFO -----------------------------------------------------
 
-5. project info: show opened file,...
-
-5. velocity editor
-
-5. step sequencer   
-
-6. metronome
-
-7. export jako mp4 video??
-
-8. moznost jak nejak zobrazit spektrograf..
+project data:
+- midi data
+- konfigurace: mixer, dsp efekty, synth, ...
 
 
 
