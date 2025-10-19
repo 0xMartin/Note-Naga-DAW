@@ -1,17 +1,22 @@
 ## TODO -----------------------------------------------------
 
-toto je muj export dialog pro video / audio v mem midi editoru.. pottebuji opravit tyto chyby:
--> v dialogu je sekce pro nastaveni efektu blesku.. je tam enable primo v teto sekci.. ten presun do sekce rendering settings
--> kdyz menim nejake parametry pro lightning effect, tak se to neprojevi v preview.. projevi se to jen kdyz zmenim barvu..
--> v lightning effect bych chtel mit jeste moznost nastavit velikost toho jak moc se blesk bude nahodne rozatahovat nahoru/dolu + dostran..
-
 fix: nove pridane noty se neprehravaji
 
 1. pridat moznost exportovat jako midi
 2. project load / save
-3. velocity editor
-4. moznost nahravani not z externiho midi zarizeni
-5. jednoducha historie (...)
+
+##  -----------------------------------------------------
+
+3. rozdelit gui aplikace do sekci (midi editor, DSP editor, Export)
+MIDI editor: track list + piano roll + mixer
+DSP editor: DSP blocks list (main + synth) + volume indicator + spectral analyzer + small track preview
+Export: only media export dialog
+
+##  -----------------------------------------------------
+
+1. velocity editor
+2. moznost nahravani not z externiho midi zarizeni
+3. jednoducha historie (...)
 
 
 
