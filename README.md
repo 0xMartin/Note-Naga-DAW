@@ -4,6 +4,9 @@
 
 2. pridat moznost exportovat jako midi
 3. project load / save
+4. project explorer dialog: nove, open, last opened
+
+(POUZITELNA VERZE APP)
 
 ##  -----------------------------------------------------
 
@@ -14,10 +17,16 @@ Export: only media export dialog
 
 ##  -----------------------------------------------------
 
-1. velocity editor
+1. lepsi editor noto... lepsi manupulace, efekt z menu ze aplikuje jen na vybrane noty (pokud nejsou tak vse)
+2. kontextove menu pro vsechny hlavni casti appp
+2. velocity editor
+
+##  -----------------------------------------------------
+
 2. moznost nahravani not z externiho midi zarizeni
 3. jednoducha historie (...)
-
+4. podpora pluginu.. 
+???
 
 
 ## INFO -----------------------------------------------------
