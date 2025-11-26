@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🎵 Note Naga MIDI Editor
+<img src="img/logo.png" alt="Note Naga Logo" width="120"/>
+
+# 🎵 Note Naga MIDI Editor 🎵
 
 [![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)](https://github.com/0xMartin/NoteNagaCPlusPlus)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
