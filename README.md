@@ -8,7 +8,9 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](https://github.com/0xMartin/NoteNagaCPlusPlus)
 
-**A powerful, feature-rich MIDI editor with advanced audio processing capabilities**
+**A simple, feature-rich MIDI editor with advanced audio processing capabilities**
+
+**Work in progress**
 
 [Features](#-features) • [Screenshots](#-screenshots) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Todo](#-todo) • [Contributing](#-contributing)
 
