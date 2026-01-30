@@ -1,0 +1,20 @@
+{
+    "cmake.configureArgs": [
+        "-DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt"
+    ],
+    "files.associations": {
+        "qstring": "cpp",
+        "qicon": "cpp",
+        "qfile": "cpp",
+        "new": "cpp",
+        "qpainter": "cpp",
+        "qlineargradient": "cpp",
+        "__node_handle": "cpp",
+        "optional": "cpp",
+        "qpainterpath": "cpp",
+        "__hash_table": "cpp",
+        "__tree": "cpp",
+        "forward_list": "cpp",
+        "list": "cpp"
+    }
+}

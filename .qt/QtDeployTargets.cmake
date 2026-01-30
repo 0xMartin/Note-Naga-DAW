@@ -1,0 +1,4 @@
+set(__QT_DEPLOY_TARGET_note_naga_engine_FILE /Users/martin/Projects/NoteNagaCPlusPlus/note_naga_engine/libnote_naga_engine.a)
+set(__QT_DEPLOY_TARGET_note_naga_engine_TYPE STATIC_LIBRARY)
+set(__QT_DEPLOY_TARGET_NoteNaga_FILE /Users/martin/Projects/NoteNagaCPlusPlus/NoteNaga.app/Contents/MacOS/NoteNaga)
+set(__QT_DEPLOY_TARGET_NoteNaga_TYPE EXECUTABLE)

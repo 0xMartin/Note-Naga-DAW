@@ -509,7 +509,12 @@ void MainWindow::util_quantize() {
     bool ok;
     int divisor = QInputDialog::getInt(this, "Quantize Notes", "Grid divisor (4=16th, 8=32nd, 3=8th triplet):", 4, 1, 64, 1, &ok);
     if (ok) {
-        NN_Utils::quantize(*seq, divisor);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::quantize(selectedNotes, seq->getPPQ(), divisor);
+        } else {
+            NN_Utils::quantize(*seq, divisor);
+        }
     }
 }
 
@@ -524,7 +529,12 @@ void MainWindow::util_humanize() {
     if (!ok_time) return;
     int vel_strength = QInputDialog::getInt(this, "Humanize Velocity", "Max velocity deviation:", 5, 0, 127, 1, &ok_vel);
     if (ok_vel) {
-        NN_Utils::humanize(*seq, time_strength, vel_strength);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::humanize(selectedNotes, time_strength, vel_strength);
+        } else {
+            NN_Utils::humanize(*seq, time_strength, vel_strength);
+        }
     }
 }
 
@@ -537,7 +547,12 @@ void MainWindow::util_transpose() {
     bool ok;
     int semitones = QInputDialog::getInt(this, "Transpose", "Semitones (+/-):", 12, -127, 127, 1, &ok);
     if (ok) {
-        NN_Utils::transpose(*seq, semitones);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::transpose(selectedNotes, semitones);
+        } else {
+            NN_Utils::transpose(*seq, semitones);
+        }
     }
 }
 
@@ -550,7 +565,12 @@ void MainWindow::util_set_velocity() {
     bool ok;
     int value = QInputDialog::getInt(this, "Set Fixed Velocity", "New velocity (0-127):", 100, 0, 127, 1, &ok);
     if (ok) {
-        NN_Utils::changeVelocity(*seq, value, false);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::changeVelocity(selectedNotes, value, false);
+        } else {
+            NN_Utils::changeVelocity(*seq, value, false);
+        }
     }
 }
 
@@ -563,7 +583,12 @@ void MainWindow::util_scale_velocity() {
     bool ok;
     int percent = QInputDialog::getInt(this, "Scale Velocity", "Scale factor (%):", 120, 0, 500, 1, &ok);
     if (ok) {
-        NN_Utils::changeVelocity(*seq, percent, true);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::changeVelocity(selectedNotes, percent, true);
+        } else {
+            NN_Utils::changeVelocity(*seq, percent, true);
+        }
     }
 }
 
@@ -576,7 +601,12 @@ void MainWindow::util_set_duration() {
     bool ok;
     int ticks = QInputDialog::getInt(this, "Set Fixed Duration", "New duration (ticks):", seq->getPPQ() / 4, 1, 10000, 1, &ok);
     if (ok) {
-        NN_Utils::changeDuration(*seq, ticks, false);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::changeDuration(selectedNotes, ticks, false);
+        } else {
+            NN_Utils::changeDuration(*seq, ticks, false);
+        }
     }
 }
 
@@ -589,7 +619,12 @@ void MainWindow::util_scale_duration() {
     bool ok;
     int percent = QInputDialog::getInt(this, "Scale Duration", "Scale factor (%):", 90, 1, 500, 1, &ok);
     if (ok) {
-        NN_Utils::changeDuration(*seq, percent, true);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::changeDuration(selectedNotes, percent, true);
+        } else {
+            NN_Utils::changeDuration(*seq, percent, true);
+        }
     }
 }
 
@@ -602,6 +637,7 @@ void MainWindow::util_legato() {
     bool ok;
     int strength = QInputDialog::getInt(this, "Legato", "Strength (%):", 100, 1, 200, 1, &ok);
     if (ok) {
+        // Legato vyžaduje kontext sousedních not, takže vždy operuje na celé sekvenci
         NN_Utils::legato(*seq, strength);
     }
 }
@@ -615,7 +651,12 @@ void MainWindow::util_staccato() {
     bool ok;
     int strength = QInputDialog::getInt(this, "Staccato", "New note length (% of original):", 50, 1, 99, 1, &ok);
     if (ok) {
-        NN_Utils::staccato(*seq, strength);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::staccato(selectedNotes, strength);
+        } else {
+            NN_Utils::staccato(*seq, strength);
+        }
     }
 }
 
@@ -628,7 +669,12 @@ void MainWindow::util_invert() {
     bool ok;
     int axis_note = QInputDialog::getInt(this, "Invert", "Axis MIDI Note (60 = C4):", 60, 0, 127, 1, &ok);
     if (ok) {
-        NN_Utils::invert(*seq, axis_note);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::invert(selectedNotes, axis_note);
+        } else {
+            NN_Utils::invert(*seq, axis_note);
+        }
     }
 }
 
@@ -638,6 +684,7 @@ void MainWindow::util_retrograde() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    // Retrograde vyžaduje kontext celé stopy, takže operuje na celé sekvenci
     NN_Utils::retrograde(*seq);
     QMessageBox::information(this, "Success", "Note order has been reversed.");
 }
@@ -648,6 +695,7 @@ void MainWindow::util_delete_overlapping() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    // Delete overlapping vyžaduje kontext celé stopy
     NN_Utils::deleteOverlappingNotes(*seq);
     QMessageBox::information(this, "Success", "Overlapping notes have been removed.");
 }
@@ -661,6 +709,11 @@ void MainWindow::util_scale_timing() {
     bool ok;
     double factor = QInputDialog::getDouble(this, "Scale Timing", "Time factor (e.g., 2.0 = double tempo, 0.5 = half tempo):", 2.0, 0.1, 10.0, 2, &ok);
     if (ok) {
-        NN_Utils::scaleTiming(*seq, factor);
+        if (midi_editor->hasSelection()) {
+            auto selectedNotes = midi_editor->getSelectedNotes();
+            NN_Utils::scaleTiming(selectedNotes, factor);
+        } else {
+            NN_Utils::scaleTiming(*seq, factor);
+        }
     }
 }

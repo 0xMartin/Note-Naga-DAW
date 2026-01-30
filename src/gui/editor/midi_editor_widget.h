@@ -79,6 +79,18 @@ public:
      */
     MidiEditorConfig *getConfig() { return &config; }
 
+    /**
+     * @brief Gets the currently selected notes with their track pointers.
+     * @return Vector of pairs containing track pointer and note data.
+     */
+    std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> getSelectedNotes() const;
+    
+    /**
+     * @brief Checks if there are any selected notes.
+     * @return True if at least one note is selected.
+     */
+    bool hasSelection() const { return !selectedNotes.isEmpty(); }
+
     // Size hints for the widget
     QSize sizeHint() const override { return QSize(content_width, content_height); }
     QSize minimumSizeHint() const override { return QSize(320, 100); }

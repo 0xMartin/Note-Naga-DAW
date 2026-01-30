@@ -236,7 +236,7 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - [ ] 🖱️ **Context Menus**: Right-click menus for all major components
 - [ ] 📊 **Velocity Editor**: Visual velocity editing panel
 - [ ] ✏️ **Enhanced Note Editing**: Better manipulation and selection tools
-- [ ] 🎯 **Apply to Selection**: MIDI utilities work on selected notes only (or all if none selected)
+- [x] 🎯 **Apply to Selection**: MIDI utilities work on selected notes only (or all if none selected)
 
 ### 🟢 Advanced Features
 - [ ] 🎹 **MIDI Input**: Record notes from external MIDI devices

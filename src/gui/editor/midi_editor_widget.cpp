@@ -386,6 +386,17 @@ void MidiEditorWidget::setKeyHeight(int h) {
 // Note Selection and Manipulation Methods
 /*******************************************************************************************************/
 
+std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> MidiEditorWidget::getSelectedNotes() const {
+    std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> result;
+    result.reserve(selectedNotes.size());
+    for (const NoteGraphics *ng : selectedNotes) {
+        if (ng && ng->track) {
+            result.push_back({ng->track, ng->note});
+        }
+    }
+    return result;
+}
+
 void MidiEditorWidget::selectNote(NoteGraphics *noteGraphics, bool clearPrevious) {
     if (!noteGraphics) return;
     

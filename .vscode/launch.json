@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug NoteNaga (lldb)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/NoteNaga.app/Contents/MacOS/NoteNaga",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "CMake: build",
+            "visualizerFile": "/Users/martin/Library/Application Support/Code/User/workspaceStorage/6ca254dc205ba6a3a83dbbeebb32b3ff/tonka3000.qtvsctools/qt.natvis.xml"
+        }
+    ]
+}

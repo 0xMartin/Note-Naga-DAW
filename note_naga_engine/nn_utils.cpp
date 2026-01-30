@@ -5,6 +5,8 @@
 #include <numeric>
 #include <random>
 #include <vector>
+#include <map>
+#include <set>
 
 void NN_Utils::quantize(NoteNagaMidiSeq &seq, int grid_divisor)
 {
@@ -400,5 +402,353 @@ void NN_Utils::scaleTiming(NoteNagaMidiSeq &seq, double factor)
     if (changed)
     {
         NN_QT_EMIT(seq.metadataChanged(&seq, "notes"));
+    }
+}
+
+// ==================== Implementace pro vybrané noty ====================
+
+void NN_Utils::applySelectedNotesToTracks(const std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes)
+{
+    // Seskupíme změněné noty podle tracku
+    std::map<NoteNagaTrack*, std::vector<NN_Note_t>> trackNotes;
+    std::set<NoteNagaTrack*> affectedTracks;
+    
+    for (const auto &pair : selectedNotes) {
+        affectedTracks.insert(pair.first);
+    }
+    
+    // Pro každý dotčený track aktualizujeme noty
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        
+        // Pro každou vybranou notu v tomto tracku najdeme a aktualizujeme ji
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            
+            const NN_Note_t &selectedNote = selectedPair.second;
+            
+            // Hledáme notu podle původní pozice a výšky (předpokládáme unikátní kombinaci)
+            for (auto &note : allNotes) {
+                // Porovnáváme podle unikátních identifikátorů noty
+                if (note.note == selectedNote.note &&
+                    note.start.has_value() && selectedNote.start.has_value() &&
+                    note.length.has_value() && selectedNote.length.has_value()) {
+                    // Aktualizujeme notu
+                    note = selectedNote;
+                    break;
+                }
+            }
+        }
+        
+        track->setNotes(allNotes);
+    }
+}
+
+void NN_Utils::quantize(std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes, int ppq, int grid_divisor)
+{
+    if (grid_divisor == 0 || selectedNotes.empty()) return;
+
+    const int grid_ticks = ppq / (grid_divisor / 4.0);
+    if (grid_ticks <= 0) return;
+
+    std::set<NoteNagaTrack*> affectedTracks;
+
+    for (auto &pair : selectedNotes) {
+        NN_Note_t &note = pair.second;
+        if (note.start.has_value()) {
+            int old_start = *note.start;
+            int new_start = static_cast<int>(std::round(static_cast<double>(old_start) / grid_ticks)) * grid_ticks;
+            note.start = new_start;
+            affectedTracks.insert(pair.first);
+        }
+    }
+
+    // Aktualizujeme noty v trackách
+    NoteNagaMidiSeq* parentSeq = nullptr;
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            for (auto &note : allNotes) {
+                if (note.note == selectedPair.second.note) {
+                    note = selectedPair.second;
+                    break;
+                }
+            }
+        }
+        track->setNotes(allNotes);
+        if (!parentSeq) parentSeq = track->getParent();
+    }
+    if (parentSeq) {
+        NN_QT_EMIT(parentSeq->metadataChanged(parentSeq, "notes"));
+    }
+}
+
+void NN_Utils::humanize(std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes, int time_strength, int vel_strength)
+{
+    if ((time_strength == 0 && vel_strength == 0) || selectedNotes.empty()) return;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> time_dist(-time_strength, time_strength);
+    std::uniform_int_distribution<> vel_dist(-vel_strength, vel_strength);
+
+    std::set<NoteNagaTrack*> affectedTracks;
+
+    for (auto &pair : selectedNotes) {
+        NN_Note_t &note = pair.second;
+        if (note.start.has_value() && time_strength > 0) {
+            int new_start = *note.start + time_dist(gen);
+            note.start = std::max(0, new_start);
+        }
+        if (note.velocity.has_value() && vel_strength > 0) {
+            int new_vel = *note.velocity + vel_dist(gen);
+            note.velocity = std::clamp(new_vel, 0, 127);
+        }
+        affectedTracks.insert(pair.first);
+    }
+
+    NoteNagaMidiSeq* parentSeq = nullptr;
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            for (auto &note : allNotes) {
+                if (note.note == selectedPair.second.note) {
+                    note = selectedPair.second;
+                    break;
+                }
+            }
+        }
+        track->setNotes(allNotes);
+        if (!parentSeq) parentSeq = track->getParent();
+    }
+    if (parentSeq) {
+        NN_QT_EMIT(parentSeq->metadataChanged(parentSeq, "notes"));
+    }
+}
+
+void NN_Utils::transpose(std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes, int semitones)
+{
+    if (semitones == 0 || selectedNotes.empty()) return;
+
+    std::set<NoteNagaTrack*> affectedTracks;
+
+    for (auto &pair : selectedNotes) {
+        NN_Note_t &note = pair.second;
+        int new_pitch = note.note + semitones;
+        note.note = std::clamp(new_pitch, 0, 127);
+        affectedTracks.insert(pair.first);
+    }
+
+    NoteNagaMidiSeq* parentSeq = nullptr;
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            for (auto &note : allNotes) {
+                if (note.note == selectedPair.second.note - semitones) {
+                    note = selectedPair.second;
+                    break;
+                }
+            }
+        }
+        track->setNotes(allNotes);
+        if (!parentSeq) parentSeq = track->getParent();
+    }
+    if (parentSeq) {
+        NN_QT_EMIT(parentSeq->metadataChanged(parentSeq, "notes"));
+    }
+}
+
+void NN_Utils::changeVelocity(std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes, int value, bool relative)
+{
+    if (selectedNotes.empty()) return;
+
+    std::set<NoteNagaTrack*> affectedTracks;
+
+    for (auto &pair : selectedNotes) {
+        NN_Note_t &note = pair.second;
+        if (note.velocity.has_value()) {
+            int new_vel;
+            if (relative) {
+                new_vel = (*note.velocity * value) / 100;
+            } else {
+                new_vel = value;
+            }
+            note.velocity = std::clamp(new_vel, 0, 127);
+        }
+        affectedTracks.insert(pair.first);
+    }
+
+    NoteNagaMidiSeq* parentSeq = nullptr;
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            for (auto &note : allNotes) {
+                if (note.note == selectedPair.second.note) {
+                    note = selectedPair.second;
+                    break;
+                }
+            }
+        }
+        track->setNotes(allNotes);
+        if (!parentSeq) parentSeq = track->getParent();
+    }
+    if (parentSeq) {
+        NN_QT_EMIT(parentSeq->metadataChanged(parentSeq, "notes"));
+    }
+}
+
+void NN_Utils::changeDuration(std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes, int value, bool relative)
+{
+    if (selectedNotes.empty()) return;
+
+    std::set<NoteNagaTrack*> affectedTracks;
+
+    for (auto &pair : selectedNotes) {
+        NN_Note_t &note = pair.second;
+        if (note.length.has_value()) {
+            int new_len;
+            if (relative) {
+                new_len = (*note.length * value) / 100;
+            } else {
+                new_len = value;
+            }
+            note.length = std::max(1, new_len);
+        }
+        affectedTracks.insert(pair.first);
+    }
+
+    NoteNagaMidiSeq* parentSeq = nullptr;
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            for (auto &note : allNotes) {
+                if (note.note == selectedPair.second.note) {
+                    note = selectedPair.second;
+                    break;
+                }
+            }
+        }
+        track->setNotes(allNotes);
+        if (!parentSeq) parentSeq = track->getParent();
+    }
+    if (parentSeq) {
+        NN_QT_EMIT(parentSeq->metadataChanged(parentSeq, "notes"));
+    }
+}
+
+void NN_Utils::staccato(std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes, int strength_percent)
+{
+    if (strength_percent < 0 || strength_percent > 100 || selectedNotes.empty()) return;
+
+    double factor = strength_percent / 100.0;
+    std::set<NoteNagaTrack*> affectedTracks;
+
+    for (auto &pair : selectedNotes) {
+        NN_Note_t &note = pair.second;
+        if (note.length.has_value()) {
+            int old_len = *note.length;
+            int new_len = static_cast<int>(old_len * factor);
+            note.length = std::max(1, new_len);
+        }
+        affectedTracks.insert(pair.first);
+    }
+
+    NoteNagaMidiSeq* parentSeq = nullptr;
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            for (auto &note : allNotes) {
+                if (note.note == selectedPair.second.note) {
+                    note = selectedPair.second;
+                    break;
+                }
+            }
+        }
+        track->setNotes(allNotes);
+        if (!parentSeq) parentSeq = track->getParent();
+    }
+    if (parentSeq) {
+        NN_QT_EMIT(parentSeq->metadataChanged(parentSeq, "notes"));
+    }
+}
+
+void NN_Utils::invert(std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes, int axis_note)
+{
+    if (selectedNotes.empty()) return;
+
+    std::set<NoteNagaTrack*> affectedTracks;
+
+    for (auto &pair : selectedNotes) {
+        NN_Note_t &note = pair.second;
+        int distance = note.note - axis_note;
+        int new_pitch = axis_note - distance;
+        note.note = std::clamp(new_pitch, 0, 127);
+        affectedTracks.insert(pair.first);
+    }
+
+    NoteNagaMidiSeq* parentSeq = nullptr;
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            for (auto &note : allNotes) {
+                // Pro invert je trochu složitější najít notu - používáme start a length
+                if (note.start.has_value() && selectedPair.second.start.has_value() &&
+                    *note.start == *selectedPair.second.start &&
+                    note.length.has_value() && selectedPair.second.length.has_value() &&
+                    *note.length == *selectedPair.second.length) {
+                    note = selectedPair.second;
+                    break;
+                }
+            }
+        }
+        track->setNotes(allNotes);
+        if (!parentSeq) parentSeq = track->getParent();
+    }
+    if (parentSeq) {
+        NN_QT_EMIT(parentSeq->metadataChanged(parentSeq, "notes"));
+    }
+}
+
+void NN_Utils::scaleTiming(std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> &selectedNotes, double factor)
+{
+    if (factor <= 0.0 || factor == 1.0 || selectedNotes.empty()) return;
+
+    std::set<NoteNagaTrack*> affectedTracks;
+
+    for (auto &pair : selectedNotes) {
+        NN_Note_t &note = pair.second;
+        if (note.start.has_value()) {
+            note.start = static_cast<int>(*note.start * factor);
+        }
+        if (note.length.has_value()) {
+            note.length = std::max(1, static_cast<int>(*note.length * factor));
+        }
+        affectedTracks.insert(pair.first);
+    }
+
+    NoteNagaMidiSeq* parentSeq = nullptr;
+    for (NoteNagaTrack* track : affectedTracks) {
+        std::vector<NN_Note_t> allNotes = track->getNotes();
+        for (const auto &selectedPair : selectedNotes) {
+            if (selectedPair.first != track) continue;
+            for (auto &note : allNotes) {
+                if (note.note == selectedPair.second.note) {
+                    note = selectedPair.second;
+                    break;
+                }
+            }
+        }
+        track->setNotes(allNotes);
+        if (!parentSeq) parentSeq = track->getParent();
+    }
+    if (parentSeq) {
+        NN_QT_EMIT(parentSeq->metadataChanged(parentSeq, "notes"));
     }
 }
