@@ -455,8 +455,32 @@ void MainWindow::open_midi() {
 }
 
 void MainWindow::export_midi() {
+    NoteNagaMidiSeq *active_sequence = this->engine->getProject()->getActiveSequence();
+    if (!active_sequence) {
+        QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to export.");
+        return;
+    }
+
     QString fname =
         QFileDialog::getSaveFileName(this, "Export as MIDI", "", "MIDI Files (*.mid *.midi)");
+    
+    if (fname.isEmpty()) {
+        return; // User cancelled
+    }
+
+    // Ensure file has .mid extension
+    if (!fname.endsWith(".mid", Qt::CaseInsensitive) && 
+        !fname.endsWith(".midi", Qt::CaseInsensitive)) {
+        fname += ".mid";
+    }
+
+    if (active_sequence->exportToMidi(fname.toStdString())) {
+        QMessageBox::information(this, "Export Successful", 
+            "MIDI file exported successfully to:\n" + fname);
+    } else {
+        QMessageBox::critical(this, "Export Failed", 
+            "Failed to export MIDI file. Check the log for details.");
+    }
 }
 
 void MainWindow::reset_all_colors() {

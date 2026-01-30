@@ -493,6 +493,13 @@ public:
     void loadFromMidi(const std::string &midi_file_path);
 
     /**
+     * @brief Exports the sequence to a standard MIDI file.
+     * @param midi_file_path Path to save the MIDI file.
+     * @return True if export was successful, false otherwise.
+     */
+    bool exportToMidi(const std::string &midi_file_path) const;
+
+    /**
      * @brief Loads tracks for type 0 MIDI files.
      * @param midiFile Pointer to the MIDI file.
      * @return Vector of track pointers.

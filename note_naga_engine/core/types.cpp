@@ -637,6 +637,134 @@ NoteNagaMidiSeq::loadType1Tracks(const MidiFile *midiFile) {
 }
 
 /*******************************************************************************************************/
+// MIDI Export
+/*******************************************************************************************************/
+
+bool NoteNagaMidiSeq::exportToMidi(const std::string &midi_file_path) const {
+  if (midi_file_path.empty()) {
+    NOTE_NAGA_LOG_ERROR("No MIDI file path provided for export");
+    return false;
+  }
+
+  NOTE_NAGA_LOG_INFO("Exporting MIDI file to: " + midi_file_path);
+
+  MidiFile midiFile;
+  midiFile.header.format = 1;  // Type 1: multiple tracks
+  midiFile.header.division = ppq;
+
+  // Create tempo track (track 0) with tempo meta event
+  MidiTrack tempoTrack;
+  
+  // Set tempo meta event
+  MidiEvent tempoEvent;
+  tempoEvent.delta_time = 0;
+  tempoEvent.type = MidiEventType::Meta;
+  tempoEvent.meta_type = MIDI_META_SET_TEMPO;
+  // Tempo is stored as 3 bytes (microseconds per quarter note)
+  tempoEvent.meta_data = {
+    static_cast<uint8_t>((tempo >> 16) & 0xFF),
+    static_cast<uint8_t>((tempo >> 8) & 0xFF),
+    static_cast<uint8_t>(tempo & 0xFF)
+  };
+  tempoTrack.events.push_back(tempoEvent);
+
+  // End of track
+  MidiEvent eotTempo;
+  eotTempo.delta_time = 0;
+  eotTempo.type = MidiEventType::Meta;
+  eotTempo.meta_type = MIDI_META_END_OF_TRACK;
+  tempoTrack.events.push_back(eotTempo);
+  
+  midiFile.tracks.push_back(tempoTrack);
+
+  // Export each track
+  for (const NoteNagaTrack *track : tracks) {
+    if (!track) continue;
+
+    MidiTrack midiTrack;
+    uint8_t channel = track->getChannel().value_or(0) & 0x0F;
+
+    // Track name meta event
+    MidiEvent nameEvent;
+    nameEvent.delta_time = 0;
+    nameEvent.type = MidiEventType::Meta;
+    nameEvent.meta_type = MIDI_META_TRACK_NAME;
+    std::string trackName = track->getName();
+    nameEvent.meta_data = std::vector<uint8_t>(trackName.begin(), trackName.end());
+    midiTrack.events.push_back(nameEvent);
+
+    // Program change (instrument)
+    if (track->getInstrument().has_value()) {
+      MidiEvent pcEvent;
+      pcEvent.delta_time = 0;
+      pcEvent.type = MidiEventType::ProgramChange;
+      pcEvent.channel = channel;
+      pcEvent.data = {static_cast<uint8_t>(track->getInstrument().value() & 0x7F)};
+      midiTrack.events.push_back(pcEvent);
+    }
+
+    // Collect all note events (note on/off) with absolute times
+    struct NoteEvent {
+      int abs_time;
+      bool is_note_on;
+      uint8_t note;
+      uint8_t velocity;
+    };
+    std::vector<NoteEvent> noteEvents;
+
+    for (const NN_Note_t &note : track->getNotes()) {
+      int start = note.start.value_or(0);
+      int length = note.length.value_or(ppq);
+      uint8_t velocity = static_cast<uint8_t>(note.velocity.value_or(100) & 0x7F);
+      uint8_t noteNum = static_cast<uint8_t>(note.note & 0x7F);
+
+      // Note on
+      noteEvents.push_back({start, true, noteNum, velocity});
+      // Note off
+      noteEvents.push_back({start + length, false, noteNum, 0});
+    }
+
+    // Sort by absolute time (stable sort to keep note-off before note-on at same time)
+    std::stable_sort(noteEvents.begin(), noteEvents.end(),
+      [](const NoteEvent &a, const NoteEvent &b) {
+        if (a.abs_time != b.abs_time) return a.abs_time < b.abs_time;
+        // Note-off before note-on at same time
+        return !a.is_note_on && b.is_note_on;
+      });
+
+    // Convert to MIDI events with delta times
+    int lastTime = 0;
+    for (const NoteEvent &ne : noteEvents) {
+      MidiEvent evt;
+      evt.delta_time = ne.abs_time - lastTime;
+      lastTime = ne.abs_time;
+      evt.type = ne.is_note_on ? MidiEventType::NoteOn : MidiEventType::NoteOff;
+      evt.channel = channel;
+      evt.data = {ne.note, ne.velocity};
+      midiTrack.events.push_back(evt);
+    }
+
+    // End of track
+    MidiEvent eot;
+    eot.delta_time = 0;
+    eot.type = MidiEventType::Meta;
+    eot.meta_type = MIDI_META_END_OF_TRACK;
+    midiTrack.events.push_back(eot);
+
+    midiFile.tracks.push_back(midiTrack);
+  }
+
+  // Save the file
+  if (!midiFile.save(midi_file_path)) {
+    NOTE_NAGA_LOG_ERROR("Failed to save MIDI file: " + midi_file_path);
+    return false;
+  }
+
+  NOTE_NAGA_LOG_INFO("MIDI file exported successfully: " + midi_file_path);
+  return true;
+}
+
+/*******************************************************************************************************/
 // General MIDI Instruments Utils
 /*******************************************************************************************************/
 
