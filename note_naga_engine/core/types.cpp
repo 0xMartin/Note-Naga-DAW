@@ -106,7 +106,16 @@ NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent,
 }
 
 void NoteNagaTrack::addNote(const NN_Note_t &note) {
-    this->midi_notes.push_back(note);
+    // Vložíme notu na správnou pozici podle start času (binary search)
+    // aby noty byly vždy seřazené pro playback worker
+    int noteStart = note.start.value_or(0);
+    auto it = std::lower_bound(
+        this->midi_notes.begin(), this->midi_notes.end(), noteStart,
+        [](const NN_Note_t &n, int start) {
+            return n.start.value_or(0) < start;
+        }
+    );
+    this->midi_notes.insert(it, note);
     NN_QT_EMIT(metadataChanged(this, "notes"));
 }
 

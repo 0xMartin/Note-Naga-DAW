@@ -223,7 +223,7 @@ Access advanced MIDI editing tools from the `Edit` menu:
 ## 📋 Todo
 
 ### 🔴 High Priority (v1.0)
-- [ ] 🐛 **Fix**: Newly added notes not playing during playback
+- [x] 🐛 **Fix**: Newly added notes not playing during playback
 - [ ] 💾 **MIDI Export**: Save projects as standard MIDI files
 - [ ] 💾 **Project Save/Load**: Complete project persistence
 - [ ] 📁 **Project Explorer**: Dialog for new/open/recent projects

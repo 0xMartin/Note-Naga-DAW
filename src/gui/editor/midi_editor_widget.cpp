@@ -521,6 +521,8 @@ void MidiEditorWidget::addNewNote(const QPointF &scenePos) {
     NN_Note_t newNote;
     newNote.note = noteValue;
     newNote.start = this->snapTickToGrid(tick);
+    newNote.velocity = 100; // Výchozí velocity pro nové noty
+    newNote.parent = activeTrack; // Nastavíme parent track
     
     int ppq = last_seq->getPPQ();
     NoteDuration duration = static_cast<NoteDuration>(combo_note_duration->currentData().toInt());
