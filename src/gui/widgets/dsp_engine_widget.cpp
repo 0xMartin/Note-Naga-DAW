@@ -17,6 +17,9 @@
 DSPEngineWidget::DSPEngineWidget(NoteNagaEngine *engine, QWidget *parent)
     : QWidget(parent), engine(engine), title_widget(nullptr), dsp_layout(nullptr) {
     
+    // Ensure widget fills available space
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
     // Connect to synthesizer signals
 #ifndef QT_DEACTIVATED
     connect(engine, &NoteNagaEngine::synthAdded, this, &DSPEngineWidget::onSynthAdded);
@@ -213,6 +216,7 @@ void DSPEngineWidget::initUI() {
 
     // Horizontal scroll area for DSP modules (stacked from right)
     QWidget *dsp_container = new QWidget();
+    dsp_container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     dsp_layout = new QHBoxLayout(dsp_container);
     dsp_layout->setContentsMargins(0, 0, 0, 2);
     dsp_layout->setSpacing(8);
@@ -222,10 +226,11 @@ void DSPEngineWidget::initUI() {
 
     QScrollArea *dsp_scroll_area = new QScrollArea();
     dsp_scroll_area->setWidgetResizable(true);
+    dsp_scroll_area->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     dsp_scroll_area->setFrameShape(QFrame::NoFrame);
     dsp_scroll_area->setStyleSheet(
         "QScrollArea { background: transparent; padding: 0px; border: none; }");
-    dsp_scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    dsp_scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     dsp_scroll_area->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     dsp_scroll_area->setWidget(dsp_container);
 

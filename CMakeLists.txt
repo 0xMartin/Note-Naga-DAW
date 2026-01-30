@@ -37,6 +37,12 @@ set(HEADER_FILES
     src/media_export/export_dialog.h
     src/media_export/media_exporter.h
     src/media_export/media_renderer.h
+    # gui/sections
+    src/gui/sections/section_switcher.h
+    src/gui/sections/midi_editor_section.h
+    src/gui/sections/dsp_editor_section.h
+    src/gui/sections/media_export_widget.h
+    src/gui/sections/track_preview_widget.h
     # gui/components
     src/gui/components/audio_dial.h
     src/gui/components/audio_dial_centered.h
@@ -85,6 +91,12 @@ set(SOURCE_FILES
     # gui
     src/gui/main_window.cpp
     src/gui/nn_gui_utils.cpp
+    # gui/sections
+    src/gui/sections/section_switcher.cpp
+    src/gui/sections/midi_editor_section.cpp
+    src/gui/sections/dsp_editor_section.cpp
+    src/gui/sections/media_export_widget.cpp
+    src/gui/sections/track_preview_widget.cpp
     # gui/components
     src/gui/components/audio_dial.cpp
     src/gui/components/audio_dial_centered.cpp

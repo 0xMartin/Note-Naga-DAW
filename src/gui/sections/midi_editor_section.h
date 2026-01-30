@@ -1,0 +1,62 @@
+#pragma once
+
+#include <QMainWindow>
+#include <QMap>
+#include <QString>
+
+#include <note_naga_engine/note_naga_engine.h>
+
+class AdvancedDockWidget;
+class MidiEditorWidget;
+class MidiControlBarWidget;
+class MidiTactRuler;
+class MidiKeyboardRuler;
+class TrackListWidget;
+class TrackMixerWidget;
+
+/**
+ * @brief MidiEditorSection provides the MIDI Editor section layout with:
+ *        - Track list (left)
+ *        - MIDI editor with rulers + control bar (center)
+ *        - Track mixer (right)
+ *        All components wrapped in AdvancedDockWidget.
+ */
+class MidiEditorSection : public QMainWindow {
+    Q_OBJECT
+public:
+    explicit MidiEditorSection(NoteNagaEngine *engine, QWidget *parent = nullptr);
+    ~MidiEditorSection();
+
+    // Access to widgets for external signal connections
+    MidiEditorWidget* getMidiEditor() const { return m_midiEditor; }
+    MidiControlBarWidget* getControlBar() const { return m_controlBar; }
+    MidiTactRuler* getTactRuler() const { return m_midiTactRuler; }
+    MidiKeyboardRuler* getKeyboardRuler() const { return m_midiKeyboardRuler; }
+    TrackListWidget* getTrackList() const { return m_trackListWidget; }
+    TrackMixerWidget* getTrackMixer() const { return m_mixerWidget; }
+
+    /**
+     * @brief Resets the dock layout to default
+     */
+    void resetLayout();
+
+public slots:
+    void showHideDock(const QString &name, bool checked);
+
+private:
+    NoteNagaEngine *m_engine;
+    
+    // Dock widgets
+    QMap<QString, AdvancedDockWidget*> m_docks;
+    
+    // Content widgets
+    MidiEditorWidget *m_midiEditor;
+    MidiControlBarWidget *m_controlBar;
+    MidiTactRuler *m_midiTactRuler;
+    MidiKeyboardRuler *m_midiKeyboardRuler;
+    TrackListWidget *m_trackListWidget;
+    TrackMixerWidget *m_mixerWidget;
+    
+    void setupDockLayout();
+    void connectSignals();
+};

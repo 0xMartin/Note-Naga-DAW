@@ -15,8 +15,16 @@
 #include <QVBoxLayout>
 
 #include <note_naga_engine/nn_utils.h>
+#include "../media_export/export_dialog.h"
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true) {
+// Section widget includes for signal connections
+#include "widgets/midi_control_bar_widget.h"
+#include "widgets/midi_tact_ruler.h"
+#include "editor/midi_editor_widget.h"
+#include "widgets/track_list_widget.h"
+#include "widgets/track_mixer_widget.h"
+
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true), m_currentSection(AppSection::MidiEditor) {
     setWindowTitle("Note Naga");
     resize(1200, 800);
     QRect qr = frameGeometry();
@@ -30,7 +38,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true)
     setup_actions();
     setup_menu_bar();
     setup_toolbar();
-    setup_dock_layout();
+    setup_sections();
     connect_signals();
 }
 
@@ -196,187 +204,87 @@ void MainWindow::setup_toolbar() {
     toolbar->addSeparator();
 }
 
-void MainWindow::setup_dock_layout() {
-    // === Editor dock ===
-    QWidget *editor_main = new QWidget();
-    QGridLayout *grid = new QGridLayout(editor_main);
-    grid->setContentsMargins(0, 0, 0, 0);
-    grid->setSpacing(0);
+void MainWindow::setup_sections() {
+    // Create central container with vertical layout
+    m_centralContainer = new QWidget(this);
+    QVBoxLayout *centralLayout = new QVBoxLayout(m_centralContainer);
+    centralLayout->setContentsMargins(0, 0, 0, 0);
+    centralLayout->setSpacing(0);
+    
+    // Create stacked widget for sections
+    m_sectionStack = new QStackedWidget();
+    
+    // Create sections
+    m_midiEditorSection = new MidiEditorSection(engine, this);
+    m_dspEditorSection = new DSPEditorSection(engine, this);
+    m_mediaExportWidget = new MediaExportWidget(engine, this);
+    
+    // Add sections to stack
+    m_sectionStack->addWidget(m_midiEditorSection);  // index 0
+    m_sectionStack->addWidget(m_dspEditorSection);   // index 1
+    m_sectionStack->addWidget(m_mediaExportWidget);  // index 2
+    
+    // Create section switcher (bottom bar)
+    m_sectionSwitcher = new SectionSwitcher(this);
+    connect(m_sectionSwitcher, &SectionSwitcher::sectionChanged, 
+            this, &MainWindow::onSectionChanged);
+    
+    // Add to central layout
+    centralLayout->addWidget(m_sectionStack, 1);
+    centralLayout->addWidget(m_sectionSwitcher);
+    
+    setCentralWidget(m_centralContainer);
+    
+    // Set initial section
+    m_sectionStack->setCurrentIndex(0);
+    m_currentSection = AppSection::MidiEditor;
+}
 
-    midi_editor = new MidiEditorWidget(this->engine, this);
-    midi_editor->setMouseTracking(true);
-    midi_editor->setMinimumWidth(250);
-    midi_editor->setMinimumHeight(250);
-
-    midi_keyboard_ruler = new MidiKeyboardRuler(this->engine, 16, this);
-    midi_keyboard_ruler->setFixedWidth(60);
-    midi_tact_ruler = new MidiTactRuler(this->engine, this);
-    midi_tact_ruler->setTimeScale(midi_editor->getConfig()->time_scale);
-
-    grid->addWidget(new QWidget(), 0, 0);
-    grid->addWidget(midi_tact_ruler, 0, 1);
-    grid->addWidget(midi_keyboard_ruler, 1, 0);
-    grid->addWidget(midi_editor, 1, 1);
-    grid->setRowStretch(1, 1);
-    grid->setColumnStretch(1, 1);
-
-    QVBoxLayout *editor_layout = new QVBoxLayout();
-    editor_layout->setContentsMargins(0, 0, 0, 0);
-    editor_layout->setSpacing(0);
-    editor_layout->addWidget(editor_main, 1);
-    control_bar = new MidiControlBarWidget(this->engine, this);
-    editor_layout->addWidget(control_bar);
-    QFrame *editor_container = new QFrame();
-    editor_container->setObjectName("EditorContainer");
-    editor_container->setStyleSheet("QFrame#EditorContainer { border: 1px solid #19191f; }");
-    editor_container->setLayout(editor_layout);
-
-    auto *editor_dock = new AdvancedDockWidget("MIDI Editor", QIcon(":/icons/midi.svg"),
-                                               midi_editor->getTitleWidget(), this);
-    editor_dock->setWidget(editor_container);
-    editor_dock->setObjectName("editor");
-    editor_dock->setAllowedAreas(Qt::AllDockWidgetAreas);
-    editor_dock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable |
-                             QDockWidget::DockWidgetFloatable);
-    connect(editor_dock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
-        if (action_toggle_editor->isChecked() != visible) action_toggle_editor->setChecked(visible);
-    });
-    addDockWidget(Qt::RightDockWidgetArea, editor_dock);
-    docks["editor"] = editor_dock;
-
-    // === Track list dock ===
-    tracklist_widget = new TrackListWidget(this->engine, this);
-    auto *tracklist_dock = new AdvancedDockWidget("Tracks", QIcon(":/icons/track.svg"),
-                                                  tracklist_widget->getTitleWidget(), this);
-    tracklist_dock->setWidget(tracklist_widget);
-    tracklist_dock->setObjectName("tracklist");
-    tracklist_dock->setAllowedAreas(Qt::AllDockWidgetAreas);
-    tracklist_dock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable |
-                                QDockWidget::DockWidgetFloatable);
-    connect(tracklist_dock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
-        if (action_toggle_tracklist->isChecked() != visible)
-            action_toggle_tracklist->setChecked(visible);
-    });
-    addDockWidget(Qt::LeftDockWidgetArea, tracklist_dock);
-    docks["tracklist"] = tracklist_dock;
-
-    // === Mixer dock ===
-    mixer_widget = new TrackMixerWidget(this->engine, this);
-    auto *mixer_dock = new AdvancedDockWidget("Track Mixer", QIcon(":/icons/mixer.svg"),
-                                              mixer_widget->getTitleWidget(), this);
-    mixer_dock->setWidget(mixer_widget);
-    mixer_dock->setObjectName("mixer");
-    mixer_dock->setAllowedAreas(Qt::AllDockWidgetAreas);
-    mixer_dock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable |
-                            QDockWidget::DockWidgetFloatable);
-    connect(mixer_dock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
-        if (action_toggle_mixer->isChecked() != visible) action_toggle_mixer->setChecked(visible);
-    });
-    addDockWidget(Qt::RightDockWidgetArea, mixer_dock);
-    docks["mixer"] = mixer_dock;
-
-    // === DSP dock ===
-    dsp_widget = new DSPEngineWidget(this->engine, this);
-    auto *dsp_dock = new AdvancedDockWidget("DSP", QIcon(":/icons/audio-signal.svg"),
-                                            dsp_widget->getTitleWidget(), this,
-                                            AdvancedDockWidget::TitleBarPosition::TitleLeft);
-    dsp_dock->setWidget(dsp_widget);
-    dsp_dock->setObjectName("dsp");
-    dsp_dock->setAllowedAreas(Qt::AllDockWidgetAreas);
-    dsp_dock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable |
-                          QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::BottomDockWidgetArea, dsp_dock);
-    docks["dsp"] = dsp_dock;
-
-    // === Dock layout ===
-    docks["editor"]->setParent(this);
-    docks["tracklist"]->setParent(this);
-    docks["mixer"]->setParent(this);
-
-    tabifyDockWidget(docks["editor"], docks["mixer"]);
-    splitDockWidget(docks["tracklist"], docks["editor"], Qt::Horizontal);
-    docks["editor"]->raise();
-    docks["tracklist"]->setFloating(false);
-    docks["mixer"]->setFloating(false);
-
-    for (auto dock : docks)
-        dock->setVisible(true);
-
-    // Adjust initial size ratios so that editor panel grows most
-    QList<QDockWidget *> order = {docks["tracklist"], docks["editor"], docks["mixer"]};
-    QList<int> sizes = {200, 1000, 200};
-    resizeDocks(order, sizes, Qt::Horizontal);
+void MainWindow::onSectionChanged(AppSection section) {
+    // Deactivate previous section
+    if (m_currentSection == AppSection::DspEditor) {
+        m_dspEditorSection->onSectionDeactivated();
+    }
+    
+    // Switch to new section
+    m_currentSection = section;
+    m_sectionStack->setCurrentIndex(static_cast<int>(section));
+    
+    // Activate new section
+    if (section == AppSection::DspEditor) {
+        m_dspEditorSection->onSectionActivated();
+    }
 }
 
 void MainWindow::show_hide_dock(const QString &name, bool checked) {
-    QDockWidget *dock = docks.value(name, nullptr);
-    if (!dock) return;
-
-    if (checked) {
-        // Pokud nebyl dock už přidán (typicky po zavření uživatelem), přidej ho zpět do
-        // MainWindow
-        if (!dock->parentWidget()) {
-            if (name == "tracklist") {
-                addDockWidget(Qt::LeftDockWidgetArea, dock);
-            } else {
-                addDockWidget(Qt::RightDockWidgetArea, dock);
-                // Tabify editor a mixer mezi sebou
-                if (docks.contains("editor") && docks.contains("mixer"))
-                    tabifyDockWidget(docks["editor"], docks["mixer"]);
-            }
-        }
-        dock->show();
-        dock->raise();
-    } else {
-        dock->hide();
+    // Delegate to MIDI editor section
+    if (m_midiEditorSection) {
+        m_midiEditorSection->showHideDock(name, checked);
     }
 }
 
 void MainWindow::export_video() {
-    // Získej aktivní sekvenci z enginu
+    // Get active sequence from engine
     NoteNagaMidiSeq *active_sequence = this->engine->getProject()->getActiveSequence();
 
-    // Zkontroluj, zda je nějaká sekvence načtená
+    // Check if any sequence is loaded
     if (!active_sequence) {
-        QMessageBox::warning(this, "No Sequence", "Nejdříve otevřete MIDI soubor.");
+        QMessageBox::warning(this, "No Sequence", "Please open a MIDI file first.");
         return;
     }
 
-    // Vytvoř a zobraz dialog. 'this' zajistí, že bude dialog nad hlavním oknem.
-    ExportDialog *dialog = new ExportDialog(active_sequence, this->engine, this);
-    
-    // Zajistí, že se dialog po zavření automaticky smaže z paměti
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    
-    // Zobraz dialog nemodálně, aby aplikace v pozadí stále běžela
-    dialog->open();
+    // Switch to Media Export section
+    m_sectionSwitcher->setCurrentSection(AppSection::MediaExport);
+    onSectionChanged(AppSection::MediaExport);
 }
 
 void MainWindow::reset_layout() {
-    // Přidej zpět všechny docky do okna
-    if (!docks["tracklist"]->parentWidget())
-        addDockWidget(Qt::LeftDockWidgetArea, docks["tracklist"]);
-    if (!docks["editor"]->parentWidget()) addDockWidget(Qt::RightDockWidgetArea, docks["editor"]);
-    if (!docks["mixer"]->parentWidget()) addDockWidget(Qt::RightDockWidgetArea, docks["mixer"]);
+    // Reset layout of MIDI editor section
+    if (m_midiEditorSection) {
+        m_midiEditorSection->resetLayout();
+    }
 
-    // Zviditelni všechny
-    docks["tracklist"]->setVisible(true);
-    docks["editor"]->setVisible(true);
-    docks["mixer"]->setVisible(true);
-
-    // Tabify editor a mixer
-    tabifyDockWidget(docks["editor"], docks["mixer"]);
-    docks["editor"]->raise();
-
-    // Split mezi tracklist a editor
-    splitDockWidget(docks["tracklist"], docks["editor"], Qt::Horizontal);
-
-    // Nastav velikosti
-    QList<QDockWidget *> order = {docks["tracklist"], docks["editor"], docks["mixer"]};
-    QList<int> sizes = {200, 1000, 200};
-    resizeDocks(order, sizes, Qt::Horizontal);
-
-    // Update menu checky
+    // Update menu checkboxes
     action_toggle_editor->setChecked(true);
     action_toggle_tracklist->setChecked(true);
     action_toggle_mixer->setChecked(true);
@@ -387,22 +295,21 @@ void MainWindow::connect_signals() {
     connect(engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged, this,
             &MainWindow::on_playing_state_changed);
 
-    // Connect control bar signals
+    // Connect control bar signals from MIDI editor section
+    MidiControlBarWidget *control_bar = m_midiEditorSection->getControlBar();
     connect(control_bar, &MidiControlBarWidget::playToggled, this, &MainWindow::toggle_play);
     connect(control_bar, &MidiControlBarWidget::goToStart, this, &MainWindow::goto_start);
     connect(control_bar, &MidiControlBarWidget::goToEnd, this, &MainWindow::goto_end);
     connect(control_bar, &MidiControlBarWidget::playPositionChanged, this,
             &MainWindow::onControlBarPositionClicked);
-
-    // editor scroll signals
-    connect(midi_editor, &MidiEditorWidget::horizontalScrollChanged, midi_tact_ruler,
-            &MidiTactRuler::setHorizontalScroll);
-    connect(midi_editor, &MidiEditorWidget::timeScaleChanged, midi_tact_ruler,
-            &MidiTactRuler::setTimeScale);
-    connect(midi_editor, &MidiEditorWidget::verticalScrollChanged, midi_keyboard_ruler,
-            &MidiKeyboardRuler::setVerticalScroll);
-    connect(midi_editor, &MidiEditorWidget::keyHeightChanged, midi_keyboard_ruler,
-            &MidiKeyboardRuler::setRowHeight);
+    
+    // Connect control bar signals from DSP editor section
+    MidiControlBarWidget *dsp_control_bar = m_dspEditorSection->getControlBar();
+    connect(dsp_control_bar, &MidiControlBarWidget::playToggled, this, &MainWindow::toggle_play);
+    connect(dsp_control_bar, &MidiControlBarWidget::goToStart, this, &MainWindow::goto_start);
+    connect(dsp_control_bar, &MidiControlBarWidget::goToEnd, this, &MainWindow::goto_end);
+    connect(dsp_control_bar, &MidiControlBarWidget::playPositionChanged, this,
+            &MainWindow::onControlBarPositionClicked);
 }
 
 void MainWindow::set_auto_follow(bool checked) { auto_follow = checked; }
@@ -421,21 +328,31 @@ void MainWindow::on_playing_state_changed(bool playing) {
 
 void MainWindow::goto_start() {
     this->engine->setPlaybackPosition(0);
-    midi_editor->horizontalScrollBar()->setValue(0);
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+    if (midi_editor) {
+        midi_editor->horizontalScrollBar()->setValue(0);
+    }
 }
 
 void MainWindow::goto_end() {
     this->engine->setPlaybackPosition(this->engine->getProject()->getMaxTick());
-    midi_editor->horizontalScrollBar()->setValue(midi_editor->horizontalScrollBar()->maximum());
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+    if (midi_editor) {
+        midi_editor->horizontalScrollBar()->setValue(midi_editor->horizontalScrollBar()->maximum());
+    }
 }
 
 void MainWindow::onControlBarPositionClicked(float seconds, int tick_position) {
-    int marker_x = int(tick_position * midi_editor->getConfig()->time_scale);
-    int width = midi_editor->viewport()->width();
-    int margin = width / 2;
-    int value = std::max(0, marker_x - margin);
-    midi_editor->horizontalScrollBar()->setValue(value);
-    midi_tact_ruler->setHorizontalScroll(value);
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+    MidiTactRuler *midi_tact_ruler = m_midiEditorSection->getTactRuler();
+    if (midi_editor && midi_tact_ruler) {
+        int marker_x = int(tick_position * midi_editor->getConfig()->time_scale);
+        int width = midi_editor->viewport()->width();
+        int margin = width / 2;
+        int value = std::max(0, marker_x - margin);
+        midi_editor->horizontalScrollBar()->setValue(value);
+        midi_tact_ruler->setHorizontalScroll(value);
+    }
 }
 
 void MainWindow::open_midi() {
@@ -448,10 +365,14 @@ void MainWindow::open_midi() {
         return;
     }
 
-    QScrollBar *vertical_bar = midi_editor->verticalScrollBar();
-    int center_pos = (vertical_bar->maximum() + vertical_bar->minimum()) / 2;
-    vertical_bar->setSliderPosition(center_pos);
-    midi_tact_ruler->setHorizontalScroll(0);
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+    MidiTactRuler *midi_tact_ruler = m_midiEditorSection->getTactRuler();
+    if (midi_editor && midi_tact_ruler) {
+        QScrollBar *vertical_bar = midi_editor->verticalScrollBar();
+        int center_pos = (vertical_bar->maximum() + vertical_bar->minimum()) / 2;
+        vertical_bar->setSliderPosition(center_pos);
+        midi_tact_ruler->setHorizontalScroll(0);
+    }
 }
 
 void MainWindow::export_midi() {
@@ -493,7 +414,8 @@ void MainWindow::reset_all_colors() {
     for (NoteNagaTrack *tr : active_sequence->getTracks()) {
         tr->setColor(DEFAULT_CHANNEL_COLORS[tr->getId() % 16]);
     }
-    midi_editor->update();
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+    if (midi_editor) midi_editor->update();
     QMessageBox::information(this, "Colors", "All track colors have been reset.");
 }
 
@@ -508,7 +430,8 @@ void MainWindow::randomize_all_colors() {
         QColor c(rand() % 206 + 50, rand() % 206 + 50, rand() % 206 + 50, 200);
         tr->setColor(NN_Color_t::fromQColor(c));
     }
-    midi_editor->update();
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+    if (midi_editor) midi_editor->update();
     QMessageBox::information(this, "Colors", "Track colors have been randomized.");
 }
 
@@ -522,7 +445,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     event->accept();
 }
 
-// === Implementace nových slotů pro MIDI utility ===
+// === MIDI utility implementation ===
 
 void MainWindow::util_quantize() {
     NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
@@ -530,10 +453,11 @@ void MainWindow::util_quantize() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     int divisor = QInputDialog::getInt(this, "Quantize Notes", "Grid divisor (4=16th, 8=32nd, 3=8th triplet):", 4, 1, 64, 1, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::quantize(selectedNotes, seq->getPPQ(), divisor);
         } else {
@@ -548,12 +472,13 @@ void MainWindow::util_humanize() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok_time, ok_vel;
     int time_strength = QInputDialog::getInt(this, "Humanize Time", "Max time deviation (ticks):", 5, 0, 100, 1, &ok_time);
     if (!ok_time) return;
     int vel_strength = QInputDialog::getInt(this, "Humanize Velocity", "Max velocity deviation:", 5, 0, 127, 1, &ok_vel);
     if (ok_vel) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::humanize(selectedNotes, time_strength, vel_strength);
         } else {
@@ -568,10 +493,11 @@ void MainWindow::util_transpose() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     int semitones = QInputDialog::getInt(this, "Transpose", "Semitones (+/-):", 12, -127, 127, 1, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::transpose(selectedNotes, semitones);
         } else {
@@ -586,10 +512,11 @@ void MainWindow::util_set_velocity() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     int value = QInputDialog::getInt(this, "Set Fixed Velocity", "New velocity (0-127):", 100, 0, 127, 1, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::changeVelocity(selectedNotes, value, false);
         } else {
@@ -604,10 +531,11 @@ void MainWindow::util_scale_velocity() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     int percent = QInputDialog::getInt(this, "Scale Velocity", "Scale factor (%):", 120, 0, 500, 1, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::changeVelocity(selectedNotes, percent, true);
         } else {
@@ -622,10 +550,11 @@ void MainWindow::util_set_duration() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     int ticks = QInputDialog::getInt(this, "Set Fixed Duration", "New duration (ticks):", seq->getPPQ() / 4, 1, 10000, 1, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::changeDuration(selectedNotes, ticks, false);
         } else {
@@ -640,10 +569,11 @@ void MainWindow::util_scale_duration() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     int percent = QInputDialog::getInt(this, "Scale Duration", "Scale factor (%):", 90, 1, 500, 1, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::changeDuration(selectedNotes, percent, true);
         } else {
@@ -661,7 +591,6 @@ void MainWindow::util_legato() {
     bool ok;
     int strength = QInputDialog::getInt(this, "Legato", "Strength (%):", 100, 1, 200, 1, &ok);
     if (ok) {
-        // Legato vyžaduje kontext sousedních not, takže vždy operuje na celé sekvenci
         NN_Utils::legato(*seq, strength);
     }
 }
@@ -672,10 +601,11 @@ void MainWindow::util_staccato() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     int strength = QInputDialog::getInt(this, "Staccato", "New note length (% of original):", 50, 1, 99, 1, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::staccato(selectedNotes, strength);
         } else {
@@ -690,10 +620,11 @@ void MainWindow::util_invert() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     int axis_note = QInputDialog::getInt(this, "Invert", "Axis MIDI Note (60 = C4):", 60, 0, 127, 1, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::invert(selectedNotes, axis_note);
         } else {
@@ -708,7 +639,6 @@ void MainWindow::util_retrograde() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
-    // Retrograde vyžaduje kontext celé stopy, takže operuje na celé sekvenci
     NN_Utils::retrograde(*seq);
     QMessageBox::information(this, "Success", "Note order has been reversed.");
 }
@@ -719,7 +649,6 @@ void MainWindow::util_delete_overlapping() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
-    // Delete overlapping vyžaduje kontext celé stopy
     NN_Utils::deleteOverlappingNotes(*seq);
     QMessageBox::information(this, "Success", "Overlapping notes have been removed.");
 }
@@ -730,10 +659,11 @@ void MainWindow::util_scale_timing() {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
     }
+    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     bool ok;
     double factor = QInputDialog::getDouble(this, "Scale Timing", "Time factor (e.g., 2.0 = double tempo, 0.5 = half tempo):", 2.0, 0.1, 10.0, 2, &ok);
     if (ok) {
-        if (midi_editor->hasSelection()) {
+        if (midi_editor && midi_editor->hasSelection()) {
             auto selectedNotes = midi_editor->getSelectedNotes();
             NN_Utils::scaleTiming(selectedNotes, factor);
         } else {

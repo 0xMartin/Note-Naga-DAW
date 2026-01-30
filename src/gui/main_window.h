@@ -2,22 +2,16 @@
 
 #include <QAction>
 #include <QCloseEvent>
-#include <QDockWidget>
 #include <QMainWindow>
 #include <QMenu>
+#include <QStackedWidget>
 
 #include <note_naga_engine/note_naga_engine.h>
 
-#include "dock_system/advanced_dock_widget.h"
-#include "widgets/midi_control_bar_widget.h"
-#include "editor/midi_editor_widget.h"
-#include "widgets/midi_keyboard_ruler.h"
-#include "widgets/midi_tact_ruler.h"
-#include "widgets/track_list_widget.h"
-#include "widgets/track_mixer_widget.h"
-#include "widgets/dsp_engine_widget.h"
-#include "../media_export/export_dialog.h"
-
+#include "sections/section_switcher.h"
+#include "sections/midi_editor_section.h"
+#include "sections/dsp_editor_section.h"
+#include "sections/media_export_widget.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -43,6 +37,9 @@ private slots:
     void reset_layout();
     void show_hide_dock(const QString &name, bool checked);
     void export_video();
+    
+    // Section switching
+    void onSectionChanged(AppSection section);
 
     // === Nové sloty pro MIDI utility ===
     void util_quantize();
@@ -64,9 +61,19 @@ private:
     NoteNagaEngine *engine;
 
     bool auto_follow;
-    QMap<QString, AdvancedDockWidget *> docks;
+    AppSection m_currentSection;
 
-    // Původní akce
+    // Section system
+    QWidget *m_centralContainer;
+    QStackedWidget *m_sectionStack;
+    SectionSwitcher *m_sectionSwitcher;
+    
+    // Sections
+    MidiEditorSection *m_midiEditorSection;
+    DSPEditorSection *m_dspEditorSection;
+    MediaExportWidget *m_mediaExportWidget;
+
+    // Actions
     QAction *action_open;
     QAction *action_export;
     QAction *action_export_video;
@@ -99,19 +106,10 @@ private:
     QAction *action_delete_overlapping;
     QAction *action_scale_timing;
 
-    // Widgety
-    MidiTactRuler *midi_tact_ruler;
-    MidiKeyboardRuler *midi_keyboard_ruler;
-    MidiEditorWidget *midi_editor;
-    MidiControlBarWidget *control_bar;
-    TrackListWidget *tracklist_widget;
-    TrackMixerWidget *mixer_widget;
-    DSPEngineWidget *dsp_widget;
-
-    // Funkce pro nastavení
+    // Setup functions
     void setup_actions();
     void setup_menu_bar();
     void setup_toolbar();
-    void setup_dock_layout();
+    void setup_sections();
     void connect_signals();
 };
