@@ -229,7 +229,7 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - [ ] 📁 **Project Explorer**: Dialog for new/open/recent projects
 
 ### 🟡 UI/UX Improvements
-- [ ] 🎨 **Section-based Layout**: Split app into dedicated sections
+- [x] 🎨 **Section-based Layout**: Split app into dedicated sections
   - MIDI Editor: Track list + Piano roll + Mixer
   - DSP Editor: DSP blocks + Volume indicator + Spectrum analyzer + Track preview
   - Export: Media export dialog

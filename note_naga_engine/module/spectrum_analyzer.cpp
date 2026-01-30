@@ -86,22 +86,22 @@ void NoteNagaSpectrumAnalyzer::processSampleBuffer() {
 
     nn_fft(fft_in);
 
-    // Magnitude spectrum
+    // Magnitude spectrum - use absolute amplitude, not normalized to max
     std::vector<float> mag(fft_size_ / 2, 0.0f);
-    for (size_t k = 1; k < fft_size_ / 2; ++k)
-        mag[k] = std::abs(fft_in[k]);
-
-    // THRESHOLD: pokud je maxMag menší než 1e-5, považuj za ticho!
-    float maxMag = *std::max_element(mag.begin() + 1, mag.end()); // ignoruj DC
-    const float noiseFloor = 1e-5f;
-    if (maxMag > noiseFloor) {
-        for (size_t k = 1; k < mag.size(); ++k)
-            mag[k] /= maxMag;
-    } else {
-        for (size_t k = 1; k < mag.size(); ++k)
-            mag[k] = 0.0f;
+    
+    // Reference amplitude for 0 dB (full scale = 1.0 in audio samples)
+    // FFT magnitude for full scale sine is fft_size/2
+    const float referenceAmplitude = float(fft_size_) / 2.0f;
+    const float noiseFloor = 1e-6f; // Very small threshold
+    
+    for (size_t k = 1; k < fft_size_ / 2; ++k) {
+        float amplitude = std::abs(fft_in[k]);
+        // Normalize to 0-1 range where 1.0 = 0dB (full scale)
+        float normalized = amplitude / referenceAmplitude;
+        // Apply noise floor
+        mag[k] = normalized > noiseFloor ? normalized : 0.0f;
     }
-    mag[0] = 0.0f;
+    mag[0] = 0.0f; // Remove DC
 
     std::lock_guard<std::mutex> lock(this->spectrum_mutex_);
     spectrum_ = mag;

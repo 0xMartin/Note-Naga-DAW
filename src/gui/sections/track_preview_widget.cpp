@@ -101,10 +101,6 @@ void TrackPreviewCanvas::recalculateSize()
 
 QColor TrackPreviewCanvas::getTrackColor(int trackIndex) const
 {
-    if (m_sequence && trackIndex < (int)m_sequence->getTracks().size()) {
-        return m_sequence->getTracks()[trackIndex]->getColor().toQColor();
-    }
-    
     static const QColor defaultColors[] = {
         QColor(76, 175, 80),   // Green
         QColor(33, 150, 243),  // Blue
@@ -115,6 +111,16 @@ QColor TrackPreviewCanvas::getTrackColor(int trackIndex) const
         QColor(255, 235, 59),  // Yellow
         QColor(121, 85, 72),   // Brown
     };
+    
+    if (m_sequence && trackIndex < (int)m_sequence->getTracks().size()) {
+        QColor trackColor = m_sequence->getTracks()[trackIndex]->getColor().toQColor();
+        // If track color is black or nearly black, use default color
+        if (trackColor.lightness() < 10) {
+            return defaultColors[trackIndex % 8];
+        }
+        return trackColor;
+    }
+    
     return defaultColors[trackIndex % 8];
 }
 
@@ -213,10 +219,11 @@ void TrackPreviewCanvas::paintEvent(QPaintEvent *event)
             int noteIndex = m_highestNote - midiNote;
             int noteY = noteIndex * m_noteHeight;
             
-            // Velocity-based brightness
+            // Velocity-based brightness (keep color recognizable)
             int vel = note.velocity.has_value() ? note.velocity.value() : 90;
             QColor c = noteColor;
-            int brightness = 100 + (vel * 155 / 127);
+            // Brightness range: 90 (low velocity) to 130 (high velocity)
+            int brightness = 90 + (vel * 40 / 127);
             c = c.lighter(brightness);
             
             // Draw note with slight padding
@@ -325,6 +332,8 @@ TrackPreviewWidget::TrackPreviewWidget(NoteNagaEngine *engine, QWidget *parent)
     // Connect signals
     connect(m_engine->getProject(), &NoteNagaProject::activeSequenceChanged,
             this, &TrackPreviewWidget::onSequenceChanged);
+    connect(m_engine->getProject(), &NoteNagaProject::currentTickChanged,
+            this, &TrackPreviewWidget::onTickChanged);
     connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::currentTickChanged,
             this, &TrackPreviewWidget::onTickChanged);
     connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged,
@@ -368,11 +377,39 @@ void TrackPreviewWidget::onZoomOutTime()
 void TrackPreviewWidget::onZoomInPitch()
 {
     int current = m_canvas->getNoteHeight();
-    m_canvas->setNoteHeight(qMin(24, current + 2));
+    int newHeight = qMin(24, current + 2);
+    if (newHeight == current) return;
+    
+    // Get current center position as ratio
+    QScrollBar *vbar = m_scrollArea->verticalScrollBar();
+    int maxVal = vbar->maximum();
+    double centerRatio = maxVal > 0 ? (vbar->value() + m_scrollArea->viewport()->height() / 2.0) / (double)(maxVal + m_scrollArea->viewport()->height()) : 0.5;
+    
+    m_canvas->setNoteHeight(newHeight);
+    
+    // Restore center position
+    int newMax = vbar->maximum();
+    int newViewportHeight = m_scrollArea->viewport()->height();
+    int newValue = (int)(centerRatio * (newMax + newViewportHeight) - newViewportHeight / 2.0);
+    vbar->setValue(qMax(0, qMin(newMax, newValue)));
 }
 
 void TrackPreviewWidget::onZoomOutPitch()
 {
     int current = m_canvas->getNoteHeight();
-    m_canvas->setNoteHeight(qMax(3, current - 2));
+    int newHeight = qMax(3, current - 2);
+    if (newHeight == current) return;
+    
+    // Get current center position as ratio
+    QScrollBar *vbar = m_scrollArea->verticalScrollBar();
+    int maxVal = vbar->maximum();
+    double centerRatio = maxVal > 0 ? (vbar->value() + m_scrollArea->viewport()->height() / 2.0) / (double)(maxVal + m_scrollArea->viewport()->height()) : 0.5;
+    
+    m_canvas->setNoteHeight(newHeight);
+    
+    // Restore center position
+    int newMax = vbar->maximum();
+    int newViewportHeight = m_scrollArea->viewport()->height();
+    int newValue = (int)(centerRatio * (newMax + newViewportHeight) - newViewportHeight / 2.0);
+    vbar->setValue(qMax(0, qMin(newMax, newValue)));
 }

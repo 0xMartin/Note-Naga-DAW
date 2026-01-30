@@ -306,8 +306,8 @@ void PlaybackThreadWorker::run() {
                     if (!note.start.has_value() || !note.length.has_value())
                         continue;
 
-                    // Note ON
-                    if (last_tick < note.start.value() && note.start.value() <= current_tick) {
+                    // Note ON (use <= for first tick to catch notes at position 0)
+                    if (last_tick <= note.start.value() && note.start.value() <= current_tick) {
                         buffer.push_back(NN_MixerMessage_t{note, true, false});
                     }
                     // Note OFF
@@ -334,8 +334,8 @@ void PlaybackThreadWorker::run() {
                     if (!note.start.has_value() || !note.length.has_value())
                         continue;
 
-                    // Note ON
-                    if (last_tick < note.start.value() && note.start.value() <= current_tick) {
+                    // Note ON (use <= for first tick to catch notes at position 0)
+                    if (last_tick <= note.start.value() && note.start.value() <= current_tick) {
                         buffer.push_back(NN_MixerMessage_t{note, true, false});
                     }
                     // Note OFF

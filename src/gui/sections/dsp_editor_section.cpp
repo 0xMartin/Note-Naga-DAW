@@ -28,6 +28,11 @@ DSPEditorSection::~DSPEditorSection()
 
 void DSPEditorSection::setupDockLayout()
 {
+    // Enable spectrum analyzer right away for testing
+    if (m_engine->getSpectrumAnalyzer()) {
+        m_engine->getSpectrumAnalyzer()->setEnableSpectrumAnalysis(true);
+    }
+    
     // === Spectrum Analyzer dock (left top) ===
     m_spectrumAnalyzer = new SpectrumAnalyzer(m_engine->getSpectrumAnalyzer(), this);
     m_spectrumAnalyzer->setMinimumSize(300, 150);
