@@ -5,18 +5,31 @@
 #include <QColorDialog>
 #include <QThread>
 #include <QStackedWidget>
+#include <QDockWidget>
+#include <QDateTime>
 
 #include "../components/midi_seq_progress_bar.h" 
+#include "../dock_system/advanced_dock_widget.h"
 #include <note_naga_engine/nn_utils.h>
 
 MediaExportWidget::MediaExportWidget(NoteNagaEngine* engine, QWidget* parent)
-    : QWidget(parent), m_engine(engine), m_sequence(nullptr),
+    : QMainWindow(parent), m_engine(engine), m_sequence(nullptr),
       m_previewThread(nullptr), m_previewWorker(nullptr),
       m_backgroundColor(QColor(25, 25, 35)),
       m_lightningColor(QColor(100, 200, 255)),
       m_currentTime(0.0), m_totalDuration(0.0),
-      m_exportThread(nullptr), m_exporter(nullptr)
+      m_exportThread(nullptr), m_exporter(nullptr),
+      m_frameCount(0), m_lastFpsUpdate(0)
 {
+    // Remove window frame for embedded use
+    setWindowFlags(Qt::Widget);
+    setDockNestingEnabled(true);
+    
+    // Remove central widget - we only use docks
+    setCentralWidget(nullptr);
+    
+    setStyleSheet("QMainWindow { background-color: #1a1a1f; }");
+    
     setupUi();
     connectEngineSignals();
 }
@@ -34,78 +47,78 @@ MediaExportWidget::~MediaExportWidget()
 
 void MediaExportWidget::setupUi()
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(0);
+    // For dock-only layout, we use a dummy empty central widget
+    // The actual content is in dock widgets
+    QWidget *dummyCentral = new QWidget(this);
+    dummyCentral->setMaximumSize(0, 0);
+    setCentralWidget(dummyCentral);
 
-    // Create stacked widget for no-sequence placeholder and main content
-    m_contentStack = new QStackedWidget(this);
-    
-    // No sequence placeholder
-    m_noSequenceLabel = new QLabel(tr("No MIDI sequence loaded.\nOpen a MIDI file to enable export."));
+    // Create no-sequence placeholder as overlay
+    m_noSequenceLabel = new QLabel(tr("No MIDI sequence loaded.\nOpen a MIDI file to enable export."), this);
     m_noSequenceLabel->setAlignment(Qt::AlignCenter);
     m_noSequenceLabel->setStyleSheet("color: #666; font-size: 16px; background-color: #1a1a1f;");
-    m_contentStack->addWidget(m_noSequenceLabel);
+    m_noSequenceLabel->setGeometry(rect());
+    m_noSequenceLabel->raise();
     
-    // Main content
-    m_mainContent = new QWidget();
-    setupMainContent();
-    m_contentStack->addWidget(m_mainContent);
+    // Setup dock layout with actual content
+    setupDockLayout();
     
-    mainLayout->addWidget(m_contentStack);
-    
-    // Start with no sequence view
-    m_contentStack->setCurrentWidget(m_noSequenceLabel);
+    // Initially hide docks and show placeholder
+    for (auto dock : m_docks) {
+        dock->hide();
+    }
+    m_noSequenceLabel->show();
 }
 
 void MediaExportWidget::setupMainContent()
 {
-    QHBoxLayout* contentLayout = new QHBoxLayout(m_mainContent);
-    contentLayout->setContentsMargins(10, 10, 10, 10);
-    
-    m_mainSplitter = new QSplitter(Qt::Horizontal);
-    contentLayout->addWidget(m_mainSplitter);
+    // No longer needed - content is in setupDockLayout
+}
 
-    // --- Left Side (Preview) ---
-    m_leftWidget = new QWidget;
-    QVBoxLayout *leftLayout = new QVBoxLayout(m_leftWidget);
-    leftLayout->setContentsMargins(5, 5, 5, 5); 
+void MediaExportWidget::setupDockLayout()
+{
+    // === LEFT DOCK: Preview ===
+    QWidget *previewContainer = new QWidget(this);
+    previewContainer->setStyleSheet("background: transparent;");
+    QVBoxLayout *previewLayout = new QVBoxLayout(previewContainer);
+    previewLayout->setContentsMargins(5, 5, 5, 5);
+    previewLayout->setSpacing(5);
 
-    QHBoxLayout *previewHeaderLayout = new QHBoxLayout;
-    previewHeaderLayout->setContentsMargins(0, 0, 0, 5);
-    QLabel* previewIcon = new QLabel;
-    previewIcon->setPixmap(QIcon(":/icons/video.svg").pixmap(16, 16));
-    QLabel* previewTitle = new QLabel(tr("Preview"));
-    previewTitle->setStyleSheet("font-weight: bold;");
-    previewHeaderLayout->addWidget(previewIcon);
-    previewHeaderLayout->addWidget(previewTitle);
-    previewHeaderLayout->addStretch();
-    leftLayout->addLayout(previewHeaderLayout);
-
-    m_previewGroup = new QGroupBox; 
-    QVBoxLayout* previewLayout = new QVBoxLayout;
-    previewLayout->setContentsMargins(0, 0, 0, 0); 
-
-    QStackedWidget* previewStack = new QStackedWidget;
+    // Preview stack (video preview or audio bars)
+    m_previewStack = new QStackedWidget;
     m_previewLabel = new QLabel;
     m_previewLabel->setAlignment(Qt::AlignCenter);
-    m_previewLabel->setStyleSheet("background-color: black; border: 1px solid #444;");
-    m_previewLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);  // Prevents label from growing with pixmap
-    m_previewLabel->setScaledContents(false);  // We scale manually in onPreviewFrameReady
+    m_previewLabel->setStyleSheet("background-color: black; border: 1px solid #444; border-radius: 4px;");
+    m_previewLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    m_previewLabel->setScaledContents(false);
+    m_previewLabel->installEventFilter(this);  // Catch resize events for preview size update
     
-    m_audioOnlyLabel = new QLabel(tr("Audio Only Mode"));
-    m_audioOnlyLabel->setAlignment(Qt::AlignCenter);
-    m_audioOnlyLabel->setStyleSheet("background-color: black; border: 1px solid #444; color: #888; font-size: 20px; font-weight: bold;");
-    m_audioOnlyLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    m_audioBarsVisualizer = new AudioBarsVisualizer(m_engine, this);
+    m_audioBarsVisualizer->setBarCount(24);
+    m_audioBarsVisualizer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 
-    previewStack->addWidget(m_previewLabel);
-    previewStack->addWidget(m_audioOnlyLabel);
+    m_previewStack->addWidget(m_previewLabel);
+    m_previewStack->addWidget(m_audioBarsVisualizer);
     
-    previewLayout->addWidget(previewStack, 1);
+    previewLayout->addWidget(m_previewStack, 1);
     
-    QHBoxLayout *timelineLayout = new QHBoxLayout;
-    timelineLayout->setSpacing(6);
-
+    // Preview stats overlay
+    m_previewStatsLabel = new QLabel(this);
+    m_previewStatsLabel->setStyleSheet(R"(
+        QLabel {
+            background-color: rgba(0, 0, 0, 180);
+            color: #aaffaa;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+    )");
+    m_previewStatsLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    m_previewStatsLabel->setText(tr("FPS: -- | Frame: -- ms | Resolution: --"));
+    previewLayout->addWidget(m_previewStatsLabel);
+    
+    // Timeline controls
     int btnSize = 20; 
     QString buttonStyle = QString(R"(
         QPushButton {
@@ -125,6 +138,9 @@ void MediaExportWidget::setupMainContent()
         QPushButton:checked { background: #3477c0; border: 1.9px solid #79b8ff; }
     )").arg(btnSize);
 
+    QHBoxLayout *timelineLayout = new QHBoxLayout;
+    timelineLayout->setSpacing(6);
+
     m_playPauseButton = new QPushButton;
     m_playPauseButton->setIcon(QIcon(":/icons/play.svg"));
     m_playPauseButton->setToolTip(tr("Play"));
@@ -137,63 +153,116 @@ void MediaExportWidget::setupMainContent()
 
     timelineLayout->addWidget(m_playPauseButton);
     timelineLayout->addWidget(m_progressBar, 1);
+    previewLayout->addLayout(timelineLayout);
 
-    previewLayout->addLayout(timelineLayout); 
-    m_previewGroup->setLayout(previewLayout);
-    leftLayout->addWidget(m_previewGroup, 1);
-    
-    m_mainSplitter->addWidget(m_leftWidget);
+    auto *previewDock = new AdvancedDockWidget(
+        tr("Preview"), 
+        QIcon(":/icons/video.svg"),
+        nullptr, 
+        this
+    );
+    previewDock->setWidget(previewContainer);
+    previewDock->setObjectName("preview");
+    previewDock->setAllowedAreas(Qt::AllDockWidgetAreas);
+    previewDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    addDockWidget(Qt::LeftDockWidgetArea, previewDock);
+    m_docks["preview"] = previewDock; 
 
-    // --- Right Side (Settings and Export) ---
-    m_rightWidget = new QWidget;
-    QGridLayout *rightLayout = new QGridLayout(m_rightWidget);
-    rightLayout->setContentsMargins(5, 5, 5, 5); 
-
-    QHBoxLayout *settingsHeaderLayout = new QHBoxLayout;
-    settingsHeaderLayout->setContentsMargins(0, 0, 0, 5);
-    QLabel* settingsIcon = new QLabel;
-    settingsIcon->setPixmap(QIcon(":/icons/settings.svg").pixmap(16, 16));
-    QLabel* settingsTitle = new QLabel(tr("Settings"));
-    settingsTitle->setStyleSheet("font-weight: bold;");
-    settingsHeaderLayout->addWidget(settingsIcon);
-    settingsHeaderLayout->addWidget(settingsTitle);
-    settingsHeaderLayout->addStretch();
-    rightLayout->addLayout(settingsHeaderLayout, 0, 0);
-
+    // === RIGHT DOCK: Settings ===
+    // Settings scroll area directly in dock - no extra container
     m_settingsScrollArea = new QScrollArea;
     m_settingsScrollArea->setWidgetResizable(true);
     m_settingsScrollArea->setFrameShape(QFrame::NoFrame);
-    m_settingsScrollArea->setMinimumWidth(360); 
+    m_settingsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+    m_settingsScrollArea->setMinimumWidth(380); 
     
-    m_settingsWidget = new QWidget; 
+    m_settingsWidget = new QWidget;
+    m_settingsWidget->setStyleSheet("background: transparent;");
     QVBoxLayout *settingsLayout = new QVBoxLayout(m_settingsWidget);
-    settingsLayout->setContentsMargins(5, 5, 5, 5); 
+    settingsLayout->setContentsMargins(5, 5, 5, 5);
+    settingsLayout->setSpacing(8);
+    
+    // Common styles for section headers
+    QString sectionHeaderStyle = "font-size: 14px; font-weight: bold; color: #79b8ff; padding: 5px 0px;";
+    QString groupBoxStyle = R"(
+        QGroupBox {
+            background: #2a2d35;
+            border: 1px solid #3a3d45;
+            border-radius: 6px;
+            margin-top: 8px;
+            padding-top: 12px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            left: 10px;
+            padding: 0 5px;
+            color: #79b8ff;
+            font-weight: bold;
+        }
+    )";
+    QString comboBoxStyle = R"(
+        QComboBox {
+            background: #232731;
+            color: #fff;
+            border: 1px solid #494d56;
+            border-radius: 4px;
+            padding: 4px 8px;
+            min-width: 150px;
+        }
+        QComboBox:hover { border-color: #79b8ff; }
+        QComboBox::drop-down { border: none; width: 20px; }
+    )";
+    QString spinBoxStyle = R"(
+        QSpinBox, QDoubleSpinBox {
+            background: #232731;
+            color: #fff;
+            border: 1px solid #494d56;
+            border-radius: 4px;
+            padding: 4px 8px;
+            min-width: 100px;
+        }
+        QSpinBox:hover, QDoubleSpinBox:hover { border-color: #79b8ff; }
+    )";
+    QString labelStyle = "color: #ccc;";
     
     // --- Group 1: Export Settings ---
-    m_exportSettingsGroup = new QGroupBox(tr("Export Settings")); 
+    m_exportSettingsGroup = new QGroupBox(tr("Export Settings"));
+    m_exportSettingsGroup->setStyleSheet(groupBoxStyle);
     QFormLayout *exportFormLayout = new QFormLayout(m_exportSettingsGroup);
-    exportFormLayout->setContentsMargins(5, 5, 5, 5); 
+    exportFormLayout->setContentsMargins(12, 20, 12, 12);
+    exportFormLayout->setSpacing(8);
+    exportFormLayout->setLabelAlignment(Qt::AlignLeft);
     
     m_exportTypeCombo = new QComboBox;
     m_exportTypeCombo->addItems({tr("Video (MP4)"), tr("Audio Only")});
-    exportFormLayout->addRow(tr("Export Type:"), m_exportTypeCombo);
+    m_exportTypeCombo->setStyleSheet(comboBoxStyle);
+    QLabel *exportTypeLabel = new QLabel(tr("Export Type:"));
+    exportTypeLabel->setStyleSheet(labelStyle);
+    exportFormLayout->addRow(exportTypeLabel, m_exportTypeCombo);
     
     settingsLayout->addWidget(m_exportSettingsGroup);
 
     // --- Group 1.A: Video Settings ---
-    m_videoSettingsGroup = new QGroupBox(tr("Video Settings")); 
+    m_videoSettingsGroup = new QGroupBox(tr("Video Settings"));
+    m_videoSettingsGroup->setStyleSheet(groupBoxStyle);
     QFormLayout *videoFormLayout = new QFormLayout(m_videoSettingsGroup);
-    videoFormLayout->setContentsMargins(5, 5, 5, 5); 
+    videoFormLayout->setContentsMargins(12, 20, 12, 12);
+    videoFormLayout->setSpacing(8);
+    videoFormLayout->setLabelAlignment(Qt::AlignLeft);
     
     m_resolutionCombo = new QComboBox;
     m_resolutionCombo->addItems({"1280x720 (720p)", "1920x1080 (1080p)"});
+    m_resolutionCombo->setStyleSheet(comboBoxStyle);
     m_fpsCombo = new QComboBox;
     m_fpsCombo->addItems({"30 FPS", "60 FPS"});
+    m_fpsCombo->setStyleSheet(comboBoxStyle);
     m_scaleSpinBox = new QDoubleSpinBox;
     m_scaleSpinBox->setRange(1.0, 15.0);
     m_scaleSpinBox->setValue(5.0);
     m_scaleSpinBox->setSuffix(tr(" s"));
     m_scaleSpinBox->setToolTip(tr("How many seconds of notes are visible on screen at once."));
+    m_scaleSpinBox->setStyleSheet(spinBoxStyle);
 
     videoFormLayout->addRow(tr("Resolution:"), m_resolutionCombo);
     videoFormLayout->addRow(tr("Framerate:"), m_fpsCombo);
@@ -203,25 +272,36 @@ void MediaExportWidget::setupMainContent()
 
     // --- Group 1.B: Audio Settings ---
     m_audioSettingsGroup = new QGroupBox(tr("Audio Settings"));
+    m_audioSettingsGroup->setStyleSheet(groupBoxStyle);
     QFormLayout *audioFormLayout = new QFormLayout(m_audioSettingsGroup);
-    audioFormLayout->setContentsMargins(5, 5, 5, 5);
+    audioFormLayout->setContentsMargins(12, 20, 12, 12);
+    audioFormLayout->setSpacing(8);
+    audioFormLayout->setLabelAlignment(Qt::AlignLeft);
 
     m_audioFormatCombo = new QComboBox;
     m_audioFormatCombo->addItems({"WAV", "MP3", "OGG"});
+    m_audioFormatCombo->setStyleSheet(comboBoxStyle);
     m_audioBitrateSpin = new QSpinBox;
     m_audioBitrateSpin->setRange(64, 320);
     m_audioBitrateSpin->setValue(192);
     m_audioBitrateSpin->setSuffix(tr(" kbps"));
+    m_audioBitrateSpin->setStyleSheet(spinBoxStyle);
     
-    audioFormLayout->addRow(tr("Format:"), m_audioFormatCombo);
-    audioFormLayout->addRow(tr("Bitrate:"), m_audioBitrateSpin);
+    QLabel *formatLabel = new QLabel(tr("Format:"));
+    formatLabel->setStyleSheet(labelStyle);
+    QLabel *bitrateLabel = new QLabel(tr("Bitrate:"));
+    bitrateLabel->setStyleSheet(labelStyle);
+    audioFormLayout->addRow(formatLabel, m_audioFormatCombo);
+    audioFormLayout->addRow(bitrateLabel, m_audioBitrateSpin);
     
     settingsLayout->addWidget(m_audioSettingsGroup);
 
     // --- Group 2: Background Settings ---
     m_bgGroup = new QGroupBox(tr("Background Settings"));
+    m_bgGroup->setStyleSheet(groupBoxStyle);
     QGridLayout *bgLayout = new QGridLayout(m_bgGroup);
-    bgLayout->setContentsMargins(5, 5, 5, 5); 
+    bgLayout->setContentsMargins(12, 20, 12, 12);
+    bgLayout->setSpacing(8); 
     
     m_bgColorButton = new QPushButton(tr("Select Color..."));
     m_bgColorPreview = new QLabel;
@@ -255,8 +335,10 @@ void MediaExportWidget::setupMainContent()
 
     // --- Group 3: Render Settings ---
     m_renderGroup = new QGroupBox(tr("Render Settings"));
+    m_renderGroup->setStyleSheet(groupBoxStyle);
     QVBoxLayout *renderLayout = new QVBoxLayout(m_renderGroup);
-    renderLayout->setContentsMargins(5, 5, 5, 5); 
+    renderLayout->setContentsMargins(12, 20, 12, 12);
+    renderLayout->setSpacing(6); 
     
     m_renderNotesCheck = new QCheckBox(tr("Render falling notes"));
     m_renderNotesCheck->setChecked(true);
@@ -294,11 +376,15 @@ void MediaExportWidget::setupMainContent()
 
     // --- Group 4: Particle Settings ---
     m_particleSettingsGroup = new QGroupBox(tr("Particle Settings"));
+    m_particleSettingsGroup->setStyleSheet(groupBoxStyle);
     QFormLayout *particleForm = new QFormLayout(m_particleSettingsGroup);
-    particleForm->setContentsMargins(5, 5, 5, 5); 
+    particleForm->setContentsMargins(12, 20, 12, 12);
+    particleForm->setSpacing(8);
+    particleForm->setLabelAlignment(Qt::AlignLeft);
     
     m_particleTypeCombo = new QComboBox;
     m_particleTypeCombo->addItems({tr("Default (Sparkle)"), tr("Circle"), tr("Custom Image")});
+    m_particleTypeCombo->setStyleSheet(comboBoxStyle);
     particleForm->addRow(tr("Particle Type:"), m_particleTypeCombo);
 
     QHBoxLayout* fileLayout = new QHBoxLayout;
@@ -357,10 +443,13 @@ void MediaExportWidget::setupMainContent()
     settingsLayout->addWidget(m_particleSettingsGroup);
 
     // --- Group 5: Lightning Settings ---
-    m_lightningGroup = new QGroupBox(tr("Lightning Effect")); 
+    m_lightningGroup = new QGroupBox(tr("Lightning Effect"));
+    m_lightningGroup->setStyleSheet(groupBoxStyle);
     
     QFormLayout *lightningForm = new QFormLayout;
-    lightningForm->setContentsMargins(5, 5, 5, 5);
+    lightningForm->setContentsMargins(12, 20, 12, 12);
+    lightningForm->setSpacing(8);
+    lightningForm->setLabelAlignment(Qt::AlignLeft);
     
     QHBoxLayout* colorLayout = new QHBoxLayout;
     m_lightningColorButton = new QPushButton(tr("Select Color...")); 
@@ -376,11 +465,13 @@ void MediaExportWidget::setupMainContent()
     m_lightningThicknessSpin->setValue(2.0);
     m_lightningThicknessSpin->setSuffix(" px");
     m_lightningThicknessSpin->setSingleStep(0.1);
+    m_lightningThicknessSpin->setStyleSheet(spinBoxStyle);
     lightningForm->addRow(tr("Base Thickness:"), m_lightningThicknessSpin);
 
     m_lightningLinesSpin = new QSpinBox; 
     m_lightningLinesSpin->setRange(1, 10);
     m_lightningLinesSpin->setValue(3);
+    m_lightningLinesSpin->setStyleSheet(spinBoxStyle);
     lightningForm->addRow(tr("Number of Lines:"), m_lightningLinesSpin);
 
     m_lightningJitterYSpin = new QDoubleSpinBox;
@@ -388,6 +479,7 @@ void MediaExportWidget::setupMainContent()
     m_lightningJitterYSpin->setValue(3.0);
     m_lightningJitterYSpin->setSuffix(" px");
     m_lightningJitterYSpin->setSingleStep(0.5);
+    m_lightningJitterYSpin->setStyleSheet(spinBoxStyle);
     lightningForm->addRow(tr("Vertical Jitter:"), m_lightningJitterYSpin);
 
     m_lightningJitterXSpin = new QDoubleSpinBox;
@@ -395,31 +487,37 @@ void MediaExportWidget::setupMainContent()
     m_lightningJitterXSpin->setValue(2.0);
     m_lightningJitterXSpin->setSuffix(" px");
     m_lightningJitterXSpin->setSingleStep(0.5);
+    m_lightningJitterXSpin->setStyleSheet(spinBoxStyle);
     lightningForm->addRow(tr("Horizontal Jitter:"), m_lightningJitterXSpin);
 
     QVBoxLayout *lightningVLayout = new QVBoxLayout(m_lightningGroup);
-    lightningVLayout->setContentsMargins(5, 5, 5, 5);
+    lightningVLayout->setContentsMargins(0, 0, 0, 0);
     lightningVLayout->addLayout(lightningForm);
     
     settingsLayout->addWidget(m_lightningGroup);
-    settingsLayout->addStretch(1); 
 
-    m_settingsScrollArea->setWidget(m_settingsWidget); 
-    rightLayout->addWidget(m_settingsScrollArea, 1, 0);
-
-    // --- Section for export and progress (bottom right) ---
-    QVBoxLayout* exportLayout = new QVBoxLayout;
-    exportLayout->setContentsMargins(10, 10, 10, 10);
-    
+    // --- Export button and progress in settings ---
     QHBoxLayout *buttonLayout = new QHBoxLayout;
     m_exportButton = new QPushButton(tr("Export..."));
     m_exportButton->setIcon(QIcon(":/icons/video.svg")); 
     m_exportButton->setFixedHeight(40);
-    m_exportButton->setMinimumWidth(200); 
-
+    m_exportButton->setMinimumWidth(280);
+    m_exportButton->setStyleSheet(R"(
+        QPushButton {
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3a7bd5, stop:1 #2868b8);
+            color: #fff;
+            border: 1px solid #2868b8;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4a8be5, stop:1 #3878c8); }
+        QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2a6bc5, stop:1 #1858a8); }
+    )");
     buttonLayout->addStretch(1); 
     buttonLayout->addWidget(m_exportButton);
-    exportLayout->addLayout(buttonLayout); 
+    buttonLayout->addStretch(1);
+    settingsLayout->addLayout(buttonLayout);
 
     m_progressWidget = new QWidget;
     QFormLayout* progressFormLayout = new QFormLayout(m_progressWidget);
@@ -430,20 +528,35 @@ void MediaExportWidget::setupMainContent()
     m_videoProgressLabel = new QLabel(tr("Video Rendering:"));
     progressFormLayout->addRow(m_audioProgressLabel, m_audioProgressBar);
     progressFormLayout->addRow(m_videoProgressLabel, m_videoProgressBar);
-    exportLayout->addWidget(m_progressWidget);
+    settingsLayout->addWidget(m_progressWidget);
     
     m_statusLabel = new QLabel;
-    m_statusLabel->setAlignment(Qt::AlignRight); 
-    exportLayout->addWidget(m_statusLabel);
-    exportLayout->addStretch(1); 
+    m_statusLabel->setAlignment(Qt::AlignCenter); 
+    settingsLayout->addWidget(m_statusLabel);
+    settingsLayout->addStretch(1); 
 
-    rightLayout->addLayout(exportLayout, 2, 0);
-    rightLayout->setRowStretch(0, 0); 
-    rightLayout->setRowStretch(1, 1); 
-    rightLayout->setRowStretch(2, 0); 
+    m_settingsScrollArea->setWidget(m_settingsWidget);
 
-    m_mainSplitter->addWidget(m_rightWidget);
-    m_mainSplitter->setSizes({600, 300});
+    auto *settingsDock = new AdvancedDockWidget(
+        tr("Export Settings"), 
+        QIcon(":/icons/settings.svg"),
+        nullptr, 
+        this
+    );
+    settingsDock->setWidget(m_settingsScrollArea);
+    settingsDock->setObjectName("settings");
+    settingsDock->setAllowedAreas(Qt::AllDockWidgetAreas);
+    settingsDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    addDockWidget(Qt::RightDockWidgetArea, settingsDock);
+    m_docks["settings"] = settingsDock;
+
+    // === Configure dock layout ===
+    splitDockWidget(previewDock, settingsDock, Qt::Horizontal);
+    
+    // Set horizontal ratio: preview:settings = 60:40
+    QList<QDockWidget*> horizDocks = {previewDock, settingsDock};
+    QList<int> horizSizes = {600, 400};
+    resizeDocks(horizDocks, horizSizes, Qt::Horizontal);
 
     m_progressWidget->setVisible(false);
     
@@ -557,12 +670,22 @@ void MediaExportWidget::refreshSequence()
     m_sequence = m_engine->getProject()->getActiveSequence();
     
     if (!m_sequence) {
-        m_contentStack->setCurrentWidget(m_noSequenceLabel);
+        // Show placeholder, hide docks
+        for (auto dock : m_docks) {
+            dock->hide();
+        }
+        m_noSequenceLabel->setGeometry(rect());
+        m_noSequenceLabel->show();
+        m_noSequenceLabel->raise();
         cleanupPreviewWorker();
         return;
     }
     
-    m_contentStack->setCurrentWidget(m_mainContent);
+    // Hide placeholder, show docks
+    m_noSequenceLabel->hide();
+    for (auto dock : m_docks) {
+        dock->show();
+    }
     
     m_totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), m_sequence->getPPQ(), m_sequence->getTempo());
     m_progressBar->setMidiSequence(m_sequence);
@@ -588,6 +711,11 @@ void MediaExportWidget::initPreviewWorker()
     connect(m_previewThread, &QThread::started, m_previewWorker, &PreviewWorker::init);
     connect(m_previewWorker, &PreviewWorker::frameReady, this, &MediaExportWidget::onPreviewFrameReady, Qt::QueuedConnection);
     
+    // Initialize frame stats tracking
+    m_frameTimer.start();
+    m_frameCount = 0;
+    m_lastFpsUpdate = QDateTime::currentMSecsSinceEpoch();
+    
     m_previewThread->start();
 }
 
@@ -603,7 +731,11 @@ void MediaExportWidget::cleanupPreviewWorker()
 
 void MediaExportWidget::resizeEvent(QResizeEvent *event)
 {
-    QWidget::resizeEvent(event);
+    QMainWindow::resizeEvent(event);
+    // Update placeholder geometry
+    if (m_noSequenceLabel && m_noSequenceLabel->isVisible()) {
+        m_noSequenceLabel->setGeometry(rect());
+    }
     updatePreviewRenderSize();
 }
 
@@ -617,6 +749,15 @@ void MediaExportWidget::hideEvent(QHideEvent *event)
 {
     QWidget::hideEvent(event);
     // Optionally pause preview when hidden
+}
+
+bool MediaExportWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    // Catch resize events on preview label to update render size when dock is resized
+    if (watched == m_previewLabel && event->type() == QEvent::Resize) {
+        updatePreviewRenderSize();
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 QSize MediaExportWidget::getTargetResolution()
@@ -741,6 +882,28 @@ void MediaExportWidget::onPreviewFrameReady(const QImage& frame)
         return;
     }
     
+    // Calculate frame render time
+    qint64 frameTimeMs = m_frameTimer.elapsed();
+    m_frameTimer.restart();
+    m_frameCount++;
+    
+    // Update FPS counter every 500ms
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastFpsUpdate >= 500) {
+        double elapsedSec = (now - m_lastFpsUpdate) / 1000.0;
+        double fps = m_frameCount / elapsedSec;
+        
+        QString statsText = QString("FPS: %1 | Frame: %2 ms | Resolution: %3x%4")
+            .arg(fps, 0, 'f', 1)
+            .arg(frameTimeMs)
+            .arg(frame.width())
+            .arg(frame.height());
+        m_previewStatsLabel->setText(statsText);
+        
+        m_frameCount = 0;
+        m_lastFpsUpdate = now;
+    }
+    
     QPixmap scaledPixmap(m_previewLabel->size());
     scaledPixmap.fill(Qt::black);
 
@@ -757,16 +920,24 @@ void MediaExportWidget::onExportTypeChanged(int index)
 {
     bool isVideo = (index == 0);
     
-    QStackedWidget* stack = m_previewLabel->parentWidget()->findChild<QStackedWidget*>();
-    if (stack) {
-        stack->setCurrentIndex(isVideo ? 0 : 1);
+    // Switch between video preview and audio visualizer
+    m_previewStack->setCurrentIndex(isVideo ? 0 : 1);
+    
+    // Start/stop audio visualizer animation
+    if (isVideo) {
+        m_audioBarsVisualizer->stop();
+    } else {
+        m_audioBarsVisualizer->start();
     }
+    
+    // Show/hide preview stats (only for video mode)
+    m_previewStatsLabel->setVisible(isVideo);
     
     m_exportButton->setText(isVideo ? tr("Export to MP4") : tr("Export Audio..."));
     m_exportButton->setIcon(isVideo ? QIcon(":/icons/video.svg") : QIcon(":/icons/audio-signal.svg"));
 
     m_videoSettingsGroup->setVisible(isVideo);
-    m_audioSettingsGroup->setVisible(!isVideo);
+    m_audioSettingsGroup->setVisible(true);  // Audio settings always visible
     m_bgGroup->setVisible(isVideo);
     m_renderGroup->setVisible(isVideo);
     m_particleSettingsGroup->setVisible(isVideo);
@@ -974,7 +1145,6 @@ void MediaExportWidget::onExportFinished()
 
 void MediaExportWidget::setControlsEnabled(bool enabled)
 {
-    m_previewGroup->setEnabled(enabled);
     m_settingsScrollArea->setEnabled(enabled); 
     m_exportButton->setEnabled(enabled);
     m_progressWidget->setVisible(!enabled);

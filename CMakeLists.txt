@@ -53,6 +53,7 @@ set(HEADER_FILES
     src/gui/components/multi_channel_volume_bar.h
     src/gui/components/separator.h
     src/gui/components/spectrum_analyzer.h
+    src/gui/components/audio_bars_visualizer.h
     src/gui/components/stereo_volume_bar_widget.h
     src/gui/components/vertical_combo_box.h
     src/gui/components/vertical_label.h
@@ -107,6 +108,7 @@ set(SOURCE_FILES
     src/gui/components/pan_analyzer.cpp
     src/gui/components/separator.cpp
     src/gui/components/spectrum_analyzer.cpp
+    src/gui/components/audio_bars_visualizer.cpp
     src/gui/components/stereo_volume_bar_widget.cpp
     src/gui/components/vertical_combo_box.cpp
     src/gui/components/vertical_label.cpp

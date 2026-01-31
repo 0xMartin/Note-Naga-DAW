@@ -1,11 +1,15 @@
 #pragma once
 
+#include <QMainWindow>
 #include <QWidget>
 #include <QColor>
+#include <QMap>
+#include <QElapsedTimer>
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_engine.h>
 
-#include "../components/midi_seq_progress_bar.h" 
+#include "../components/midi_seq_progress_bar.h"
+#include "../components/audio_bars_visualizer.h" 
 #include "../../media_export/media_exporter.h" 
 #include "../../media_export/media_renderer.h" 
 #include "../../media_export/preview_worker.h" 
@@ -23,13 +27,16 @@ class QSpinBox;
 class QScrollArea;
 class QSplitter;
 class QStackedWidget;
+class QDockWidget;
 QT_END_NAMESPACE
+
+class AdvancedDockWidget;
 
 /**
  * @brief Widget for configuring and exporting video/audio rendering of a MIDI sequence.
  *        This is an embedded version of ExportDialog for use in the Media Export section.
  */
-class MediaExportWidget : public QWidget
+class MediaExportWidget : public QMainWindow
 {
     Q_OBJECT
 
@@ -83,21 +90,26 @@ private:
     PreviewWorker* m_previewWorker;
 
     // --- UI Components ---
-    QSplitter *m_mainSplitter;
-    QWidget *m_leftWidget;
-    QWidget *m_rightWidget;
 
-    // No sequence placeholder
-    QStackedWidget *m_contentStack;
+    // No sequence placeholder (overlay)
     QLabel *m_noSequenceLabel;
-    QWidget *m_mainContent;
 
     // Preview components
     QLabel *m_previewLabel;
-    QLabel *m_audioOnlyLabel;
+    QLabel *m_previewStatsLabel;
+    AudioBarsVisualizer *m_audioBarsVisualizer;
+    QStackedWidget *m_previewStack;
     QPushButton *m_playPauseButton;
     MidiSequenceProgressBar *m_progressBar; 
     QPushButton *m_exportButton;
+    
+    // Preview stats tracking
+    QElapsedTimer m_frameTimer;
+    int m_frameCount;
+    qint64 m_lastFpsUpdate;
+    
+    // Dock widgets
+    QMap<QString, AdvancedDockWidget*> m_docks;
     
     // Progress components
     QProgressBar *m_audioProgressBar;
@@ -106,7 +118,6 @@ private:
     QLabel *m_videoProgressLabel;
     QLabel *m_statusLabel;
     
-    QGroupBox *m_previewGroup;
     QWidget *m_progressWidget;
         
     // Settings components
@@ -186,6 +197,7 @@ private:
     MediaRenderer::RenderSettings getCurrentRenderSettings();
     void setupUi();
     void setupMainContent();
+    void setupDockLayout();
     void connectEngineSignals();
     void connectWidgetSignals();
     void setControlsEnabled(bool enabled);
@@ -198,4 +210,5 @@ protected:
     virtual void resizeEvent(QResizeEvent *event) override;
     virtual void showEvent(QShowEvent *event) override;
     virtual void hideEvent(QHideEvent *event) override;
+    virtual bool eventFilter(QObject *watched, QEvent *event) override;
 };

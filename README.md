@@ -224,7 +224,7 @@ Access advanced MIDI editing tools from the `Edit` menu:
 
 ### 🔴 High Priority (v1.0)
 - [x] 🐛 **Fix**: Newly added notes not playing during playback
-- [x] 💾 **MIDI Export**: Save projects as standard MIDI files ✅
+- [x] 💾 **MIDI Export**: Save projects as standard MIDI files
 - [ ] 💾 **Project Save/Load**: Complete project persistence
 - [ ] 📁 **Project Explorer**: Dialog for new/open/recent projects
 
