@@ -4,7 +4,7 @@
 
 # 🎵 Note Naga MIDI Editor 🎵
 
-[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)](https://github.com/0xMartin/NoteNagaCPlusPlus)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/0xMartin/NoteNagaCPlusPlus)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](https://github.com/0xMartin/NoteNagaCPlusPlus)
 

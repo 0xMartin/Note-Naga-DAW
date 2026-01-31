@@ -3,7 +3,9 @@
 #include <QWidget>
 #include <QPainterPath>
 #include <QMenu>
+#include <QActionGroup>
 #include <QPushButton>
+#include <QElapsedTimer>
 #include <vector>
 
 #include <note_naga_engine/module/spectrum_analyzer.h>
@@ -38,6 +40,7 @@ private slots:
     void setDbRange60();
     void setDbRange80();
     void setDbRange100();
+    void setRefreshRate(int divisor);
 
 private:
     void drawBackground(QPainter &p);
@@ -46,6 +49,7 @@ private:
     void drawPeakCurve(QPainter &p);
     void drawFrequencyLabels(QPainter &p);
     void drawDbLabels(QPainter &p);
+    void drawRenderTime(QPainter &p);
     void updatePeakHold();
     void setupTitleWidget();
     void setupContextMenu();
@@ -66,6 +70,7 @@ private:
     bool m_enabled = true;
     bool m_showPeakHold = true;
     bool m_fillMode = true;
+    bool m_showRenderTime = true;
     int m_dbRange = 80;  // 60, 80, or 100 dB range
     int m_peakHoldTimeMs = 3000;
 
@@ -75,6 +80,18 @@ private:
     QPushButton *m_btnPeakHold = nullptr;
     QPushButton *m_btnFill = nullptr;
     QMenu *m_contextMenu = nullptr;
+    QActionGroup *m_refreshRateGroup = nullptr;
+
+    // Refresh rate and render time metrics
+    int m_refreshDivisor = 1;  // 1 = full rate, 2 = half, 4 = quarter
+    int m_updateCounter = 0;
+    qint64 m_lastFrameTimeNs = 0;      // Last single frame render time in ns
+    float m_avgFrameTimeNs = 0.0f;     // Average single frame time in ns
+    float m_totalRenderTimeMs = 0.0f;  // Total render time per second in ms
+    qint64 m_lastStatsUpdate = 0;
+    double m_renderTimeAccum = 0.0;
+    int m_renderTimeCount = 0;
+    int m_targetFps = 60;              // Target FPS for total calculation
 
     // Optimized cache
     std::vector<float> m_precomputedX;

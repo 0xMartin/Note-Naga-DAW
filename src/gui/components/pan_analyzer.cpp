@@ -1,11 +1,14 @@
 #include "pan_analyzer.h"
 
 #include <QColor>
+#include <QDateTime>
 #include <QPainter>
 #include <QPainterPath>
 #include <QLinearGradient>
 #include <QRadialGradient>
 #include <QHBoxLayout>
+#include <QContextMenuEvent>
+#include <QElapsedTimer>
 #include <cmath>
 #include <algorithm>
 
@@ -24,6 +27,7 @@ PanAnalyzer::PanAnalyzer(NoteNagaPanAnalyzer *panAnalyzer, QWidget *parent)
             &PanAnalyzer::updatePanData);
 
     setupTitleWidget();
+    setupContextMenu();
 }
 
 void PanAnalyzer::setupTitleWidget()
@@ -39,6 +43,127 @@ void PanAnalyzer::setupTitleWidget()
     connect(m_btnEnabled, &QPushButton::clicked, this, &PanAnalyzer::toggleEnabled);
     
     layout->addWidget(m_btnEnabled);
+}
+
+void PanAnalyzer::setupContextMenu()
+{
+    m_contextMenu = new QMenu(this);
+    
+    // Refresh Rate submenu
+    QMenu *refreshMenu = m_contextMenu->addMenu("Refresh Rate");
+    m_refreshRateGroup = new QActionGroup(this);
+    
+    QAction *rate60 = refreshMenu->addAction("60 fps (Full)");
+    rate60->setCheckable(true);
+    rate60->setChecked(m_refreshDivisor == 1);
+    rate60->setData(1);
+    m_refreshRateGroup->addAction(rate60);
+    
+    QAction *rate30 = refreshMenu->addAction("30 fps");
+    rate30->setCheckable(true);
+    rate30->setChecked(m_refreshDivisor == 2);
+    rate30->setData(2);
+    m_refreshRateGroup->addAction(rate30);
+    
+    QAction *rate15 = refreshMenu->addAction("15 fps");
+    rate15->setCheckable(true);
+    rate15->setChecked(m_refreshDivisor == 4);
+    rate15->setData(4);
+    m_refreshRateGroup->addAction(rate15);
+    
+    QAction *rate10 = refreshMenu->addAction("10 fps (Low CPU)");
+    rate10->setCheckable(true);
+    rate10->setChecked(m_refreshDivisor == 6);
+    rate10->setData(6);
+    m_refreshRateGroup->addAction(rate10);
+    
+    connect(m_refreshRateGroup, &QActionGroup::triggered, this, [this](QAction *action) {
+        setRefreshRate(action->data().toInt());
+    });
+    
+    m_contextMenu->addSeparator();
+    
+    // Pulse Intensity submenu
+    QMenu *pulseMenu = m_contextMenu->addMenu("Pulse Intensity");
+    QActionGroup *pulseGroup = new QActionGroup(this);
+    
+    QAction *pulseSubtle = pulseMenu->addAction("Subtle");
+    pulseSubtle->setCheckable(true);
+    pulseSubtle->setChecked(m_pulseIntensity == 0.5f);
+    pulseGroup->addAction(pulseSubtle);
+    connect(pulseSubtle, &QAction::triggered, this, [this]() { m_pulseIntensity = 0.5f; update(); });
+    
+    QAction *pulseNormal = pulseMenu->addAction("Normal");
+    pulseNormal->setCheckable(true);
+    pulseNormal->setChecked(m_pulseIntensity == 1.0f);
+    pulseGroup->addAction(pulseNormal);
+    connect(pulseNormal, &QAction::triggered, this, [this]() { m_pulseIntensity = 1.0f; update(); });
+    
+    QAction *pulseIntense = pulseMenu->addAction("Intense");
+    pulseIntense->setCheckable(true);
+    pulseIntense->setChecked(m_pulseIntensity == 1.5f);
+    pulseGroup->addAction(pulseIntense);
+    connect(pulseIntense, &QAction::triggered, this, [this]() { m_pulseIntensity = 1.5f; update(); });
+    
+    // Smoothing submenu
+    QMenu *smoothMenu = m_contextMenu->addMenu("Smoothing");
+    QActionGroup *smoothGroup = new QActionGroup(this);
+    
+    QAction *smoothFast = smoothMenu->addAction("Fast (Low)");
+    smoothFast->setCheckable(true);
+    smoothFast->setChecked(m_smoothingFactor >= 0.45f);
+    smoothGroup->addAction(smoothFast);
+    connect(smoothFast, &QAction::triggered, this, [this]() { m_smoothingFactor = 0.5f; });
+    
+    QAction *smoothMedium = smoothMenu->addAction("Medium");
+    smoothMedium->setCheckable(true);
+    smoothMedium->setChecked(m_smoothingFactor >= 0.25f && m_smoothingFactor < 0.45f);
+    smoothGroup->addAction(smoothMedium);
+    connect(smoothMedium, &QAction::triggered, this, [this]() { m_smoothingFactor = 0.3f; });
+    
+    QAction *smoothSlow = smoothMenu->addAction("Slow (High)");
+    smoothSlow->setCheckable(true);
+    smoothSlow->setChecked(m_smoothingFactor < 0.25f);
+    smoothGroup->addAction(smoothSlow);
+    connect(smoothSlow, &QAction::triggered, this, [this]() { m_smoothingFactor = 0.15f; });
+    
+    m_contextMenu->addSeparator();
+    
+    // Show/Hide render time
+    QAction *showRenderTime = m_contextMenu->addAction("Show Render Time");
+    showRenderTime->setCheckable(true);
+    showRenderTime->setChecked(m_showRenderTime);
+    connect(showRenderTime, &QAction::triggered, this, [this](bool checked) {
+        m_showRenderTime = checked;
+        update();
+    });
+    
+    m_contextMenu->addSeparator();
+    
+    // Reset action
+    QAction *resetAction = m_contextMenu->addAction("Reset to Defaults");
+    connect(resetAction, &QAction::triggered, this, [this, rate60, pulseNormal, smoothMedium, showRenderTime]() {
+        m_refreshDivisor = 1;
+        m_pulseIntensity = 1.0f;
+        m_smoothingFactor = 0.3f;
+        m_showRenderTime = true;
+        rate60->setChecked(true);
+        pulseNormal->setChecked(true);
+        smoothMedium->setChecked(true);
+        showRenderTime->setChecked(true);
+        update();
+    });
+}
+
+void PanAnalyzer::contextMenuEvent(QContextMenuEvent *event)
+{
+    m_contextMenu->exec(event->globalPos());
+}
+
+void PanAnalyzer::setRefreshRate(int divisor)
+{
+    m_refreshDivisor = divisor;
+    m_updateCounter = 0;
 }
 
 void PanAnalyzer::setEnabled(bool enabled)
@@ -59,6 +184,23 @@ void PanAnalyzer::updatePanData(const NN_PanData_t &data)
 {
     if (!m_enabled) return;
     
+    // Apply refresh rate divisor
+    if (++m_updateCounter < m_refreshDivisor) {
+        // Still update data for smoothing but don't repaint
+        m_currentData = data;
+        for (int i = 0; i < PAN_NUM_SEGMENTS; ++i) {
+            m_smoothedSegments[i] = m_smoothedSegments[i] * (1.0f - m_smoothingFactor) 
+                                   + data.segments[i] * m_smoothingFactor;
+        }
+        m_smoothedPan = m_smoothedPan * (1.0f - m_smoothingFactor) + data.pan * m_smoothingFactor;
+        return;
+    }
+    m_updateCounter = 0;
+    
+    // Start timing for render time
+    QElapsedTimer timer;
+    timer.start();
+    
     m_currentData = data;
     
     // Smooth segment values
@@ -71,6 +213,30 @@ void PanAnalyzer::updatePanData(const NN_PanData_t &data)
     m_smoothedPan = m_smoothedPan * (1.0f - m_smoothingFactor) + data.pan * m_smoothingFactor;
     
     update();
+    
+    // Render time measurement
+    qint64 elapsedNs = timer.nsecsElapsed();
+    m_lastFrameTimeNs = elapsedNs;
+    m_renderTimeAccum += elapsedNs;
+    m_renderTimeCount++;
+    
+    // Update target FPS based on refresh divisor
+    m_targetFps = 60 / m_refreshDivisor;
+    
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastStatsUpdate == 0) m_lastStatsUpdate = now;
+    
+    if (now - m_lastStatsUpdate >= 2000) {  // Update stats every 2 seconds
+        if (m_renderTimeCount > 0) {
+            // Average frame time in ns
+            m_avgFrameTimeNs = float(m_renderTimeAccum / m_renderTimeCount);
+            // Total render time per second = avg_frame_ns * target_fps / 1000000
+            m_totalRenderTimeMs = (m_avgFrameTimeNs * m_targetFps) / 1000000.0f;
+        }
+        m_renderTimeAccum = 0.0;
+        m_renderTimeCount = 0;
+        m_lastStatsUpdate = now;
+    }
 }
 
 void PanAnalyzer::resizeEvent(QResizeEvent *event)
@@ -92,6 +258,7 @@ void PanAnalyzer::paintEvent(QPaintEvent *)
     }
     
     drawLabels(p);
+    drawRenderTime(p);
 }
 
 void PanAnalyzer::drawBackground(QPainter &p)
@@ -181,6 +348,10 @@ void PanAnalyzer::drawPulsingShape(QPainter &p)
             
             // Apply additional boost for better visibility
             logValue = powf(logValue, 0.6f);  // Compress dynamic range
+            
+            // Apply pulse intensity setting
+            logValue *= m_pulseIntensity;
+            logValue = std::min(1.0f, logValue);  // Clamp to max
         }
         
         return minRadius + (maxRadius - minRadius) * logValue;
@@ -234,8 +405,8 @@ void PanAnalyzer::drawPulsingShape(QPainter &p)
     shapePath.lineTo(centerX + cos(M_PI - firstAngle * 0.1f) * firstRadius, 
                      centerY - sin(firstAngle * 0.1f) * firstRadius);
     
-    // Generate smooth curve through control points
-    const int stepsPerSegment = 8;
+    // Generate smooth curve through control points (increased detail for smoother curves)
+    const int stepsPerSegment = 16;  // Increased from 8 for smoother curves
     for (size_t i = 1; i < controlPoints.size() - 2; ++i) {
         for (int step = 0; step < stepsPerSegment; ++step) {
             float t = float(step) / stepsPerSegment;
@@ -360,4 +531,44 @@ void PanAnalyzer::drawLabels(QPainter &p)
         textRect.setTop(h / 3);
         p.drawText(textRect, Qt::AlignHCenter | Qt::AlignTop, "DISABLED");
     }
+}
+
+void PanAnalyzer::drawRenderTime(QPainter &p)
+{
+    if (!m_enabled || !m_showRenderTime) return;
+    if (m_avgFrameTimeNs < 1.0f && m_lastFrameTimeNs < 1) return;
+    
+    // Color based on total render time per second: green < 5ms, yellow < 20ms, red >= 20ms
+    QColor textColor;
+    if (m_totalRenderTimeMs < 5.0f) {
+        textColor = QColor(100, 200, 100);  // Green
+    } else if (m_totalRenderTimeMs < 20.0f) {
+        textColor = QColor(200, 200, 100); // Yellow
+    } else {
+        textColor = QColor(200, 100, 100);  // Red
+    }
+    
+    QFont font = p.font();
+    font.setPointSize(7);
+    p.setFont(font);
+    p.setPen(textColor);
+    
+    // Format frame time - use μs if >= 1000ns, otherwise use ns
+    QString frameText;
+    if (m_avgFrameTimeNs >= 1000.0f) {
+        frameText = QString("%1 μs").arg(m_avgFrameTimeNs / 1000.0f, 0, 'f', 1);
+    } else {
+        frameText = QString("%1 ns").arg(int(m_avgFrameTimeNs));
+    }
+    
+    // Format total time per second
+    QString totalText = QString("%1 ms/s @%2fps").arg(m_totalRenderTimeMs, 0, 'f', 2).arg(m_targetFps);
+    
+    // Draw in top-right corner, two lines
+    QRect frameRect(width() - 70, 3, 65, 10);
+    QRect totalRect(width() - 95, 13, 90, 10);
+    
+    p.drawText(frameRect, Qt::AlignRight, frameText);
+    p.setPen(textColor.darker(110));
+    p.drawText(totalRect, Qt::AlignRight, totalText);
 }

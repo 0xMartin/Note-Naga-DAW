@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QPainter>
 #include <QPainterPath>
 #include <QLinearGradient>
@@ -81,6 +82,49 @@ void SpectrumAnalyzer::setupContextMenu()
     
     m_contextMenu->addSeparator();
     
+    QMenu *refreshMenu = m_contextMenu->addMenu("Refresh Rate");
+    m_refreshRateGroup = new QActionGroup(this);
+    
+    QAction *rate60 = refreshMenu->addAction("60 fps (Full)");
+    rate60->setCheckable(true);
+    rate60->setChecked(m_refreshDivisor == 1);
+    rate60->setData(1);
+    m_refreshRateGroup->addAction(rate60);
+    
+    QAction *rate30 = refreshMenu->addAction("30 fps");
+    rate30->setCheckable(true);
+    rate30->setChecked(m_refreshDivisor == 2);
+    rate30->setData(2);
+    m_refreshRateGroup->addAction(rate30);
+    
+    QAction *rate15 = refreshMenu->addAction("15 fps");
+    rate15->setCheckable(true);
+    rate15->setChecked(m_refreshDivisor == 4);
+    rate15->setData(4);
+    m_refreshRateGroup->addAction(rate15);
+    
+    QAction *rate10 = refreshMenu->addAction("10 fps (Low CPU)");
+    rate10->setCheckable(true);
+    rate10->setChecked(m_refreshDivisor == 6);
+    rate10->setData(6);
+    m_refreshRateGroup->addAction(rate10);
+    
+    connect(m_refreshRateGroup, &QActionGroup::triggered, this, [this](QAction *action) {
+        setRefreshRate(action->data().toInt());
+    });
+    
+    m_contextMenu->addSeparator();
+    
+    QAction *showRenderTime = m_contextMenu->addAction("Show Render Time");
+    showRenderTime->setCheckable(true);
+    showRenderTime->setChecked(m_showRenderTime);
+    connect(showRenderTime, &QAction::triggered, this, [this](bool checked) {
+        m_showRenderTime = checked;
+        update();
+    });
+    
+    m_contextMenu->addSeparator();
+    
     QAction *resetAction = m_contextMenu->addAction("Reset Peaks");
     connect(resetAction, &QAction::triggered, this, &SpectrumAnalyzer::resetPeaks);
 }
@@ -125,8 +169,25 @@ void SpectrumAnalyzer::setDbRange60() { m_dbRange = 60; m_cachedSpectrumPathVali
 void SpectrumAnalyzer::setDbRange80() { m_dbRange = 80; m_cachedSpectrumPathValid = false; m_cachedPeakPathValid = false; update(); }
 void SpectrumAnalyzer::setDbRange100() { m_dbRange = 100; m_cachedSpectrumPathValid = false; m_cachedPeakPathValid = false; update(); }
 
+void SpectrumAnalyzer::setRefreshRate(int divisor)
+{
+    m_refreshDivisor = divisor;
+    m_updateCounter = 0;
+}
+
 void SpectrumAnalyzer::updateSpectrum(const std::vector<float> &spectrum)
 {
+    // Refresh rate limiting
+    m_updateCounter++;
+    if (m_updateCounter < m_refreshDivisor) {
+        return;
+    }
+    m_updateCounter = 0;
+    
+    // CPU timing start
+    QElapsedTimer cpuTimer;
+    cpuTimer.start();
+    
     m_spectrum = spectrum;
     m_fftSize = int(m_spectrum.size() * 2);
     if (m_peakHoldVals.size() != m_spectrum.size()) {
@@ -136,6 +197,31 @@ void SpectrumAnalyzer::updateSpectrum(const std::vector<float> &spectrum)
     updatePeakHold();
     m_cachedSpectrumPathValid = false;
     m_cachedPeakPathValid = false;
+    
+    // Render time measurement
+    qint64 elapsedNs = cpuTimer.nsecsElapsed();
+    m_lastFrameTimeNs = elapsedNs;
+    m_renderTimeAccum += elapsedNs;
+    m_renderTimeCount++;
+    
+    // Update target FPS based on refresh divisor
+    m_targetFps = 60 / m_refreshDivisor;
+    
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastStatsUpdate == 0) m_lastStatsUpdate = now;
+    
+    if (now - m_lastStatsUpdate >= 2000) {  // Update stats every 2 seconds
+        if (m_renderTimeCount > 0) {
+            // Average frame time in ns
+            m_avgFrameTimeNs = float(m_renderTimeAccum / m_renderTimeCount);
+            // Total render time per second = avg_frame_ns * target_fps / 1000000
+            m_totalRenderTimeMs = (m_avgFrameTimeNs * m_targetFps) / 1000000.0f;
+        }
+        m_renderTimeAccum = 0.0;
+        m_renderTimeCount = 0;
+        m_lastStatsUpdate = now;
+    }
+    
     update();
 }
 
@@ -191,6 +277,7 @@ void SpectrumAnalyzer::paintEvent(QPaintEvent *)
     
     drawFrequencyLabels(p);
     drawDbLabels(p);
+    drawRenderTime(p);
 }
 
 void SpectrumAnalyzer::drawBackground(QPainter &p)
@@ -516,4 +603,44 @@ float SpectrumAnalyzer::freqForBin(int bin) const
 int SpectrumAnalyzer::binForFreq(float freq) const
 {
     return int((freq * m_fftSize) / m_sampleRate);
+}
+
+void SpectrumAnalyzer::drawRenderTime(QPainter &p)
+{
+    if (!m_showRenderTime) return;
+    if (m_avgFrameTimeNs < 1.0f && m_lastFrameTimeNs < 1) return;
+    
+    // Color based on total render time per second: green < 5ms, yellow < 20ms, red >= 20ms
+    QColor textColor;
+    if (m_totalRenderTimeMs < 5.0f) {
+        textColor = QColor(80, 200, 80);  // Green
+    } else if (m_totalRenderTimeMs < 20.0f) {
+        textColor = QColor(200, 200, 80); // Yellow
+    } else {
+        textColor = QColor(200, 80, 80);  // Red
+    }
+    
+    QFont font = p.font();
+    font.setPointSize(7);
+    p.setFont(font);
+    p.setPen(textColor);
+    
+    // Format frame time - use μs if < 1000ns, otherwise use ns
+    QString frameText;
+    if (m_avgFrameTimeNs >= 1000.0f) {
+        frameText = QString("%1 μs").arg(m_avgFrameTimeNs / 1000.0f, 0, 'f', 1);
+    } else {
+        frameText = QString("%1 ns").arg(int(m_avgFrameTimeNs));
+    }
+    
+    // Format total time per second
+    QString totalText = QString("%1 ms/s @%2fps").arg(m_totalRenderTimeMs, 0, 'f', 2).arg(m_targetFps);
+    
+    // Draw in top-right corner, two lines
+    QRect frameRect(width() - 70, 3, 65, 10);
+    QRect totalRect(width() - 95, 13, 90, 10);
+    
+    p.drawText(frameRect, Qt::AlignRight, frameText);
+    p.setPen(textColor.darker(110));
+    p.drawText(totalRect, Qt::AlignRight, totalText);
 }
