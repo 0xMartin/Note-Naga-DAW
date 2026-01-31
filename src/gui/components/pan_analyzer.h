@@ -46,6 +46,8 @@ private:
     void drawLabels(QPainter &p);
     void drawPanIndicator(QPainter &p);
     void drawRenderTime(QPainter &p);
+    void drawBalanceIndicator(QPainter &p);
+    void drawRmsHistory(QPainter &p);
     void setupTitleWidget();
     void setupContextMenu();
 
@@ -54,6 +56,11 @@ private:
     NN_PanData_t m_currentData;
     std::vector<float> m_smoothedSegments;
     float m_smoothedPan = 0.0f;
+    
+    // RMS history for graph (3 seconds at 60fps = 180 samples)
+    static constexpr int RMS_HISTORY_SIZE = 180;
+    std::vector<float> m_leftRmsHistory;
+    std::vector<float> m_rightRmsHistory;
     
     // Display options
     bool m_enabled = true;

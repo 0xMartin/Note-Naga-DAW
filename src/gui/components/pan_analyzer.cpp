@@ -21,6 +21,8 @@ PanAnalyzer::PanAnalyzer(NoteNagaPanAnalyzer *panAnalyzer, QWidget *parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     m_smoothedSegments.resize(PAN_NUM_SEGMENTS, 0.0f);
+    m_leftRmsHistory.resize(RMS_HISTORY_SIZE, 0.0f);
+    m_rightRmsHistory.resize(RMS_HISTORY_SIZE, 0.0f);
     m_currentData = {};
 
     connect(m_panAnalyzer, &NoteNagaPanAnalyzer::panDataUpdated, this,
@@ -212,6 +214,12 @@ void PanAnalyzer::updatePanData(const NN_PanData_t &data)
     // Smooth pan position
     m_smoothedPan = m_smoothedPan * (1.0f - m_smoothingFactor) + data.pan * m_smoothingFactor;
     
+    // Update RMS history (shift left and add new value)
+    m_leftRmsHistory.erase(m_leftRmsHistory.begin());
+    m_leftRmsHistory.push_back(data.leftRms);
+    m_rightRmsHistory.erase(m_rightRmsHistory.begin());
+    m_rightRmsHistory.push_back(data.rightRms);
+    
     update();
     
     // Render time measurement
@@ -255,6 +263,8 @@ void PanAnalyzer::paintEvent(QPaintEvent *)
     
     if (m_enabled) {
         drawPulsingShape(p);
+        drawBalanceIndicator(p);
+        drawRmsHistory(p);
     }
     
     drawLabels(p);
@@ -357,25 +367,38 @@ void PanAnalyzer::drawPulsingShape(QPainter &p)
         return minRadius + (maxRadius - minRadius) * logValue;
     };
     
-    // Get point position for a segment
-    auto getPointForSegment = [&](int segIdx, float radiusOverride = -1.0f) -> QPointF {
-        float angle = M_PI * (segIdx + 0.5f) / PAN_NUM_SEGMENTS;  // Center of segment
-        float radius = radiusOverride >= 0 ? radiusOverride : getRadiusForSegment(segIdx);
+    // Get point position for a given angle and radius
+    auto getPointForAngle = [&](float angle, float radius) -> QPointF {
         float x = centerX + cos(M_PI - angle) * radius;
         float y = centerY - sin(angle) * radius;
         return QPointF(x, y);
     };
     
-    // Add virtual point before first (for spline)
-    controlPoints.push_back(getPointForSegment(-1, getRadiusForSegment(0)));
+    // Get point position for a segment (center of segment angle)
+    auto getPointForSegment = [&](int segIdx, float radiusOverride = -1.0f) -> QPointF {
+        float angle = M_PI * (segIdx + 0.5f) / PAN_NUM_SEGMENTS;  // Center of segment
+        float radius = radiusOverride >= 0 ? radiusOverride : getRadiusForSegment(segIdx);
+        return getPointForAngle(angle, radius);
+    };
     
-    // Add all segment points
+    // Add edge point at 0 degrees (left edge) with same radius as first segment
+    float leftRadius = getRadiusForSegment(0);
+    controlPoints.push_back(getPointForAngle(0.0f, leftRadius));  // Left edge at 0°
+    
+    // Add virtual point before first for smoother spline at edge
+    controlPoints.push_back(getPointForAngle(0.0f, leftRadius));  // Duplicate for spline
+    
+    // Add all segment center points
     for (int i = 0; i < PAN_NUM_SEGMENTS; ++i) {
         controlPoints.push_back(getPointForSegment(i));
     }
     
-    // Add virtual point after last (for spline)
-    controlPoints.push_back(getPointForSegment(PAN_NUM_SEGMENTS, getRadiusForSegment(PAN_NUM_SEGMENTS - 1)));
+    // Add edge point at 180 degrees (right edge) with same radius as last segment
+    float rightRadius = getRadiusForSegment(PAN_NUM_SEGMENTS - 1);
+    controlPoints.push_back(getPointForAngle(M_PI, rightRadius));  // Right edge at 180°
+    
+    // Add virtual point after last for smoother spline at edge
+    controlPoints.push_back(getPointForAngle(M_PI, rightRadius));  // Duplicate for spline
     
     // Catmull-Rom spline interpolation
     auto catmullRom = [](const QPointF &p0, const QPointF &p1, const QPointF &p2, const QPointF &p3, float t) -> QPointF {
@@ -399,11 +422,8 @@ void PanAnalyzer::drawPulsingShape(QPainter &p)
     QPainterPath shapePath;
     shapePath.moveTo(centerX, centerY);  // Start at center
     
-    // First line to the first curve point (left edge)
-    float firstAngle = M_PI * 0.5f / PAN_NUM_SEGMENTS;
-    float firstRadius = getRadiusForSegment(0);
-    shapePath.lineTo(centerX + cos(M_PI - firstAngle * 0.1f) * firstRadius, 
-                     centerY - sin(firstAngle * 0.1f) * firstRadius);
+    // Line to left edge point (0 degrees - horizontal left)
+    shapePath.lineTo(getPointForAngle(0.0f, leftRadius));
     
     // Generate smooth curve through control points (increased detail for smoother curves)
     const int stepsPerSegment = 16;  // Increased from 8 for smoother curves
@@ -490,6 +510,159 @@ void PanAnalyzer::drawPanIndicator(QPainter &p)
 {
     // Not used anymore - replaced by drawPulsingShape
     Q_UNUSED(p);
+}
+
+void PanAnalyzer::drawBalanceIndicator(QPainter &p)
+{
+    const int w = width();
+    
+    // Draw a balance bar at top center
+    const int barWidth = std::min(120, w / 3);
+    const int barHeight = 12;  // 2x thicker for better visibility
+    const int barX = (w - barWidth) / 2;
+    const int barY = 5;
+    
+    // Background bar
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(40, 40, 50));
+    p.drawRoundedRect(barX, barY, barWidth, barHeight, 3, 3);
+    
+    // Center line marker
+    p.setPen(QPen(QColor(80, 80, 90), 1));
+    p.drawLine(barX + barWidth / 2, barY, barX + barWidth / 2, barY + barHeight);
+    
+    // Calculate balance from smoothed pan (-1 to 1)
+    float balance = std::clamp(m_smoothedPan, -1.0f, 1.0f);
+    
+    // Draw the balance indicator from center
+    int centerX = barX + barWidth / 2;
+    int indicatorWidth = int(std::abs(balance) * (barWidth / 2 - 2));
+    
+    if (indicatorWidth > 0) {
+        // Color: cyan for left, magenta for right
+        QColor barColor = (balance < 0) ? QColor(0, 200, 255, 200) : QColor(255, 0, 200, 200);
+        
+        // Gradient for nice effect
+        QLinearGradient grad;
+        if (balance < 0) {
+            // Left side - draw from indicator start to center
+            grad = QLinearGradient(centerX - indicatorWidth, barY, centerX, barY);
+            grad.setColorAt(0.0, barColor);
+            grad.setColorAt(1.0, barColor.darker(150));
+            p.setBrush(grad);
+            p.drawRoundedRect(centerX - indicatorWidth, barY + 1, indicatorWidth, barHeight - 2, 2, 2);
+        } else {
+            // Right side - draw from center to indicator end
+            grad = QLinearGradient(centerX, barY, centerX + indicatorWidth, barY);
+            grad.setColorAt(0.0, barColor.darker(150));
+            grad.setColorAt(1.0, barColor);
+            p.setBrush(grad);
+            p.drawRoundedRect(centerX, barY + 1, indicatorWidth, barHeight - 2, 2, 2);
+        }
+    }
+    
+    // Draw center dot
+    p.setBrush(QColor(200, 200, 200));
+    p.drawEllipse(QPoint(centerX, barY + barHeight / 2), 2, 2);
+}
+
+void PanAnalyzer::drawRmsHistory(QPainter &p)
+{
+    // Draw RMS history graph in top-left corner
+    const int graphWidth = 90;
+    const int graphHeight = 100;  // 3x taller for better visibility
+    const int graphX = MARGIN;
+    const int graphY = 5;
+    
+    // Background
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(20, 20, 30, 180));
+    p.drawRoundedRect(graphX, graphY, graphWidth, graphHeight, 4, 4);
+    
+    // Border
+    p.setPen(QPen(QColor(50, 50, 60), 1));
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(graphX, graphY, graphWidth, graphHeight, 4, 4);
+    
+    // Draw L and R labels
+    QFont font = p.font();
+    font.setPointSize(7);
+    font.setBold(true);
+    p.setFont(font);
+    
+    p.setPen(QColor(0, 200, 255, 180));  // Cyan for Left
+    p.drawText(graphX + 3, graphY + 10, "L");
+    
+    p.setPen(QColor(255, 0, 200, 180));  // Magenta for Right
+    p.drawText(graphX + 3, graphY + graphHeight - 3, "R");
+    
+    // Calculate how many samples to display
+    int plotWidth = graphWidth - 15;  // Leave space for labels
+    int plotX = graphX + 12;
+    int plotHeight = (graphHeight - 6) / 2;  // Half for each channel
+    int leftY = graphY + 3;
+    int rightY = graphY + 3 + plotHeight;
+    
+    // Draw left channel RMS history
+    QPainterPath leftPath;
+    bool firstPoint = true;
+    int sampleStep = std::max(1, RMS_HISTORY_SIZE / plotWidth);
+    
+    for (int x = 0; x < plotWidth; ++x) {
+        int sampleIdx = (RMS_HISTORY_SIZE - 1) - (plotWidth - 1 - x) * sampleStep;
+        sampleIdx = std::max(0, std::min(sampleIdx, RMS_HISTORY_SIZE - 1));
+        
+        float value = m_leftRmsHistory[sampleIdx];
+        // Convert to log scale for better visibility
+        float logValue = 0.0f;
+        if (value > 0.0001f) {
+            float db = 20.0f * log10f(value);
+            logValue = (db + 60.0f) / 60.0f;
+            logValue = std::max(0.0f, std::min(1.0f, logValue));
+        }
+        
+        int y = leftY + plotHeight - int(logValue * (plotHeight - 2));
+        
+        if (firstPoint) {
+            leftPath.moveTo(plotX + x, y);
+            firstPoint = false;
+        } else {
+            leftPath.lineTo(plotX + x, y);
+        }
+    }
+    
+    p.setPen(QPen(QColor(0, 200, 255, 200), 1));
+    p.drawPath(leftPath);
+    
+    // Draw right channel RMS history
+    QPainterPath rightPath;
+    firstPoint = true;
+    
+    for (int x = 0; x < plotWidth; ++x) {
+        int sampleIdx = (RMS_HISTORY_SIZE - 1) - (plotWidth - 1 - x) * sampleStep;
+        sampleIdx = std::max(0, std::min(sampleIdx, RMS_HISTORY_SIZE - 1));
+        
+        float value = m_rightRmsHistory[sampleIdx];
+        // Convert to log scale
+        float logValue = 0.0f;
+        if (value > 0.0001f) {
+            float db = 20.0f * log10f(value);
+            logValue = (db + 60.0f) / 60.0f;
+            logValue = std::max(0.0f, std::min(1.0f, logValue));
+        }
+        
+        int y = rightY + plotHeight - int(logValue * (plotHeight - 2));
+        
+        if (firstPoint) {
+            rightPath.moveTo(plotX + x, y);
+            firstPoint = false;
+        } else {
+            rightPath.lineTo(plotX + x, y);
+        }
+    }
+    
+    p.setPen(QPen(QColor(255, 0, 200, 200), 1));
+    p.drawPath(rightPath);
 }
 
 void PanAnalyzer::drawLabels(QPainter &p)
