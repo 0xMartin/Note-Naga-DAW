@@ -10,6 +10,7 @@
 class AdvancedDockWidget;
 class DSPEngineWidget;
 class SpectrumAnalyzer;
+class PanAnalyzer;
 class TrackPreviewWidget;
 class MidiControlBarWidget;
 
@@ -51,6 +52,7 @@ private:
     // Content widgets
     DSPEngineWidget *m_dspWidget;
     SpectrumAnalyzer *m_spectrumAnalyzer;
+    PanAnalyzer *m_panAnalyzer;
     TrackPreviewWidget *m_trackPreview;
     MidiControlBarWidget *m_controlBar;
     

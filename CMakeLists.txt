@@ -106,6 +106,7 @@ set(SOURCE_FILES
     src/gui/components/indicator_led_widget.cpp
     src/gui/components/midi_seq_progress_bar.cpp
     src/gui/components/multi_channel_volume_bar.cpp
+    src/gui/components/pan_analyzer.cpp
     src/gui/components/separator.cpp
     src/gui/components/spectrum_analyzer.cpp
     src/gui/components/stereo_volume_bar_widget.cpp

@@ -55,6 +55,11 @@ NoteNagaEngine::~NoteNagaEngine() {
         spectrum_analyzer = nullptr;
     }
 
+    if (pan_analyzer) {
+        delete pan_analyzer;
+        pan_analyzer = nullptr;
+    }
+
     if (metronome) {
         delete metronome;
         metronome = nullptr;
@@ -78,6 +83,11 @@ bool NoteNagaEngine::initialize() {
     // Initialize spectrum analyzer
     if (!this->spectrum_analyzer) {
         this->spectrum_analyzer = new NoteNagaSpectrumAnalyzer(2048);
+    }
+
+    // Initialize pan analyzer
+    if (!this->pan_analyzer) {
+        this->pan_analyzer = new NoteNagaPanAnalyzer(2048);
     }
 
     // Initialize metronome
@@ -105,7 +115,7 @@ bool NoteNagaEngine::initialize() {
 
     // dsp engine
     if (!this->dsp_engine) {
-        this->dsp_engine = new NoteNagaDSPEngine(this->metronome, this->spectrum_analyzer);
+        this->dsp_engine = new NoteNagaDSPEngine(this->metronome, this->spectrum_analyzer, this->pan_analyzer);
         for (auto *synth : this->synthesizers) {
             if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
                 this->dsp_engine->addSynth(softSynth);

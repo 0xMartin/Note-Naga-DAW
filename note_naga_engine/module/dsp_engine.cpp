@@ -6,9 +6,10 @@
 #include <algorithm>
 #include <cstring>
 
-NoteNagaDSPEngine::NoteNagaDSPEngine(NoteNagaMetronome* metronome, NoteNagaSpectrumAnalyzer * spectrum_analyzer) {
+NoteNagaDSPEngine::NoteNagaDSPEngine(NoteNagaMetronome* metronome, NoteNagaSpectrumAnalyzer * spectrum_analyzer, NoteNagaPanAnalyzer* pan_analyzer) {
     this->metronome_ = metronome;
     this->spectrum_analyzer_ = spectrum_analyzer;
+    this->pan_analyzer_ = pan_analyzer;
     this->enable_dsp_ = true;
     NOTE_NAGA_LOG_INFO("DSP Engine initialized");
 }
@@ -88,6 +89,12 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames, bool compute_rm
     if (this->spectrum_analyzer_) {
         this->spectrum_analyzer_->pushSamplesToLeftBuffer(mix_left_.data(), num_frames);
         this->spectrum_analyzer_->pushSamplesToRightBuffer(mix_right_.data(), num_frames);
+    }
+
+    // push to pan analyzer
+    if (this->pan_analyzer_) {
+        this->pan_analyzer_->pushSamplesToLeftBuffer(mix_left_.data(), num_frames);
+        this->pan_analyzer_->pushSamplesToRightBuffer(mix_right_.data(), num_frames);
     }
 
     // Interleave left and right channels using pointer arithmetic for efficiency

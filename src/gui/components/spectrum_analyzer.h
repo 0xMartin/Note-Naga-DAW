@@ -33,6 +33,7 @@ private slots:
     void updateSpectrum(const std::vector<float> &spectrum);
     void togglePeakHold();
     void toggleFillMode();
+    void toggleEnabled();
     void resetPeaks();
     void setDbRange60();
     void setDbRange80();
@@ -62,6 +63,7 @@ private:
     float m_sampleRate = 44100.0f;
 
     // Display options
+    bool m_enabled = true;
     bool m_showPeakHold = true;
     bool m_fillMode = true;
     int m_dbRange = 80;  // 60, 80, or 100 dB range
@@ -69,6 +71,7 @@ private:
 
     // UI elements
     QWidget *m_titleWidget = nullptr;
+    QPushButton *m_btnEnabled = nullptr;
     QPushButton *m_btnPeakHold = nullptr;
     QPushButton *m_btnFill = nullptr;
     QMenu *m_contextMenu = nullptr;

@@ -6,6 +6,7 @@
 #include <note_naga_engine/core/dsp_block_base.h>
 #include <note_naga_engine/module/metronome.h>
 #include <note_naga_engine/module/spectrum_analyzer.h>
+#include <note_naga_engine/module/pan_analyzer.h>
 #include <note_naga_engine/core/project_data.h>
 
 #include <vector>
@@ -23,8 +24,9 @@ public:
      * 
      * @param metronome Pointer to the metronome module.
      * @param spectrum_analyzer Pointer to the spectrum analyzer module.
+     * @param pan_analyzer Pointer to the pan analyzer module.
      */
-    NoteNagaDSPEngine(NoteNagaMetronome* metronome = nullptr, NoteNagaSpectrumAnalyzer* spectrum_analyzer = nullptr);
+    NoteNagaDSPEngine(NoteNagaMetronome* metronome = nullptr, NoteNagaSpectrumAnalyzer* spectrum_analyzer = nullptr, NoteNagaPanAnalyzer* pan_analyzer = nullptr);
     ~NoteNagaDSPEngine() = default;
 
     /**
@@ -174,6 +176,7 @@ private:
     
     NoteNagaMetronome* metronome_ = nullptr;
     NoteNagaSpectrumAnalyzer* spectrum_analyzer_ = nullptr;
+    NoteNagaPanAnalyzer* pan_analyzer_ = nullptr;
     
     void calculateRMS(float *left, float *right, size_t numFrames);
 };

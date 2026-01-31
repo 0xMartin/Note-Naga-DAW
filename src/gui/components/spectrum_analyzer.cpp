@@ -33,6 +33,11 @@ void SpectrumAnalyzer::setupTitleWidget()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     
+    m_btnEnabled = create_small_button(":/icons/power-off.svg", "Enable/Disable Spectrum Analyzer", "btnSpectrumEnabled", 20);
+    m_btnEnabled->setCheckable(true);
+    m_btnEnabled->setChecked(m_enabled);
+    connect(m_btnEnabled, &QPushButton::clicked, this, &SpectrumAnalyzer::toggleEnabled);
+    
     m_btnPeakHold = create_small_button(":/icons/chart-line.svg", "Toggle Peak Hold", "btnPeakHold", 20);
     m_btnPeakHold->setCheckable(true);
     m_btnPeakHold->setChecked(m_showPeakHold);
@@ -43,6 +48,7 @@ void SpectrumAnalyzer::setupTitleWidget()
     m_btnFill->setChecked(m_fillMode);
     connect(m_btnFill, &QPushButton::clicked, this, &SpectrumAnalyzer::toggleFillMode);
     
+    layout->addWidget(m_btnEnabled);
     layout->addWidget(m_btnPeakHold);
     layout->addWidget(m_btnFill);
 }
@@ -82,6 +88,14 @@ void SpectrumAnalyzer::setupContextMenu()
 void SpectrumAnalyzer::contextMenuEvent(QContextMenuEvent *event)
 {
     m_contextMenu->exec(event->globalPos());
+}
+
+void SpectrumAnalyzer::toggleEnabled()
+{
+    m_enabled = !m_enabled;
+    m_btnEnabled->setChecked(m_enabled);
+    m_spectrumAnalyzer->setEnableSpectrumAnalysis(m_enabled);
+    update();
 }
 
 void SpectrumAnalyzer::togglePeakHold()
@@ -158,10 +172,22 @@ void SpectrumAnalyzer::paintEvent(QPaintEvent *)
 
     drawBackground(p);
     drawGrid(p);
-    drawCurve(p);
-    if (m_showPeakHold) {
-        drawPeakCurve(p);
+    
+    if (m_enabled) {
+        drawCurve(p);
+        if (m_showPeakHold) {
+            drawPeakCurve(p);
+        }
+    } else {
+        // Draw "DISABLED" text when analyzer is off
+        QFont font = p.font();
+        font.setPointSize(12);
+        font.setBold(true);
+        p.setFont(font);
+        p.setPen(QColor(100, 100, 100));
+        p.drawText(rect(), Qt::AlignCenter, "DISABLED");
     }
+    
     drawFrequencyLabels(p);
     drawDbLabels(p);
 }
