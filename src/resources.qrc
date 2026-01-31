@@ -1,3 +1,4 @@
+<!DOCTYPE RCC>
 <RCC>
   <qresource prefix="/">
     <file>icons/add.svg</file>
@@ -48,6 +49,8 @@
     <file>icons/app_section_dsp.svg</file>
     <file>icons/app_section_media.svg</file>
     <file>icons/app_section_midi.svg</file>
+    <file>icons/chart-line.svg</file>
+    <file>icons/chart-area.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>
@@ -80,7 +83,7 @@
     <file>instruments_icons/xylophone.svg</file>
   </qresource>
   <qresource prefix="/">
-    <file>images/sparkle.png</file>  
+    <file>images/sparkle.png</file>
   </qresource>
   <qresource prefix="/">
     <file>note_naga_theme.qss</file>

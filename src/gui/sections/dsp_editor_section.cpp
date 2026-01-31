@@ -41,7 +41,7 @@ void DSPEditorSection::setupDockLayout()
     auto *spectrumDock = new AdvancedDockWidget(
         tr("Spectrum Analyzer"), 
         QIcon(":/icons/audio-signal.svg"),
-        nullptr, 
+        m_spectrumAnalyzer->getTitleWidget(), 
         this
     );
     spectrumDock->setWidget(m_spectrumAnalyzer);
