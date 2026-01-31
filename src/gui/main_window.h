@@ -11,7 +11,7 @@
 #include "sections/section_switcher.h"
 #include "sections/midi_editor_section.h"
 #include "sections/dsp_editor_section.h"
-#include "sections/media_export_widget.h"
+#include "sections/media_export_section.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -71,7 +71,7 @@ private:
     // Sections
     MidiEditorSection *m_midiEditorSection;
     DSPEditorSection *m_dspEditorSection;
-    MediaExportWidget *m_mediaExportWidget;
+    MediaExportSection *m_mediaExportSection;
 
     // Actions
     QAction *action_open;

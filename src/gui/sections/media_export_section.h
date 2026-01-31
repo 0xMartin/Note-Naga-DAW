@@ -33,16 +33,16 @@ QT_END_NAMESPACE
 class AdvancedDockWidget;
 
 /**
- * @brief Widget for configuring and exporting video/audio rendering of a MIDI sequence.
+ * @brief Section for configuring and exporting video/audio rendering of a MIDI sequence.
  *        This is an embedded version of ExportDialog for use in the Media Export section.
  */
-class MediaExportWidget : public QMainWindow
+class MediaExportSection : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    explicit MediaExportWidget(NoteNagaEngine *engine, QWidget *parent = nullptr);
-    ~MediaExportWidget();
+    explicit MediaExportSection(NoteNagaEngine *engine, QWidget *parent = nullptr);
+    ~MediaExportSection();
 
     /**
      * @brief Refreshes the widget when the active sequence changes

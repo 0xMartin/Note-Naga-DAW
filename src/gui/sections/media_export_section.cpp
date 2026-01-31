@@ -1,4 +1,4 @@
-#include "media_export_widget.h"
+#include "media_export_section.h"
 
 #include <QtWidgets>
 #include <QScrollArea> 
@@ -12,7 +12,7 @@
 #include "../dock_system/advanced_dock_widget.h"
 #include <note_naga_engine/nn_utils.h>
 
-MediaExportWidget::MediaExportWidget(NoteNagaEngine* engine, QWidget* parent)
+MediaExportSection::MediaExportSection(NoteNagaEngine* engine, QWidget* parent)
     : QMainWindow(parent), m_engine(engine), m_sequence(nullptr),
       m_previewThread(nullptr), m_previewWorker(nullptr),
       m_backgroundColor(QColor(25, 25, 35)),
@@ -34,7 +34,7 @@ MediaExportWidget::MediaExportWidget(NoteNagaEngine* engine, QWidget* parent)
     connectEngineSignals();
 }
 
-MediaExportWidget::~MediaExportWidget()
+MediaExportSection::~MediaExportSection()
 {
     cleanupPreviewWorker();
     
@@ -45,7 +45,7 @@ MediaExportWidget::~MediaExportWidget()
     }
 }
 
-void MediaExportWidget::setupUi()
+void MediaExportSection::setupUi()
 {
     // For dock-only layout, we use a dummy empty central widget
     // The actual content is in dock widgets
@@ -70,12 +70,12 @@ void MediaExportWidget::setupUi()
     m_noSequenceLabel->show();
 }
 
-void MediaExportWidget::setupMainContent()
+void MediaExportSection::setupMainContent()
 {
     // No longer needed - content is in setupDockLayout
 }
 
-void MediaExportWidget::setupDockLayout()
+void MediaExportSection::setupDockLayout()
 {
     // === LEFT DOCK: Preview ===
     QWidget *previewContainer = new QWidget(this);
@@ -86,10 +86,13 @@ void MediaExportWidget::setupDockLayout()
 
     // Preview stack (video preview or audio bars)
     m_previewStack = new QStackedWidget;
+    m_previewStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_previewStack->setMinimumSize(200, 150);  // Ensure minimum visible size
+    
     m_previewLabel = new QLabel;
     m_previewLabel->setAlignment(Qt::AlignCenter);
     m_previewLabel->setStyleSheet("background-color: black; border: 1px solid #444; border-radius: 4px;");
-    m_previewLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    m_previewLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_previewLabel->setScaledContents(false);
     m_previewLabel->installEventFilter(this);  // Catch resize events for preview size update
     
@@ -568,19 +571,19 @@ void MediaExportWidget::setupDockLayout()
     connectWidgetSignals();
 }
 
-void MediaExportWidget::connectWidgetSignals()
+void MediaExportSection::connectWidgetSignals()
 {
     // Playback
-    connect(m_playPauseButton, &QPushButton::clicked, this, &MediaExportWidget::onPlayPauseClicked);
-    connect(m_progressBar, &MidiSequenceProgressBar::positionPressed, this, &MediaExportWidget::seek);
-    connect(m_progressBar, &MidiSequenceProgressBar::positionDragged, this, &MediaExportWidget::seek);
-    connect(m_progressBar, &MidiSequenceProgressBar::positionReleased, this, &MediaExportWidget::seek);
-    connect(m_exportButton, &QPushButton::clicked, this, &MediaExportWidget::onExportClicked);
-    connect(m_exportTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MediaExportWidget::onExportTypeChanged);
+    connect(m_playPauseButton, &QPushButton::clicked, this, &MediaExportSection::onPlayPauseClicked);
+    connect(m_progressBar, &MidiSequenceProgressBar::positionPressed, this, &MediaExportSection::seek);
+    connect(m_progressBar, &MidiSequenceProgressBar::positionDragged, this, &MediaExportSection::seek);
+    connect(m_progressBar, &MidiSequenceProgressBar::positionReleased, this, &MediaExportSection::seek);
+    connect(m_exportButton, &QPushButton::clicked, this, &MediaExportSection::onExportClicked);
+    connect(m_exportTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MediaExportSection::onExportTypeChanged);
     
     // Settings
-    connect(m_resolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_scaleSpinBox, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
+    connect(m_resolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MediaExportSection::updatePreviewSettings);
+    connect(m_scaleSpinBox, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
     
     // Audio bitrate suffix
     connect(m_audioBitrateSpin, &QSpinBox::valueChanged, this, [this](int val){
@@ -605,51 +608,51 @@ void MediaExportWidget::connectWidgetSignals()
     });
 
     // Background
-    connect(m_bgColorButton, &QPushButton::clicked, this, &MediaExportWidget::onSelectBgColor);
-    connect(m_bgImageButton, &QPushButton::clicked, this, &MediaExportWidget::onSelectBgImage);
-    connect(m_bgClearButton, &QPushButton::clicked, this, &MediaExportWidget::onClearBg);
+    connect(m_bgColorButton, &QPushButton::clicked, this, &MediaExportSection::onSelectBgColor);
+    connect(m_bgImageButton, &QPushButton::clicked, this, &MediaExportSection::onSelectBgImage);
+    connect(m_bgClearButton, &QPushButton::clicked, this, &MediaExportSection::onClearBg);
     connect(m_bgShakeCheck, &QCheckBox::toggled, m_bgShakeSpin, &QWidget::setEnabled);
-    connect(m_bgShakeCheck, &QCheckBox::checkStateChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_bgShakeSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
+    connect(m_bgShakeCheck, &QCheckBox::checkStateChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_bgShakeSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
 
     // Render
-    connect(m_renderNotesCheck, &QCheckBox::checkStateChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_renderKeyboardCheck, &QCheckBox::checkStateChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_renderParticlesCheck, &QCheckBox::checkStateChanged, this, &MediaExportWidget::updatePreviewSettings);
+    connect(m_renderNotesCheck, &QCheckBox::checkStateChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_renderKeyboardCheck, &QCheckBox::checkStateChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_renderParticlesCheck, &QCheckBox::checkStateChanged, this, &MediaExportSection::updatePreviewSettings);
     connect(m_renderParticlesCheck, &QCheckBox::toggled, m_particleSettingsGroup, &QWidget::setEnabled);
-    connect(m_pianoGlowCheck, &QCheckBox::checkStateChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_noteStartOpacitySpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_noteEndOpacitySpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
+    connect(m_pianoGlowCheck, &QCheckBox::checkStateChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_noteStartOpacitySpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_noteEndOpacitySpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
 
     // Particles
-    connect(m_particleTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MediaExportWidget::onParticleTypeChanged);
-    connect(m_particleFileButton, &QPushButton::clicked, this, &MediaExportWidget::onSelectParticleFile);
-    connect(m_particleCountSpin, &QSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_particleLifetimeSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_particleSpeedSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_particleGravitySpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_particleStartSizeSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_particleEndSizeSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_particleTintCheck, &QCheckBox::checkStateChanged, this, &MediaExportWidget::updatePreviewSettings);
+    connect(m_particleTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MediaExportSection::onParticleTypeChanged);
+    connect(m_particleFileButton, &QPushButton::clicked, this, &MediaExportSection::onSelectParticleFile);
+    connect(m_particleCountSpin, &QSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_particleLifetimeSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_particleSpeedSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_particleGravitySpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_particleStartSizeSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_particleEndSizeSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_particleTintCheck, &QCheckBox::checkStateChanged, this, &MediaExportSection::updatePreviewSettings);
 
     // Lightning
     connect(m_lightningEnableCheck, &QCheckBox::toggled, m_lightningGroup, &QWidget::setEnabled);
-    connect(m_lightningEnableCheck, &QCheckBox::checkStateChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_lightningColorButton, &QPushButton::clicked, this, &MediaExportWidget::onSelectLightningColor);
-    connect(m_lightningThicknessSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_lightningLinesSpin, &QSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_lightningJitterYSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
-    connect(m_lightningJitterXSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportWidget::updatePreviewSettings);
+    connect(m_lightningEnableCheck, &QCheckBox::checkStateChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_lightningColorButton, &QPushButton::clicked, this, &MediaExportSection::onSelectLightningColor);
+    connect(m_lightningThicknessSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_lightningLinesSpin, &QSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_lightningJitterYSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
+    connect(m_lightningJitterXSpin, &QDoubleSpinBox::valueChanged, this, &MediaExportSection::updatePreviewSettings);
 
     // Initial state
     onParticleTypeChanged(m_particleTypeCombo->currentIndex());
     onExportTypeChanged(m_exportTypeCombo->currentIndex());
 }
 
-void MediaExportWidget::connectEngineSignals()
+void MediaExportSection::connectEngineSignals()
 {
     connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::currentTickChanged, 
-            this, &MediaExportWidget::onPlaybackTickChanged);
+            this, &MediaExportSection::onPlaybackTickChanged);
     
     connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged, 
             this, [this](bool playing){
@@ -665,7 +668,7 @@ void MediaExportWidget::connectEngineSignals()
             });
 }
 
-void MediaExportWidget::refreshSequence()
+void MediaExportSection::refreshSequence()
 {
     m_sequence = m_engine->getProject()->getActiveSequence();
     
@@ -693,11 +696,11 @@ void MediaExportWidget::refreshSequence()
     
     initPreviewWorker();
     
-    QTimer::singleShot(10, this, &MediaExportWidget::updatePreviewSettings);
+    QTimer::singleShot(10, this, &MediaExportSection::updatePreviewSettings);
     onPlaybackTickChanged(m_engine->getProject()->getCurrentTick());
 }
 
-void MediaExportWidget::initPreviewWorker()
+void MediaExportSection::initPreviewWorker()
 {
     if (!m_sequence) return;
     
@@ -707,9 +710,9 @@ void MediaExportWidget::initPreviewWorker()
     m_previewWorker = new PreviewWorker(m_sequence);
     m_previewWorker->moveToThread(m_previewThread);
 
-    connect(this, &MediaExportWidget::destroyed, m_previewWorker, &PreviewWorker::deleteLater);
+    connect(this, &MediaExportSection::destroyed, m_previewWorker, &PreviewWorker::deleteLater);
     connect(m_previewThread, &QThread::started, m_previewWorker, &PreviewWorker::init);
-    connect(m_previewWorker, &PreviewWorker::frameReady, this, &MediaExportWidget::onPreviewFrameReady, Qt::QueuedConnection);
+    connect(m_previewWorker, &PreviewWorker::frameReady, this, &MediaExportSection::onPreviewFrameReady, Qt::QueuedConnection);
     
     // Initialize frame stats tracking
     m_frameTimer.start();
@@ -719,7 +722,7 @@ void MediaExportWidget::initPreviewWorker()
     m_previewThread->start();
 }
 
-void MediaExportWidget::cleanupPreviewWorker()
+void MediaExportSection::cleanupPreviewWorker()
 {
     if (m_previewThread) {
         m_previewThread->quit();
@@ -729,7 +732,7 @@ void MediaExportWidget::cleanupPreviewWorker()
     }
 }
 
-void MediaExportWidget::resizeEvent(QResizeEvent *event)
+void MediaExportSection::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
     // Update placeholder geometry
@@ -739,19 +742,47 @@ void MediaExportWidget::resizeEvent(QResizeEvent *event)
     updatePreviewRenderSize();
 }
 
-void MediaExportWidget::showEvent(QShowEvent *event)
+void MediaExportSection::showEvent(QShowEvent *event)
 {
-    QWidget::showEvent(event);
+    QMainWindow::showEvent(event);
     refreshSequence();
+    
+    // Force dock widgets to update their geometry after switching sections
+    // This fixes the preview being small until manual resize
+    // Use multiple delayed updates to ensure layout is fully computed
+    for (int delay : {0, 50, 150}) {
+        QTimer::singleShot(delay, this, [this]() {
+            // Force layout recalculation
+            if (auto* previewDock = m_docks.value("preview")) {
+                if (previewDock->isVisible() && previewDock->widget()) {
+                    // Force the dock widget to resize properly
+                    previewDock->widget()->adjustSize();
+                    
+                    // Force preview stack to fill available space
+                    if (m_previewStack) {
+                        m_previewStack->updateGeometry();
+                    }
+                    
+                    // Force preview label resize
+                    if (m_previewLabel) {
+                        m_previewLabel->updateGeometry();
+                    }
+                }
+            }
+            
+            // Update preview render size with current label dimensions
+            updatePreviewRenderSize();
+        });
+    }
 }
 
-void MediaExportWidget::hideEvent(QHideEvent *event)
+void MediaExportSection::hideEvent(QHideEvent *event)
 {
     QWidget::hideEvent(event);
     // Optionally pause preview when hidden
 }
 
-bool MediaExportWidget::eventFilter(QObject *watched, QEvent *event)
+bool MediaExportSection::eventFilter(QObject *watched, QEvent *event)
 {
     // Catch resize events on preview label to update render size when dock is resized
     if (watched == m_previewLabel && event->type() == QEvent::Resize) {
@@ -760,12 +791,12 @@ bool MediaExportWidget::eventFilter(QObject *watched, QEvent *event)
     return QMainWindow::eventFilter(watched, event);
 }
 
-QSize MediaExportWidget::getTargetResolution()
+QSize MediaExportSection::getTargetResolution()
 {
     return (m_resolutionCombo->currentIndex() == 0) ? QSize(1280, 720) : QSize(1920, 1080);
 }
 
-void MediaExportWidget::updatePreviewRenderSize()
+void MediaExportSection::updatePreviewRenderSize()
 {
     if (!m_previewWorker) return;
     
@@ -783,7 +814,7 @@ void MediaExportWidget::updatePreviewRenderSize()
     }
 }
 
-MediaRenderer::RenderSettings MediaExportWidget::getCurrentRenderSettings()
+MediaRenderer::RenderSettings MediaExportSection::getCurrentRenderSettings()
 {
     MediaRenderer::RenderSettings settings;
     settings.backgroundColor = m_backgroundColor;
@@ -820,7 +851,7 @@ MediaRenderer::RenderSettings MediaExportWidget::getCurrentRenderSettings()
     return settings;
 }
 
-void MediaExportWidget::updatePreviewSettings()
+void MediaExportSection::updatePreviewSettings()
 {
     if (!m_previewWorker || m_exportTypeCombo->currentIndex() != 0) {
         return;
@@ -840,7 +871,7 @@ void MediaExportWidget::updatePreviewSettings()
     }
 }
 
-void MediaExportWidget::onPlayPauseClicked()
+void MediaExportSection::onPlayPauseClicked()
 {
     if (m_engine->isPlaying()) {
         m_engine->stopPlayback();
@@ -849,7 +880,7 @@ void MediaExportWidget::onPlayPauseClicked()
     }
 }
 
-void MediaExportWidget::seek(float seconds)
+void MediaExportSection::seek(float seconds)
 {
     if (m_engine->isPlaying()) {
         m_engine->stopPlayback();
@@ -860,7 +891,7 @@ void MediaExportWidget::seek(float seconds)
     onPlaybackTickChanged(tick);
 }
 
-void MediaExportWidget::onPlaybackTickChanged(int tick)
+void MediaExportSection::onPlaybackTickChanged(int tick)
 {
     if (!m_sequence) return;
     
@@ -876,7 +907,7 @@ void MediaExportWidget::onPlaybackTickChanged(int tick)
     m_progressBar->blockSignals(false);
 }
 
-void MediaExportWidget::onPreviewFrameReady(const QImage& frame)
+void MediaExportSection::onPreviewFrameReady(const QImage& frame)
 {
     if (m_exportTypeCombo->currentIndex() != 0) {
         return;
@@ -916,7 +947,7 @@ void MediaExportWidget::onPreviewFrameReady(const QImage& frame)
     m_previewLabel->setPixmap(scaledPixmap);
 }
 
-void MediaExportWidget::onExportTypeChanged(int index)
+void MediaExportSection::onExportTypeChanged(int index)
 {
     bool isVideo = (index == 0);
     
@@ -948,7 +979,7 @@ void MediaExportWidget::onExportTypeChanged(int index)
     }
 }
 
-void MediaExportWidget::onParticleTypeChanged(int index)
+void MediaExportSection::onParticleTypeChanged(int index)
 {
     bool isCustom = (index == (int)MediaRenderer::RenderSettings::Custom);
     m_particleFileButton->setVisible(isCustom);
@@ -974,7 +1005,7 @@ void MediaExportWidget::onParticleTypeChanged(int index)
     updatePreviewSettings();
 }
 
-void MediaExportWidget::onSelectParticleFile()
+void MediaExportSection::onSelectParticleFile()
 {
     QString path = QFileDialog::getOpenFileName(this, tr("Select Particle Image"), "", tr("Images (*.png *.jpg *.bmp)"));
     if (!path.isEmpty()) {
@@ -985,7 +1016,7 @@ void MediaExportWidget::onSelectParticleFile()
     }
 }
 
-void MediaExportWidget::onSelectBgColor()
+void MediaExportSection::onSelectBgColor()
 {
     QColor color = QColorDialog::getColor(m_backgroundColor, this, tr("Select Background Color"));
     if (color.isValid()) {
@@ -996,7 +1027,7 @@ void MediaExportWidget::onSelectBgColor()
     }
 }
 
-void MediaExportWidget::onSelectBgImage()
+void MediaExportSection::onSelectBgImage()
 {
     QString path = QFileDialog::getOpenFileName(this, tr("Select Background Image"), "", tr("Images (*.png *.jpg *.bmp)"));
     if (!path.isEmpty()) {
@@ -1006,7 +1037,7 @@ void MediaExportWidget::onSelectBgImage()
     }
 }
 
-void MediaExportWidget::onClearBg()
+void MediaExportSection::onClearBg()
 {
     m_backgroundImagePath.clear();
     m_backgroundColor = QColor(25, 25, 35);
@@ -1014,7 +1045,7 @@ void MediaExportWidget::onClearBg()
     updatePreviewSettings();
 }
 
-void MediaExportWidget::updateBgLabels()
+void MediaExportSection::updateBgLabels()
 {
     m_bgColorPreview->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(m_backgroundColor.name()));
     
@@ -1028,7 +1059,7 @@ void MediaExportWidget::updateBgLabels()
     }
 }
 
-void MediaExportWidget::onSelectLightningColor()
+void MediaExportSection::onSelectLightningColor()
 {
     QColor color = QColorDialog::getColor(m_lightningColor, this, tr("Select Lightning Color"));
     if (color.isValid()) {
@@ -1038,7 +1069,7 @@ void MediaExportWidget::onSelectLightningColor()
     }
 }
 
-void MediaExportWidget::onExportClicked()
+void MediaExportSection::onExportClicked()
 {
     if (!m_sequence) {
         QMessageBox::warning(this, tr("No Sequence"), tr("No MIDI sequence loaded."));
@@ -1096,15 +1127,15 @@ void MediaExportWidget::onExportClicked()
     m_exporter->moveToThread(m_exportThread);
 
     connect(m_exportThread, &QThread::started, m_exporter, &MediaExporter::doExport);
-    connect(m_exporter, &MediaExporter::finished, this, &MediaExportWidget::onExportFinished);
+    connect(m_exporter, &MediaExporter::finished, this, &MediaExportSection::onExportFinished);
     connect(m_exporter, &MediaExporter::error, this, [this](const QString &msg) {
         QMessageBox::critical(this, tr("Error"), msg);
         onExportFinished();
     });
 
-    connect(m_exporter, &MediaExporter::audioProgressUpdated, this, &MediaExportWidget::updateAudioProgress);
-    connect(m_exporter, &MediaExporter::videoProgressUpdated, this, &MediaExportWidget::updateVideoProgress);
-    connect(m_exporter, &MediaExporter::statusTextChanged, this, &MediaExportWidget::updateStatusText);
+    connect(m_exporter, &MediaExporter::audioProgressUpdated, this, &MediaExportSection::updateAudioProgress);
+    connect(m_exporter, &MediaExporter::videoProgressUpdated, this, &MediaExportSection::updateVideoProgress);
+    connect(m_exporter, &MediaExporter::statusTextChanged, this, &MediaExportSection::updateStatusText);
 
     connect(m_exporter, &MediaExporter::finished, m_exportThread, &QThread::quit);
     connect(m_exporter, &MediaExporter::finished, m_exporter, &MediaExporter::deleteLater);
@@ -1113,22 +1144,22 @@ void MediaExportWidget::onExportClicked()
     m_exportThread->start();
 }
 
-void MediaExportWidget::updateAudioProgress(int percentage)
+void MediaExportSection::updateAudioProgress(int percentage)
 {
     m_audioProgressBar->setValue(percentage);
 }
 
-void MediaExportWidget::updateVideoProgress(int percentage)
+void MediaExportSection::updateVideoProgress(int percentage)
 {
     m_videoProgressBar->setValue(percentage);
 }
 
-void MediaExportWidget::updateStatusText(const QString &status)
+void MediaExportSection::updateStatusText(const QString &status)
 {
     m_statusLabel->setText(status);
 }
 
-void MediaExportWidget::onExportFinished()
+void MediaExportSection::onExportFinished()
 {
     setControlsEnabled(true);
     
@@ -1143,7 +1174,7 @@ void MediaExportWidget::onExportFinished()
     m_exporter = nullptr;
 }
 
-void MediaExportWidget::setControlsEnabled(bool enabled)
+void MediaExportSection::setControlsEnabled(bool enabled)
 {
     m_settingsScrollArea->setEnabled(enabled); 
     m_exportButton->setEnabled(enabled);

@@ -40,7 +40,7 @@ set(HEADER_FILES
     src/gui/sections/section_switcher.h
     src/gui/sections/midi_editor_section.h
     src/gui/sections/dsp_editor_section.h
-    src/gui/sections/media_export_widget.h
+    src/gui/sections/media_export_section.h
     src/gui/sections/track_preview_widget.h
     # gui/components
     src/gui/components/audio_dial.h
@@ -94,7 +94,7 @@ set(SOURCE_FILES
     src/gui/sections/section_switcher.cpp
     src/gui/sections/midi_editor_section.cpp
     src/gui/sections/dsp_editor_section.cpp
-    src/gui/sections/media_export_widget.cpp
+    src/gui/sections/media_export_section.cpp
     src/gui/sections/track_preview_widget.cpp
     # gui/components
     src/gui/components/audio_dial.cpp

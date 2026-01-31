@@ -216,12 +216,12 @@ void MainWindow::setup_sections() {
     // Create sections
     m_midiEditorSection = new MidiEditorSection(engine, this);
     m_dspEditorSection = new DSPEditorSection(engine, this);
-    m_mediaExportWidget = new MediaExportWidget(engine, this);
+    m_mediaExportSection = new MediaExportSection(engine, this);
     
     // Add sections to stack
     m_sectionStack->addWidget(m_midiEditorSection);  // index 0
     m_sectionStack->addWidget(m_dspEditorSection);   // index 1
-    m_sectionStack->addWidget(m_mediaExportWidget);  // index 2
+    m_sectionStack->addWidget(m_mediaExportSection);  // index 2
     
     // Create section switcher (bottom bar)
     m_sectionSwitcher = new SectionSwitcher(this);

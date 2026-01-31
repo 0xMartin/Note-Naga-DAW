@@ -596,12 +596,29 @@ void PanAnalyzer::drawRmsHistory(QPainter &p)
     p.setPen(QColor(255, 0, 200, 180));  // Magenta for Right
     p.drawText(graphX + 3, graphY + graphHeight - 3, "R");
     
-    // Calculate how many samples to display
-    int plotWidth = graphWidth - 15;  // Leave space for labels
-    int plotX = graphX + 12;
+    // Draw axis line with tick marks on left side (between label and graph)
+    int axisX = graphX + 11;  // After the L/R labels
     int plotHeight = (graphHeight - 6) / 2;  // Half for each channel
     int leftY = graphY + 3;
     int rightY = graphY + 3 + plotHeight;
+    
+    // Vertical axis lines (one per channel)
+    p.setPen(QPen(QColor(80, 80, 90), 1));
+    p.drawLine(axisX, leftY, axisX, leftY + plotHeight - 2);  // Left channel axis
+    p.drawLine(axisX, rightY, axisX, rightY + plotHeight - 2);  // Right channel axis
+    
+    // Tick marks (0dB at top, -60dB at bottom) - draw 3 ticks
+    p.setPen(QPen(QColor(100, 100, 110), 1));
+    for (int i = 0; i <= 2; ++i) {
+        int tickY1 = leftY + (plotHeight - 2) * i / 2;
+        int tickY2 = rightY + (plotHeight - 2) * i / 2;
+        p.drawLine(axisX - 2, tickY1, axisX, tickY1);  // Left channel tick
+        p.drawLine(axisX - 2, tickY2, axisX, tickY2);  // Right channel tick
+    }
+    
+    // Calculate how many samples to display
+    int plotWidth = graphWidth - 15;  // Leave space for labels
+    int plotX = graphX + 12;
     
     // Draw left channel RMS history
     QPainterPath leftPath;
