@@ -34,7 +34,6 @@ set(HEADER_FILES
     src/gui/nn_gui_utils.h
     # media export
     src/media_export/preview_worker.h
-    src/media_export/export_dialog.h
     src/media_export/media_exporter.h
     src/media_export/media_renderer.h
     # gui/sections
@@ -85,7 +84,6 @@ set(SOURCE_FILES
     src/main.cpp
     # media export
     src/media_export/preview_worker.cpp
-    src/media_export/export_dialog.cpp
     src/media_export/media_exporter.cpp
     src/media_export/media_renderer.cpp
     # gui

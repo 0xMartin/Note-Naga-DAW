@@ -15,7 +15,6 @@
 #include <QVBoxLayout>
 
 #include <note_naga_engine/nn_utils.h>
-#include "../media_export/export_dialog.h"
 
 // Section widget includes for signal connections
 #include "widgets/midi_control_bar_widget.h"

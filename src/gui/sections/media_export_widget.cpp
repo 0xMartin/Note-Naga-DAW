@@ -90,12 +90,13 @@ void MediaExportWidget::setupMainContent()
     m_previewLabel = new QLabel;
     m_previewLabel->setAlignment(Qt::AlignCenter);
     m_previewLabel->setStyleSheet("background-color: black; border: 1px solid #444;");
-    m_previewLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_previewLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);  // Prevents label from growing with pixmap
+    m_previewLabel->setScaledContents(false);  // We scale manually in onPreviewFrameReady
     
     m_audioOnlyLabel = new QLabel(tr("Audio Only Mode"));
     m_audioOnlyLabel->setAlignment(Qt::AlignCenter);
     m_audioOnlyLabel->setStyleSheet("background-color: black; border: 1px solid #444; color: #888; font-size: 20px; font-weight: bold;");
-    m_audioOnlyLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_audioOnlyLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 
     previewStack->addWidget(m_previewLabel);
     previewStack->addWidget(m_audioOnlyLabel);
