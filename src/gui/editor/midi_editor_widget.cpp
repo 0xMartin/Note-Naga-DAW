@@ -95,9 +95,11 @@ void MidiEditorWidget::setupConnections() {
     connect(project, &NoteNagaProject::currentTickChanged, this,
             &MidiEditorWidget::currentTickChanged);
 
-    // scrollbars value changed'
+    // scrollbars value changed
     connect(horizontalScrollBar(), &QScrollBar::valueChanged, this,
             &MidiEditorWidget::refreshAll);
+    connect(horizontalScrollBar(), &QScrollBar::valueChanged, this,
+            &MidiEditorWidget::horizontalScrollChanged);  // Emit signal for sync with other widgets
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
             &MidiEditorWidget::refreshAll);
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
@@ -401,7 +403,23 @@ void MidiEditorWidget::selectNote(NoteGraphics *noteGraphics, bool clearPrevious
     if (!noteGraphics) return;
     
     if (clearPrevious) {
-        clearSelection();
+        // Clear without emitting - we'll emit once at the end
+        for (NoteGraphics *ng : selectedNotes) {
+            QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
+            if (shapeItem) {
+                bool is_selected = last_seq->getActiveTrack() &&
+                                 last_seq->getActiveTrack()->getId() == ng->track->getId();
+                NN_Color_t track_color = ng->track->getColor();
+                float luminance = nn_yiq_luminance(track_color);
+                QPen outline = is_selected
+                    ? QPen(luminance < 128 ? Qt::white : Qt::black, 2)
+                    : QPen((luminance < 128 ? track_color.lighter(150) : track_color.darker(150))
+                               .toQColor());
+                shapeItem->setPen(outline);
+                shapeItem->setZValue(ng->track->getId() + 10);
+            }
+        }
+        selectedNotes.clear();
     }
     
     // Přidej notu do výběru, pokud tam ještě není
@@ -415,11 +433,16 @@ void MidiEditorWidget::selectNote(NoteGraphics *noteGraphics, bool clearPrevious
             shapeItem->setPen(QPen(selection_color, 2));
             shapeItem->setZValue(999); // Přesuneme vybranou notu nad ostatní
         }
+        
+        emit selectionChanged();
     }
 }
 
 void MidiEditorWidget::deselectNote(NoteGraphics *noteGraphics) {
     if (!noteGraphics) return;
+    
+    // Check if it's actually selected
+    if (!selectedNotes.contains(noteGraphics)) return;
     
     // Odeber notu z výběru
     selectedNotes.removeOne(noteGraphics);
@@ -440,9 +463,13 @@ void MidiEditorWidget::deselectNote(NoteGraphics *noteGraphics) {
         shapeItem->setPen(outline);
         shapeItem->setZValue(noteGraphics->track->getId() + 10);
     }
+    
+    emit selectionChanged();
 }
 
 void MidiEditorWidget::clearSelection() {
+    if (selectedNotes.isEmpty()) return;
+    
     // Odznačíme všechny vybrané noty
     for (NoteGraphics *ng : selectedNotes) {
         QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
@@ -461,10 +488,14 @@ void MidiEditorWidget::clearSelection() {
         }
     }
     selectedNotes.clear();
+    
+    emit selectionChanged();
 }
 
 void MidiEditorWidget::selectNotesInRect(const QRectF &rect) {
     if (!last_seq) return;
+    
+    int countBefore = selectedNotes.size();
     
     // Procházíme všechny viditelné noty a kontrolujeme, zda jsou v obdélníku
     for (auto &trackPair : note_items) {
@@ -473,10 +504,20 @@ void MidiEditorWidget::selectNotesInRect(const QRectF &rect) {
             if (shapeItem) {
                 QRectF noteRect = getRealNoteRect(&ng);
                 if (rect.intersects(noteRect)) {
-                    selectNote(&ng, false); // false = nepotřebujeme čistit výběr, už jsme to udělali
+                    // Add without emitting - we'll emit once at the end
+                    if (!selectedNotes.contains(&ng)) {
+                        selectedNotes.append(&ng);
+                        shapeItem->setPen(QPen(selection_color, 2));
+                        shapeItem->setZValue(999);
+                    }
                 }
             }
         }
+    }
+    
+    // Emit once if selection changed
+    if (selectedNotes.size() != countBefore) {
+        emit selectionChanged();
     }
 }
 

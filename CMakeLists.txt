@@ -123,6 +123,7 @@ set(SOURCE_FILES
     src/gui/dock_system/dock_title_bar.cpp
     # gui/editor
     src/gui/editor/midi_editor_widget.cpp
+    src/gui/editor/note_property_editor.cpp
     # gui/widgets
     src/gui/widgets/dsp_block_widget.cpp
     src/gui/widgets/dsp_engine_widget.cpp

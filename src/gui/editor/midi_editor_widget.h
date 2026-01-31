@@ -263,6 +263,11 @@ signals:
      */
     void notesModified();
 
+    /**
+     * @brief Signal emitted when note selection changes.
+     */
+    void selectionChanged();
+
 public slots:
     /**
      * @brief Sets the current time scale for the MIDI editor.

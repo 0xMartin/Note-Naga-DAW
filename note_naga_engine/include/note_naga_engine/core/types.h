@@ -169,6 +169,7 @@ struct NOTE_NAGA_ENGINE_API NN_Note_t {
     std::optional<int> start;    ///< Optional: note start tick
     std::optional<int> length;   ///< Optional: note length in ticks
     std::optional<int> velocity; ///< Optional: note velocity (0-127)
+    std::optional<int> pan;      ///< Optional: note pan (0=left, 64=center, 127=right)
     NoteNagaTrack *parent;       ///< Pointer to parent track
 
     /**
@@ -176,7 +177,7 @@ struct NOTE_NAGA_ENGINE_API NN_Note_t {
      */
     NN_Note_t()
         : id(nn_generate_unique_note_id()), note(0), start(std::nullopt),
-          length(std::nullopt), velocity(std::nullopt), parent(nullptr) {}
+          length(std::nullopt), velocity(std::nullopt), pan(std::nullopt), parent(nullptr) {}
 
     /**
      * @brief Parameterized constructor for NoteNagaNote.
@@ -186,14 +187,16 @@ struct NOTE_NAGA_ENGINE_API NN_Note_t {
      * @param length_ Optional length.
      * @param velocity_ Optional velocity.
      * @param track_ (Unused) Optional track index.
+     * @param pan_ Optional pan value (0=left, 64=center, 127=right).
      */
     NN_Note_t(unsigned long note_, NoteNagaTrack *parent_,
               const std::optional<int> &start_ = std::nullopt,
               const std::optional<int> &length_ = std::nullopt,
               const std::optional<int> &velocity_ = std::nullopt,
-              const std::optional<int> &track_ = std::nullopt)
+              const std::optional<int> &track_ = std::nullopt,
+              const std::optional<int> &pan_ = std::nullopt)
         : id(nn_generate_unique_note_id()), note(note_), start(start_), length(length_),
-          velocity(velocity_), parent(parent_) {}
+          velocity(velocity_), pan(pan_), parent(parent_) {}
 };
 
 /**

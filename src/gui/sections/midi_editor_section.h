@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <QMap>
 #include <QString>
+#include <QSplitter>
 
 #include <note_naga_engine/note_naga_engine.h>
 
@@ -13,11 +14,12 @@ class MidiTactRuler;
 class MidiKeyboardRuler;
 class TrackListWidget;
 class TrackMixerWidget;
+class NotePropertyEditor;
 
 /**
  * @brief MidiEditorSection provides the MIDI Editor section layout with:
  *        - Track list (left)
- *        - MIDI editor with rulers + control bar (center)
+ *        - MIDI editor with rulers + note property editor + control bar (center)
  *        - Track mixer (right)
  *        All components wrapped in AdvancedDockWidget.
  */
@@ -34,6 +36,7 @@ public:
     MidiKeyboardRuler* getKeyboardRuler() const { return m_midiKeyboardRuler; }
     TrackListWidget* getTrackList() const { return m_trackListWidget; }
     TrackMixerWidget* getTrackMixer() const { return m_mixerWidget; }
+    NotePropertyEditor* getNotePropertyEditor() const { return m_notePropertyEditor; }
 
     /**
      * @brief Resets the dock layout to default
@@ -42,6 +45,7 @@ public:
 
 public slots:
     void showHideDock(const QString &name, bool checked);
+    void toggleNotePropertyEditor();
 
 private:
     NoteNagaEngine *m_engine;
@@ -56,6 +60,10 @@ private:
     MidiKeyboardRuler *m_midiKeyboardRuler;
     TrackListWidget *m_trackListWidget;
     TrackMixerWidget *m_mixerWidget;
+    NotePropertyEditor *m_notePropertyEditor;
+    
+    // Splitter for MIDI editor / Note property editor
+    QSplitter *m_editorSplitter;
     
     void setupDockLayout();
     void connectSignals();

@@ -284,7 +284,13 @@ void NoteNagaMixer::playNote(const NN_Note_t &midi_note) {
         msg.note = midi_note;
         msg.note.note = note_num;
         msg.note.velocity = velocity;
-        msg.pan = entry.pan + master_pan; 
+        // Calculate pan: note pan (0-127 to -1..1) + entry pan + master pan
+        float note_pan = 0.0f;
+        if (midi_note.pan.has_value()) {
+            // Convert from 0-127 range to -1.0 to 1.0 range
+            note_pan = (midi_note.pan.value() - 64) / 64.0f;
+        }
+        msg.pan = note_pan + entry.pan + master_pan; 
         msg.channel = entry.channel;
         msg.play = true;
 

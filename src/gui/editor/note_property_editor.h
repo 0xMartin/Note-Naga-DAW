@@ -1,0 +1,167 @@
+#pragma once
+
+#include <QWidget>
+#include <QScrollArea>
+#include <QPushButton>
+#include <QLabel>
+#include <QSlider>
+#include <QSpinBox>
+#include <vector>
+
+#include <note_naga_engine/note_naga_engine.h>
+
+class MidiEditorWidget;
+
+/**
+ * @brief NotePropertyEditor provides an interactive visual editor for note properties.
+ *        Displays velocity, pan and other properties as editable bars/lanes.
+ *        Placed below the main MIDI editor with splitter support.
+ */
+class NotePropertyEditor : public QWidget
+{
+    Q_OBJECT
+
+public:
+    /**
+     * @brief Property types that can be edited
+     */
+    enum class PropertyType {
+        Velocity,
+        Pan,
+        // Future: Pitch bend, CC, etc.
+    };
+
+    explicit NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget *midiEditor, QWidget *parent = nullptr);
+    ~NotePropertyEditor();
+
+    /**
+     * @brief Set the active property type to display/edit
+     */
+    void setPropertyType(PropertyType type);
+    PropertyType propertyType() const { return m_propertyType; }
+
+    /**
+     * @brief Toggle visibility with animation
+     */
+    void setExpanded(bool expanded);
+    bool isExpanded() const { return m_expanded; }
+
+    /**
+     * @brief Get the collapse/expand button for external use
+     */
+    QPushButton* getToggleButton() const { return m_toggleButton; }
+
+    /**
+     * @brief Sync horizontal scroll with main MIDI editor
+     */
+    void setHorizontalScroll(int value);
+
+    /**
+     * @brief Sync time scale with main MIDI editor
+     */
+    void setTimeScale(double scale);
+
+public slots:
+    /**
+     * @brief Called when selection changes in MIDI editor
+     */
+    void onSelectionChanged();
+
+    /**
+     * @brief Called when notes are modified
+     */
+    void onNotesChanged();
+    
+    /**
+     * @brief Called when the active track changes in the sequence
+     */
+    void onActiveTrackChanged(NoteNagaTrack *track);
+    
+    /**
+     * @brief Called when the active sequence changes
+     */
+    void onSequenceChanged(NoteNagaMidiSeq *seq);
+
+signals:
+    /**
+     * @brief Emitted when a note property is modified
+     */
+    void notePropertyChanged(NoteNagaTrack *track, int noteIndex, int newValue);
+
+    /**
+     * @brief Emitted when expanded state changes
+     */
+    void expandedChanged(bool expanded);
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+
+private:
+    NoteNagaEngine *m_engine;
+    MidiEditorWidget *m_midiEditor;
+    
+    // UI Components
+    QPushButton *m_toggleButton;
+    QPushButton *m_velocityButton;
+    QPushButton *m_panButton;
+    QLabel *m_valueLabel;
+    QLabel *m_trackNameLabel;
+    
+    // Active track
+    NoteNagaTrack *m_activeTrack;
+    QColor m_trackColor;
+    
+    // State
+    PropertyType m_propertyType;
+    bool m_expanded;
+    double m_timeScale;
+    int m_horizontalScroll;
+    int m_leftMargin;  // Space for property selector buttons
+    
+    // Editing state
+    bool m_isDragging;
+    QPoint m_dragStartPos;
+    int m_dragStartValue;
+    bool m_hasSelection;  // True if any notes are selected in MIDI editor
+    
+    // Note data cache for rendering
+    struct NoteBar {
+        int x;
+        int width;
+        int value;       // 0-127
+        bool selected;
+        NoteNagaTrack *track;
+        int noteIndex;
+        NN_Note_t note;
+    };
+    std::vector<NoteBar> m_noteBars;
+    NoteBar *m_hoveredBar;
+    NoteBar *m_editingBar;
+    
+    // Drawing helpers
+    void rebuildNoteBars();
+    void drawVelocityLane(QPainter &p);
+    void drawPanLane(QPainter &p);
+    void drawGridLines(QPainter &p);
+    NoteBar* hitTest(const QPoint &pos);
+    int valueFromY(int y) const;
+    int yFromValue(int value) const;
+    
+    // Colors
+    QColor m_backgroundColor;
+    QColor m_gridColor;
+    QColor m_barColor;
+    QColor m_barSelectedColor;
+    QColor m_barHoverColor;
+    QColor m_textColor;
+    
+    void setupUI();
+    void updatePropertyButtons();
+    void updateActiveTrack();
+    void updateTrackColorStyles();
+};

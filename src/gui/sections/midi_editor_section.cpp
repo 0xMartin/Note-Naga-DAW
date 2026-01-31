@@ -2,6 +2,7 @@
 
 #include "../dock_system/advanced_dock_widget.h"
 #include "../editor/midi_editor_widget.h"
+#include "../editor/note_property_editor.h"
 #include "../widgets/midi_control_bar_widget.h"
 #include "../widgets/midi_keyboard_ruler.h"
 #include "../widgets/midi_tact_ruler.h"
@@ -13,6 +14,7 @@
 #include <QFrame>
 #include <QDockWidget>
 #include <QScrollBar>
+#include <QSplitter>
 
 MidiEditorSection::MidiEditorSection(NoteNagaEngine *engine, QWidget *parent)
     : QMainWindow(parent), m_engine(engine)
@@ -35,6 +37,8 @@ MidiEditorSection::~MidiEditorSection()
 void MidiEditorSection::setupDockLayout()
 {
     // === Editor dock (center) ===
+    
+    // Top part: MIDI Editor with rulers
     QWidget *editorMain = new QWidget();
     QGridLayout *grid = new QGridLayout(editorMain);
     grid->setContentsMargins(0, 0, 0, 0);
@@ -43,7 +47,7 @@ void MidiEditorSection::setupDockLayout()
     m_midiEditor = new MidiEditorWidget(m_engine, this);
     m_midiEditor->setMouseTracking(true);
     m_midiEditor->setMinimumWidth(250);
-    m_midiEditor->setMinimumHeight(250);
+    m_midiEditor->setMinimumHeight(150);
 
     m_midiKeyboardRuler = new MidiKeyboardRuler(m_engine, 16, this);
     m_midiKeyboardRuler->setFixedWidth(60);
@@ -57,10 +61,36 @@ void MidiEditorSection::setupDockLayout()
     grid->setRowStretch(1, 1);
     grid->setColumnStretch(1, 1);
 
+    // Note Property Editor (below MIDI editor)
+    m_notePropertyEditor = new NotePropertyEditor(m_engine, m_midiEditor, this);
+    m_notePropertyEditor->setMinimumHeight(80);
+    
+    // Splitter between MIDI editor and Note Property Editor
+    m_editorSplitter = new QSplitter(Qt::Vertical);
+    m_editorSplitter->setChildrenCollapsible(true);
+    m_editorSplitter->setHandleWidth(5);
+    m_editorSplitter->setStyleSheet(R"(
+        QSplitter::handle {
+            background: #2a2d35;
+        }
+        QSplitter::handle:hover {
+            background: #3a5d75;
+        }
+    )");
+    
+    m_editorSplitter->addWidget(editorMain);
+    m_editorSplitter->addWidget(m_notePropertyEditor);
+    
+    // Set initial sizes (80% for editor, 20% for note property)
+    m_editorSplitter->setSizes({600, 150});
+    m_editorSplitter->setStretchFactor(0, 4);
+    m_editorSplitter->setStretchFactor(1, 1);
+
+    // Main editor layout with splitter and control bar
     QVBoxLayout *editorLayout = new QVBoxLayout();
     editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->setSpacing(0);
-    editorLayout->addWidget(editorMain, 1);
+    editorLayout->addWidget(m_editorSplitter, 1);
     
     m_controlBar = new MidiControlBarWidget(m_engine, this);
     editorLayout->addWidget(m_controlBar);
@@ -150,6 +180,24 @@ void MidiEditorSection::connectSignals()
             m_midiKeyboardRuler, &MidiKeyboardRuler::setVerticalScroll);
     connect(m_midiEditor, &MidiEditorWidget::keyHeightChanged, 
             m_midiKeyboardRuler, &MidiKeyboardRuler::setRowHeight);
+    
+    // Note property editor signals
+    connect(m_midiEditor, &MidiEditorWidget::horizontalScrollChanged, 
+            m_notePropertyEditor, &NotePropertyEditor::setHorizontalScroll);
+    connect(m_midiEditor, &MidiEditorWidget::timeScaleChanged, 
+            m_notePropertyEditor, &NotePropertyEditor::setTimeScale);
+    
+    // Note selection and modification signals
+    connect(m_midiEditor, &MidiEditorWidget::notesModified,
+            m_notePropertyEditor, &NotePropertyEditor::onNotesChanged);
+    connect(m_midiEditor, &MidiEditorWidget::selectionChanged,
+            m_notePropertyEditor, &NotePropertyEditor::onSelectionChanged);
+}
+
+void MidiEditorSection::toggleNotePropertyEditor()
+{
+    // Called externally (e.g., from menu) to toggle the note property editor
+    m_notePropertyEditor->setExpanded(!m_notePropertyEditor->isExpanded());
 }
 
 void MidiEditorSection::showHideDock(const QString &name, bool checked)
