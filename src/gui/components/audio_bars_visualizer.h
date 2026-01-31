@@ -64,6 +64,9 @@ private:
     std::vector<float> m_currentLevels;
     std::vector<float> m_targetLevels;
     std::vector<float> m_velocities;
+    std::vector<float> m_peakLevels;      // Peak hold for each bar
+    std::vector<float> m_peakDecay;       // Peak decay velocity
+    std::vector<float> m_hueOffsets;      // Per-bar hue variation
     bool m_isPlaying;
     float m_leftLevel;
     float m_rightLevel;
@@ -72,6 +75,8 @@ private:
     float m_smoothingFactor;
     float m_decayRate;
     float m_randomFactor;
+    float m_time;                          // Animation time for wave effects
+    float m_pulsePhase;                    // Global pulse phase
     
     // Colors
     QColor m_barColor;
