@@ -7,6 +7,7 @@
 #include <QElapsedTimer>
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_engine.h>
+#include "section_interface.h"
 
 #include "../components/midi_seq_progress_bar.h"
 #include "../components/audio_bars_visualizer.h" 
@@ -36,13 +37,17 @@ class AdvancedDockWidget;
  * @brief Section for configuring and exporting video/audio rendering of a MIDI sequence.
  *        This is an embedded version of ExportDialog for use in the Media Export section.
  */
-class MediaExportSection : public QMainWindow
+class MediaExportSection : public QMainWindow, public ISection
 {
     Q_OBJECT
 
 public:
     explicit MediaExportSection(NoteNagaEngine *engine, QWidget *parent = nullptr);
     ~MediaExportSection();
+
+    // ISection interface
+    void onSectionActivated() override;
+    void onSectionDeactivated() override;
 
     /**
      * @brief Refreshes the widget when the active sequence changes
@@ -188,7 +193,8 @@ private:
     QColor m_lightningColor; 
     double m_currentTime;
     double m_totalDuration;
-    QSize m_lastRenderSize; 
+    QSize m_lastRenderSize;
+    bool m_sectionActive;  // Track if this section is currently active 
 
     // Export threading
     QThread *m_exportThread;

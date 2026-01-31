@@ -19,7 +19,8 @@ MediaExportSection::MediaExportSection(NoteNagaEngine* engine, QWidget* parent)
       m_lightningColor(QColor(100, 200, 255)),
       m_currentTime(0.0), m_totalDuration(0.0),
       m_exportThread(nullptr), m_exporter(nullptr),
-      m_frameCount(0), m_lastFpsUpdate(0)
+      m_frameCount(0), m_lastFpsUpdate(0),
+      m_sectionActive(false)
 {
     // Remove window frame for embedded use
     setWindowFlags(Qt::Widget);
@@ -43,6 +44,25 @@ MediaExportSection::~MediaExportSection()
         m_exportThread->quit();
         m_exportThread->wait();
     }
+}
+
+void MediaExportSection::onSectionActivated()
+{
+    m_sectionActive = true;
+    
+    // Start preview worker when section becomes visible
+    if (m_sequence && !m_previewWorker) {
+        initPreviewWorker();
+        updatePreviewSettings();
+    }
+}
+
+void MediaExportSection::onSectionDeactivated()
+{
+    m_sectionActive = false;
+    
+    // Stop preview worker to save resources when section is hidden
+    cleanupPreviewWorker();
 }
 
 void MediaExportSection::setupUi()
@@ -694,9 +714,12 @@ void MediaExportSection::refreshSequence()
     m_progressBar->setMidiSequence(m_sequence);
     m_progressBar->updateMaxTime();
     
-    initPreviewWorker();
+    // Only start preview worker if section is currently active
+    if (m_sectionActive) {
+        initPreviewWorker();
+        QTimer::singleShot(10, this, &MediaExportSection::updatePreviewSettings);
+    }
     
-    QTimer::singleShot(10, this, &MediaExportSection::updatePreviewSettings);
     onPlaybackTickChanged(m_engine->getProject()->getCurrentTick());
 }
 

@@ -6,6 +6,7 @@
 #include <QSplitter>
 
 #include <note_naga_engine/note_naga_engine.h>
+#include "section_interface.h"
 
 class AdvancedDockWidget;
 class MidiEditorWidget;
@@ -23,11 +24,15 @@ class NotePropertyEditor;
  *        - Track mixer (right)
  *        All components wrapped in AdvancedDockWidget.
  */
-class MidiEditorSection : public QMainWindow {
+class MidiEditorSection : public QMainWindow, public ISection {
     Q_OBJECT
 public:
     explicit MidiEditorSection(NoteNagaEngine *engine, QWidget *parent = nullptr);
     ~MidiEditorSection();
+
+    // ISection interface
+    void onSectionActivated() override;
+    void onSectionDeactivated() override;
 
     // Access to widgets for external signal connections
     MidiEditorWidget* getMidiEditor() const { return m_midiEditor; }

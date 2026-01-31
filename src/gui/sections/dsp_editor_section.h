@@ -6,6 +6,7 @@
 #include <QString>
 
 #include <note_naga_engine/note_naga_engine.h>
+#include "section_interface.h"
 
 class AdvancedDockWidget;
 class DSPEngineWidget;
@@ -22,21 +23,15 @@ class MidiControlBarWidget;
  *        - Control bar for playback
  *        All components wrapped in AdvancedDockWidget.
  */
-class DSPEditorSection : public QMainWindow {
+class DSPEditorSection : public QMainWindow, public ISection {
     Q_OBJECT
 public:
     explicit DSPEditorSection(NoteNagaEngine *engine, QWidget *parent = nullptr);
     ~DSPEditorSection();
 
-    /**
-     * @brief Called when section becomes visible - activates spectrum analyzer
-     */
-    void onSectionActivated();
-
-    /**
-     * @brief Called when section becomes hidden - deactivates spectrum analyzer
-     */
-    void onSectionDeactivated();
+    // ISection interface
+    void onSectionActivated() override;
+    void onSectionDeactivated() override;
     
     /**
      * @brief Get control bar widget for signal connections

@@ -34,6 +34,18 @@ MidiEditorSection::~MidiEditorSection()
 {
 }
 
+void MidiEditorSection::onSectionActivated()
+{
+    // MIDI editor section is the main editor - minimal optimization needed
+    // Could enable auto-scroll, animations etc. here if needed
+}
+
+void MidiEditorSection::onSectionDeactivated()
+{
+    // MIDI editor section - could disable animations etc. to save resources
+    // Currently no heavy background operations to stop
+}
+
 void MidiEditorSection::setupDockLayout()
 {
     // === Editor dock (center) ===

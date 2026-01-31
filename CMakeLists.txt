@@ -37,6 +37,7 @@ set(HEADER_FILES
     src/media_export/media_exporter.h
     src/media_export/media_renderer.h
     # gui/sections
+    src/gui/sections/section_interface.h
     src/gui/sections/section_switcher.h
     src/gui/sections/midi_editor_section.h
     src/gui/sections/dsp_editor_section.h

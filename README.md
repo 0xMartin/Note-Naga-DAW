@@ -234,7 +234,7 @@ Access advanced MIDI editing tools from the `Edit` menu:
   - DSP Editor: DSP blocks + Volume indicator + Spectrum analyzer + Track preview
   - Export: Media export dialog
 - [ ] 🖱️ **Context Menus**: Right-click menus for all major components
-- [ ] 📊 **Velocity Editor**: Visual velocity editing panel
+- [x] 📊 **Velocity Editor**: Visual velocity editing panel
 - [ ] ✏️ **Enhanced Note Editing**: Better manipulation and selection tools
 - [x] 🎯 **Apply to Selection**: MIDI utilities work on selected notes only (or all if none selected)
 

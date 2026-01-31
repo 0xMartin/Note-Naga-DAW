@@ -240,9 +240,22 @@ void MainWindow::setup_sections() {
 }
 
 void MainWindow::onSectionChanged(AppSection section) {
-    // Deactivate previous section
-    if (m_currentSection == AppSection::DspEditor) {
-        m_dspEditorSection->onSectionDeactivated();
+    // Skip if switching to the same section
+    if (m_currentSection == section) {
+        return;
+    }
+    
+    // Deactivate previous section to save resources
+    switch (m_currentSection) {
+        case AppSection::MidiEditor:
+            m_midiEditorSection->onSectionDeactivated();
+            break;
+        case AppSection::DspEditor:
+            m_dspEditorSection->onSectionDeactivated();
+            break;
+        case AppSection::MediaExport:
+            m_mediaExportSection->onSectionDeactivated();
+            break;
     }
     
     // Switch to new section
@@ -250,8 +263,16 @@ void MainWindow::onSectionChanged(AppSection section) {
     m_sectionStack->setCurrentIndex(static_cast<int>(section));
     
     // Activate new section
-    if (section == AppSection::DspEditor) {
-        m_dspEditorSection->onSectionActivated();
+    switch (section) {
+        case AppSection::MidiEditor:
+            m_midiEditorSection->onSectionActivated();
+            break;
+        case AppSection::DspEditor:
+            m_dspEditorSection->onSectionActivated();
+            break;
+        case AppSection::MediaExport:
+            m_mediaExportSection->onSectionActivated();
+            break;
     }
 }
 
