@@ -41,7 +41,7 @@ void DSPEditorSection::setupDockLayout()
     
     // === Spectrum Analyzer dock (left top) ===
     m_spectrumAnalyzer = new SpectrumAnalyzer(m_engine->getSpectrumAnalyzer(), this);
-    m_spectrumAnalyzer->setMinimumSize(300, 150);
+    m_spectrumAnalyzer->setMinimumSize(300, 120);
     m_spectrumAnalyzer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
     auto *spectrumDock = new AdvancedDockWidget(
@@ -54,12 +54,12 @@ void DSPEditorSection::setupDockLayout()
     spectrumDock->setObjectName("spectrum");
     spectrumDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     spectrumDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::LeftDockWidgetArea, spectrumDock);
+    addDockWidget(Qt::TopDockWidgetArea, spectrumDock);
     m_docks["spectrum"] = spectrumDock;
 
     // === Pan Analyzer dock (center top - between spectrum and track preview) ===
     m_panAnalyzer = new PanAnalyzer(m_engine->getPanAnalyzer(), this);
-    m_panAnalyzer->setMinimumSize(200, 150);
+    m_panAnalyzer->setMinimumSize(150, 120);
     m_panAnalyzer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
     auto *panDock = new AdvancedDockWidget(
@@ -72,12 +72,12 @@ void DSPEditorSection::setupDockLayout()
     panDock->setObjectName("pan");
     panDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     panDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::LeftDockWidgetArea, panDock);
+    addDockWidget(Qt::TopDockWidgetArea, panDock);
     m_docks["pan"] = panDock;
 
-    // === DSP Engine dock (left bottom - under spectrum) ===
+    // === DSP Engine dock (bottom - full width) ===
     m_dspWidget = new DSPEngineWidget(m_engine, this);
-    m_dspWidget->setMinimumHeight(80);
+    m_dspWidget->setMinimumHeight(60);
     m_dspWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
     auto *dspDock = new AdvancedDockWidget(
@@ -91,11 +91,8 @@ void DSPEditorSection::setupDockLayout()
     dspDock->setObjectName("dsp");
     dspDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     dspDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::LeftDockWidgetArea, dspDock);
+    addDockWidget(Qt::BottomDockWidgetArea, dspDock);
     m_docks["dsp"] = dspDock;
-    
-    // Split spectrum and DSP vertically on left side
-    splitDockWidget(spectrumDock, dspDock, Qt::Vertical);
 
     // === Track Preview + Control Bar dock (right side - full height) ===
     // Create container widget for TrackPreview + ControlBar
@@ -127,21 +124,16 @@ void DSPEditorSection::setupDockLayout()
     previewDock->setObjectName("trackpreview");
     previewDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     previewDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::RightDockWidgetArea, previewDock);
+    addDockWidget(Qt::TopDockWidgetArea, previewDock);
     m_docks["trackpreview"] = previewDock;
 
     // === Configure layout ===
-    // Layout: [Spectrum | Pan] | Track Preview (3 columns at top)
-    //         [    DSP Engine              ] (bottom row spanning left side)
+    // Layout: [Spectrum | Pan | Track Preview] (top row - 3 columns)
+    //         [        DSP Engine            ] (bottom row - full width)
     
-    // First, split spectrum and pan horizontally at the top
+    // Arrange top row: spectrum -> pan -> preview (horizontally)
     splitDockWidget(spectrumDock, panDock, Qt::Horizontal);
-    
-    // Then split pan and track preview horizontally
     splitDockWidget(panDock, previewDock, Qt::Horizontal);
-    
-    // Add DSP below spectrum
-    splitDockWidget(spectrumDock, dspDock, Qt::Vertical);
     
     // Show all docks
     for (auto dock : m_docks) {
@@ -153,10 +145,10 @@ void DSPEditorSection::setupDockLayout()
     QList<int> horizSizes = {400, 200, 400};
     resizeDocks(horizDocks, horizSizes, Qt::Horizontal);
     
-    // Set vertical ratio on left side - spectrum:dsp = 75:25
-    QList<QDockWidget*> leftVertDocks = {spectrumDock, dspDock};
-    QList<int> leftVertSizes = {450, 150};
-    resizeDocks(leftVertDocks, leftVertSizes, Qt::Vertical);
+    // Set vertical ratio - top row : dsp = 80:20
+    QList<QDockWidget*> vertDocks = {spectrumDock, dspDock};
+    QList<int> vertSizes = {500, 100};
+    resizeDocks(vertDocks, vertSizes, Qt::Vertical);
 }
 
 void DSPEditorSection::onSectionActivated()

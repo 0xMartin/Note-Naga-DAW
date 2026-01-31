@@ -61,13 +61,13 @@ void NoteNagaSynthFluidSynth::playNote(const NN_Note_t &note, int channel,
     channel_programs_[channel] = prog;
   }
 
-  // Set pan if needed
-  if (std::abs(channel_pan_[channel] - pan) > 0.01f) {
-    int midiPan = static_cast<int>(std::round(pan * 63.5 + 63.5));
-    fluid_synth_cc(fluidsynth_, channel, 10,
-                   static_cast<int>(std::clamp(midiPan, 0, 127)));
-    channel_pan_[channel] = pan;
-  }
+  // Always set pan before playing note (MIDI CC 10: 0=left, 64=center, 127=right)
+  // Clamp pan to valid range
+  float clampedPan = std::clamp(pan, -1.0f, 1.0f);
+  int midiPan = static_cast<int>(std::round(clampedPan * 63.0f + 64.0f));
+  midiPan = std::clamp(midiPan, 0, 127);
+  fluid_synth_cc(fluidsynth_, channel, 10, midiPan);
+  channel_pan_[channel] = pan;
 
   // Check if note is already playing
   if (playing_notes_[track].find(note.id) != playing_notes_[track].end()) {
@@ -118,6 +118,21 @@ void NoteNagaSynthFluidSynth::stopAllNotes(NoteNagaMidiSeq *seq,
       }
       notes.clear();
     }
+  }
+}
+
+void NoteNagaSynthFluidSynth::setMasterPan(float pan) {
+  std::lock_guard<std::mutex> lock(synth_mutex_);
+  
+  // Convert pan (-1.0 to 1.0) to MIDI CC value (0=left, 64=center, 127=right)
+  float clampedPan = std::clamp(pan, -1.0f, 1.0f);
+  int midiPan = static_cast<int>(std::round(clampedPan * 63.0f + 64.0f));
+  midiPan = std::clamp(midiPan, 0, 127);
+  
+  // Apply pan to all 16 MIDI channels immediately
+  for (int channel = 0; channel < 16; ++channel) {
+    fluid_synth_cc(fluidsynth_, channel, 10, midiPan);
+    channel_pan_[channel] = pan;  // Update cache
   }
 }
 

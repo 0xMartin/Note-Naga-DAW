@@ -33,9 +33,9 @@ void PanAnalyzer::setupTitleWidget()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     
-    m_btnEnabled = create_small_button(":/icons/power-off.svg", "Enable/Disable Pan Analyzer", "btnPanEnabled", 20);
+    m_btnEnabled = create_small_button(":/icons/active.svg", "Enable/Disable Pan Analyzer", "btnPanEnabled", 20);
     m_btnEnabled->setCheckable(true);
-    m_btnEnabled->setChecked(m_enabled);
+    m_btnEnabled->setChecked(!m_enabled);
     connect(m_btnEnabled, &QPushButton::clicked, this, &PanAnalyzer::toggleEnabled);
     
     layout->addWidget(m_btnEnabled);
@@ -44,7 +44,8 @@ void PanAnalyzer::setupTitleWidget()
 void PanAnalyzer::setEnabled(bool enabled)
 {
     m_enabled = enabled;
-    m_btnEnabled->setChecked(enabled);
+    m_btnEnabled->setChecked(!enabled);
+    m_btnEnabled->setIcon(QIcon(enabled ? ":/icons/active.svg" : ":/icons/inactive.svg"));
     m_panAnalyzer->setEnabled(enabled);
     update();
 }
@@ -95,8 +96,11 @@ void PanAnalyzer::paintEvent(QPaintEvent *)
 
 void PanAnalyzer::drawBackground(QPainter &p)
 {
-    // Dark background
-    p.fillRect(rect(), QColor(20, 20, 25));
+    // Same background gradient as spectrum analyzer
+    QLinearGradient bg(0, 0, 0, height());
+    bg.setColorAt(0.0, QColor(15, 15, 22));
+    bg.setColorAt(1.0, QColor(8, 8, 14));
+    p.fillRect(rect(), bg);
 }
 
 void PanAnalyzer::drawSemicircle(QPainter &p)

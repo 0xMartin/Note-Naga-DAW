@@ -25,6 +25,7 @@ public:
     virtual void stopNote(const NN_Note_t &note) override;
     virtual void stopAllNotes(NoteNagaMidiSeq *seq = nullptr, NoteNagaTrack *track = nullptr) override;
     virtual void renderAudio(float* left, float* right, size_t num_frames) override;
+    virtual void setMasterPan(float pan) override;
 
     virtual std::string getConfig(const std::string &key) const override;
     virtual bool setConfig(const std::string &key, const std::string &value) override;

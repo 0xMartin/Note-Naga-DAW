@@ -215,7 +215,7 @@ public:
     void setMasterMinNote(int min_note) { master_min_note.store(min_note); }
     void setMasterMaxNote(int max_note) { master_max_note.store(max_note); }
     void setMasterNoteOffset(int note_offset) { master_note_offset.store(note_offset); }
-    void setMasterPan(float pan) { master_pan.store(pan); }
+    void setMasterPan(float pan);  // Implemented in .cpp to update synths immediately
 
 protected:
     /**

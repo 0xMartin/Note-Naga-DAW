@@ -314,3 +314,11 @@ void NoteNagaMixer::stopAllNotes(NoteNagaMidiSeq *seq, NoteNagaTrack *track) {
         synth->stopAllNotes(seq, track);
     }
 }
+
+void NoteNagaMixer::setMasterPan(float pan) {
+    master_pan.store(pan);
+    // Immediately update pan on all synthesizers for currently playing notes
+    for (auto *synth : *this->synthesizers) {
+        synth->setMasterPan(pan);
+    }
+}

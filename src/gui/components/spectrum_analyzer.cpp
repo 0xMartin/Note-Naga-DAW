@@ -33,9 +33,9 @@ void SpectrumAnalyzer::setupTitleWidget()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     
-    m_btnEnabled = create_small_button(":/icons/power-off.svg", "Enable/Disable Spectrum Analyzer", "btnSpectrumEnabled", 20);
+    m_btnEnabled = create_small_button(":/icons/active.svg", "Enable/Disable Spectrum Analyzer", "btnSpectrumEnabled", 20);
     m_btnEnabled->setCheckable(true);
-    m_btnEnabled->setChecked(m_enabled);
+    m_btnEnabled->setChecked(!m_enabled);
     connect(m_btnEnabled, &QPushButton::clicked, this, &SpectrumAnalyzer::toggleEnabled);
     
     m_btnPeakHold = create_small_button(":/icons/chart-line.svg", "Toggle Peak Hold", "btnPeakHold", 20);
@@ -93,7 +93,8 @@ void SpectrumAnalyzer::contextMenuEvent(QContextMenuEvent *event)
 void SpectrumAnalyzer::toggleEnabled()
 {
     m_enabled = !m_enabled;
-    m_btnEnabled->setChecked(m_enabled);
+    m_btnEnabled->setChecked(!m_enabled);
+    m_btnEnabled->setIcon(QIcon(m_enabled ? ":/icons/active.svg" : ":/icons/inactive.svg"));
     m_spectrumAnalyzer->setEnableSpectrumAnalysis(m_enabled);
     update();
 }

@@ -83,6 +83,12 @@ public:
                             NoteNagaTrack *track = nullptr) = 0;
 
   /**
+   * @brief Sets the master pan for all channels immediately.
+   * @param pan Pan value (-1.0 left, 0.0 center, 1.0 right).
+   */
+  virtual void setMasterPan(float pan) { (void)pan; }
+
+  /**
    * @brief Get a configuration value for the synthesizer
    * @param key Configuration key
    * @return Configuration value or empty string if not found
