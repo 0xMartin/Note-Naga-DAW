@@ -124,6 +124,7 @@ private:
     QPoint rubberBandOrigin;
     bool m_isDragging = false;
     QPointF m_clickStartPos;
+    bool m_hadSelectionBeforeClick = false;
 
     // --- Active notes tracking ---
     QMap<int, int> m_activeNotes;

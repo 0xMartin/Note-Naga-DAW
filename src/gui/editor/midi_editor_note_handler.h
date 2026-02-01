@@ -13,6 +13,18 @@ class QGraphicsScene;
 class QAbstractGraphicsShapeItem;
 
 /**
+ * @brief Data for a copied note (includes track info)
+ */
+struct CopiedNote {
+    int trackId;        // Original track ID
+    int relativeStart;  // Offset from the first note's start
+    int note;           // MIDI note number
+    int length;
+    int velocity;
+    std::optional<int> pan;
+};
+
+/**
  * @brief Handles note selection, creation, modification and deletion.
  */
 class MidiEditorNoteHandler : public QObject {
@@ -48,6 +60,15 @@ public:
     void deleteSelectedNotes();
     void duplicateSelectedNotes();
     void quantizeSelectedNotes();
+    void moveSelectedNotesToTrack(NoteNagaTrack *targetTrack);
+    
+    // --- Copy/Paste ---
+    void copySelectedNotes();
+    void startPasteMode();
+    void cancelPasteMode();
+    void commitPaste(const QPointF &scenePos);
+    bool isInPasteMode() const { return m_pasteMode; }
+    void updatePastePreview(const QPointF &scenePos);
     
     // --- Transpose ---
     void transposeSelectedNotes(int semitones);
@@ -74,6 +95,7 @@ public:
 signals:
     void selectionChanged();
     void notesModified();
+    void pasteModeChanged(bool active);
 
 private:
     MidiEditorWidget *m_editor;
@@ -87,6 +109,11 @@ private:
     QPointF m_lastDragPos;
     QMap<NoteGraphics*, NN_Note_t> m_dragStartNoteStates;
     QList<QGraphicsItem*> m_ghostItems;
+    
+    // Copy/Paste state
+    QList<CopiedNote> m_clipboard;
+    bool m_pasteMode = false;
+    int m_clipboardBaseNote = 64; // Reference note for vertical positioning
     
     static constexpr int RESIZE_EDGE_MARGIN = 5;
 };

@@ -61,6 +61,32 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     connect(m_contextMenu, &MidiEditorContextMenu::transposeOctaveUpRequested, this, &MidiEditorWidget::onTransposeOctaveUp);
     connect(m_contextMenu, &MidiEditorContextMenu::transposeOctaveDownRequested, this, &MidiEditorWidget::onTransposeOctaveDown);
     connect(m_contextMenu, &MidiEditorContextMenu::setVelocityRequested, this, &MidiEditorWidget::onSetVelocity);
+    connect(m_contextMenu, &MidiEditorContextMenu::copyRequested, this, [this]() {
+        m_noteHandler->copySelectedNotes();
+    });
+    connect(m_contextMenu, &MidiEditorContextMenu::cutRequested, this, [this]() {
+        if (m_noteHandler->hasSelection()) {
+            m_noteHandler->copySelectedNotes();
+            m_noteHandler->deleteSelectedNotes();
+        }
+    });
+    connect(m_contextMenu, &MidiEditorContextMenu::pasteRequested, this, [this]() {
+        if (!m_isDragging && !rubberBand->isVisible()) {
+            m_noteHandler->startPasteMode();
+            if (m_noteHandler->isInPasteMode()) {
+                QPointF scenePos = mapToScene(mapFromGlobal(QCursor::pos()));
+                m_noteHandler->updatePastePreview(scenePos);
+            }
+        }
+    });
+    connect(m_contextMenu, &MidiEditorContextMenu::moveToTrackRequested, this, [this](int trackId) {
+        if (last_seq) {
+            NoteNagaTrack *targetTrack = last_seq->getTrackById(trackId);
+            if (targetTrack) {
+                m_noteHandler->moveSelectedNotesToTrack(targetTrack);
+            }
+        }
+    });
 
     this->title_widget = nullptr;
     initTitleUI();
@@ -506,9 +532,20 @@ void MidiEditorWidget::mousePressEvent(QMouseEvent *event) {
     setFocus();
     QPointF scenePos = mapToScene(event->pos());
     
+    // Handle paste mode - left click commits, right click cancels
+    if (m_noteHandler->isInPasteMode()) {
+        if (event->button() == Qt::LeftButton) {
+            m_noteHandler->commitPaste(scenePos);
+        } else if (event->button() == Qt::RightButton) {
+            m_noteHandler->cancelPasteMode();
+        }
+        return;
+    }
+    
     if (event->button() == Qt::LeftButton) {
         m_clickStartPos = scenePos;
         m_isDragging = false;
+        m_hadSelectionBeforeClick = m_noteHandler->hasSelection();
         
         NoteGraphics *noteUnderCursor = m_noteHandler->findNoteUnderCursor(scenePos);
         
@@ -557,6 +594,13 @@ void MidiEditorWidget::mouseMoveEvent(QMouseEvent *event) {
     }
     
     QPointF scenePos = mapToScene(event->pos());
+    
+    // Handle paste mode preview
+    if (m_noteHandler->isInPasteMode()) {
+        m_noteHandler->updatePastePreview(scenePos);
+        return;
+    }
+    
     NoteDragMode dragMode = m_noteHandler->dragMode();
     
     if (dragMode == NoteDragMode::Select && rubberBand->isVisible()) {
@@ -632,8 +676,9 @@ void MidiEditorWidget::mouseReleaseEvent(QMouseEvent *event) {
             // Only select if there was actual dragging
             if (!wasClick) {
                 m_noteHandler->selectNotesInRect(sceneRect);
-            } else {
-                // It was a click on empty space - add new note (no position change)
+            } else if (!m_hadSelectionBeforeClick) {
+                // Only add a new note if there was NO selection before the click
+                // (clicking to deselect should not create a new note)
                 m_noteHandler->addNewNote(m_clickStartPos);
                 refreshMarker();
             }
@@ -682,19 +727,54 @@ void MidiEditorWidget::keyPressEvent(QKeyEvent *event) {
         return;
     }
     
+    // Handle paste mode cancellation first
+    if (m_noteHandler->isInPasteMode()) {
+        if (event->key() == Qt::Key_Escape) {
+            m_noteHandler->cancelPasteMode();
+            return;
+        }
+        // Ignore other keys in paste mode
+        return;
+    }
+    
+    // On macOS, Qt maps Command key to ControlModifier (not MetaModifier)
+    // So we use ControlModifier on all platforms for Cmd/Ctrl shortcuts
+    Qt::KeyboardModifier ctrlMod = Qt::ControlModifier;
+    
     if ((event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) && m_noteHandler->hasSelection()) {
         m_noteHandler->deleteSelectedNotes();
     }
     else if (event->key() == Qt::Key_Escape) {
         m_noteHandler->clearSelection();
     }
-    else if (event->key() == Qt::Key_A && (event->modifiers() & Qt::ControlModifier)) {
+    else if (event->key() == Qt::Key_A && (event->modifiers() & ctrlMod)) {
         m_noteHandler->selectAll();
     }
-    else if (event->key() == Qt::Key_D && (event->modifiers() & Qt::ControlModifier)) {
+    else if (event->key() == Qt::Key_C && (event->modifiers() & ctrlMod)) {
+        m_noteHandler->copySelectedNotes();
+    }
+    else if (event->key() == Qt::Key_V && (event->modifiers() & ctrlMod)) {
+        // Only allow paste if not currently dragging or selecting
+        if (!m_isDragging && !rubberBand->isVisible()) {
+            m_noteHandler->startPasteMode();
+            // Immediately show preview at current mouse position
+            if (m_noteHandler->isInPasteMode()) {
+                QPointF scenePos = mapToScene(mapFromGlobal(QCursor::pos()));
+                m_noteHandler->updatePastePreview(scenePos);
+            }
+        }
+    }
+    else if (event->key() == Qt::Key_D && (event->modifiers() & ctrlMod)) {
         m_noteHandler->duplicateSelectedNotes();
     }
-    else if (event->key() == Qt::Key_Q && (event->modifiers() & Qt::ControlModifier)) {
+    else if (event->key() == Qt::Key_X && (event->modifiers() & ctrlMod)) {
+        // Cut = Copy + Delete
+        if (m_noteHandler->hasSelection()) {
+            m_noteHandler->copySelectedNotes();
+            m_noteHandler->deleteSelectedNotes();
+        }
+    }
+    else if (event->key() == Qt::Key_Q && (event->modifiers() & ctrlMod)) {
         m_noteHandler->quantizeSelectedNotes();
     }
     else if (event->key() == Qt::Key_Up && m_noteHandler->hasSelection()) {
@@ -938,6 +1018,9 @@ void MidiEditorWidget::updateAllNotes() {
 void MidiEditorWidget::updateTrackNotes(NoteNagaTrack *track) {
     if (!last_seq || !track) return;
     
+    // Don't draw notes for invisible tracks
+    if (!track->isVisible()) return;
+    
     int visible_x0 = horizontalScrollBar()->value();
     int visible_x1 = visible_x0 + viewport()->width();
     int visible_y0 = verticalScrollBar()->value();
@@ -1093,7 +1176,11 @@ int MidiEditorWidget::getGridStepTicks() const {
 
 QPen MidiEditorWidget::getNotePen(const NoteNagaTrack *track, bool is_active_track, bool is_selected_note) const {
     if (is_selected_note) {
-        return QPen(m_colors.selection_color, 2);
+        // Use a distinct dashed white/black outline for selected notes
+        // This ensures visibility regardless of note color
+        QPen selPen(Qt::white, 3, Qt::SolidLine);
+        selPen.setCosmetic(true); // Consistent width regardless of zoom
+        return selPen;
     }
     
     NN_Color_t t_color = track->getColor();

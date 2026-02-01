@@ -45,6 +45,7 @@ signals:
     void copyRequested();
     void cutRequested();
     void pasteRequested();
+    void moveToTrackRequested(int trackId);
 
 private:
     void createMenu();
@@ -53,9 +54,11 @@ private:
     void createSelectionSubmenu(QMenu *parent);
     void createTransposeSubmenu(QMenu *parent);
     void createVelocitySubmenu(QMenu *parent);
+    void createMoveToTrackSubmenu(QMenu *parent);
     
     MidiEditorWidget *m_editor;
     QMenu *m_menu;
+    QMenu *m_moveToTrackMenu = nullptr;
     NoteColorMode m_colorMode = NoteColorMode::TrackColor;
     QActionGroup *m_colorModeGroup;
 };

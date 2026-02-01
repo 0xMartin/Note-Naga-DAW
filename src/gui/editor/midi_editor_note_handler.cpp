@@ -6,6 +6,7 @@
 #include <QGraphicsScene>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 MidiEditorNoteHandler::MidiEditorNoteHandler(MidiEditorWidget *editor, QObject *parent)
     : QObject(parent), m_editor(editor)
@@ -352,15 +353,17 @@ void MidiEditorNoteHandler::applyNoteChanges() {
         changesToApply.append({ng, newNote});
     }
 
-    // Check for overlaps and adjust if needed
+    // Check for overlaps - if ANY overlap, cancel the ENTIRE operation
     // Group changes by track for overlap checking
     QMap<NoteNagaTrack*, QList<QPair<NoteGraphics*, NN_Note_t>>> changesByTrack;
     for (const auto& change : changesToApply) {
         changesByTrack[change.first->track].append(change);
     }
     
+    bool anyOverlap = false;
+    
     // Validate each track's changes for overlaps
-    for (auto trackIt = changesByTrack.begin(); trackIt != changesByTrack.end(); ++trackIt) {
+    for (auto trackIt = changesByTrack.begin(); trackIt != changesByTrack.end() && !anyOverlap; ++trackIt) {
         NoteNagaTrack *track = trackIt.key();
         QList<QPair<NoteGraphics*, NN_Note_t>> &trackChanges = trackIt.value();
         
@@ -372,9 +375,8 @@ void MidiEditorNoteHandler::applyNoteChanges() {
         }
         
         // Check each new note position for overlaps
-        for (auto& change : trackChanges) {
-            NN_Note_t& newNote = change.second;
-            bool hasOverlap = false;
+        for (const auto& change : trackChanges) {
+            const NN_Note_t& newNote = change.second;
             
             // Check against existing notes (not being moved)
             for (const auto& existing : existingNotes) {
@@ -387,35 +389,42 @@ void MidiEditorNoteHandler::applyNoteChanges() {
                 int existingEnd = existingStart + existing.length.value_or(1);
                 
                 if (newStart < existingEnd && existingStart < newEnd) {
-                    hasOverlap = true;
+                    anyOverlap = true;
                     break;
                 }
             }
+            if (anyOverlap) break;
             
             // Check against other moving notes (in case they overlap each other after move)
-            if (!hasOverlap) {
-                for (const auto& otherChange : trackChanges) {
-                    if (&otherChange == &change) continue;
-                    const NN_Note_t& otherNote = otherChange.second;
-                    if (otherNote.note != newNote.note) continue;
-                    
-                    int newStart = newNote.start.value_or(0);
-                    int newEnd = newStart + newNote.length.value_or(minNoteLength);
-                    int otherStart = otherNote.start.value_or(0);
-                    int otherEnd = otherStart + otherNote.length.value_or(1);
-                    
-                    if (newStart < otherEnd && otherStart < newEnd) {
-                        hasOverlap = true;
-                        break;
-                    }
+            for (const auto& otherChange : trackChanges) {
+                if (&otherChange == &change) continue;
+                const NN_Note_t& otherNote = otherChange.second;
+                if (otherNote.note != newNote.note) continue;
+                
+                int newStart = newNote.start.value_or(0);
+                int newEnd = newStart + newNote.length.value_or(minNoteLength);
+                int otherStart = otherNote.start.value_or(0);
+                int otherEnd = otherStart + otherNote.length.value_or(1);
+                
+                if (newStart < otherEnd && otherStart < newEnd) {
+                    anyOverlap = true;
+                    break;
                 }
             }
-            
-            if (hasOverlap) {
-                // Revert this note to original position
-                change.second = m_dragStartNoteStates.value(change.first);
-            }
+            if (anyOverlap) break;
         }
+    }
+    
+    // If overlap detected, cancel entire operation
+    if (anyOverlap) {
+        // Reset visual positions
+        for (NoteGraphics *ng : m_selectedNotes) {
+            if (ng->item) ng->item->setPos(0, 0);
+            if (ng->label) ng->label->setPos(0, 0);
+        }
+        clearGhostPreview();
+        m_dragStartNoteStates.clear();
+        return;
     }
 
     auto project = m_editor->getEngine()->getProject();
@@ -505,9 +514,16 @@ void MidiEditorNoteHandler::duplicateSelectedNotes() {
     project->blockSignals(true);
     
     for (NoteGraphics *ng : m_selectedNotes) {
-        NN_Note_t newNote = ng->note;
-        if (newNote.start.has_value()) {
-            newNote.start = newNote.start.value() + offset;
+        NN_Note_t newNote;
+        // Generate new unique ID for the duplicate
+        newNote.id = nn_generate_unique_note_id();
+        newNote.parent = ng->track;  // Set parent to same track
+        newNote.note = ng->note.note;
+        newNote.velocity = ng->note.velocity;
+        newNote.length = ng->note.length;
+        newNote.pan = ng->note.pan;
+        if (ng->note.start.has_value()) {
+            newNote.start = ng->note.start.value() + offset;
         }
         ng->track->addNote(newNote);
         affectedTracks.insert(ng->track);
@@ -515,7 +531,105 @@ void MidiEditorNoteHandler::duplicateSelectedNotes() {
     
     project->blockSignals(signalsWereBlocked);
     
+    // Clear selection after duplicate
+    clearSelection();
+    
     seq->computeMaxTick();
+    emit notesModified();
+    
+    for (NoteNagaTrack *track : affectedTracks) {
+        m_editor->refreshTrack(track);
+    }
+}
+
+void MidiEditorNoteHandler::moveSelectedNotesToTrack(NoteNagaTrack *targetTrack) {
+    if (m_selectedNotes.isEmpty() || !targetTrack) return;
+    
+    auto *seq = m_editor->getSequence();
+    if (!seq) return;
+    
+    QSet<NoteNagaTrack*> affectedTracks;
+    affectedTracks.insert(targetTrack);
+    
+    // Get existing notes on target track for overlap check
+    std::vector<NN_Note_t> targetExisting = targetTrack->getNotes();
+    
+    auto project = m_editor->getEngine()->getProject();
+    bool signalsWereBlocked = project->signalsBlocked();
+    project->blockSignals(true);
+    
+    // First, collect notes that can be moved (no overlap)
+    QList<QPair<NoteNagaTrack*, NN_Note_t>> notesToMove;
+    
+    for (NoteGraphics *ng : m_selectedNotes) {
+        // Skip if already on target track
+        if (ng->track == targetTrack) continue;
+        
+        NN_Note_t note = ng->note;
+        bool hasOverlap = false;
+        
+        // Check for overlap with existing notes on target track
+        for (const auto &existing : targetExisting) {
+            if (existing.note != note.note) continue;
+            
+            int noteStart = note.start.value_or(0);
+            int noteEnd = noteStart + note.length.value_or(1);
+            int existingStart = existing.start.value_or(0);
+            int existingEnd = existingStart + existing.length.value_or(1);
+            
+            if (noteStart < existingEnd && existingStart < noteEnd) {
+                hasOverlap = true;
+                break;
+            }
+        }
+        
+        // Also check against notes we're about to move
+        if (!hasOverlap) {
+            for (const auto &other : notesToMove) {
+                if (other.second.note != note.note) continue;
+                
+                int noteStart = note.start.value_or(0);
+                int noteEnd = noteStart + note.length.value_or(1);
+                int otherStart = other.second.start.value_or(0);
+                int otherEnd = otherStart + other.second.length.value_or(1);
+                
+                if (noteStart < otherEnd && otherStart < noteEnd) {
+                    hasOverlap = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!hasOverlap) {
+            notesToMove.append({ng->track, note});
+            affectedTracks.insert(ng->track);
+        }
+        // Notes with overlap are simply not moved (removed from selection only)
+    }
+    
+    // Perform the move
+    for (const auto &pair : notesToMove) {
+        NoteNagaTrack *sourceTrack = pair.first;
+        NN_Note_t note = pair.second;
+        
+        // Remove from source track
+        sourceTrack->removeNote(note);
+        
+        // Add to target track with new ID and parent
+        NN_Note_t newNote;
+        newNote.id = nn_generate_unique_note_id();
+        newNote.parent = targetTrack;  // IMPORTANT: Set parent to target track
+        newNote.note = note.note;
+        newNote.velocity = note.velocity;
+        newNote.length = note.length;
+        newNote.start = note.start;
+        newNote.pan = note.pan;
+        targetTrack->addNote(newNote);
+    }
+    
+    project->blockSignals(signalsWereBlocked);
+    
+    clearSelection();
     emit notesModified();
     
     for (NoteNagaTrack *track : affectedTracks) {
@@ -787,5 +901,195 @@ void MidiEditorNoteHandler::clearTrackNoteItems(int trackId) {
             ng.label = nullptr;
         }
         m_noteItems.erase(it);
+    }
+}
+
+// --- Copy/Paste ---
+
+void MidiEditorNoteHandler::copySelectedNotes() {
+    if (m_selectedNotes.isEmpty()) return;
+    
+    m_clipboard.clear();
+    
+    // Find the minimum start time to use as reference
+    int minStart = std::numeric_limits<int>::max();
+    int sumNotes = 0;
+    
+    for (NoteGraphics *ng : m_selectedNotes) {
+        if (ng->note.start.has_value()) {
+            minStart = std::min(minStart, ng->note.start.value());
+        }
+        sumNotes += ng->note.note;
+    }
+    
+    if (minStart == std::numeric_limits<int>::max()) minStart = 0;
+    m_clipboardBaseNote = m_selectedNotes.isEmpty() ? 64 : sumNotes / m_selectedNotes.size();
+    
+    // Copy notes with relative positions and track info
+    for (NoteGraphics *ng : m_selectedNotes) {
+        CopiedNote copied;
+        copied.trackId = ng->track->getId();
+        copied.relativeStart = ng->note.start.value_or(0) - minStart;
+        copied.note = ng->note.note;
+        copied.length = ng->note.length.value_or(480);
+        copied.velocity = ng->note.velocity.value_or(100);
+        copied.pan = ng->note.pan;
+        m_clipboard.append(copied);
+    }
+}
+
+void MidiEditorNoteHandler::startPasteMode() {
+    if (m_clipboard.isEmpty()) return;
+    
+    m_pasteMode = true;
+    emit pasteModeChanged(true);
+}
+
+void MidiEditorNoteHandler::cancelPasteMode() {
+    if (!m_pasteMode) return;
+    
+    clearGhostPreview();
+    m_pasteMode = false;
+    emit pasteModeChanged(false);
+}
+
+void MidiEditorNoteHandler::updatePastePreview(const QPointF &scenePos) {
+    if (!m_pasteMode || m_clipboard.isEmpty()) return;
+    
+    clearGhostPreview();
+    
+    auto *scene = m_editor->getScene();
+    auto *config = m_editor->getConfig();
+    if (!scene || !config) return;
+    
+    int baseTick = m_editor->snapTickToGridNearest(m_editor->sceneXToTick(scenePos.x()));
+    int baseNote = m_editor->sceneYToNote(scenePos.y());
+    int noteDelta = baseNote - m_clipboardBaseNote;
+    
+    int content_height = 128 * config->key_height;
+    
+    for (const CopiedNote &copied : m_clipboard) {
+        int newStart = baseTick + copied.relativeStart;
+        int newNoteValue = std::clamp(copied.note + noteDelta, 0, 127);
+        
+        int ghostX = newStart * config->time_scale;
+        int ghostY = content_height - (newNoteValue + 1) * config->key_height;
+        int ghostW = std::max(1, static_cast<int>(copied.length * config->time_scale));
+        int ghostH = config->key_height;
+        
+        QGraphicsRectItem *ghost = scene->addRect(
+            ghostX, ghostY, ghostW, ghostH,
+            QPen(QColor(100, 255, 100, 200), 2, Qt::DashLine),
+            QBrush(QColor(100, 255, 100, 60))
+        );
+        ghost->setZValue(1000);
+        m_ghostItems.append(ghost);
+    }
+}
+
+void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
+    if (!m_pasteMode || m_clipboard.isEmpty()) return;
+    
+    auto *seq = m_editor->getSequence();
+    if (!seq) {
+        cancelPasteMode();
+        return;
+    }
+    
+    auto *config = m_editor->getConfig();
+    int baseTick = m_editor->snapTickToGridNearest(m_editor->sceneXToTick(scenePos.x()));
+    int baseNote = m_editor->sceneYToNote(scenePos.y());
+    int noteDelta = baseNote - m_clipboardBaseNote;
+    int gridStep = m_editor->getGridStepTicks();
+    
+    // Group notes by track
+    QMap<int, QList<NN_Note_t>> notesByTrack;
+    
+    for (const CopiedNote &copied : m_clipboard) {
+        NN_Note_t newNote;
+        newNote.id = nn_generate_unique_note_id();
+        newNote.parent = nullptr;  // Will be set when adding to track
+        newNote.start = baseTick + copied.relativeStart;
+        newNote.note = std::clamp(copied.note + noteDelta, 0, 127);
+        newNote.length = copied.length;
+        newNote.velocity = copied.velocity;
+        newNote.pan = copied.pan;
+        notesByTrack[copied.trackId].append(newNote);
+    }
+    
+    // Check for overlaps on each track
+    bool anyOverlap = false;
+    QSet<NoteNagaTrack*> affectedTracks;
+    
+    for (auto it = notesByTrack.begin(); it != notesByTrack.end() && !anyOverlap; ++it) {
+        NoteNagaTrack *track = seq->getTrackById(it.key());
+        if (!track) continue;
+        
+        affectedTracks.insert(track);
+        std::vector<NN_Note_t> existingNotes = track->getNotes();
+        const QList<NN_Note_t> &notesToAdd = it.value();
+        
+        for (const NN_Note_t &newNote : notesToAdd) {
+            // Check against existing notes
+            for (const auto &existing : existingNotes) {
+                if (existing.note != newNote.note) continue;
+                
+                int newStart = newNote.start.value_or(0);
+                int newEnd = newStart + newNote.length.value_or(gridStep);
+                int existingStart = existing.start.value_or(0);
+                int existingEnd = existingStart + existing.length.value_or(1);
+                
+                if (newStart < existingEnd && existingStart < newEnd) {
+                    anyOverlap = true;
+                    break;
+                }
+            }
+            if (anyOverlap) break;
+            
+            // Check against other notes being pasted to same track
+            for (const NN_Note_t &otherNew : notesToAdd) {
+                if (&otherNew == &newNote) continue;
+                if (otherNew.note != newNote.note) continue;
+                
+                int newStart = newNote.start.value_or(0);
+                int newEnd = newStart + newNote.length.value_or(gridStep);
+                int otherStart = otherNew.start.value_or(0);
+                int otherEnd = otherStart + otherNew.length.value_or(1);
+                
+                if (newStart < otherEnd && otherStart < newEnd) {
+                    anyOverlap = true;
+                    break;
+                }
+            }
+            if (anyOverlap) break;
+        }
+    }
+    
+    if (anyOverlap) {
+        // Don't paste if there's overlap, but stay in paste mode
+        return;
+    }
+    
+    // Add all notes to their respective tracks
+    for (auto it = notesByTrack.begin(); it != notesByTrack.end(); ++it) {
+        NoteNagaTrack *track = seq->getTrackById(it.key());
+        if (!track) continue;
+        
+        for (NN_Note_t &newNote : it.value()) {
+            newNote.parent = track;  // Set parent before adding
+            track->addNote(newNote);
+        }
+    }
+    
+    clearGhostPreview();
+    m_pasteMode = false;
+    emit pasteModeChanged(false);
+    
+    seq->computeMaxTick();
+    emit notesModified();
+    
+    // Refresh all affected tracks
+    for (NoteNagaTrack *track : affectedTracks) {
+        m_editor->refreshTrack(track);
     }
 }

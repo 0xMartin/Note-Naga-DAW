@@ -30,6 +30,10 @@ void MidiEditorContextMenu::createMenu() {
     createVelocitySubmenu(m_menu);
     m_menu->addSeparator();
     
+    // Move to track submenu
+    createMoveToTrackSubmenu(m_menu);
+    m_menu->addSeparator();
+    
     // Color mode submenu
     createColorModeSubmenu(m_menu);
 }
@@ -142,6 +146,11 @@ void MidiEditorContextMenu::createColorModeSubmenu(QMenu *parent) {
     addColorAction("Pan", NoteColorMode::Pan);
 }
 
+void MidiEditorContextMenu::createMoveToTrackSubmenu(QMenu *parent) {
+    m_moveToTrackMenu = parent->addMenu("Move to Track");
+    // Will be populated dynamically in show()
+}
+
 void MidiEditorContextMenu::show(const QPoint &globalPos, bool hasSelection) {
     // Enable/disable actions based on selection
     for (QAction *action : m_menu->actions()) {
@@ -160,6 +169,28 @@ void MidiEditorContextMenu::show(const QPoint &globalPos, bool hasSelection) {
             action->setEnabled(hasSelection);
             if (action->menu()) {
                 action->menu()->setEnabled(hasSelection);
+            }
+        }
+        if (text == "Move to Track") {
+            action->setEnabled(hasSelection);
+        }
+    }
+    
+    // Populate "Move to Track" submenu with available tracks
+    if (m_moveToTrackMenu) {
+        m_moveToTrackMenu->clear();
+        m_moveToTrackMenu->setEnabled(hasSelection);
+        
+        auto *seq = m_editor->getSequence();
+        if (seq && hasSelection) {
+            for (auto *track : seq->getTracks()) {
+                QString trackName = QString::fromStdString(track->getName());
+                int trackId = track->getId();
+                QAction *action = m_moveToTrackMenu->addAction(
+                    QString("%1 (Track %2)").arg(trackName).arg(trackId));
+                connect(action, &QAction::triggered, this, [this, trackId]() {
+                    emit moveToTrackRequested(trackId);
+                });
             }
         }
     }
