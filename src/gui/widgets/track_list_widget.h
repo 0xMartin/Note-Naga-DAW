@@ -5,6 +5,7 @@
 #include <QScrollArea>
 #include <QFrame>
 #include <QColor>
+#include <QMenu>
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -43,6 +44,7 @@ private:
     void initTitleUI();
     void initUI();
     void updateSelection(NoteNagaMidiSeq *sequence, int widget_idx);
+    void showTrackContextMenu(TrackWidget *trackWidget, const QPoint &globalPos);
 
 /*******************************************************************************************************/
 // Signal and Slots
@@ -54,4 +56,7 @@ private slots:
     void onRemoveTrack();
     void onClearTracks();
     void onReloadTracks();
+    void onDuplicateTrack();
+    void onMoveTrackUp();
+    void onMoveTrackDown();
 };

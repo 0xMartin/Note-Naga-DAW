@@ -524,7 +524,7 @@ void MidiEditorWidget::resizeEvent(QResizeEvent *event) {
 }
 
 void MidiEditorWidget::mousePressEvent(QMouseEvent *event) {
-    if (!last_seq) {
+    if (!last_seq || last_seq->getTracks().empty()) {
         QGraphicsView::mousePressEvent(event);
         return;
     }

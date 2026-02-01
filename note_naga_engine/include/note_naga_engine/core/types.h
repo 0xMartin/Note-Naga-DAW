@@ -479,9 +479,9 @@ public:
         /**
      * @brief Adds a new track to the sequence.
      * @param instrument_index Index of the instrument to use for the new track.
-     * @return True if the track was added successfully, false otherwise.
+     * @return Pointer to the newly created track, or nullptr on failure.
      */
-    bool addTrack(int instrument_index);
+    NoteNagaTrack* addTrack(int instrument_index);
 
     /**
      * @brief Removes a track from the sequence.
@@ -489,6 +489,14 @@ public:
      * @return True if the track was removed successfully, false otherwise.
      */
     bool removeTrack(int track_index);
+
+    /**
+     * @brief Moves a track from one position to another in the sequence.
+     * @param from_index Current index of the track to move.
+     * @param to_index Target index where the track should be moved.
+     * @return True if the track was moved successfully, false otherwise.
+     */
+    bool moveTrack(int from_index, int to_index);
 
     /**
      * @brief Loads a MIDI file into the sequence from the specified path.

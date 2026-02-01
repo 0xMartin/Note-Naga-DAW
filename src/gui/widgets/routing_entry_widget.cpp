@@ -4,6 +4,9 @@
 #include <note_naga_engine/synth/synth_external_midi.h>
 #include <note_naga_engine/synth/synth_fluidsynth.h>
 
+#include <QAbstractItemView>
+#include <QContextMenuEvent>
+#include <QInputDialog>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
@@ -23,6 +26,11 @@ RoutingEntryWidget::RoutingEntryWidget(NoteNagaEngine *engine_,
     // Connect to track info changed (refresh combos)
     connect(parent_seq, &NoteNagaMidiSeq::trackListChanged, this,
             [this, parent_seq]()
+            { onTrackMetadataChanged(parent_seq); });
+    
+    // Connect to track metadata changes (name changes)
+    connect(parent_seq, &NoteNagaMidiSeq::trackMetadataChanged, this,
+            [this, parent_seq](NoteNagaTrack*, const std::string&)
             { onTrackMetadataChanged(parent_seq); });
 }
 
@@ -93,9 +101,22 @@ void RoutingEntryWidget::setupUI()
     track_row->addWidget(track_icon, Qt::AlignVCenter);
 
     track_combo = new QComboBox();
+    track_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    track_combo->setMinimumWidth(120);
+    track_combo->setMaximumWidth(350);
+    track_combo->view()->setMinimumWidth(250);  // Ensure popup is wide enough
+    track_combo->setStyleSheet(
+        "QComboBox { background: #232731; color: #e8e8e8; border: 1px solid #494d56; "
+        "border-radius: 4px; padding: 3px 8px; font-size: 12px; }"
+        "QComboBox:hover { border-color: #5a8fd4; }"
+        "QComboBox::drop-down { border: none; width: 20px; }"
+        "QComboBox::down-arrow { image: url(:/icons/arrow-down.svg); width: 12px; height: 12px; }"
+        "QComboBox QAbstractItemView { background: #2a2e38; color: #e8e8e8; "
+        "selection-background-color: #3477c0; border: 1px solid #494d56; "
+        "padding: 4px; min-width: 250px; }"
+    );
     connect(track_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &RoutingEntryWidget::onTrackChanged);
-    track_combo->setMaximumWidth(300);
     track_row->addWidget(track_combo, 1);
     combo_col->addLayout(track_row);
 
@@ -116,8 +137,14 @@ void RoutingEntryWidget::setupUI()
 
     // Output label instead of combo box
     output_label = new QLabel();
-    output_label->setMaximumWidth(300);
-    output_label->setStyleSheet("color: #79b8ff; font-weight: bold;");
+    output_label->setMinimumWidth(120);
+    output_label->setMaximumWidth(350);
+    output_label->setStyleSheet(
+        "QLabel { color: #79b8ff; font-weight: bold; font-size: 12px; "
+        "background: #232731; border: 1px solid #494d56; border-radius: 4px; "
+        "padding: 3px 8px; }"
+    );
+    output_label->setToolTip("Output synthesizer for this routing entry");
     device_row->addWidget(output_label, 1);
     combo_col->addLayout(device_row);
 
@@ -304,4 +331,65 @@ void RoutingEntryWidget::mousePressEvent(QMouseEvent *event)
 {
     emit clicked();
     QFrame::mousePressEvent(event);
+}
+
+void RoutingEntryWidget::contextMenuEvent(QContextMenuEvent *event)
+{
+    QMenu menu(this);
+    
+    // Duplicate entry
+    QAction *duplicateAction = menu.addAction(QIcon(":/icons/copy.svg"), "Duplicate Entry");
+    connect(duplicateAction, &QAction::triggered, this, [this]() {
+        NoteNagaRoutingEntry newEntry = *entry;  // Copy the entry
+        engine->getMixer()->addRoutingEntry(newEntry);
+    });
+    
+    menu.addSeparator();
+    
+    // Reassign to different synth
+    QMenu *reassignMenu = menu.addMenu(QIcon(":/icons/route.svg"), "Reassign to Synth");
+    auto synthesizers = engine->getSynthesizers();
+    for (NoteNagaSynthesizer *synth : synthesizers) {
+        QString synthName = QString::fromStdString(synth->getName());
+        QAction *synthAction = reassignMenu->addAction(synthName);
+        synthAction->setCheckable(true);
+        synthAction->setChecked(entry->output == synth->getName());
+        connect(synthAction, &QAction::triggered, this, [this, synth]() {
+            entry->output = synth->getName();
+            updateOutputLabel();
+            engine->getMixer()->routingEntryStackChanged();
+        });
+    }
+    
+    menu.addSeparator();
+    
+    // Reset to defaults
+    QAction *resetAction = menu.addAction(QIcon(":/icons/reload.svg"), "Reset to Defaults");
+    connect(resetAction, &QAction::triggered, this, [this]() {
+        entry->channel = 0;
+        entry->volume = 1.0f;
+        entry->pan = 0.0f;
+        entry->note_offset = 0;
+        channel_dial->setValue(1);
+        volume_dial->setValue(100);
+        pan_dial->setValue(0.0);
+        offset_dial->setValue(0);
+    });
+    
+    menu.addSeparator();
+    
+    // Remove entry
+    QAction *removeAction = menu.addAction(QIcon(":/icons/remove.svg"), "Remove Entry");
+    connect(removeAction, &QAction::triggered, this, [this]() {
+        // Find the index of this entry in the mixer
+        auto &entries = engine->getMixer()->getRoutingEntries();
+        for (size_t i = 0; i < entries.size(); ++i) {
+            if (&entries[i] == entry) {
+                engine->getMixer()->removeRoutingEntry(static_cast<int>(i));
+                break;
+            }
+        }
+    });
+    
+    menu.exec(event->globalPos());
 }

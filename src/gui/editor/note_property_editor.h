@@ -82,6 +82,11 @@ public slots:
      * @brief Called when the active sequence changes
      */
     void onSequenceChanged(NoteNagaMidiSeq *seq);
+    
+    /**
+     * @brief Called when track metadata (color, visibility, name) changes
+     */
+    void onTrackMetadataChanged(NoteNagaTrack *track, const std::string &param);
 
 signals:
     /**

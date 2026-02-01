@@ -355,20 +355,21 @@ int NoteNagaMidiSeq::computeMaxTick() {
   return this->max_tick;
 }
 
-bool NoteNagaMidiSeq::addTrack(int instrument_index) {
+NoteNagaTrack* NoteNagaMidiSeq::addTrack(int instrument_index) {
   if (instrument_index < 0)
-    return false;
+    return nullptr;
   if (instrument_index > 127)
-    return false;
+    return nullptr;
   int track_id = this->tracks.size();
-  this->tracks.push_back(new NoteNagaTrack(
-      track_id, this, "Track " + std::to_string(track_id),
+  NoteNagaTrack* newTrack = new NoteNagaTrack(
+      track_id, this, "Track " + std::to_string(track_id + 1),
       instrument_index >= 0 ? std::optional<int>(instrument_index)
                             : std::nullopt,
-      0));
+      0);
+  this->tracks.push_back(newTrack);
 
   NN_QT_EMIT(trackListChanged());
-  return true;
+  return newTrack;
 }
 
 bool NoteNagaMidiSeq::removeTrack(int track_index) {
@@ -377,6 +378,22 @@ bool NoteNagaMidiSeq::removeTrack(int track_index) {
 
   delete this->tracks[track_index];
   this->tracks.erase(this->tracks.begin() + track_index);
+  NN_QT_EMIT(trackListChanged());
+  return true;
+}
+
+bool NoteNagaMidiSeq::moveTrack(int from_index, int to_index) {
+  if (from_index < 0 || from_index >= static_cast<int>(this->tracks.size()))
+    return false;
+  if (to_index < 0 || to_index >= static_cast<int>(this->tracks.size()))
+    return false;
+  if (from_index == to_index)
+    return true;  // No-op but not an error
+
+  NoteNagaTrack *track = this->tracks[from_index];
+  this->tracks.erase(this->tracks.begin() + from_index);
+  this->tracks.insert(this->tracks.begin() + to_index, track);
+  
   NN_QT_EMIT(trackListChanged());
   return true;
 }

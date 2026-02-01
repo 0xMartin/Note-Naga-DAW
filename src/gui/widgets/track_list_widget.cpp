@@ -3,6 +3,7 @@
 #include "../dialogs/instrument_selector_dialog.h"
 #include "../nn_gui_utils.h"
 #include "note_naga_engine/core/types.h"
+#include <QInputDialog>
 #include <QMessageBox>
 #include <QMouseEvent>
 
@@ -108,6 +109,13 @@ void TrackListWidget::reloadTracks(NoteNagaMidiSeq *seq) {
     widget->installEventFilter(this);
     widget->setMouseTracking(true);
     widget->refreshStyle(false, idx % 2 == 0);
+    widget->setContextMenuPolicy(Qt::CustomContextMenu);
+    
+    // Context menu connection
+    connect(widget, &QWidget::customContextMenuRequested, this, 
+            [this, widget](const QPoint &pos) {
+      showTrackContextMenu(widget, widget->mapToGlobal(pos));
+    });
 
     // Custom mousePressEvent via subclass or signal (see below)
     connect(widget, &TrackWidget::clicked, this, [this, seq, idx]() {
@@ -178,6 +186,21 @@ void TrackListWidget::onRemoveTrack() {
   if (selected_row < 0 || selected_row >= (int)track_widgets.size())
     return;
 
+  // Prevent removing the last track
+  if (seq->getTracks().size() <= 1) {
+    QMessageBox::warning(this, "Cannot Remove Track",
+                         "At least one track must remain in the project.");
+    return;
+  }
+
+  // Ask for confirmation
+  if (QMessageBox::question(this, "Remove Track",
+                            "Are you sure you want to remove this track?",
+                            QMessageBox::Yes | QMessageBox::No,
+                            QMessageBox::No) != QMessageBox::Yes) {
+    return;
+  }
+
   NoteNagaTrack *track = seq->getTracks()[selected_row];
   if (track) {
     engine->getMixer()->removeRoutingEntryForTrack(track);
@@ -194,10 +217,15 @@ void TrackListWidget::onClearTracks() {
   }
 
   if (QMessageBox::question(this, "Clear All Tracks",
-                            "Are you sure you want to remove all tracks?") ==
-      QMessageBox::Yes) {
+                            "Are you sure you want to remove all tracks? A new empty track will be created.",
+                            QMessageBox::Yes | QMessageBox::No,
+                            QMessageBox::No) == QMessageBox::Yes) {
     seq->clear();
     engine->getMixer()->clearRoutingTable();
+    
+    // Create one empty track so the project is never without tracks
+    seq->addTrack(0);  // Piano as default
+    engine->getMixer()->createDefaultRouting();
   }
 }
 
@@ -215,4 +243,151 @@ void TrackListWidget::onReloadTracks() {
     seq->loadFromMidi(seq->getFilePath());
     engine->getMixer()->createDefaultRouting();
   }
+}
+
+void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoint &globalPos) {
+  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  if (!seq) return;
+  
+  NoteNagaTrack *track = trackWidget->getTrack();
+  if (!track) return;
+  
+  // Find the index of this track
+  int trackIdx = -1;
+  for (size_t i = 0; i < track_widgets.size(); ++i) {
+    if (track_widgets[i] == trackWidget) {
+      trackIdx = static_cast<int>(i);
+      break;
+    }
+  }
+  
+  // Select this track
+  if (trackIdx >= 0) {
+    updateSelection(seq, trackIdx);
+  }
+  
+  QMenu menu(this);
+  
+  // Rename track
+  QAction *renameAction = menu.addAction(QIcon(":/icons/edit.svg"), "Rename Track");
+  connect(renameAction, &QAction::triggered, this, [this, track]() {
+    bool ok;
+    QString newName = QInputDialog::getText(this, "Rename Track", "Track name:",
+                                            QLineEdit::Normal, 
+                                            QString::fromStdString(track->getName()), &ok);
+    if (ok && !newName.isEmpty()) {
+      track->setName(newName.toStdString());
+    }
+  });
+  
+  // Change instrument
+  QAction *instrumentAction = menu.addAction(QIcon(":/icons/instrument.svg"), "Change Instrument...");
+  connect(instrumentAction, &QAction::triggered, this, [this, track]() {
+    InstrumentSelectorDialog dlg(this, GM_INSTRUMENTS, instrument_icon, track->getInstrument());
+    if (dlg.exec() == QDialog::Accepted) {
+      int gm_index = dlg.getSelectedGMIndex();
+      track->setInstrument(gm_index);
+    }
+  });
+  
+  menu.addSeparator();
+  
+  // Toggle visibility
+  QAction *visibilityAction = menu.addAction(
+    track->isVisible() ? QIcon(":/icons/eye-not-visible.svg") : QIcon(":/icons/eye-visible.svg"),
+    track->isVisible() ? "Hide Track" : "Show Track"
+  );
+  connect(visibilityAction, &QAction::triggered, this, [track]() {
+    track->setVisible(!track->isVisible());
+  });
+  
+  // Toggle mute
+  QAction *muteAction = menu.addAction(
+    track->isMuted() ? QIcon(":/icons/sound-on.svg") : QIcon(":/icons/sound-off.svg"),
+    track->isMuted() ? "Unmute Track" : "Mute Track"
+  );
+  connect(muteAction, &QAction::triggered, this, [this, track]() {
+    engine->muteTrack(track, !track->isMuted());
+  });
+  
+  // Toggle solo
+  QAction *soloAction = menu.addAction(QIcon(":/icons/solo.svg"), 
+                                       track->isSolo() ? "Unsolo Track" : "Solo Track");
+  connect(soloAction, &QAction::triggered, this, [this, track]() {
+    engine->soloTrack(track, !track->isSolo());
+  });
+  
+  menu.addSeparator();
+  
+  // Duplicate track
+  QAction *duplicateAction = menu.addAction(QIcon(":/icons/copy.svg"), "Duplicate Track");
+  connect(duplicateAction, &QAction::triggered, this, &TrackListWidget::onDuplicateTrack);
+  
+  menu.addSeparator();
+  
+  // Move up/down
+  QAction *moveUpAction = menu.addAction(QIcon(":/icons/arrow-up.svg"), "Move Up");
+  moveUpAction->setEnabled(trackIdx > 0);
+  connect(moveUpAction, &QAction::triggered, this, &TrackListWidget::onMoveTrackUp);
+  
+  QAction *moveDownAction = menu.addAction(QIcon(":/icons/arrow-down.svg"), "Move Down");
+  moveDownAction->setEnabled(trackIdx >= 0 && trackIdx < (int)track_widgets.size() - 1);
+  connect(moveDownAction, &QAction::triggered, this, &TrackListWidget::onMoveTrackDown);
+  
+  menu.addSeparator();
+  
+  // Remove track
+  QAction *removeAction = menu.addAction(QIcon(":/icons/remove.svg"), "Remove Track");
+  connect(removeAction, &QAction::triggered, this, &TrackListWidget::onRemoveTrack);
+  
+  menu.exec(globalPos);
+}
+
+void TrackListWidget::onDuplicateTrack() {
+  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  if (!seq) return;
+  
+  if (selected_row < 0 || selected_row >= (int)track_widgets.size()) return;
+  
+  NoteNagaTrack *sourceTrack = seq->getTracks()[selected_row];
+  if (!sourceTrack) return;
+  
+  // Create new track with same instrument
+  NoteNagaTrack *newTrack = seq->addTrack(sourceTrack->getInstrument().value_or(0));
+  if (!newTrack) return;
+  
+  // Copy properties
+  newTrack->setName(sourceTrack->getName() + " (Copy)");
+  newTrack->setColor(sourceTrack->getColor());
+  
+  // Copy notes with proper parent assignment
+  for (const auto &note : sourceTrack->getNotes()) {
+    NN_Note_t newNote = note;
+    newNote.id = nn_generate_unique_note_id();
+    newNote.parent = newTrack;
+    newTrack->addNote(newNote);
+  }
+  
+  // Create routing entry for new track
+  engine->getMixer()->createDefaultRouting();
+}
+
+void TrackListWidget::onMoveTrackUp() {
+  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  if (!seq) return;
+  
+  if (selected_row <= 0 || selected_row >= (int)seq->getTracks().size()) return;
+  
+  seq->moveTrack(selected_row, selected_row - 1);
+  selected_row--;
+}
+
+void TrackListWidget::onMoveTrackDown() {
+  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  if (!seq) return;
+  
+  if (selected_row < 0 || selected_row >= (int)seq->getTracks().size() - 1) return;
+  
+  seq->moveTrack(selected_row, selected_row + 1);
+  selected_row++;
 }

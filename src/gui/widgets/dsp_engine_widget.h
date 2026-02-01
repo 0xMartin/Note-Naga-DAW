@@ -12,6 +12,7 @@
 #include <QSlider>
 #include <QList>
 #include <QComboBox>
+#include <QMenu>
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -56,6 +57,9 @@ private:
     void initUI();
     void refreshDSPWidgets();
     void clearDSPWidgets();
+
+protected:
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 private slots:
     void addDSPClicked();

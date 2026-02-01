@@ -59,6 +59,8 @@ NotePropertyEditor::NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget 
         if (seq) {
             connect(seq, &NoteNagaMidiSeq::activeTrackChanged, 
                     this, &NotePropertyEditor::onActiveTrackChanged);
+            connect(seq, &NoteNagaMidiSeq::trackMetadataChanged,
+                    this, &NotePropertyEditor::onTrackMetadataChanged);
         }
         
         // Also listen for sequence changes to reconnect
@@ -215,12 +217,31 @@ void NotePropertyEditor::onSequenceChanged(NoteNagaMidiSeq *seq)
     if (seq) {
         connect(seq, &NoteNagaMidiSeq::activeTrackChanged, 
                 this, &NotePropertyEditor::onActiveTrackChanged, Qt::UniqueConnection);
+        connect(seq, &NoteNagaMidiSeq::trackMetadataChanged,
+                this, &NotePropertyEditor::onTrackMetadataChanged, Qt::UniqueConnection);
     }
     
     m_activeTrack = nullptr;
     updateActiveTrack();
     rebuildNoteBars();
     update();
+}
+
+void NotePropertyEditor::onTrackMetadataChanged(NoteNagaTrack *track, const std::string &param)
+{
+    // If this is our active track and color or visibility changed, update
+    if (track == m_activeTrack) {
+        if (param == "color") {
+            m_trackColor = track->getColor().toQColor();
+            update();
+        } else if (param == "visible") {
+            rebuildNoteBars();
+            update();
+        } else if (param == "name") {
+            updateActiveTrack();
+            update();
+        }
+    }
 }
 
 void NotePropertyEditor::rebuildNoteBars()

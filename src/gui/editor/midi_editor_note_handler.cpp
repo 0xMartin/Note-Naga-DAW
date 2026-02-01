@@ -172,18 +172,32 @@ std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> MidiEditorNoteHandler::getSele
 // --- Note lookup ---
 
 NoteGraphics* MidiEditorNoteHandler::findNoteUnderCursor(const QPointF &scenePos) {
+    auto *seq = m_editor->getSequence();
+    NoteNagaTrack *activeTrack = seq ? seq->getActiveTrack() : nullptr;
+    
+    NoteGraphics *fallbackNote = nullptr;  // Note from non-active track
+    
     for (auto &trackPair : m_noteItems) {
         for (auto &ng : trackPair) {
             QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng.item);
             if (shapeItem) {
                 QRectF noteRect = getRealNoteRect(&ng);
                 if (noteRect.contains(scenePos)) {
-                    return &ng;
+                    // If this note is from the active track, return it immediately
+                    if (activeTrack && ng.track == activeTrack) {
+                        return &ng;
+                    }
+                    // Otherwise, save as fallback (first non-active track note found)
+                    if (!fallbackNote) {
+                        fallbackNote = &ng;
+                    }
                 }
             }
         }
     }
-    return nullptr;
+    
+    // Return fallback only if no note from active track was found
+    return fallbackNote;
 }
 
 bool MidiEditorNoteHandler::isNoteEdge(NoteGraphics *ng, const QPointF &scenePos) {

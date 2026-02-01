@@ -3,10 +3,12 @@
 #include <note_naga_engine/dsp/dsp_factory.h>
 #include "../nn_gui_utils.h"
 #include "../dialogs/dsp_block_chooser_dialog.h"
+#include <QContextMenuEvent>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSlider>
@@ -344,4 +346,102 @@ void DSPEngineWidget::toggleDSPEnabled() {
     if (engine) {
         engine->getDSPEngine()->setEnableDSP(enabled);
     }
+}
+
+void DSPEngineWidget::contextMenuEvent(QContextMenuEvent *event)
+{
+    QMenu menu(this);
+    
+    // Add DSP Effect submenu
+    QMenu *addMenu = menu.addMenu(QIcon(":/icons/add.svg"), "Add DSP Effect");
+    
+    // Get all available DSP factories
+    const auto &factories = DSPBlockFactory::allBlocks();
+    for (const auto &factory : factories) {
+        QAction *action = addMenu->addAction(QString::fromStdString(factory.name));
+        connect(action, &QAction::triggered, this, [this, &factory]() {
+            if (!factory.create) return;
+            NoteNagaDSPBlockBase *new_block = factory.create();
+            if (!new_block) return;
+            
+            if (current_synth == nullptr) {
+                engine->getDSPEngine()->addDSPBlock(new_block);
+            } else {
+                engine->getDSPEngine()->addSynthDSPBlock(current_synth, new_block);
+            }
+            refreshDSPWidgets();
+        });
+    }
+    
+    menu.addSeparator();
+    
+    // Enable/Disable DSP
+    bool dspEnabled = engine ? engine->getDSPEngine()->isDSPEnabled() : true;
+    QAction *toggleAction = menu.addAction(
+        QIcon(dspEnabled ? ":/icons/inactive.svg" : ":/icons/active.svg"),
+        dspEnabled ? "Disable DSP Processing" : "Enable DSP Processing"
+    );
+    connect(toggleAction, &QAction::triggered, this, [this, dspEnabled]() {
+        if (engine) {
+            engine->getDSPEngine()->setEnableDSP(!dspEnabled);
+            btn_enable->setChecked(dspEnabled);
+            btn_enable->setIcon(QIcon(!dspEnabled ? ":/icons/active.svg" : ":/icons/inactive.svg"));
+        }
+    });
+    
+    menu.addSeparator();
+    
+    // Remove all DSP effects
+    QAction *removeAllAction = menu.addAction(QIcon(":/icons/clear.svg"), "Remove All DSP Effects");
+    removeAllAction->setEnabled(!dsp_widgets.empty());
+    connect(removeAllAction, &QAction::triggered, this, [this]() {
+        if (dsp_widgets.empty()) return;
+        
+        if (QMessageBox::question(this, "Remove All DSP Effects",
+                                  "Are you sure you want to remove all DSP effects?",
+                                  QMessageBox::Yes | QMessageBox::No,
+                                  QMessageBox::No) == QMessageBox::Yes) {
+            removeAllDSPClicked();
+        }
+    });
+    
+    menu.addSeparator();
+    
+    // Reset output volume
+    QAction *resetVolumeAction = menu.addAction(QIcon(":/icons/reload.svg"), "Reset Output Volume");
+    connect(resetVolumeAction, &QAction::triggered, this, [this]() {
+        if (engine) {
+            engine->getDSPEngine()->setOutputVolume(1.0f);
+        }
+    });
+    
+    // Target selection submenu
+    menu.addSeparator();
+    QMenu *targetMenu = menu.addMenu(QIcon(":/icons/route.svg"), "DSP Target");
+    
+    // Master option
+    QAction *masterAction = targetMenu->addAction("Master");
+    masterAction->setCheckable(true);
+    masterAction->setChecked(current_synth == nullptr);
+    connect(masterAction, &QAction::triggered, this, [this]() {
+        synth_selector->setCurrentIndex(0);
+    });
+    
+    // Add available synthesizers
+    int synthCount = static_cast<int>(engine->getSynthesizers().size()) + 1;  // +1 for Master
+    for (int i = 1; i < synthCount; ++i) {
+        QString synthName = synth_selector->itemText(i);
+        QAction *synthAction = targetMenu->addAction(synthName);
+        synthAction->setCheckable(true);
+        
+        // Check if this is the current selection
+        void *synthPtr = synth_selector->itemData(i).value<void*>();
+        synthAction->setChecked(current_synth == static_cast<INoteNagaSoftSynth*>(synthPtr));
+        
+        connect(synthAction, &QAction::triggered, this, [this, i]() {
+            synth_selector->setCurrentIndex(i);
+        });
+    }
+    
+    menu.exec(event->globalPos());
 }

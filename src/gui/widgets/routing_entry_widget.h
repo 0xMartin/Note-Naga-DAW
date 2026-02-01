@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
+#include <QMenu>
 #include <QVBoxLayout>
 
 #include "../components/audio_dial.h"
@@ -42,6 +43,7 @@ public:
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
     NoteNagaRoutingEntry *entry;
