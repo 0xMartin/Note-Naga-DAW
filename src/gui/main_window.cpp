@@ -216,12 +216,14 @@ void MainWindow::setup_sections() {
     // Create sections
     m_midiEditorSection = new MidiEditorSection(engine, this);
     m_dspEditorSection = new DSPEditorSection(engine, this);
+    m_notationSection = new NotationSection(engine, this);
     m_mediaExportSection = new MediaExportSection(engine, this);
     
-    // Add sections to stack
-    m_sectionStack->addWidget(m_midiEditorSection);  // index 0
-    m_sectionStack->addWidget(m_dspEditorSection);   // index 1
-    m_sectionStack->addWidget(m_mediaExportSection);  // index 2
+    // Add sections to stack (order must match AppSection enum)
+    m_sectionStack->addWidget(m_midiEditorSection);  // index 0 - MidiEditor
+    m_sectionStack->addWidget(m_dspEditorSection);   // index 1 - DspEditor
+    m_sectionStack->addWidget(m_mediaExportSection); // index 2 - MediaExport
+    m_sectionStack->addWidget(m_notationSection);    // index 3 - Notation
     
     // Create section switcher (bottom bar)
     m_sectionSwitcher = new SectionSwitcher(this);
@@ -253,6 +255,9 @@ void MainWindow::onSectionChanged(AppSection section) {
         case AppSection::DspEditor:
             m_dspEditorSection->onSectionDeactivated();
             break;
+        case AppSection::Notation:
+            m_notationSection->onSectionDeactivated();
+            break;
         case AppSection::MediaExport:
             m_mediaExportSection->onSectionDeactivated();
             break;
@@ -269,6 +274,9 @@ void MainWindow::onSectionChanged(AppSection section) {
             break;
         case AppSection::DspEditor:
             m_dspEditorSection->onSectionActivated();
+            break;
+        case AppSection::Notation:
+            m_notationSection->onSectionActivated();
             break;
         case AppSection::MediaExport:
             m_mediaExportSection->onSectionActivated();

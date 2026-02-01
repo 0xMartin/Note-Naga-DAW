@@ -15,9 +15,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg SvgWidgets PrintSupport)
 else()
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg PrintSupport)
 endif()
 
 find_package(OpenCV REQUIRED)
@@ -42,6 +42,7 @@ set(HEADER_FILES
     src/gui/sections/midi_editor_section.h
     src/gui/sections/dsp_editor_section.h
     src/gui/sections/media_export_section.h
+    src/gui/sections/notation_section.h
     src/gui/sections/track_preview_widget.h
     # gui/components
     src/gui/components/audio_dial.h
@@ -70,6 +71,7 @@ set(HEADER_FILES
     # gui/editor
     src/gui/editor/midi_editor_widget.h
     # gui/widgets
+    src/gui/widgets/lilypond_widget.h
     src/gui/widgets/dsp_block_widget.h
     src/gui/widgets/dsp_engine_widget.h
     src/gui/widgets/midi_control_bar_widget.h
@@ -96,6 +98,7 @@ set(SOURCE_FILES
     src/gui/sections/midi_editor_section.cpp
     src/gui/sections/dsp_editor_section.cpp
     src/gui/sections/media_export_section.cpp
+    src/gui/sections/notation_section.cpp
     src/gui/sections/track_preview_widget.cpp
     # gui/components
     src/gui/components/audio_dial.cpp
@@ -126,6 +129,7 @@ set(SOURCE_FILES
     src/gui/editor/midi_editor_widget.cpp
     src/gui/editor/note_property_editor.cpp
     # gui/widgets
+    src/gui/widgets/lilypond_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp
     src/gui/widgets/dsp_engine_widget.cpp
     src/gui/widgets/midi_control_bar_widget.cpp
@@ -162,11 +166,15 @@ target_link_libraries(NoteNaga PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Concurrent
     Qt${QT_VERSION_MAJOR}::Svg
+    Qt${QT_VERSION_MAJOR}::SvgWidgets
+    Qt${QT_VERSION_MAJOR}::PrintSupport
     ${OpenCV_LIBS}
     note_naga_engine
 )
 
-target_include_directories(NoteNaga PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_include_directories(NoteNaga PRIVATE 
+    ${OpenCV_INCLUDE_DIRS}
+)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 if(${QT_VERSION} VERSION_LESS 6.1.0)

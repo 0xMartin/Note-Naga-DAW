@@ -14,7 +14,8 @@
 enum class AppSection {
     MidiEditor = 0,
     DspEditor = 1,
-    MediaExport = 2
+    MediaExport = 2,
+    Notation = 3
 };
 
 /**

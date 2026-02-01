@@ -74,7 +74,8 @@ void SectionSwitcher::setupUi()
     QList<SectionInfo> sections = {
         {AppSection::MidiEditor, ":/icons/app_section_midi.svg", tr("MIDI Editor")},
         {AppSection::DspEditor, ":/icons/app_section_dsp.svg", tr("DSP Editor")},
-        {AppSection::MediaExport, ":/icons/app_section_media.svg", tr("Media Export")}
+        {AppSection::MediaExport, ":/icons/app_section_media.svg", tr("Media Export")},
+        {AppSection::Notation, ":/icons/app_section_notation.svg", tr("Notation")}
     };
 
     // Add stretch before buttons to center them
