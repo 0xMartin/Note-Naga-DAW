@@ -57,11 +57,13 @@ public:
         bool landscape = false;               // Landscape orientation
     };
     
-    // Measure position info for playback highlighting
+    // Measure position info for playback highlighting (in pixels, absolute)
     struct MeasurePosition {
         int pageIndex;          // Which page (0-based)
-        double yPosition;       // Y position on the page (normalized 0-1)
-        double height;          // Height of the measure area
+        int xStart;             // X start position in pixels
+        int xEnd;               // X end position in pixels  
+        int yStart;             // Y start position in pixels
+        int yEnd;               // Y end position in pixels
         int startTick;          // Start tick of this measure
         int endTick;            // End tick of this measure
         QString measureId;      // MEI element ID for this measure
@@ -132,6 +134,7 @@ private:
     void updateHighlight();
     void scrollToCurrentPosition();
     QString fixNestedSvgElements(const QString &svg);
+    void parseSvgMeasurePositions();  // Extract measure bounding boxes from SVG
     
     // MEI generation helpers
     QString midiPitchToMEI(int midiPitch, int durationTicks, int ppq);
@@ -195,7 +198,7 @@ public:
     explicit NotationPageWidget(QWidget *parent = nullptr);
     
     void setPixmap(const QPixmap &pixmap);
-    void setHighlightRegion(double yStart, double yEnd);  // Normalized 0-1
+    void setHighlightRect(const QRect &rect, const QSize &originalSize);  // Precise pixel rectangle
     void clearHighlight();
     
     QSize sizeHint() const override;
@@ -206,8 +209,8 @@ protected:
 private:
     QPixmap m_pixmap;
     bool m_hasHighlight;
-    double m_highlightYStart;
-    double m_highlightYEnd;
+    QRect m_highlightRect;
+    QSize m_originalSize;
 };
 
 #endif // VEROVIO_WIDGET_H

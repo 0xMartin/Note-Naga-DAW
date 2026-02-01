@@ -30,8 +30,7 @@
 NotationPageWidget::NotationPageWidget(QWidget *parent)
     : QWidget(parent)
     , m_hasHighlight(false)
-    , m_highlightYStart(0.0)
-    , m_highlightYEnd(0.0)
+    , m_originalSize(0, 0)
 {
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 }
@@ -39,15 +38,16 @@ NotationPageWidget::NotationPageWidget(QWidget *parent)
 void NotationPageWidget::setPixmap(const QPixmap &pixmap)
 {
     m_pixmap = pixmap;
+    m_originalSize = pixmap.size();
     setFixedSize(pixmap.size());
     update();
 }
 
-void NotationPageWidget::setHighlightRegion(double yStart, double yEnd)
+void NotationPageWidget::setHighlightRect(const QRect &rect, const QSize &originalSize)
 {
     m_hasHighlight = true;
-    m_highlightYStart = yStart;
-    m_highlightYEnd = yEnd;
+    m_highlightRect = rect;
+    m_originalSize = originalSize;
     update();
 }
 
@@ -74,17 +74,25 @@ void NotationPageWidget::paintEvent(QPaintEvent *event)
     }
     
     // Draw highlight overlay
-    if (m_hasHighlight) {
-        int startY = static_cast<int>(m_highlightYStart * height());
-        int endY = static_cast<int>(m_highlightYEnd * height());
+    if (m_hasHighlight && m_originalSize.width() > 0 && m_originalSize.height() > 0) {
+        // Scale highlight rect from original coordinates to current widget size
+        double scaleX = static_cast<double>(width()) / m_originalSize.width();
+        double scaleY = static_cast<double>(height()) / m_originalSize.height();
         
-        QColor highlightColor(255, 255, 0, 60);  // Yellow with alpha
-        painter.fillRect(0, startY, width(), endY - startY, highlightColor);
+        QRect scaledRect(
+            static_cast<int>(m_highlightRect.x() * scaleX),
+            static_cast<int>(m_highlightRect.y() * scaleY),
+            static_cast<int>(m_highlightRect.width() * scaleX),
+            static_cast<int>(m_highlightRect.height() * scaleY)
+        );
         
-        // Draw border lines
-        painter.setPen(QPen(QColor(255, 200, 0), 2));
-        painter.drawLine(0, startY, width(), startY);
-        painter.drawLine(0, endY, width(), endY);
+        // Semi-transparent yellow fill
+        QColor highlightColor(255, 255, 0, 50);
+        painter.fillRect(scaledRect, highlightColor);
+        
+        // Colored border
+        painter.setPen(QPen(QColor(255, 180, 0), 2));
+        painter.drawRect(scaledRect);
     }
 }
 
@@ -880,39 +888,97 @@ void VerovioWidget::buildMeasureMap()
 {
     m_measurePositions.clear();
     
-    if (m_pagePixmaps.isEmpty()) return;
+    if (m_pagePixmaps.isEmpty() || !m_toolkit) return;
     
-    // With Verovio, we have precise information
-    // Each measure has a known ID (m1, m2, etc.)
-    // We estimate page/Y position based on measure distribution
+    // Parse SVG to get precise measure positions
+    parseSvgMeasurePositions();
+}
+
+void VerovioWidget::parseSvgMeasurePositions()
+{
+    // Parse each page's SVG to extract measure bounding boxes
     
-    int measuresPerPage = qMax(1, m_totalMeasures / m_pagePixmaps.size());
-    int systemsPerPage = 6;  // Approximate
-    int measuresPerSystem = qMax(1, measuresPerPage / systemsPerPage);
-    
-    double systemHeight = 0.12;
-    double topMargin = 0.08;
-    double systemSpacing = 0.14;
-    
-    for (int measure = 0; measure < m_totalMeasures; ++measure) {
-        int pageIdx = measure / measuresPerPage;
-        if (pageIdx >= m_pagePixmaps.size()) pageIdx = m_pagePixmaps.size() - 1;
+    for (int pageIdx = 0; pageIdx < m_pageSvgs.size(); ++pageIdx) {
+        const QString &svg = m_pageSvgs[pageIdx];
         
-        int measureOnPage = measure % measuresPerPage;
-        int systemOnPage = measureOnPage / measuresPerSystem;
+        // Get SVG dimensions and viewBox for coordinate conversion
+        static QRegularExpression sizeRe(R"(width=\"(\d+)px\"\s+height=\"(\d+)px\")");
+        static QRegularExpression viewBoxRe(R"(viewBox=\"0 0 (\d+) (\d+)\")");
         
-        MeasurePosition pos;
-        pos.pageIndex = pageIdx;
-        pos.yPosition = topMargin + systemOnPage * systemSpacing;
-        pos.height = systemHeight;
-        pos.startTick = measure * m_ticksPerMeasure;
-        pos.endTick = (measure + 1) * m_ticksPerMeasure;
-        pos.measureId = QString("m%1").arg(measure + 1);
+        QRegularExpressionMatch sizeMatch = sizeRe.match(svg);
+        QRegularExpressionMatch viewBoxMatch = viewBoxRe.match(svg);
         
-        m_measurePositions.append(pos);
+        if (!sizeMatch.hasMatch() || !viewBoxMatch.hasMatch()) continue;
+        
+        double svgWidth = sizeMatch.captured(1).toDouble();
+        double svgHeight = sizeMatch.captured(2).toDouble();
+        double viewBoxWidth = viewBoxMatch.captured(1).toDouble();
+        double viewBoxHeight = viewBoxMatch.captured(2).toDouble();
+        
+        double scaleX = svgWidth / viewBoxWidth;
+        double scaleY = svgHeight / viewBoxHeight;
+        
+        // Find all measures and their staff line positions
+        // Pattern: <g id="m1" class="measure">...</g>
+        static QRegularExpression measureRe(R"(<g\s+id=\"(m\d+)\"\s+class=\"measure\">)");
+        static QRegularExpression staffPathRe(R"(<path\s+d=\"M(\d+)\s+(\d+)\s+L(\d+)\s+(\d+)\")");
+        static QRegularExpression nextMeasureRe(R"(<g\s+id=\"m\d+\"\s+class=\"measure\">|</section>)");
+        
+        QRegularExpressionMatchIterator measureIt = measureRe.globalMatch(svg);
+        while (measureIt.hasNext()) {
+            QRegularExpressionMatch measureMatch = measureIt.next();
+            QString measureId = measureMatch.captured(1);
+            int measureNum = measureId.mid(1).toInt();
+            
+            // Find the position of this measure in the SVG
+            int measureStart = measureMatch.capturedEnd();
+            
+            // Find the end of this measure (next measure or end of section)
+            QRegularExpressionMatch nextMatch = nextMeasureRe.match(svg, measureStart);
+            int measureEnd = nextMatch.hasMatch() ? nextMatch.capturedStart() : svg.length();
+            
+            QString measureContent = svg.mid(measureStart, measureEnd - measureStart);
+            
+            // Find staff lines within this measure to get Y range
+            int minY = INT_MAX, maxY = 0;
+            int minX = INT_MAX, maxX = 0;
+            
+            QRegularExpressionMatchIterator pathIt = staffPathRe.globalMatch(measureContent);
+            while (pathIt.hasNext()) {
+                QRegularExpressionMatch pathMatch = pathIt.next();
+                int x1 = pathMatch.captured(1).toInt();
+                int y1 = pathMatch.captured(2).toInt();
+                int x2 = pathMatch.captured(3).toInt();
+                int y2 = pathMatch.captured(4).toInt();
+                
+                minX = qMin(minX, qMin(x1, x2));
+                maxX = qMax(maxX, qMax(x1, x2));
+                minY = qMin(minY, qMin(y1, y2));
+                maxY = qMax(maxY, qMax(y1, y2));
+            }
+            
+            if (minY != INT_MAX && maxY != 0) {
+                MeasurePosition pos;
+                pos.pageIndex = pageIdx;
+                // Convert from viewBox coordinates to pixels
+                pos.xStart = static_cast<int>(minX * scaleX);
+                pos.xEnd = static_cast<int>(maxX * scaleX);
+                pos.yStart = static_cast<int>(minY * scaleY) - 10;  // Add some padding
+                pos.yEnd = static_cast<int>(maxY * scaleY) + 10;
+                pos.startTick = (measureNum - 1) * m_ticksPerMeasure;
+                pos.endTick = measureNum * m_ticksPerMeasure;
+                pos.measureId = measureId;
+                
+                m_measurePositions.append(pos);
+            }
+        }
     }
     
-
+    // Sort by tick
+    std::sort(m_measurePositions.begin(), m_measurePositions.end(),
+              [](const MeasurePosition &a, const MeasurePosition &b) {
+                  return a.startTick < b.startTick;
+              });
 }
 
 void VerovioWidget::showError(const QString &message)
@@ -1082,7 +1148,14 @@ void VerovioWidget::updateHighlight()
         
         if (pos.pageIndex >= 0 && pos.pageIndex < m_pageWidgets.size()) {
             NotationPageWidget *widget = m_pageWidgets[pos.pageIndex];
-            widget->setHighlightRegion(pos.yPosition, pos.yPosition + pos.height);
+            
+            // Create highlight rectangle from precise pixel coordinates
+            QRect highlightRect(pos.xStart, pos.yStart, 
+                               pos.xEnd - pos.xStart, pos.yEnd - pos.yStart);
+            
+            // Get original page size for proper scaling
+            QSize originalSize = m_pagePixmaps[pos.pageIndex].size();
+            widget->setHighlightRect(highlightRect, originalSize);
         }
     }
 }
@@ -1095,9 +1168,14 @@ void VerovioWidget::scrollToCurrentPosition()
     if (pos.pageIndex < 0 || pos.pageIndex >= m_pageWidgets.size()) return;
     
     NotationPageWidget *widget = m_pageWidgets[pos.pageIndex];
+    QSize originalSize = m_pagePixmaps[pos.pageIndex].size();
+    
+    // Scale Y position from original to current widget size
+    double scaleY = static_cast<double>(widget->height()) / originalSize.height();
+    int scaledY = static_cast<int>(pos.yStart * scaleY);
     
     int widgetY = widget->mapTo(m_pagesContainer, QPoint(0, 0)).y();
-    int highlightY = widgetY + static_cast<int>(pos.yPosition * widget->height());
+    int highlightY = widgetY + scaledY;
     
     QScrollBar *vBar = m_scrollArea->verticalScrollBar();
     int viewportHeight = m_scrollArea->viewport()->height();
