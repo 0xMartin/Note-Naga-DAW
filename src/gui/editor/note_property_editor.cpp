@@ -4,10 +4,13 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
+#include <QContextMenuEvent>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QScrollBar>
 #include <QToolTip>
+#include <QMenu>
+#include <QInputDialog>
 #include <cmath>
 #include <set>
 
@@ -22,8 +25,11 @@ NotePropertyEditor::NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget 
       m_leftMargin(60),  // Match MidiKeyboardRuler width for alignment
       m_isDragging(false),
       m_hasSelection(false),
+      m_isSnapping(false),
+      m_snapValue(-1),
       m_hoveredBar(nullptr),
       m_editingBar(nullptr),
+      m_contextMenuBar(nullptr),
       m_activeTrack(nullptr),
       m_trackColor(QColor(80, 160, 220)),
       // Colors matching MidiEditorWidget
@@ -67,18 +73,19 @@ NotePropertyEditor::~NotePropertyEditor()
 
 void NotePropertyEditor::setupUI()
 {
-    // Create toggle button (expand/collapse) - positioned at top-left
+    // Create toggle button (expand/collapse) - positioned at top-left corner
     m_toggleButton = new QPushButton(this);
-    m_toggleButton->setFixedSize(20, 20);
+    m_toggleButton->setFixedSize(16, 16);
     m_toggleButton->setToolTip(tr("Toggle Note Property Editor"));
     m_toggleButton->setStyleSheet(R"(
         QPushButton {
             background: #32353c;
             border: 1px solid #464a56;
-            border-radius: 3px;
-            color: #aaa;
-            font-size: 12px;
+            border-radius: 0px;
+            color: #888;
+            font-size: 9px;
             font-weight: bold;
+            padding: 0;
         }
         QPushButton:hover { background: #3a3d45; color: #fff; }
         QPushButton:pressed { background: #4a4d55; }
@@ -320,6 +327,17 @@ void NotePropertyEditor::paintEvent(QPaintEvent *)
         p.drawText(QRect(2, 28, m_leftMargin - 6, 15), Qt::AlignRight, "R");
         p.drawText(QRect(2, h / 2 - 7, m_leftMargin - 6, 15), Qt::AlignRight, "C");
         p.drawText(QRect(2, h - 20, m_leftMargin - 6, 15), Qt::AlignRight, "L");
+    }
+    
+    // Draw snap line indicator when snapping
+    if (m_isDragging && m_isSnapping && m_snapValue >= 0) {
+        int snapY = yFromValue(m_snapValue);
+        p.setPen(QPen(QColor(255, 200, 50, 180), 2, Qt::SolidLine));
+        p.drawLine(m_leftMargin, snapY, w, snapY);
+        
+        // Draw small value indicator
+        p.setPen(QColor(255, 200, 50));
+        p.drawText(QRect(2, snapY - 7, m_leftMargin - 6, 15), Qt::AlignRight, QString::number(m_snapValue));
     }
     
     // Draw separator line at bottom
@@ -578,7 +596,44 @@ void NotePropertyEditor::mouseMoveEvent(QMouseEvent *event)
     
     if (m_isDragging && m_editingBar) {
         // Calculate new value from Y position
-        int newValue = valueFromY(event->pos().y());
+        int rawValue = valueFromY(event->pos().y());
+        
+        // Apply snap-to-neighbors logic
+        int newValue = rawValue;
+        int snapThreshold = 4;  // Snap within 4 units of neighbor value
+        
+        int prevValue = findNeighborValue(m_editingBar, -1);
+        int nextValue = findNeighborValue(m_editingBar, 1);
+        
+        m_isSnapping = false;
+        m_snapValue = -1;
+        
+        if (prevValue >= 0 && std::abs(rawValue - prevValue) <= snapThreshold) {
+            newValue = prevValue;
+            m_isSnapping = true;
+            m_snapValue = prevValue;
+        } else if (nextValue >= 0 && std::abs(rawValue - nextValue) <= snapThreshold) {
+            newValue = nextValue;
+            m_isSnapping = true;
+            m_snapValue = nextValue;
+        }
+        
+        // Also snap to common values (0, 64, 127)
+        if (!m_isSnapping) {
+            if (std::abs(rawValue - 64) <= 3) {
+                newValue = 64;
+                m_isSnapping = true;
+                m_snapValue = 64;
+            } else if (rawValue <= 3) {
+                newValue = 0;
+                m_isSnapping = true;
+                m_snapValue = 0;
+            } else if (rawValue >= 124) {
+                newValue = 127;
+                m_isSnapping = true;
+                m_snapValue = 127;
+            }
+        }
         
         if (newValue != m_editingBar->value) {
             m_editingBar->value = newValue;
@@ -595,17 +650,18 @@ void NotePropertyEditor::mouseMoveEvent(QMouseEvent *event)
                 emit notePropertyChanged(m_editingBar->track, m_editingBar->noteIndex, newValue);
             }
             
-            // Show value tooltip
+            // Show value tooltip with snap indicator
             QString valueText;
+            QString snapIndicator = m_isSnapping ? " ⚡" : "";
             if (m_propertyType == PropertyType::Velocity) {
-                valueText = QString("Velocity: %1").arg(newValue);
+                valueText = QString("Velocity: %1%2").arg(newValue).arg(snapIndicator);
             } else {
                 if (newValue < 64) {
-                    valueText = QString("Pan: L%1").arg(64 - newValue);
+                    valueText = QString("Pan: L%1%2").arg(64 - newValue).arg(snapIndicator);
                 } else if (newValue > 64) {
-                    valueText = QString("Pan: R%1").arg(newValue - 64);
+                    valueText = QString("Pan: R%1%2").arg(newValue - 64).arg(snapIndicator);
                 } else {
-                    valueText = "Pan: Center";
+                    valueText = QString("Pan: Center%1").arg(snapIndicator);
                 }
             }
             QToolTip::showText(event->globalPosition().toPoint(), valueText, this);
@@ -628,6 +684,8 @@ void NotePropertyEditor::mouseReleaseEvent(QMouseEvent *event)
 {
     if (m_isDragging) {
         m_isDragging = false;
+        m_isSnapping = false;
+        m_snapValue = -1;
         m_editingBar = nullptr;
         setCursor(Qt::ArrowCursor);
         m_valueLabel->clear();
@@ -636,8 +694,195 @@ void NotePropertyEditor::mouseReleaseEvent(QMouseEvent *event)
         if (m_midiEditor) {
             m_midiEditor->update();
         }
+        update();  // Redraw to remove snap line
     }
     QWidget::mouseReleaseEvent(event);
+}
+
+void NotePropertyEditor::contextMenuEvent(QContextMenuEvent *event)
+{
+    if (!m_expanded) {
+        QWidget::contextMenuEvent(event);
+        return;
+    }
+    
+    NoteBar *bar = hitTest(event->pos());
+    if (!bar) {
+        QWidget::contextMenuEvent(event);
+        return;
+    }
+    
+    m_contextMenuBar = bar;
+    
+    QMenu menu(this);
+    
+    QString propName = (m_propertyType == PropertyType::Velocity) ? "Velocity" : "Pan";
+    
+    // Current value
+    QAction *currentAction = menu.addAction(QString("%1: %2").arg(propName).arg(bar->value));
+    currentAction->setEnabled(false);
+    menu.addSeparator();
+    
+    // Set value directly
+    QAction *setValueAction = menu.addAction(QString("Set %1...").arg(propName));
+    connect(setValueAction, &QAction::triggered, this, &NotePropertyEditor::onSetValueTriggered);
+    
+    menu.addSeparator();
+    
+    // Snap options
+    QAction *snapToPrevAction = menu.addAction("Snap to Previous Note");
+    connect(snapToPrevAction, &QAction::triggered, this, &NotePropertyEditor::onSnapToPreviousTriggered);
+    
+    QAction *snapToNextAction = menu.addAction("Snap to Next Note");
+    connect(snapToNextAction, &QAction::triggered, this, &NotePropertyEditor::onSnapToNextTriggered);
+    
+    QAction *snapToAvgAction = menu.addAction("Snap to Average of Neighbors");
+    connect(snapToAvgAction, &QAction::triggered, this, &NotePropertyEditor::onSnapToAverageTriggered);
+    
+    menu.addSeparator();
+    
+    // Preset values
+    if (m_propertyType == PropertyType::Velocity) {
+        QAction *maxAction = menu.addAction("Set to Maximum (127)");
+        connect(maxAction, &QAction::triggered, this, [this]() { applyValueToContextBar(127); });
+        
+        QAction *midAction = menu.addAction("Set to Medium (64)");
+        connect(midAction, &QAction::triggered, this, [this]() { applyValueToContextBar(64); });
+        
+        QAction *lowAction = menu.addAction("Set to Low (32)");
+        connect(lowAction, &QAction::triggered, this, [this]() { applyValueToContextBar(32); });
+    } else {
+        QAction *leftAction = menu.addAction("Set to Left (0)");
+        connect(leftAction, &QAction::triggered, this, [this]() { applyValueToContextBar(0); });
+        
+        QAction *centerAction = menu.addAction("Set to Center (64)");
+        connect(centerAction, &QAction::triggered, this, [this]() { applyValueToContextBar(64); });
+        
+        QAction *rightAction = menu.addAction("Set to Right (127)");
+        connect(rightAction, &QAction::triggered, this, [this]() { applyValueToContextBar(127); });
+    }
+    
+    menu.exec(event->globalPos());
+    m_contextMenuBar = nullptr;
+}
+
+void NotePropertyEditor::onSetValueTriggered()
+{
+    if (!m_contextMenuBar) return;
+    
+    QString propName = (m_propertyType == PropertyType::Velocity) ? "Velocity" : "Pan";
+    bool ok;
+    int value = QInputDialog::getInt(this, QString("Set %1").arg(propName),
+                                      QString("Enter %1 value (0-127):").arg(propName),
+                                      m_contextMenuBar->value, 0, 127, 1, &ok);
+    if (ok) {
+        applyValueToContextBar(value);
+    }
+}
+
+void NotePropertyEditor::onSnapToPreviousTriggered()
+{
+    if (!m_contextMenuBar) return;
+    
+    int prevValue = findNeighborValue(m_contextMenuBar, -1);
+    if (prevValue >= 0) {
+        applyValueToContextBar(prevValue);
+    }
+}
+
+void NotePropertyEditor::onSnapToNextTriggered()
+{
+    if (!m_contextMenuBar) return;
+    
+    int nextValue = findNeighborValue(m_contextMenuBar, 1);
+    if (nextValue >= 0) {
+        applyValueToContextBar(nextValue);
+    }
+}
+
+void NotePropertyEditor::onSnapToAverageTriggered()
+{
+    if (!m_contextMenuBar) return;
+    
+    int prevValue = findNeighborValue(m_contextMenuBar, -1);
+    int nextValue = findNeighborValue(m_contextMenuBar, 1);
+    
+    int avg = -1;
+    if (prevValue >= 0 && nextValue >= 0) {
+        avg = (prevValue + nextValue) / 2;
+    } else if (prevValue >= 0) {
+        avg = prevValue;
+    } else if (nextValue >= 0) {
+        avg = nextValue;
+    }
+    
+    if (avg >= 0) {
+        applyValueToContextBar(avg);
+    }
+}
+
+int NotePropertyEditor::findNeighborValue(NoteBar *bar, int direction)
+{
+    if (!bar || !bar->track) return -1;
+    
+    // Find the bar's position in the sorted note list
+    std::vector<NN_Note_t> notes = bar->track->getNotes();
+    if (notes.empty()) return -1;
+    
+    // Sort bars by x position (start time)
+    std::vector<NoteBar*> sortedBars;
+    for (auto &b : m_noteBars) {
+        if (b.track == bar->track) {
+            sortedBars.push_back(&b);
+        }
+    }
+    std::sort(sortedBars.begin(), sortedBars.end(), 
+              [](NoteBar *a, NoteBar *b) { return a->x < b->x; });
+    
+    // Find current bar index
+    int idx = -1;
+    for (size_t i = 0; i < sortedBars.size(); i++) {
+        if (sortedBars[i] == bar) {
+            idx = static_cast<int>(i);
+            break;
+        }
+    }
+    
+    if (idx < 0) return -1;
+    
+    int neighborIdx = idx + direction;
+    if (neighborIdx < 0 || neighborIdx >= static_cast<int>(sortedBars.size())) {
+        return -1;
+    }
+    
+    return sortedBars[neighborIdx]->value;
+}
+
+void NotePropertyEditor::applyValueToContextBar(int value)
+{
+    if (!m_contextMenuBar) return;
+    
+    value = qBound(0, value, 127);
+    m_contextMenuBar->value = value;
+    
+    // Update the actual note in the engine
+    std::vector<NN_Note_t> notes = m_contextMenuBar->track->getNotes();
+    if (m_contextMenuBar->noteIndex >= 0 && m_contextMenuBar->noteIndex < (int)notes.size()) {
+        if (m_propertyType == PropertyType::Velocity) {
+            notes[m_contextMenuBar->noteIndex].velocity = value;
+        } else if (m_propertyType == PropertyType::Pan) {
+            notes[m_contextMenuBar->noteIndex].pan = value;
+        }
+        m_contextMenuBar->track->setNotes(notes);
+        emit notePropertyChanged(m_contextMenuBar->track, m_contextMenuBar->noteIndex, value);
+    }
+    
+    // Notify MIDI editor of change
+    if (m_midiEditor) {
+        m_midiEditor->update();
+    }
+    
+    update();
 }
 
 void NotePropertyEditor::wheelEvent(QWheelEvent *event)

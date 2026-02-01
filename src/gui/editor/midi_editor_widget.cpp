@@ -118,7 +118,8 @@ void MidiEditorWidget::initTitleUI() {
     QLabel *lblNoteDur = new QLabel("Note:");
     lblNoteDur->setStyleSheet("color: #CCCCCC; font-size: 9pt;");
     combo_note_duration = new QComboBox();
-    combo_note_duration->setFixedWidth(60);
+    combo_note_duration->setFixedWidth(70);
+    combo_note_duration->setStyleSheet("QComboBox QAbstractItemView { min-width: 70px; }");
     combo_note_duration->addItem("1/1", static_cast<int>(NoteDuration::Whole));
     combo_note_duration->addItem("1/2", static_cast<int>(NoteDuration::Half));
     combo_note_duration->addItem("1/4", static_cast<int>(NoteDuration::Quarter));
@@ -132,7 +133,8 @@ void MidiEditorWidget::initTitleUI() {
     QLabel *lblGridRes = new QLabel("Grid:");
     lblGridRes->setStyleSheet("color: #CCCCCC; font-size: 9pt;");
     combo_grid_resolution = new QComboBox();
-    combo_grid_resolution->setFixedWidth(60);
+    combo_grid_resolution->setFixedWidth(70);
+    combo_grid_resolution->setStyleSheet("QComboBox QAbstractItemView { min-width: 70px; }");
     combo_grid_resolution->addItem("1/1", static_cast<int>(GridResolution::Whole));
     combo_grid_resolution->addItem("1/2", static_cast<int>(GridResolution::Half));
     combo_grid_resolution->addItem("1/4", static_cast<int>(GridResolution::Quarter));
@@ -562,8 +564,8 @@ void MidiEditorWidget::addNewNote(const QPointF &scenePos) {
     NN_Note_t newNote;
     newNote.note = noteValue;
     newNote.start = this->snapTickToGrid(tick);
-    newNote.velocity = 100; // Výchozí velocity pro nové noty
-    newNote.parent = activeTrack; // Nastavíme parent track
+    newNote.velocity = 64; // Default velocity for new notes
+    newNote.parent = activeTrack; // Set parent track
     
     int ppq = last_seq->getPPQ();
     NoteDuration duration = static_cast<NoteDuration>(combo_note_duration->currentData().toInt());

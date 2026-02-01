@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QSlider>
 #include <QSpinBox>
+#include <QContextMenuEvent>
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -100,6 +101,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
     NoteNagaEngine *m_engine;
@@ -128,6 +130,8 @@ private:
     QPoint m_dragStartPos;
     int m_dragStartValue;
     bool m_hasSelection;  // True if any notes are selected in MIDI editor
+    bool m_isSnapping;    // True when value is snapped to neighbor/common value
+    int m_snapValue;      // The value being snapped to (-1 if not snapping)
     
     // Note data cache for rendering
     struct NoteBar {
@@ -142,6 +146,7 @@ private:
     std::vector<NoteBar> m_noteBars;
     NoteBar *m_hoveredBar;
     NoteBar *m_editingBar;
+    NoteBar *m_contextMenuBar;  // Bar being targeted by context menu
     
     // Drawing helpers
     void rebuildNoteBars();
@@ -164,4 +169,12 @@ private:
     void updatePropertyButtons();
     void updateActiveTrack();
     void updateTrackColorStyles();
+    
+    // Context menu handlers
+    void onSetValueTriggered();
+    void onSnapToPreviousTriggered();
+    void onSnapToNextTriggered();
+    void onSnapToAverageTriggered();
+    int findNeighborValue(NoteBar *bar, int direction);
+    void applyValueToContextBar(int value);
 };

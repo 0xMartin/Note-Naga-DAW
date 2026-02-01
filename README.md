@@ -243,7 +243,7 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - [ ] ↩️ **Undo/Redo**: History system for all edit operations
 - [ ] 🔌 **Plugin Support**: VST/AU plugin integration
 - [ ] 🎛️ **Automation**: Automate mixer and effect parameters over time
-- [ ] 📝 **Notation View**: Traditional music notation display
+- [x] 📝 **Notation View**: Traditional music notation display
 - [ ] 🎨 **Custom Themes**: User-configurable color schemes
 - [ ] 🎵 **Audio Import**: Mix audio tracks with MIDI
 
