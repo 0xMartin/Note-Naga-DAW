@@ -10,8 +10,16 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Verovio - Music notation rendering library (git submodule in libs/)
+set(BUILD_AS_LIBRARY ON CACHE BOOL "" FORCE)
+set(NO_HUMDRUM_SUPPORT ON CACHE BOOL "" FORCE)
+set(NO_ABC_SUPPORT ON CACHE BOOL "" FORCE)
+set(NO_PAE_SUPPORT ON CACHE BOOL "" FORCE)
+set(NO_DARMS_SUPPORT ON CACHE BOOL "" FORCE)
+add_subdirectory(libs/verovio/cmake)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -72,6 +80,7 @@ set(HEADER_FILES
     src/gui/editor/midi_editor_widget.h
     # gui/widgets
     src/gui/widgets/lilypond_widget.h
+    src/gui/widgets/verovio_widget.h
     src/gui/widgets/dsp_block_widget.h
     src/gui/widgets/dsp_engine_widget.h
     src/gui/widgets/midi_control_bar_widget.h
@@ -130,6 +139,7 @@ set(SOURCE_FILES
     src/gui/editor/note_property_editor.cpp
     # gui/widgets
     src/gui/widgets/lilypond_widget.cpp
+    src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp
     src/gui/widgets/dsp_engine_widget.cpp
     src/gui/widgets/midi_control_bar_widget.cpp
@@ -171,10 +181,18 @@ target_link_libraries(NoteNaga PRIVATE
     Qt${QT_VERSION_MAJOR}::Xml
     ${OpenCV_LIBS}
     note_naga_engine
+    verovio
 )
 
 target_include_directories(NoteNaga PRIVATE 
     ${OpenCV_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/libs/verovio/include
+    ${CMAKE_SOURCE_DIR}/libs/verovio/include/vrv
+    ${CMAKE_SOURCE_DIR}/libs/verovio/include/json
+    ${CMAKE_SOURCE_DIR}/libs/verovio/include/midi
+    ${CMAKE_SOURCE_DIR}/libs/verovio/include/pugi
+    ${CMAKE_SOURCE_DIR}/libs/verovio/libmei/dist
+    ${CMAKE_SOURCE_DIR}/libs/verovio/libmei/addons
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

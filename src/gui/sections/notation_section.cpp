@@ -5,7 +5,7 @@
 #include <QDockWidget>
 #include <QTimer>
 
-#include "../widgets/lilypond_widget.h"
+#include "../widgets/verovio_widget.h"
 #include "../widgets/midi_control_bar_widget.h"
 #include "../dock_system/advanced_dock_widget.h"
 #include <note_naga_engine/nn_utils.h>
@@ -78,21 +78,21 @@ void NotationSection::setupDockLayout()
     notationLayout->setContentsMargins(5, 5, 5, 5);
     notationLayout->setSpacing(5);
     
-    // Create LilyPond widget
-    m_lilypondWidget = new LilyPondWidget(m_engine, this);
+    // Create Verovio widget
+    m_notationWidget = new VerovioWidget(m_engine, this);
     
-    if (!m_lilypondWidget->isAvailable()) {
-        qWarning() << "LilyPond not available:" << m_lilypondWidget->getErrorMessage();
+    if (!m_notationWidget->isAvailable()) {
+        qWarning() << "Verovio not available:" << m_notationWidget->getErrorMessage();
     }
     
-    notationLayout->addWidget(m_lilypondWidget, 1);
+    notationLayout->addWidget(m_notationWidget, 1);
     
     // Control bar at bottom
     m_controlBar = new MidiControlBarWidget(m_engine, this);
     notationLayout->addWidget(m_controlBar);
     
     // Create title buttons widget (Refresh, Print)
-    QWidget *titleButtons = m_lilypondWidget->createTitleButtonWidget(this);
+    QWidget *titleButtons = m_notationWidget->createTitleButtonWidget(this);
     
     auto *notationDock = new AdvancedDockWidget(
         tr("Score"),
@@ -247,7 +247,7 @@ void NotationSection::setupDockLayout()
         "<p style='color: #888; font-size: 11px;'>"
         "Click the <img src=':/icons/reload.svg' width='14' height='14' style='vertical-align: middle;'> Render button in the dock title "
         "to apply settings and re-render the notation.<br><br>"
-        "Notation is rendered using LilyPond."
+        "Notation is rendered using Verovio."
         "</p>"
     ));
     infoLabel->setWordWrap(true);
@@ -362,10 +362,10 @@ void NotationSection::refreshSequence()
     if (title.isEmpty()) {
         title = tr("Untitled");
     }
-    m_lilypondWidget->setTitle(title);
+    m_notationWidget->setTitle(title);
     
-    // Update LilyPond widget
-    m_lilypondWidget->setSequence(m_sequence);
+    // Update Verovio widget
+    m_notationWidget->setSequence(m_sequence);
     
     // Auto-render on first open if sequence has notes
     if (!m_autoRenderDone && m_sectionActive) {
@@ -379,10 +379,10 @@ void NotationSection::refreshSequence()
             }
         }
         
-        if (hasNotes && m_lilypondWidget->isAvailable()) {
+        if (hasNotes && m_notationWidget->isAvailable()) {
             m_autoRenderDone = true;
             // Use QTimer to delay render slightly so UI is fully set up
-            QTimer::singleShot(100, m_lilypondWidget, &LilyPondWidget::render);
+            QTimer::singleShot(100, m_notationWidget, &VerovioWidget::render);
         }
     }
 }
@@ -424,7 +424,7 @@ void NotationSection::updateTrackVisibilityCheckboxes()
             for (auto *checkbox : m_trackVisibilityCheckboxes) {
                 visibility.append(checkbox->isChecked());
             }
-            m_lilypondWidget->setTrackVisibility(visibility);
+            m_notationWidget->setTrackVisibility(visibility);
         });
         
         m_trackVisibilityLayout->addWidget(cb);
@@ -436,7 +436,7 @@ void NotationSection::updateTrackVisibilityCheckboxes()
     for (int i = 0; i < m_trackVisibilityCheckboxes.size(); ++i) {
         initialVisibility.append(i == 0);
     }
-    m_lilypondWidget->setTrackVisibility(initialVisibility);
+    m_notationWidget->setTrackVisibility(initialVisibility);
 }
 
 void NotationSection::onPlaybackTickChanged(int tick)
@@ -445,23 +445,21 @@ void NotationSection::onPlaybackTickChanged(int tick)
     if (!m_sectionActive) return;
     
     // Only update if we have a valid widget and it's not rendering
-    if (!m_lilypondWidget || m_lilypondWidget->isRendering()) return;
+    if (!m_notationWidget || m_notationWidget->isRendering()) return;
     
-    // Update playback position highlighting in the LilyPond widget
-    m_lilypondWidget->setPlaybackPosition(tick);
+    // Update playback position highlighting in the notation widget
+    m_notationWidget->setPlaybackPosition(tick);
 }
 
 void NotationSection::applyNotationSettings()
 {
-    if (!m_lilypondWidget) return;
+    if (!m_notationWidget) return;
     
-    LilyPondWidget::NotationSettings settings;
+    VerovioWidget::NotationSettings settings;
     settings.keySignature = m_keySignatureCombo->currentData().toString();
     settings.timeSignature = m_timeSignatureCombo->currentData().toString();
-    settings.staffType = m_staffTypeCombo->currentData().toString();
     settings.fontSize = m_fontSizeSpinBox->value();
     settings.showBarNumbers = m_showBarNumbersCheckbox->isChecked();
-    settings.resolution = m_resolutionCombo->currentData().toInt();
     
-    m_lilypondWidget->setNotationSettings(settings);
+    m_notationWidget->setNotationSettings(settings);
 }

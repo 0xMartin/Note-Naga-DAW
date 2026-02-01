@@ -15,12 +15,12 @@
 #include "section_interface.h"
 
 class AdvancedDockWidget;
-class LilyPondWidget;
+class VerovioWidget;
 class MidiControlBarWidget;
 
 /**
  * @brief NotationSection provides traditional music notation display.
- *        Uses LilyPond for high-quality music engraving.
+ *        Uses Verovio C++ library for precise music engraving and synchronization.
  *        Features:
  *        - A4 page layout ready for PDF export
  *        - Piano grand staff with treble and bass clefs
@@ -53,7 +53,7 @@ private:
     QMap<QString, AdvancedDockWidget*> m_docks;
     
     // Main notation widget
-    LilyPondWidget *m_lilypondWidget;
+    VerovioWidget *m_notationWidget;
     
     // Control bar
     MidiControlBarWidget *m_controlBar;

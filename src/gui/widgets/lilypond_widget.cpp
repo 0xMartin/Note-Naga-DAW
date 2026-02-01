@@ -1000,7 +1000,7 @@ void LilyPondWidget::buildMeasureMap()
         
         for (int measure = 0; measure < m_totalMeasures; ++measure) {
             MeasurePosition pos;
-            int sysIndex = measure / 3;  // ~3 measures per system
+            int sysIndex = measure / 4;  // ~4 measures per system
             pos.pageIndex = sysIndex / systemsPerPage;
             if (pos.pageIndex >= numPages) pos.pageIndex = numPages - 1;
             int sysOnPage = sysIndex % systemsPerPage;
@@ -1013,39 +1013,22 @@ void LilyPondWidget::buildMeasureMap()
         return;
     }
     
-    // Distribute measures evenly across detected systems
-    // LilyPond typically puts 4 measures per system for 4/4 time
+    // Distribute measures across detected systems
+    // Use floating point to distribute measures as evenly as possible
     int totalSystems = allSystems.size();
     
-    // Calculate expected systems based on typical 4 measures per system
-    int expectedSystems = (m_totalMeasures + 3) / 4;  // Round up
+    qDebug() << "Total systems:" << totalSystems << ", total measures:" << m_totalMeasures;
     
-    qDebug() << "Total systems:" << totalSystems << ", total measures:" << m_totalMeasures 
-             << ", expected systems:" << expectedSystems;
-    
-    // If detection found fewer systems than expected, we may have merged too much
-    // Use fixed 4 measures per system approach
-    int measuresPerSystem = 4;  // Standard for 4/4 time
-    
-    // Adjust if we have more systems than needed (finer detection)
-    if (totalSystems > expectedSystems) {
-        // Detection found more systems - use proportional distribution
-        measuresPerSystem = qMax(1, m_totalMeasures / totalSystems);
-    }
-    
-    qDebug() << "Using" << measuresPerSystem << "measures per system";
-    
-    // Debug: show which measures go to which system
-    QVector<int> measuresInSystem(totalSystems, 0);
-    
+    // Calculate which system each measure belongs to using proportional mapping
+    // This ensures even distribution without accumulating error
     for (int measure = 0; measure < m_totalMeasures; ++measure) {
-        // Calculate which system this measure belongs to
-        int sysIndex = measure / measuresPerSystem;
+        // Map measure index to system index proportionally
+        // measure 0 -> system 0, measure (totalMeasures-1) -> system (totalSystems-1)
+        int sysIndex = (measure * totalSystems) / m_totalMeasures;
+        
         if (sysIndex >= totalSystems) {
             sysIndex = totalSystems - 1;
         }
-        
-        measuresInSystem[sysIndex]++;
         
         MeasurePosition pos;
         pos.pageIndex = allSystems[sysIndex].first;
@@ -1056,24 +1039,12 @@ void LilyPondWidget::buildMeasureMap()
         
         m_measurePositions.append(pos);
     }
-    
-    // Print measures per system distribution
-    for (int s = 0; s < totalSystems; ++s) {
-        qDebug() << "System" << s << "has" << measuresInSystem[s] << "measures";
-    }
-    
-    // Debug first few measures
-    for (int i = 0; i < qMin(5, m_measurePositions.size()); ++i) {
-        qDebug() << "Measure" << i << ": page" << m_measurePositions[i].pageIndex 
-                 << "y" << m_measurePositions[i].yPosition;
-    }
 }
 
 QList<QPair<double, double>> LilyPondWidget::detectSystemsInPage(const QPixmap &pixmap)
 {
-    // DETECTION v5: Connected Component Labeling with LEFT MARGIN EXCLUSION
-    // Problem: Systems are connected via left brace/bracket
-    // Solution: Ignore leftmost 8% of page when doing flood fill
+    // Pixel-based system detection using connected component labeling
+    // Excludes left margin to prevent brace/bracket connections between systems
     
     QList<QPair<double, double>> systems;
     
@@ -1091,9 +1062,9 @@ QList<QPair<double, double>> LilyPondWidget::detectSystemsInPage(const QPixmap &
     int dw = width / 2;
     int dh = height / 2;
     
-    // IMPORTANT: Skip left 12% of page (where braces/brackets connect systems)
+    // Skip left 15% of page (where braces/brackets connect systems)
     // Also skip right 3% (page margins)
-    int leftMargin = dw * 12 / 100;
+    int leftMargin = dw * 15 / 100;
     int rightMargin = dw * 97 / 100;
     
     QVector<bool> isDark(dw * dh, false);
@@ -1196,9 +1167,6 @@ QList<QPair<double, double>> LilyPondWidget::detectSystemsInPage(const QPixmap &
     // Sort by Y position
     std::sort(validSystems.begin(), validSystems.end(), 
               [](const auto &a, const auto &b) { return a.first < b.first; });
-    
-    // NO MERGE - each detected component is a separate system
-    // The left margin exclusion should already prevent systems from connecting
     
     // Convert to normalized coordinates
     for (const auto &sys : validSystems) {
