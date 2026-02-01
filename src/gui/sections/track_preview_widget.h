@@ -4,6 +4,8 @@
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QScrollArea>
+#include <QMenu>
+#include <QSet>
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -24,8 +26,22 @@ public:
     int getNoteHeight() const { return m_noteHeight; }
     double getTimeWindowSeconds() const { return m_timeWindowSeconds; }
     
+    // Display options
+    void setShowGrid(bool show);
+    void setShowPianoKeys(bool show);
+    void setColorMode(int mode);  // 0=track, 1=velocity, 2=pitch
+    void resetZoom();
+    
+    bool showGrid() const { return m_showGrid; }
+    bool showPianoKeys() const { return m_showPianoKeys; }
+    int colorMode() const { return m_colorMode; }
+    
+    // Viewport info for optimized rendering
+    void setViewportRect(const QRect &rect);
+    
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
     
 private:
     NoteNagaMidiSeq *m_sequence;
@@ -36,9 +52,27 @@ private:
     int m_highestNote;
     double m_pixelsPerTick;
     
+    // Display options
+    bool m_showGrid;
+    bool m_showPianoKeys;
+    int m_colorMode;  // 0=track, 1=velocity, 2=pitch
+    
+    // Viewport for optimized rendering
+    QRect m_viewportRect;
+    
+    // Active notes (currently playing)
+    QSet<int> m_activeNotes;
+    
     void updateNoteRange();
+    void updateActiveNotes();
     void recalculateSize();
     QColor getTrackColor(int trackIndex) const;
+    QColor getNoteColor(int trackIndex, int midiNote, int velocity) const;
+    void drawPianoKeys(QPainter &p, int pianoKeyWidth, int viewTop, int viewBottom);
+    void drawGrid(QPainter &p, int startTick, int endTick, int ppq, int offsetX, int viewTop, int viewBottom);
+    
+signals:
+    void optionsChanged();
 };
 
 /**
@@ -61,6 +95,7 @@ private slots:
     void onSequenceChanged(NoteNagaMidiSeq *seq);
     void onTickChanged(int tick);
     void onPlayingStateChanged(bool playing);
+    void updateViewportRect();
     
     // Scale controls
     void onZoomInTime();
