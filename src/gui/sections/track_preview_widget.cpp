@@ -3,6 +3,9 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
+#include <QShowEvent>
+#include <QResizeEvent>
+#include <QTimer>
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -58,7 +61,8 @@ void TrackPreviewCanvas::updateActiveNotes()
     if (!m_sequence) return;
     
     const auto &tracks = m_sequence->getTracks();
-    for (const auto *track : tracks) {
+    for (int trackIdx = 0; trackIdx < static_cast<int>(tracks.size()); ++trackIdx) {
+        const auto *track = tracks[trackIdx];
         for (const auto &note : track->getNotes()) {
             if (!note.start.has_value()) continue;
             
@@ -68,7 +72,10 @@ void TrackPreviewCanvas::updateActiveNotes()
             
             // Note is active if current tick is within its duration
             if (m_currentTick >= noteStart && m_currentTick < noteEnd) {
-                m_activeNotes.insert(note.note);
+                // Store note -> trackIndex mapping (first track wins if multiple)
+                if (!m_activeNotes.contains(note.note)) {
+                    m_activeNotes.insert(note.note, trackIdx);
+                }
             }
         }
     }
@@ -306,13 +313,14 @@ void TrackPreviewCanvas::drawPianoKeys(QPainter &p, int pianoKeyWidth, int viewT
         bool isBlackKey = (noteInOctave == 1 || noteInOctave == 3 || noteInOctave == 6 || 
                            noteInOctave == 8 || noteInOctave == 10);
         
-        // Check if this note is currently being played
+        // Check if this note is currently being played and get track color
+        QColor keyColor;
         bool isActive = m_activeNotes.contains(note);
         
-        // Piano key background - highlight active notes
-        QColor keyColor;
         if (isActive) {
-            keyColor = QColor(80, 120, 180);  // Blue highlight for active
+            // Use track color for active note
+            int trackIdx = m_activeNotes.value(note, 0);
+            keyColor = getTrackColor(trackIdx).lighter(120);
         } else {
             keyColor = isBlackKey ? QColor(35, 35, 40) : QColor(55, 55, 60);
         }
@@ -433,7 +441,20 @@ void TrackPreviewCanvas::paintEvent(QPaintEvent *event)
         bool isBlackKey = (noteInOctave == 1 || noteInOctave == 3 || noteInOctave == 6 || 
                            noteInOctave == 8 || noteInOctave == 10);
         
+        // Base background color
         QColor bgColor = isBlackKey ? QColor(20, 20, 26) : QColor(28, 28, 34);
+        
+        // Subtle highlight for active rows (currently playing notes)
+        if (m_activeNotes.contains(note)) {
+            int trackIdx = m_activeNotes.value(note, 0);
+            QColor trackColor = getTrackColor(trackIdx);
+            // Blend track color with background (very subtle - 15% opacity)
+            int r = (bgColor.red() * 85 + trackColor.red() * 15) / 100;
+            int g = (bgColor.green() * 85 + trackColor.green() * 15) / 100;
+            int b = (bgColor.blue() * 85 + trackColor.blue() * 15) / 100;
+            bgColor = QColor(r, g, b);
+        }
+        
         p.fillRect(pianoKeyWidth, y, rollWidth, m_noteHeight, bgColor);
         
         // Draw octave lines (C notes only)
@@ -657,6 +678,19 @@ TrackPreviewWidget::TrackPreviewWidget(NoteNagaEngine *engine, QWidget *parent)
 
 TrackPreviewWidget::~TrackPreviewWidget()
 {
+}
+
+void TrackPreviewWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    // Update viewport rect when widget becomes visible
+    QTimer::singleShot(0, this, &TrackPreviewWidget::updateViewportRect);
+}
+
+void TrackPreviewWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    updateViewportRect();
 }
 
 void TrackPreviewWidget::updateViewportRect()

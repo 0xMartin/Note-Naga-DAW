@@ -5,7 +5,7 @@
 #include <QHBoxLayout>
 #include <QScrollArea>
 #include <QMenu>
-#include <QSet>
+#include <QMap>
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -60,8 +60,8 @@ private:
     // Viewport for optimized rendering
     QRect m_viewportRect;
     
-    // Active notes (currently playing)
-    QSet<int> m_activeNotes;
+    // Active notes (currently playing): note -> trackIndex
+    QMap<int, int> m_activeNotes;
     
     void updateNoteRange();
     void updateActiveNotes();
@@ -102,6 +102,10 @@ private slots:
     void onZoomOutTime();
     void onZoomInPitch();
     void onZoomOutPitch();
+
+protected:
+    void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     NoteNagaEngine *m_engine;
