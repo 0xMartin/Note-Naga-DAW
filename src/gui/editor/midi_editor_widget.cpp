@@ -563,19 +563,46 @@ void MidiEditorWidget::mouseMoveEvent(QMouseEvent *event) {
         rubberBand->setGeometry(QRect(rubberBandOrigin, event->pos()).normalized());
     }
     else if (dragMode == NoteDragMode::Move && m_noteHandler->hasSelection()) {
-        // Calculate delta from last position
-        static QPointF lastPos = scenePos;
-        QPointF actualDelta = scenePos - lastPos;
-        lastPos = scenePos;
-        m_noteHandler->moveSelectedNotes(actualDelta);
+        // Calculate total delta from drag START position (not last position)
+        // This prevents accumulating errors and "jumping"
+        QPointF totalDelta = scenePos - m_noteHandler->dragStartPos();
+        
+        // Reset notes to original positions and apply new delta
+        for (NoteGraphics *ng : m_noteHandler->selectedNotes()) {
+            QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
+            if (shapeItem) {
+                // Calculate original position from stored note state
+                auto *config = getConfig();
+                int origX = ng->note.start.value_or(0) * config->time_scale;
+                int origY = content_height - (ng->note.note - 0 + 1) * config->key_height;
+                
+                // Apply delta to get new visual position
+                shapeItem->setPos(totalDelta.x(), totalDelta.y());
+                if (ng->label) {
+                    ng->label->setPos(totalDelta.x(), totalDelta.y());
+                }
+            }
+        }
+        
+        // Update ghost preview showing snapped positions
+        m_noteHandler->updateGhostPreview(scenePos);
         m_noteHandler->updateDrag(scenePos);
         m_isDragging = true;
     }
     else if (dragMode == NoteDragMode::Resize && m_noteHandler->hasSelection()) {
-        static QPointF lastPos = scenePos;
-        QPointF delta = scenePos - lastPos;
-        lastPos = scenePos;
-        m_noteHandler->resizeSelectedNotes(delta);
+        QPointF totalDelta = scenePos - m_noteHandler->dragStartPos();
+        
+        for (NoteGraphics *ng : m_noteHandler->selectedNotes()) {
+            if (QGraphicsRectItem *rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(ng->item)) {
+                // Get original dimensions
+                auto *config = getConfig();
+                int origWidth = ng->note.length.value_or(1) * config->time_scale;
+                qreal newWidth = std::max(1.0, origWidth + totalDelta.x());
+                
+                QRectF rect = rectItem->rect();
+                rectItem->setRect(rect.x(), rect.y(), newWidth, rect.height());
+            }
+        }
         m_noteHandler->updateDrag(scenePos);
     }
     else if (dragMode == NoteDragMode::None) {
@@ -606,19 +633,15 @@ void MidiEditorWidget::mouseReleaseEvent(QMouseEvent *event) {
             if (!wasClick) {
                 m_noteHandler->selectNotesInRect(sceneRect);
             } else {
-                // It was a click on empty space - add new note
+                // It was a click on empty space - add new note (no position change)
                 m_noteHandler->addNewNote(m_clickStartPos);
-                
-                // Also set playback position
-                int tick = sceneXToTick(m_clickStartPos.x());
-                engine->getProject()->setCurrentTick(tick);
-                emit positionSelected(tick);
                 refreshMarker();
             }
             rubberBand->hide();
         }
         
         if (dragMode == NoteDragMode::Move || dragMode == NoteDragMode::Resize) {
+            m_noteHandler->clearGhostPreview();
             if (!wasClick) {
                 m_noteHandler->applyNoteChanges();
             }

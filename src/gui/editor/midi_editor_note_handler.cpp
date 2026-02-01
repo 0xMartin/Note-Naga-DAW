@@ -292,10 +292,33 @@ void MidiEditorNoteHandler::applyNoteChanges() {
     if (!seq) return;
     
     auto *config = m_editor->getConfig();
+    int gridStep = m_editor->getGridStepTicks();
+    int minNoteLength = std::max(1, gridStep); // Minimum note length = grid step
 
     QPointF totalDelta = m_lastDragPos - m_dragStartPos;
     QSet<NoteNagaTrack*> affectedTracks;
     QList<QPair<NoteGraphics*, NN_Note_t>> changesToApply;
+
+    // For group operations, calculate common delta in ticks and semitones ONCE
+    // This ensures all notes move by the same amount
+    int deltaTicks = static_cast<int>(totalDelta.x() / config->time_scale);
+    int deltaNotes = static_cast<int>(-round(totalDelta.y() / config->key_height));
+    
+    // For move operations, snap the delta itself to grid (not each note individually)
+    // This prevents notes from "spreading apart" due to individual snapping
+    if (m_dragMode == NoteDragMode::Move && m_selectedNotes.size() > 1) {
+        // Find the first note's original start and calculate where it would snap to
+        NoteGraphics *firstNote = m_selectedNotes.first();
+        if (m_dragStartNoteStates.contains(firstNote)) {
+            NN_Note_t firstOriginal = m_dragStartNoteStates.value(firstNote);
+            if (firstOriginal.start.has_value()) {
+                int rawNewStart = firstOriginal.start.value() + deltaTicks;
+                int snappedNewStart = m_editor->snapTickToGridNearest(rawNewStart);
+                // Use the snapped delta for all notes
+                deltaTicks = snappedNewStart - firstOriginal.start.value();
+            }
+        }
+    }
 
     for (NoteGraphics *ng : m_selectedNotes) {
         if (!m_dragStartNoteStates.contains(ng)) continue;
@@ -304,22 +327,95 @@ void MidiEditorNoteHandler::applyNoteChanges() {
         NN_Note_t newNote = originalNote;
 
         if (m_dragMode == NoteDragMode::Move) {
-            int deltaTicks = totalDelta.x() / config->time_scale;
-            int deltaNotes = -round(totalDelta.y() / config->key_height);
             if (newNote.start.has_value()) {
-                newNote.start = m_editor->snapTickToGrid(originalNote.start.value() + deltaTicks);
+                if (m_selectedNotes.size() == 1) {
+                    // Single note: snap to grid normally
+                    newNote.start = m_editor->snapTickToGridNearest(originalNote.start.value() + deltaTicks);
+                } else {
+                    // Multiple notes: apply same delta to maintain relative positions
+                    newNote.start = std::max(0, originalNote.start.value() + deltaTicks);
+                }
             }
-            newNote.note = originalNote.note + deltaNotes;
-            newNote.note = std::max(0, std::min(127, newNote.note));
+            // Apply same note delta to all
+            newNote.note = std::clamp(originalNote.note + deltaNotes, 0, 127);
         } else if (m_dragMode == NoteDragMode::Resize) {
-            int deltaLength = totalDelta.x() / config->time_scale;
+            int deltaLength = static_cast<int>(totalDelta.x() / config->time_scale);
             if (newNote.length.has_value() && newNote.start.has_value()) {
                 int originalEndTick = originalNote.start.value() + originalNote.length.value();
-                int snappedEndTick = m_editor->snapTickToGridNearest(originalEndTick + deltaLength);
-                newNote.length = std::max(1, snappedEndTick - originalNote.start.value());
+                int newEndTick = originalEndTick + deltaLength;
+                int snappedEndTick = m_editor->snapTickToGridNearest(newEndTick);
+                // Enforce minimum length based on grid
+                int newLength = snappedEndTick - originalNote.start.value();
+                newNote.length = std::max(minNoteLength, newLength);
             }
         }
         changesToApply.append({ng, newNote});
+    }
+
+    // Check for overlaps and adjust if needed
+    // Group changes by track for overlap checking
+    QMap<NoteNagaTrack*, QList<QPair<NoteGraphics*, NN_Note_t>>> changesByTrack;
+    for (const auto& change : changesToApply) {
+        changesByTrack[change.first->track].append(change);
+    }
+    
+    // Validate each track's changes for overlaps
+    for (auto trackIt = changesByTrack.begin(); trackIt != changesByTrack.end(); ++trackIt) {
+        NoteNagaTrack *track = trackIt.key();
+        QList<QPair<NoteGraphics*, NN_Note_t>> &trackChanges = trackIt.value();
+        
+        // Get existing notes that are NOT being moved
+        std::vector<NN_Note_t> existingNotes = track->getNotes();
+        QSet<unsigned long> movingNoteIds;
+        for (const auto& change : trackChanges) {
+            movingNoteIds.insert(change.first->note.id);
+        }
+        
+        // Check each new note position for overlaps
+        for (auto& change : trackChanges) {
+            NN_Note_t& newNote = change.second;
+            bool hasOverlap = false;
+            
+            // Check against existing notes (not being moved)
+            for (const auto& existing : existingNotes) {
+                if (movingNoteIds.contains(existing.id)) continue; // Skip notes being moved
+                if (existing.note != newNote.note) continue; // Different pitch, no overlap
+                
+                int newStart = newNote.start.value_or(0);
+                int newEnd = newStart + newNote.length.value_or(minNoteLength);
+                int existingStart = existing.start.value_or(0);
+                int existingEnd = existingStart + existing.length.value_or(1);
+                
+                if (newStart < existingEnd && existingStart < newEnd) {
+                    hasOverlap = true;
+                    break;
+                }
+            }
+            
+            // Check against other moving notes (in case they overlap each other after move)
+            if (!hasOverlap) {
+                for (const auto& otherChange : trackChanges) {
+                    if (&otherChange == &change) continue;
+                    const NN_Note_t& otherNote = otherChange.second;
+                    if (otherNote.note != newNote.note) continue;
+                    
+                    int newStart = newNote.start.value_or(0);
+                    int newEnd = newStart + newNote.length.value_or(minNoteLength);
+                    int otherStart = otherNote.start.value_or(0);
+                    int otherEnd = otherStart + otherNote.length.value_or(1);
+                    
+                    if (newStart < otherEnd && otherStart < newEnd) {
+                        hasOverlap = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (hasOverlap) {
+                // Revert this note to original position
+                change.second = m_dragStartNoteStates.value(change.first);
+            }
+        }
     }
 
     auto project = m_editor->getEngine()->getProject();
@@ -342,6 +438,15 @@ void MidiEditorNoteHandler::applyNoteChanges() {
     }
 
     project->blockSignals(signalsWereBlocked);
+    
+    // Reset visual positions before refresh (they were moved via setPos during drag)
+    for (NoteGraphics *ng : m_selectedNotes) {
+        if (ng->item) ng->item->setPos(0, 0);
+        if (ng->label) ng->label->setPos(0, 0);
+    }
+    
+    // Clear ghost preview
+    clearGhostPreview();
     
     m_dragStartNoteStates.clear();
     seq->computeMaxTick();
@@ -540,6 +645,87 @@ void MidiEditorNoteHandler::updateDrag(const QPointF &pos) {
 void MidiEditorNoteHandler::endDrag() {
     m_dragMode = NoteDragMode::None;
     m_dragStartNoteStates.clear();
+    clearGhostPreview();
+}
+
+// --- Ghost preview ---
+
+void MidiEditorNoteHandler::updateGhostPreview(const QPointF &currentPos) {
+    clearGhostPreview();
+    
+    if (m_selectedNotes.isEmpty() || m_dragMode != NoteDragMode::Move) return;
+    
+    auto *scene = m_editor->getScene();
+    auto *config = m_editor->getConfig();
+    if (!scene || !config) return;
+    
+    QPointF totalDelta = currentPos - m_dragStartPos;
+    int deltaTicks = static_cast<int>(totalDelta.x() / config->time_scale);
+    int deltaNotes = static_cast<int>(-round(totalDelta.y() / config->key_height));
+    
+    // For multiple notes, snap the group delta
+    if (m_selectedNotes.size() > 1) {
+        NoteGraphics *firstNote = m_selectedNotes.first();
+        if (m_dragStartNoteStates.contains(firstNote)) {
+            NN_Note_t firstOriginal = m_dragStartNoteStates.value(firstNote);
+            if (firstOriginal.start.has_value()) {
+                int rawNewStart = firstOriginal.start.value() + deltaTicks;
+                int snappedNewStart = m_editor->snapTickToGridNearest(rawNewStart);
+                deltaTicks = snappedNewStart - firstOriginal.start.value();
+            }
+        }
+    }
+    
+    // Get content height for Y calculation (same as in drawNote)
+    int content_height = 128 * config->key_height;
+    
+    // Create ghost rectangles for each selected note
+    for (NoteGraphics *ng : m_selectedNotes) {
+        if (!m_dragStartNoteStates.contains(ng)) continue;
+        
+        NN_Note_t originalNote = m_dragStartNoteStates.value(ng);
+        
+        int newStart;
+        if (m_selectedNotes.size() == 1 && originalNote.start.has_value()) {
+            newStart = m_editor->snapTickToGridNearest(originalNote.start.value() + deltaTicks);
+        } else {
+            newStart = std::max(0, originalNote.start.value_or(0) + deltaTicks);
+        }
+        
+        int newNoteValue = std::clamp(originalNote.note + deltaNotes, 0, 127);
+        int noteLength = originalNote.length.value_or(1);
+        
+        // Calculate ghost position (matching drawNote formula)
+        int ghostX = newStart * config->time_scale;
+        int ghostY = content_height - (newNoteValue + 1) * config->key_height;
+        int ghostW = std::max(1, static_cast<int>(noteLength * config->time_scale));
+        int ghostH = config->key_height;
+        
+        // Create ghost rectangle with semi-transparent outline
+        QGraphicsRectItem *ghost = scene->addRect(
+            ghostX, ghostY, ghostW, ghostH,
+            QPen(QColor(255, 255, 255, 180), 2, Qt::DashLine),
+            QBrush(QColor(255, 255, 255, 40))
+        );
+        ghost->setZValue(1000);
+        m_ghostItems.append(ghost);
+    }
+}
+
+void MidiEditorNoteHandler::clearGhostPreview() {
+    auto *scene = m_editor->getScene();
+    if (!scene) {
+        m_ghostItems.clear();
+        return;
+    }
+    
+    for (QGraphicsItem *item : m_ghostItems) {
+        if (item && item->scene()) {
+            scene->removeItem(item);
+            delete item;
+        }
+    }
+    m_ghostItems.clear();
 }
 
 // --- Note items management ---

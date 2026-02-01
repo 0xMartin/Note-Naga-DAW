@@ -183,6 +183,19 @@ void MidiEditorSection::setupDockLayout()
 
 void MidiEditorSection::connectSignals()
 {
+    // Tact ruler click -> set playback position
+    connect(m_midiTactRuler, &MidiTactRuler::positionSelected, this, [this](int tick) {
+        NoteNagaProject *project = m_engine->getProject();
+        bool wasPlaying = m_engine->isPlaying();
+        if (wasPlaying) {
+            m_engine->stopPlayback();
+        }
+        project->setCurrentTick(tick);
+        if (wasPlaying) {
+            m_engine->startPlayback();
+        }
+    });
+    
     // Editor scroll signals
     connect(m_midiEditor, &MidiEditorWidget::horizontalScrollChanged, 
             m_midiTactRuler, &MidiTactRuler::setHorizontalScroll);

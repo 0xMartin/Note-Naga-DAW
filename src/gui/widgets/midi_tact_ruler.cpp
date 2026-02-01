@@ -15,11 +15,16 @@ MidiTactRuler::MidiTactRuler(NoteNagaEngine *engine_, QWidget* parent)
       fg_color("#e0e6ef"),
       subline_color("#464a56"),
       tact_bg_color("#3c3f4f"),
-      tact_line_color("#6f6fa6")
+      tact_line_color("#6f6fa6"),
+      hover_color("#ff5858"),
+      click_hint_color("#ff585880"),
+      m_isHovered(false),
+      m_hoverX(-1)
 {
     setObjectName("MidiTactRuler");
     setFixedHeight(32);
-    //connect(engine->get_project(), &NoteNagaProject::current_tick_changed_signal, this, &MidiTactRuler::set_tick_position);
+    setMouseTracking(true);
+    setCursor(Qt::PointingHandCursor);
 }
 
 void MidiTactRuler::setTimeScale(double time_scale) {
@@ -39,6 +44,24 @@ void MidiTactRuler::mousePressEvent(QMouseEvent* event) {
         int tick = int(double(click_x) / (project->getPPQ() * time_scale) * project->getPPQ());
         emit positionSelected(tick);
     }
+}
+
+void MidiTactRuler::mouseMoveEvent(QMouseEvent* event) {
+    m_hoverX = event->pos().x();
+    update();
+}
+
+void MidiTactRuler::enterEvent(QEnterEvent* event) {
+    Q_UNUSED(event);
+    m_isHovered = true;
+    update();
+}
+
+void MidiTactRuler::leaveEvent(QEvent* event) {
+    Q_UNUSED(event);
+    m_isHovered = false;
+    m_hoverX = -1;
+    update();
 }
 
 void MidiTactRuler::paintEvent(QPaintEvent* event) {
@@ -106,5 +129,24 @@ void MidiTactRuler::paintEvent(QPaintEvent* event) {
             }
         }
         if (x + bar_width >= width) break;
+    }
+    
+    // Draw hover line indicator - shows where playback position will be set on click
+    if (m_isHovered && m_hoverX >= 0) {
+        // Draw vertical line at hover position
+        painter.setPen(QPen(hover_color, 2));
+        painter.drawLine(m_hoverX, 0, m_hoverX, r.height());
+        
+        // Draw small triangle pointer at top
+        QPolygon triangle;
+        triangle << QPoint(m_hoverX - 5, 0)
+                 << QPoint(m_hoverX + 5, 0)
+                 << QPoint(m_hoverX, 8);
+        painter.setBrush(hover_color);
+        painter.setPen(Qt::NoPen);
+        painter.drawPolygon(triangle);
+        
+        // Draw semi-transparent hint area
+        painter.fillRect(QRect(m_hoverX - 1, 0, 3, r.height()), click_hint_color);
     }
 }

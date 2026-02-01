@@ -34,10 +34,15 @@ public:
     QColor subline_color;
     QColor tact_bg_color;
     QColor tact_line_color;
+    QColor hover_color;
+    QColor click_hint_color;
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void enterEvent(QEnterEvent *event) override;
+    void leaveEvent(QEvent *event) override;
 
 private:
     NoteNagaEngine *engine;
@@ -45,6 +50,10 @@ private:
     double time_scale;
     int horizontalScroll;
     QFont font;
+    
+    // Hover state
+    bool m_isHovered = false;
+    int m_hoverX = -1;
 
 /*******************************************************************************************************/
 // Signal and Slots

@@ -60,6 +60,11 @@ public:
     void updateDrag(const QPointF &pos);
     void endDrag();
     NoteDragMode dragMode() const { return m_dragMode; }
+    QPointF dragStartPos() const { return m_dragStartPos; }
+    
+    // --- Ghost preview ---
+    void updateGhostPreview(const QPointF &currentPos);
+    void clearGhostPreview();
     
     // --- Note items management ---
     QMap<int, std::list<NoteGraphics>>& noteItems() { return m_noteItems; }
@@ -81,6 +86,7 @@ private:
     QPointF m_dragStartPos;
     QPointF m_lastDragPos;
     QMap<NoteGraphics*, NN_Note_t> m_dragStartNoteStates;
+    QList<QGraphicsItem*> m_ghostItems;
     
     static constexpr int RESIZE_EDGE_MARGIN = 5;
 };
