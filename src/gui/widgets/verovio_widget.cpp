@@ -251,9 +251,12 @@ void VerovioWidget::setupUi()
 
 void VerovioWidget::setSequence(NoteNagaMidiSeq *sequence)
 {
-    m_sequence = sequence;
-    m_needsRender = true;
-    clearPages();
+    // Only clear pages if sequence actually changed
+    if (m_sequence != sequence) {
+        m_sequence = sequence;
+        m_needsRender = true;
+        clearPages();
+    }
 }
 
 void VerovioWidget::setTitle(const QString &title)
