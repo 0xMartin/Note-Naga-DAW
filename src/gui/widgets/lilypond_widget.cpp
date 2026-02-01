@@ -11,8 +11,79 @@
 #include <QStyle>
 #include <QPrinter>
 #include <QPrintDialog>
+#include <QScrollBar>
 #include <algorithm>
-#include <set>
+
+// ============================================================================
+// NotationPageWidget - Custom page widget with highlight overlay
+// ============================================================================
+
+NotationPageWidget::NotationPageWidget(QWidget *parent)
+    : QWidget(parent)
+    , m_hasHighlight(false)
+    , m_highlightYStart(0)
+    , m_highlightYEnd(0)
+{
+    setMinimumSize(100, 100);
+}
+
+void NotationPageWidget::setPixmap(const QPixmap &pixmap)
+{
+    m_pixmap = pixmap;
+    setFixedSize(pixmap.size());
+    update();
+}
+
+void NotationPageWidget::setHighlightRegion(double yStart, double yEnd)
+{
+    m_hasHighlight = true;
+    m_highlightYStart = yStart;
+    m_highlightYEnd = yEnd;
+    update();
+}
+
+void NotationPageWidget::clearHighlight()
+{
+    m_hasHighlight = false;
+    update();
+}
+
+QSize NotationPageWidget::sizeHint() const
+{
+    return m_pixmap.size();
+}
+
+void NotationPageWidget::paintEvent(QPaintEvent *)
+{
+    QPainter p(this);
+    
+    // Draw the page pixmap
+    if (!m_pixmap.isNull()) {
+        p.drawPixmap(0, 0, m_pixmap);
+    }
+    
+    // Draw highlight overlay if active
+    if (m_hasHighlight) {
+        int h = height();
+        int w = width();
+        
+        int yStart = static_cast<int>(m_highlightYStart * h);
+        int yEnd = static_cast<int>(m_highlightYEnd * h);
+        int highlightHeight = qMax(yEnd - yStart, 20);  // Minimum height
+        
+        // Semi-transparent highlight
+        QColor highlightColor(255, 220, 100, 60);  // Yellow-ish
+        p.fillRect(0, yStart, w, highlightHeight, highlightColor);
+        
+        // Highlight border
+        p.setPen(QPen(QColor(255, 180, 50, 200), 2));
+        p.drawRect(1, yStart, w - 2, highlightHeight);
+    }
+}
+
+// ============================================================================
+// LilyPondWidget
+// ============================================================================
 
 LilyPondWidget::LilyPondWidget(NoteNagaEngine *engine, QWidget *parent)
     : QWidget(parent)
@@ -20,6 +91,11 @@ LilyPondWidget::LilyPondWidget(NoteNagaEngine *engine, QWidget *parent)
     , m_sequence(nullptr)
     , m_process(nullptr)
     , m_tempDir(nullptr)
+    , m_currentTick(0)
+    , m_currentMeasureIndex(-1)
+    , m_autoScroll(true)
+    , m_ticksPerMeasure(480 * 4)  // Default 4/4 at 480 PPQ
+    , m_totalMeasures(0)
     , m_zoom(0.6)  // Start at 60% for better fit
     , m_lilypondAvailable(false)
     , m_rendering(false)
@@ -165,11 +241,11 @@ void LilyPondWidget::showPages()
 
 void LilyPondWidget::clearPages()
 {
-    for (QLabel *label : m_pageLabels) {
-        m_pagesLayout->removeWidget(label);
-        delete label;
+    for (NotationPageWidget *widget : m_pageWidgets) {
+        m_pagesLayout->removeWidget(widget);
+        delete widget;
     }
-    m_pageLabels.clear();
+    m_pageWidgets.clear();
     m_pagePixmaps.clear();
 }
 
@@ -344,6 +420,12 @@ void LilyPondWidget::render()
     }
     
     if (m_rendering) {
+        return;
+    }
+    
+    // Don't render while MIDI is playing
+    if (m_engine && m_engine->isPlaying()) {
+        showError(tr("Cannot render while playing. Stop playback first."));
         return;
     }
     
@@ -711,8 +793,8 @@ void LilyPondWidget::startRendering(const QString &lilypondSource)
         return;
     }
     
-    // Write LilyPond source to file
-    QString lyPath = m_tempDir->path() + "/notation.ly";
+    // Write LilyPond source to file with fixed name
+    QString lyPath = m_tempDir->path() + "/notation_input.ly";
     QFile lyFile(lyPath);
     if (!lyFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         showError(tr("Failed to write temporary file"));
@@ -721,9 +803,9 @@ void LilyPondWidget::startRendering(const QString &lilypondSource)
     lyFile.write(lilypondSource.toUtf8());
     lyFile.close();
     
-    // Clean up old PNG files
+    // Clean up old SVG and PNG files
     QDir tempDir(m_tempDir->path());
-    for (const QString &file : tempDir.entryList(QStringList() << "*.png")) {
+    for (const QString &file : tempDir.entryList(QStringList() << "*.png" << "*.svg")) {
         tempDir.remove(file);
     }
     
@@ -742,11 +824,10 @@ void LilyPondWidget::startRendering(const QString &lilypondSource)
     
     m_process->setWorkingDirectory(m_tempDir->path());
     
-    // LilyPond arguments for PNG output with configurable resolution
+    // LilyPond arguments for PNG output
     QStringList args;
-    args << "--png"
-         << QString("-dresolution=%1").arg(m_settings.resolution)
-         << "-o" << "notation"
+    args << "--png"                    // PNG output
+         << "-dresolution=" + QString::number(m_settings.resolution)
          << lyPath;
     
     QString lilypondPath = getLilypondPath();
@@ -778,22 +859,24 @@ void LilyPondWidget::onProcessFinished(int exitCode, QProcess::ExitStatus exitSt
     clearPages();
     
     // Find all generated PNG pages
-    QString basePath = m_tempDir->path() + "/notation";
+    // LilyPond outputs: notation_input.png (single page) or 
+    // notation_input-page1.png, notation_input-page2.png, etc.
+    QString baseName = m_tempDir->path() + "/notation_input";
     
     // Check for single page output
-    if (QFileInfo::exists(basePath + ".png")) {
-        QPixmap page(basePath + ".png");
-        if (!page.isNull()) {
-            m_pagePixmaps << page;
+    if (QFileInfo::exists(baseName + ".png")) {
+        QPixmap pixmap(baseName + ".png");
+        if (!pixmap.isNull()) {
+            m_pagePixmaps << pixmap;
         }
     } else {
         // Check for multi-page output
         for (int pageNum = 1; pageNum <= 100; ++pageNum) {
-            QString pagePath = QString("%1-page%2.png").arg(basePath).arg(pageNum);
+            QString pagePath = QString("%1-page%2.png").arg(baseName).arg(pageNum);
             if (QFileInfo::exists(pagePath)) {
-                QPixmap page(pagePath);
-                if (!page.isNull()) {
-                    m_pagePixmaps << page;
+                QPixmap pixmap(pagePath);
+                if (!pixmap.isNull()) {
+                    m_pagePixmaps << pixmap;
                 }
             } else {
                 break;
@@ -802,10 +885,13 @@ void LilyPondWidget::onProcessFinished(int exitCode, QProcess::ExitStatus exitSt
     }
     
     if (m_pagePixmaps.isEmpty()) {
-        showError(tr("LilyPond did not generate output images"));
+        showError(tr("LilyPond did not generate output"));
         emit renderingError("No output generated");
         return;
     }
+    
+    // Build measure map for playback highlighting
+    buildMeasureMap();
     
     // Create labels for each page and display
     updateDisplay();
@@ -816,17 +902,16 @@ void LilyPondWidget::onProcessFinished(int exitCode, QProcess::ExitStatus exitSt
 
 void LilyPondWidget::updateDisplay()
 {
-    // Clear existing labels
-    for (QLabel *label : m_pageLabels) {
-        m_pagesLayout->removeWidget(label);
-        delete label;
+    // Clear existing page widgets
+    for (NotationPageWidget *widget : m_pageWidgets) {
+        m_pagesLayout->removeWidget(widget);
+        delete widget;
     }
-    m_pageLabels.clear();
+    m_pageWidgets.clear();
     
-    // Create new labels with scaled pixmaps
+    // Create new page widgets with scaled pixmaps
     for (const QPixmap &pixmap : m_pagePixmaps) {
-        QLabel *pageLabel = new QLabel();
-        pageLabel->setAlignment(Qt::AlignCenter);
+        NotationPageWidget *pageWidget = new NotationPageWidget();
         
         // Scale pixmap
         QPixmap scaled = pixmap.scaled(
@@ -835,20 +920,320 @@ void LilyPondWidget::updateDisplay()
             Qt::SmoothTransformation
         );
         
-        pageLabel->setPixmap(scaled);
-        pageLabel->setFixedSize(scaled.size());
+        pageWidget->setPixmap(scaled);
         
         // White paper with shadow effect
-        pageLabel->setStyleSheet(R"(
-            QLabel {
+        pageWidget->setStyleSheet(R"(
+            NotationPageWidget {
                 background: white;
                 border: 1px solid #444;
             }
         )");
         
-        m_pagesLayout->addWidget(pageLabel, 0, Qt::AlignHCenter);
-        m_pageLabels << pageLabel;
+        m_pagesLayout->addWidget(pageWidget, 0, Qt::AlignHCenter);
+        m_pageWidgets << pageWidget;
     }
+    
+    // Build measure map for playback highlighting
+    buildMeasureMap();
+    
+    // Update current highlight
+    updateHighlight();
+}
+
+void LilyPondWidget::buildMeasureMap()
+{
+    m_measurePositions.clear();
+    
+    if (!m_sequence || m_pageWidgets.isEmpty() || m_pagePixmaps.isEmpty()) {
+        return;
+    }
+    
+    // Calculate ticks per measure based on time signature
+    int ppq = 480;
+    QStringList timeParts = m_settings.timeSignature.split('/');
+    int numerator = 4, denominator = 4;
+    if (timeParts.size() == 2) {
+        numerator = timeParts[0].toInt();
+        denominator = timeParts[1].toInt();
+    }
+    m_ticksPerMeasure = (ppq * 4 * numerator) / denominator;
+    
+    // Find total duration from all tracks
+    int totalTicks = 0;
+    auto tracks = m_sequence->getTracks();
+    for (auto *track : tracks) {
+        auto notes = track->getNotes();
+        for (const auto &note : notes) {
+            int noteStart = note.start.value_or(0);
+            int noteLength = note.length.value_or(0);
+            int endTick = noteStart + noteLength;
+            totalTicks = qMax(totalTicks, endTick);
+        }
+    }
+    
+    m_totalMeasures = (totalTicks + m_ticksPerMeasure - 1) / m_ticksPerMeasure;
+    if (m_totalMeasures < 1) m_totalMeasures = 1;
+    
+    // Detect systems in each page by scanning pixels
+    QList<QPair<int, QPair<double, double>>> allSystems;  // (pageIndex, (yStart, yEnd))
+    
+    for (int pageIdx = 0; pageIdx < m_pagePixmaps.size(); ++pageIdx) {
+        QList<QPair<double, double>> pageSystems = detectSystemsInPage(m_pagePixmaps[pageIdx]);
+        qDebug() << "Page" << pageIdx << "detected" << pageSystems.size() << "systems";
+        for (int i = 0; i < pageSystems.size(); ++i) {
+            qDebug() << "  System" << i << ": y" << pageSystems[i].first << "-" << pageSystems[i].second;
+        }
+        for (const auto &sys : pageSystems) {
+            allSystems.append(qMakePair(pageIdx, sys));
+        }
+    }
+    
+    qDebug() << "Total systems detected:" << allSystems.size() << "for" << m_totalMeasures << "measures";
+    
+    if (allSystems.isEmpty()) {
+        qDebug() << "Detection failed, using fallback";
+        // Fallback to simple approximation if detection fails
+        int numPages = m_pageWidgets.size();
+        double systemHeight = 0.12;
+        int systemsPerPage = 7;
+        
+        for (int measure = 0; measure < m_totalMeasures; ++measure) {
+            MeasurePosition pos;
+            int sysIndex = measure / 3;  // ~3 measures per system
+            pos.pageIndex = sysIndex / systemsPerPage;
+            if (pos.pageIndex >= numPages) pos.pageIndex = numPages - 1;
+            int sysOnPage = sysIndex % systemsPerPage;
+            pos.yPosition = 0.08 + sysOnPage * 0.13;
+            pos.height = systemHeight;
+            pos.startTick = measure * m_ticksPerMeasure;
+            pos.endTick = (measure + 1) * m_ticksPerMeasure;
+            m_measurePositions.append(pos);
+        }
+        return;
+    }
+    
+    // Distribute measures evenly across detected systems
+    int measuresPerSystem = qMax(1, (m_totalMeasures + allSystems.size() - 1) / allSystems.size());
+    qDebug() << "Measures per system:" << measuresPerSystem;
+    
+    for (int measure = 0; measure < m_totalMeasures; ++measure) {
+        int sysIndex = measure / measuresPerSystem;
+        if (sysIndex >= allSystems.size()) {
+            sysIndex = allSystems.size() - 1;
+        }
+        
+        MeasurePosition pos;
+        pos.pageIndex = allSystems[sysIndex].first;
+        pos.yPosition = allSystems[sysIndex].second.first;
+        pos.height = allSystems[sysIndex].second.second - allSystems[sysIndex].second.first;
+        pos.startTick = measure * m_ticksPerMeasure;
+        pos.endTick = (measure + 1) * m_ticksPerMeasure;
+        
+        m_measurePositions.append(pos);
+    }
+    
+    // Debug first few measures
+    for (int i = 0; i < qMin(5, m_measurePositions.size()); ++i) {
+        qDebug() << "Measure" << i << ": page" << m_measurePositions[i].pageIndex 
+                 << "y" << m_measurePositions[i].yPosition;
+    }
+}
+
+QList<QPair<double, double>> LilyPondWidget::detectSystemsInPage(const QPixmap &pixmap)
+{
+    // Detect notation systems by scanning a vertical line on the LEFT side of the page
+    // where staff lines are most reliably present (near the clef/time signature area)
+    
+    QList<QPair<double, double>> systems;  // (yStart, yEnd) normalized to 0-1
+    
+    if (pixmap.isNull()) return systems;
+    
+    QImage image = pixmap.toImage();
+    int width = image.width();
+    int height = image.height();
+    
+    if (width == 0 || height == 0) return systems;
+    
+    // Scan position: ~8% from left (just after the left margin, where staff lines begin)
+    // This is where the clef and time signature are, so there are always dark pixels
+    int scanX = static_cast<int>(width * 0.08);
+    
+    // Threshold for "dark" pixel (lower = darker)
+    const int darkThreshold = 240;  // More lenient threshold to catch gray staff lines
+    
+    // Scan from top to bottom and detect dark regions
+    QVector<bool> isDark(height, false);
+    
+    // Average over a wider range of columns for more robust detection
+    for (int y = 0; y < height; ++y) {
+        int darkCount = 0;
+        // Scan across a wider band (from 5% to 15% of page width)
+        for (int xPercent = 5; xPercent <= 15; xPercent += 2) {
+            int x = static_cast<int>(width * xPercent / 100.0);
+            x = qBound(0, x, width - 1);
+            QRgb pixel = image.pixel(x, y);
+            int gray = qGray(pixel);
+            if (gray < darkThreshold) {
+                darkCount++;
+            }
+        }
+        isDark[y] = (darkCount >= 1);  // At least 1 of 6 columns is dark
+    }
+    
+    // Find contiguous dark regions (systems)
+    // A system needs at least minSystemHeight pixels
+    const int minSystemHeight = height / 40;  // Minimum 2.5% of page height (smaller threshold)
+    const int minGap = height / 60;           // Minimum gap between systems (~1.7%)
+    
+    bool inSystem = false;
+    int systemStart = 0;
+    int gapCount = 0;
+    
+    for (int y = 0; y < height; ++y) {
+        if (isDark[y]) {
+            if (!inSystem) {
+                // Start of new system
+                inSystem = true;
+                systemStart = y;
+            }
+            gapCount = 0;
+        } else {
+            if (inSystem) {
+                gapCount++;
+                // If gap is large enough, end the system
+                if (gapCount >= minGap) {
+                    int systemEnd = y - gapCount;
+                    int sysHeight = systemEnd - systemStart;
+                    if (sysHeight >= minSystemHeight) {
+                        // Valid system found
+                        double yStart = static_cast<double>(systemStart) / height;
+                        double yEnd = static_cast<double>(systemEnd) / height;
+                        systems.append(qMakePair(yStart, yEnd));
+                    }
+                    inSystem = false;
+                }
+            }
+        }
+    }
+    
+    // Don't forget last system if we ended while in one
+    if (inSystem) {
+        int systemEnd = height - gapCount;
+        int sysHeight = systemEnd - systemStart;
+        if (sysHeight >= minSystemHeight) {
+            double yStart = static_cast<double>(systemStart) / height;
+            double yEnd = static_cast<double>(systemEnd) / height;
+            systems.append(qMakePair(yStart, yEnd));
+        }
+    }
+    
+    // MERGE CLOSE SYSTEMS: Piano staff has treble + bass clef close together
+    // They should be treated as ONE system, not two separate ones
+    // Merge systems that are within 5% of page height of each other
+    const double mergeThreshold = 0.05;  // 5% of page height
+    QList<QPair<double, double>> mergedSystems;
+    
+    for (int i = 0; i < systems.size(); ++i) {
+        if (mergedSystems.isEmpty()) {
+            mergedSystems.append(systems[i]);
+        } else {
+            // Check if this system is close to the previous one
+            double prevEnd = mergedSystems.last().second;
+            double currStart = systems[i].first;
+            
+            if (currStart - prevEnd < mergeThreshold) {
+                // Merge: extend the previous system to include this one
+                mergedSystems.last().second = systems[i].second;
+            } else {
+                // Gap is large enough, this is a new system
+                mergedSystems.append(systems[i]);
+            }
+        }
+    }
+    
+    return mergedSystems;
+}
+
+void LilyPondWidget::setPlaybackPosition(int tick)
+{
+    if (tick == m_currentTick) return;
+    
+    m_currentTick = tick;
+    
+    // Find which measure we're in
+    int newMeasureIndex = -1;
+    for (int i = 0; i < m_measurePositions.size(); ++i) {
+        if (tick >= m_measurePositions[i].startTick && tick < m_measurePositions[i].endTick) {
+            newMeasureIndex = i;
+            break;
+        }
+    }
+    
+    // If past the last measure, use the last one
+    if (newMeasureIndex < 0 && !m_measurePositions.isEmpty()) {
+        if (tick >= m_measurePositions.last().startTick) {
+            newMeasureIndex = m_measurePositions.size() - 1;
+        }
+    }
+    
+    if (newMeasureIndex != m_currentMeasureIndex) {
+        m_currentMeasureIndex = newMeasureIndex;
+        updateHighlight();
+        
+        if (m_autoScroll) {
+            scrollToCurrentPosition();
+        }
+    }
+}
+
+void LilyPondWidget::setAutoScroll(bool enabled)
+{
+    m_autoScroll = enabled;
+}
+
+void LilyPondWidget::updateHighlight()
+{
+    // Clear all highlights first
+    for (NotationPageWidget *widget : m_pageWidgets) {
+        widget->clearHighlight();
+    }
+    
+    // Set highlight on the current measure's page
+    if (m_currentMeasureIndex >= 0 && m_currentMeasureIndex < m_measurePositions.size()) {
+        const MeasurePosition &pos = m_measurePositions[m_currentMeasureIndex];
+        
+        if (pos.pageIndex >= 0 && pos.pageIndex < m_pageWidgets.size()) {
+            NotationPageWidget *widget = m_pageWidgets[pos.pageIndex];
+            widget->setHighlightRegion(pos.yPosition, pos.yPosition + pos.height);
+        }
+    }
+}
+
+void LilyPondWidget::scrollToCurrentPosition()
+{
+    if (m_currentMeasureIndex < 0 || m_currentMeasureIndex >= m_measurePositions.size()) {
+        return;
+    }
+    
+    const MeasurePosition &pos = m_measurePositions[m_currentMeasureIndex];
+    
+    if (pos.pageIndex < 0 || pos.pageIndex >= m_pageWidgets.size()) {
+        return;
+    }
+    
+    NotationPageWidget *widget = m_pageWidgets[pos.pageIndex];
+    
+    // Calculate the global Y position within the scroll area
+    int widgetY = widget->mapTo(m_pagesContainer, QPoint(0, 0)).y();
+    int highlightY = widgetY + static_cast<int>(pos.yPosition * widget->height());
+    
+    // Scroll to make the highlight visible (centered if possible)
+    QScrollBar *vBar = m_scrollArea->verticalScrollBar();
+    int viewportHeight = m_scrollArea->viewport()->height();
+    int targetScroll = highlightY - (viewportHeight / 3);  // Show highlight in upper third
+    
+    vBar->setValue(qBound(0, targetScroll, vBar->maximum()));
 }
 
 void LilyPondWidget::onProcessError(QProcess::ProcessError error)

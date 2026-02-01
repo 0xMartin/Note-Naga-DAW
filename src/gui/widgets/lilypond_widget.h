@@ -11,8 +11,14 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QToolButton>
+#include <QTimer>
+#include <QMap>
+#include <QSvgRenderer>
 
 #include <note_naga_engine/note_naga_engine.h>
+
+// Forward declaration for page widget with highlight overlay
+class NotationPageWidget;
 
 /**
  * @brief LilyPond-based music notation widget
@@ -25,8 +31,9 @@
  * 
  * The rendering process:
  * 1. Convert MIDI sequence to LilyPond format (.ly file)
- * 2. Call lilypond CLI to generate PNG (multiple pages)
- * 3. Display pages as white paper on dark background
+ * 2. Call lilypond CLI to generate SVG (with point-and-click metadata)
+ * 3. Parse SVG to extract measure positions
+ * 4. Display pages with playback position highlighting
  * 
  * Rendering is triggered manually via refresh button.
  */
@@ -44,6 +51,15 @@ public:
         bool showBarNumbers = true;           // Show bar numbers
         bool showTempo = true;                // Show tempo marking
         int resolution = 200;                 // PNG resolution in DPI
+    };
+    
+    // Measure position info for playback highlighting
+    struct MeasurePosition {
+        int pageIndex;          // Which page (0-based)
+        double yPosition;       // Y position on the page (normalized 0-1)
+        double height;          // Height of the measure area
+        int startTick;          // Start tick of this measure
+        int endTick;            // End tick of this measure
     };
     
     explicit LilyPondWidget(NoteNagaEngine *engine, QWidget *parent = nullptr);
@@ -74,6 +90,17 @@ public slots:
     void zoomIn();
     void zoomOut();
     void setZoom(double zoom);
+    
+    /**
+     * @brief Update playback position highlighting
+     * @param tick Current playback position in ticks
+     */
+    void setPlaybackPosition(int tick);
+    
+    /**
+     * @brief Enable/disable auto-scroll during playback
+     */
+    void setAutoScroll(bool enabled);
 
 signals:
     void renderingStarted();
@@ -95,6 +122,10 @@ private:
     void showPages();
     void updateDisplay();
     void clearPages();
+    void buildMeasureMap();
+    QList<QPair<double, double>> detectSystemsInPage(const QPixmap &pixmap);
+    void updateHighlight();
+    void scrollToCurrentPosition();
 
     NoteNagaEngine *m_engine;
     NoteNagaMidiSeq *m_sequence;
@@ -119,13 +150,48 @@ private:
     QString m_title;
     QList<bool> m_trackVisibility;
     QList<QPixmap> m_pagePixmaps;  // Original page images
-    QList<QLabel*> m_pageLabels;   // Page display labels
+    QList<NotationPageWidget*> m_pageWidgets;  // Page widgets with highlight overlay
     NotationSettings m_settings;   // Notation settings
+    
+    // Playback highlighting
+    QList<MeasurePosition> m_measurePositions;  // Measure position map
+    int m_currentTick;                          // Current playback tick
+    int m_currentMeasureIndex;                  // Current highlighted measure
+    bool m_autoScroll;                          // Auto-scroll during playback
+    int m_ticksPerMeasure;                      // Ticks per measure based on time signature
+    int m_totalMeasures;                        // Total number of measures
     
     double m_zoom;
     bool m_lilypondAvailable;
     bool m_rendering;
     bool m_needsRender;  // Flag indicating data changed
+};
+
+
+/**
+ * @brief Custom widget for displaying a notation page with highlight overlay
+ */
+class NotationPageWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit NotationPageWidget(QWidget *parent = nullptr);
+    
+    void setPixmap(const QPixmap &pixmap);
+    void setHighlightRegion(double yStart, double yEnd);  // Normalized 0-1
+    void clearHighlight();
+    
+    QSize sizeHint() const override;
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
+private:
+    QPixmap m_pixmap;
+    bool m_hasHighlight;
+    double m_highlightYStart;
+    double m_highlightYEnd;
 };
 
 #endif // LILYPOND_WIDGET_H

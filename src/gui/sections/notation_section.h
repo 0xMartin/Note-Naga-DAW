@@ -79,6 +79,9 @@ private:
     // No sequence placeholder
     QLabel *m_noSequenceLabel;
     
+    // Flag to track if auto-render has been performed
+    bool m_autoRenderDone;
+    
     void setupUi();
     void setupDockLayout();
     void connectSignals();

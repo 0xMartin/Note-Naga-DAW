@@ -15,6 +15,7 @@ NotationSection::NotationSection(NoteNagaEngine *engine, QWidget *parent)
     , m_engine(engine)
     , m_sequence(nullptr)
     , m_sectionActive(false)
+    , m_autoRenderDone(false)
 {
     // Remove window frame for embedded use
     setWindowFlags(Qt::Widget);
@@ -365,6 +366,25 @@ void NotationSection::refreshSequence()
     
     // Update LilyPond widget
     m_lilypondWidget->setSequence(m_sequence);
+    
+    // Auto-render on first open if sequence has notes
+    if (!m_autoRenderDone && m_sectionActive) {
+        // Check if sequence has at least one track with notes
+        auto tracks = m_sequence->getTracks();
+        bool hasNotes = false;
+        for (const auto &track : tracks) {
+            if (track && !track->getNotes().empty()) {
+                hasNotes = true;
+                break;
+            }
+        }
+        
+        if (hasNotes && m_lilypondWidget->isAvailable()) {
+            m_autoRenderDone = true;
+            // Use QTimer to delay render slightly so UI is fully set up
+            QTimer::singleShot(100, m_lilypondWidget, &LilyPondWidget::render);
+        }
+    }
 }
 
 void NotationSection::updateTrackVisibilityCheckboxes()
@@ -413,10 +433,14 @@ void NotationSection::updateTrackVisibilityCheckboxes()
 
 void NotationSection::onPlaybackTickChanged(int tick)
 {
+    // Only update highlighting when section is active (visible)
     if (!m_sectionActive) return;
     
-    // TODO: Implement playback highlighting
-    Q_UNUSED(tick);
+    // Only update if we have a valid widget and it's not rendering
+    if (!m_lilypondWidget || m_lilypondWidget->isRendering()) return;
+    
+    // Update playback position highlighting in the LilyPond widget
+    m_lilypondWidget->setPlaybackPosition(tick);
 }
 
 void NotationSection::applyNotationSettings()
