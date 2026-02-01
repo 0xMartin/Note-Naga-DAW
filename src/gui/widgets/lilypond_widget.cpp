@@ -1014,14 +1014,38 @@ void LilyPondWidget::buildMeasureMap()
     }
     
     // Distribute measures evenly across detected systems
-    int measuresPerSystem = qMax(1, (m_totalMeasures + allSystems.size() - 1) / allSystems.size());
-    qDebug() << "Measures per system:" << measuresPerSystem;
+    // LilyPond typically puts 4 measures per system for 4/4 time
+    int totalSystems = allSystems.size();
+    
+    // Calculate expected systems based on typical 4 measures per system
+    int expectedSystems = (m_totalMeasures + 3) / 4;  // Round up
+    
+    qDebug() << "Total systems:" << totalSystems << ", total measures:" << m_totalMeasures 
+             << ", expected systems:" << expectedSystems;
+    
+    // If detection found fewer systems than expected, we may have merged too much
+    // Use fixed 4 measures per system approach
+    int measuresPerSystem = 4;  // Standard for 4/4 time
+    
+    // Adjust if we have more systems than needed (finer detection)
+    if (totalSystems > expectedSystems) {
+        // Detection found more systems - use proportional distribution
+        measuresPerSystem = qMax(1, m_totalMeasures / totalSystems);
+    }
+    
+    qDebug() << "Using" << measuresPerSystem << "measures per system";
+    
+    // Debug: show which measures go to which system
+    QVector<int> measuresInSystem(totalSystems, 0);
     
     for (int measure = 0; measure < m_totalMeasures; ++measure) {
+        // Calculate which system this measure belongs to
         int sysIndex = measure / measuresPerSystem;
-        if (sysIndex >= allSystems.size()) {
-            sysIndex = allSystems.size() - 1;
+        if (sysIndex >= totalSystems) {
+            sysIndex = totalSystems - 1;
         }
+        
+        measuresInSystem[sysIndex]++;
         
         MeasurePosition pos;
         pos.pageIndex = allSystems[sysIndex].first;
@@ -1033,6 +1057,11 @@ void LilyPondWidget::buildMeasureMap()
         m_measurePositions.append(pos);
     }
     
+    // Print measures per system distribution
+    for (int s = 0; s < totalSystems; ++s) {
+        qDebug() << "System" << s << "has" << measuresInSystem[s] << "measures";
+    }
+    
     // Debug first few measures
     for (int i = 0; i < qMin(5, m_measurePositions.size()); ++i) {
         qDebug() << "Measure" << i << ": page" << m_measurePositions[i].pageIndex 
@@ -1042,10 +1071,11 @@ void LilyPondWidget::buildMeasureMap()
 
 QList<QPair<double, double>> LilyPondWidget::detectSystemsInPage(const QPixmap &pixmap)
 {
-    // Detect notation systems by scanning a vertical line on the LEFT side of the page
-    // where staff lines are most reliably present (near the clef/time signature area)
+    // DETECTION v5: Connected Component Labeling with LEFT MARGIN EXCLUSION
+    // Problem: Systems are connected via left brace/bracket
+    // Solution: Ignore leftmost 8% of page when doing flood fill
     
-    QList<QPair<double, double>> systems;  // (yStart, yEnd) normalized to 0-1
+    QList<QPair<double, double>> systems;
     
     if (pixmap.isNull()) return systems;
     
@@ -1055,104 +1085,131 @@ QList<QPair<double, double>> LilyPondWidget::detectSystemsInPage(const QPixmap &
     
     if (width == 0 || height == 0) return systems;
     
-    // Scan position: ~8% from left (just after the left margin, where staff lines begin)
-    // This is where the clef and time signature are, so there are always dark pixels
-    int scanX = static_cast<int>(width * 0.08);
+    const int darkThreshold = 200;
     
-    // Threshold for "dark" pixel (lower = darker)
-    const int darkThreshold = 240;  // More lenient threshold to catch gray staff lines
+    // Downsample by factor of 2 for efficiency
+    int dw = width / 2;
+    int dh = height / 2;
     
-    // Scan from top to bottom and detect dark regions
-    QVector<bool> isDark(height, false);
+    // IMPORTANT: Skip left 12% of page (where braces/brackets connect systems)
+    // Also skip right 3% (page margins)
+    int leftMargin = dw * 12 / 100;
+    int rightMargin = dw * 97 / 100;
     
-    // Average over a wider range of columns for more robust detection
-    for (int y = 0; y < height; ++y) {
-        int darkCount = 0;
-        // Scan across a wider band (from 5% to 15% of page width)
-        for (int xPercent = 5; xPercent <= 15; xPercent += 2) {
-            int x = static_cast<int>(width * xPercent / 100.0);
-            x = qBound(0, x, width - 1);
-            QRgb pixel = image.pixel(x, y);
-            int gray = qGray(pixel);
-            if (gray < darkThreshold) {
-                darkCount++;
-            }
-        }
-        isDark[y] = (darkCount >= 1);  // At least 1 of 6 columns is dark
-    }
+    QVector<bool> isDark(dw * dh, false);
+    QVector<int> componentId(dw * dh, -1);
     
-    // Find contiguous dark regions (systems)
-    // A system needs at least minSystemHeight pixels
-    const int minSystemHeight = height / 40;  // Minimum 2.5% of page height (smaller threshold)
-    const int minGap = height / 60;           // Minimum gap between systems (~1.7%)
-    
-    bool inSystem = false;
-    int systemStart = 0;
-    int gapCount = 0;
-    
-    for (int y = 0; y < height; ++y) {
-        if (isDark[y]) {
-            if (!inSystem) {
-                // Start of new system
-                inSystem = true;
-                systemStart = y;
-            }
-            gapCount = 0;
-        } else {
-            if (inSystem) {
-                gapCount++;
-                // If gap is large enough, end the system
-                if (gapCount >= minGap) {
-                    int systemEnd = y - gapCount;
-                    int sysHeight = systemEnd - systemStart;
-                    if (sysHeight >= minSystemHeight) {
-                        // Valid system found
-                        double yStart = static_cast<double>(systemStart) / height;
-                        double yEnd = static_cast<double>(systemEnd) / height;
-                        systems.append(qMakePair(yStart, yEnd));
+    // Build binary mask (downsampled), excluding left margin
+    for (int y = 0; y < dh; ++y) {
+        for (int x = leftMargin; x < rightMargin; ++x) {
+            bool dark = false;
+            for (int dy = 0; dy < 2 && !dark; ++dy) {
+                for (int dx = 0; dx < 2 && !dark; ++dx) {
+                    int sx = x * 2 + dx;
+                    int sy = y * 2 + dy;
+                    if (sx < width && sy < height) {
+                        QRgb pixel = image.pixel(sx, sy);
+                        if (qGray(pixel) < darkThreshold) {
+                            dark = true;
+                        }
                     }
-                    inSystem = false;
                 }
             }
+            isDark[y * dw + x] = dark;
         }
     }
     
-    // Don't forget last system if we ended while in one
-    if (inSystem) {
-        int systemEnd = height - gapCount;
-        int sysHeight = systemEnd - systemStart;
-        if (sysHeight >= minSystemHeight) {
-            double yStart = static_cast<double>(systemStart) / height;
-            double yEnd = static_cast<double>(systemEnd) / height;
-            systems.append(qMakePair(yStart, yEnd));
-        }
-    }
+    // Connected component labeling
+    struct Component {
+        int minY = INT_MAX;
+        int maxY = 0;
+        int minX = INT_MAX;
+        int maxX = 0;
+        int pixelCount = 0;
+    };
     
-    // MERGE CLOSE SYSTEMS: Piano staff has treble + bass clef close together
-    // They should be treated as ONE system, not two separate ones
-    // Merge systems that are within 5% of page height of each other
-    const double mergeThreshold = 0.05;  // 5% of page height
-    QList<QPair<double, double>> mergedSystems;
+    QList<Component> components;
+    QVector<QPair<int, int>> stack;
+    stack.reserve(dw * dh / 10);
     
-    for (int i = 0; i < systems.size(); ++i) {
-        if (mergedSystems.isEmpty()) {
-            mergedSystems.append(systems[i]);
-        } else {
-            // Check if this system is close to the previous one
-            double prevEnd = mergedSystems.last().second;
-            double currStart = systems[i].first;
+    for (int startY = 0; startY < dh; ++startY) {
+        for (int startX = leftMargin; startX < rightMargin; ++startX) {
+            int startIdx = startY * dw + startX;
             
-            if (currStart - prevEnd < mergeThreshold) {
-                // Merge: extend the previous system to include this one
-                mergedSystems.last().second = systems[i].second;
-            } else {
-                // Gap is large enough, this is a new system
-                mergedSystems.append(systems[i]);
+            if (!isDark[startIdx] || componentId[startIdx] >= 0) continue;
+            
+            int currentId = components.size();
+            Component comp;
+            
+            stack.clear();
+            stack.append(qMakePair(startX, startY));
+            componentId[startIdx] = currentId;
+            
+            while (!stack.isEmpty()) {
+                auto [x, y] = stack.takeLast();
+                
+                comp.minX = qMin(comp.minX, x);
+                comp.maxX = qMax(comp.maxX, x);
+                comp.minY = qMin(comp.minY, y);
+                comp.maxY = qMax(comp.maxY, y);
+                comp.pixelCount++;
+                
+                // 4-connected neighbors (but don't go into left margin)
+                const int dx[] = {-1, 1, 0, 0};
+                const int dy[] = {0, 0, -1, 1};
+                
+                for (int i = 0; i < 4; ++i) {
+                    int nx = x + dx[i];
+                    int ny = y + dy[i];
+                    
+                    // Stay within bounds and outside left margin
+                    if (nx < leftMargin || nx >= rightMargin || ny < 0 || ny >= dh) continue;
+                    
+                    int nIdx = ny * dw + nx;
+                    if (isDark[nIdx] && componentId[nIdx] < 0) {
+                        componentId[nIdx] = currentId;
+                        stack.append(qMakePair(nx, ny));
+                    }
+                }
             }
+            
+            components.append(comp);
         }
     }
     
-    return mergedSystems;
+    // Filter: keep components spanning significant width and area
+    const int minWidth = dw * 20 / 100;   // At least 20% page width
+    const int minHeight = dh * 2 / 100;   // At least 2% page height
+    const int minArea = dw * dh / 300;    // At least 0.33% of page area
+    
+    QList<QPair<int, int>> validSystems;
+    
+    for (const auto &comp : components) {
+        int compWidth = comp.maxX - comp.minX;
+        int compHeight = comp.maxY - comp.minY;
+        
+        if (compWidth >= minWidth && compHeight >= minHeight && comp.pixelCount >= minArea) {
+            validSystems.append(qMakePair(comp.minY, comp.maxY));
+        }
+    }
+    
+    // Sort by Y position
+    std::sort(validSystems.begin(), validSystems.end(), 
+              [](const auto &a, const auto &b) { return a.first < b.first; });
+    
+    // NO MERGE - each detected component is a separate system
+    // The left margin exclusion should already prevent systems from connecting
+    
+    // Convert to normalized coordinates
+    for (const auto &sys : validSystems) {
+        double yStart = static_cast<double>(sys.first * 2) / height;
+        double yEnd = static_cast<double>(sys.second * 2) / height;
+        systems.append(qMakePair(yStart, yEnd));
+    }
+    
+    qDebug() << "Found" << components.size() << "components," << validSystems.size() << "valid systems";
+    
+    return systems;
 }
 
 void LilyPondWidget::setPlaybackPosition(int tick)

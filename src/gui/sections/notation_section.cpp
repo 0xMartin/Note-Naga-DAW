@@ -406,7 +406,8 @@ void NotationSection::updateTrackVisibilityCheckboxes()
         }
         
         QCheckBox *cb = new QCheckBox(name);
-        cb->setChecked(true);  // All tracks visible by default
+        // Only first track visible by default (for cleaner notation view)
+        cb->setChecked(i == 0);
         
         // Get track color for icon
         NN_Color_t trackColor = tracks[i]->getColor();
@@ -429,6 +430,13 @@ void NotationSection::updateTrackVisibilityCheckboxes()
         m_trackVisibilityLayout->addWidget(cb);
         m_trackVisibilityCheckboxes.append(cb);
     }
+    
+    // Apply initial visibility (only first track)
+    QList<bool> initialVisibility;
+    for (int i = 0; i < m_trackVisibilityCheckboxes.size(); ++i) {
+        initialVisibility.append(i == 0);
+    }
+    m_lilypondWidget->setTrackVisibility(initialVisibility);
 }
 
 void NotationSection::onPlaybackTickChanged(int tick)
