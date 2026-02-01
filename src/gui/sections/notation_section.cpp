@@ -145,16 +145,112 @@ void NotationSection::setupDockLayout()
     
     settingsLayout->addWidget(m_trackVisibilityGroup);
     
+    // === Notation Settings ===
+    m_notationSettingsGroup = new QGroupBox(tr("Notation Settings"));
+    m_notationSettingsGroup->setStyleSheet(groupBoxStyle);
+    QFormLayout *notationFormLayout = new QFormLayout(m_notationSettingsGroup);
+    notationFormLayout->setContentsMargins(10, 15, 10, 10);
+    notationFormLayout->setSpacing(8);
+    
+    QString comboStyle = R"(
+        QComboBox {
+            background: #3a3d45;
+            border: 1px solid #4a4d55;
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: white;
+            min-width: 100px;
+        }
+        QComboBox:hover { border-color: #5a5d65; }
+        QComboBox::drop-down { border: none; width: 20px; }
+        QComboBox QAbstractItemView {
+            background: #2a2d35;
+            border: 1px solid #4a4d55;
+            selection-background-color: #4a9eff;
+        }
+    )";
+    
+    QString spinBoxStyle = R"(
+        QSpinBox {
+            background: #3a3d45;
+            border: 1px solid #4a4d55;
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: white;
+        }
+        QSpinBox:hover { border-color: #5a5d65; }
+    )";
+    
+    // Key Signature
+    m_keySignatureCombo = new QComboBox;
+    m_keySignatureCombo->setStyleSheet(comboStyle);
+    m_keySignatureCombo->addItem(tr("C Major / A minor"), "c \\major");
+    m_keySignatureCombo->addItem(tr("G Major / E minor"), "g \\major");
+    m_keySignatureCombo->addItem(tr("D Major / B minor"), "d \\major");
+    m_keySignatureCombo->addItem(tr("A Major / F# minor"), "a \\major");
+    m_keySignatureCombo->addItem(tr("E Major / C# minor"), "e \\major");
+    m_keySignatureCombo->addItem(tr("B Major / G# minor"), "b \\major");
+    m_keySignatureCombo->addItem(tr("F Major / D minor"), "f \\major");
+    m_keySignatureCombo->addItem(tr("Bb Major / G minor"), "bes \\major");
+    m_keySignatureCombo->addItem(tr("Eb Major / C minor"), "ees \\major");
+    m_keySignatureCombo->addItem(tr("Ab Major / F minor"), "aes \\major");
+    notationFormLayout->addRow(tr("Key:"), m_keySignatureCombo);
+    
+    // Time Signature
+    m_timeSignatureCombo = new QComboBox;
+    m_timeSignatureCombo->setStyleSheet(comboStyle);
+    m_timeSignatureCombo->addItem("4/4", "4/4");
+    m_timeSignatureCombo->addItem("3/4", "3/4");
+    m_timeSignatureCombo->addItem("2/4", "2/4");
+    m_timeSignatureCombo->addItem("6/8", "6/8");
+    m_timeSignatureCombo->addItem("2/2", "2/2");
+    m_timeSignatureCombo->addItem("3/8", "3/8");
+    m_timeSignatureCombo->addItem("12/8", "12/8");
+    notationFormLayout->addRow(tr("Time:"), m_timeSignatureCombo);
+    
+    // Staff Type
+    m_staffTypeCombo = new QComboBox;
+    m_staffTypeCombo->setStyleSheet(comboStyle);
+    m_staffTypeCombo->addItem(tr("Piano (Grand Staff)"), "piano");
+    m_staffTypeCombo->addItem(tr("Treble Clef Only"), "treble");
+    m_staffTypeCombo->addItem(tr("Bass Clef Only"), "bass");
+    notationFormLayout->addRow(tr("Staff:"), m_staffTypeCombo);
+    
+    // Font Size
+    m_fontSizeSpinBox = new QSpinBox;
+    m_fontSizeSpinBox->setStyleSheet(spinBoxStyle);
+    m_fontSizeSpinBox->setRange(12, 30);
+    m_fontSizeSpinBox->setValue(18);
+    m_fontSizeSpinBox->setSuffix(" pt");
+    notationFormLayout->addRow(tr("Size:"), m_fontSizeSpinBox);
+    
+    // Show Bar Numbers
+    m_showBarNumbersCheckbox = new QCheckBox(tr("Show bar numbers"));
+    m_showBarNumbersCheckbox->setChecked(true);
+    m_showBarNumbersCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
+    notationFormLayout->addRow("", m_showBarNumbersCheckbox);
+    
+    // Resolution
+    m_resolutionCombo = new QComboBox;
+    m_resolutionCombo->setStyleSheet(comboStyle);
+    m_resolutionCombo->addItem(tr("Low (150 DPI)"), 150);
+    m_resolutionCombo->addItem(tr("Medium (200 DPI)"), 200);
+    m_resolutionCombo->addItem(tr("High (300 DPI)"), 300);
+    m_resolutionCombo->setCurrentIndex(1);  // Default to 200 DPI
+    notationFormLayout->addRow(tr("Quality:"), m_resolutionCombo);
+    
+    settingsLayout->addWidget(m_notationSettingsGroup);
+    
     // === Info Label ===
     QLabel *infoLabel = new QLabel(tr(
         "<p style='color: #888; font-size: 11px;'>"
-        "Use the toolbar buttons above the score to:<br>"
-        "• <b>Refresh</b> - Re-render the notation<br>"
-        "• <b>+/-</b> - Zoom in/out<br><br>"
+        "Click the <img src=':/icons/reload.svg' width='14' height='14' style='vertical-align: middle;'> Render button in the dock title "
+        "to apply settings and re-render the notation.<br><br>"
         "Notation is rendered using LilyPond."
         "</p>"
     ));
     infoLabel->setWordWrap(true);
+    infoLabel->setTextFormat(Qt::RichText);
     settingsLayout->addWidget(infoLabel);
     
     // Add stretch at bottom
@@ -210,6 +306,20 @@ void NotationSection::connectSignals()
             m_engine->getProject()->setCurrentTick(m_sequence->getMaxTick());
         }
     });
+    
+    // Connect notation settings changes to apply function
+    connect(m_keySignatureCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &NotationSection::applyNotationSettings);
+    connect(m_timeSignatureCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &NotationSection::applyNotationSettings);
+    connect(m_staffTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &NotationSection::applyNotationSettings);
+    connect(m_fontSizeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &NotationSection::applyNotationSettings);
+    connect(m_showBarNumbersCheckbox, &QCheckBox::toggled,
+            this, &NotationSection::applyNotationSettings);
+    connect(m_resolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &NotationSection::applyNotationSettings);
 }
 
 void NotationSection::onSequenceChanged()
@@ -307,4 +417,19 @@ void NotationSection::onPlaybackTickChanged(int tick)
     
     // TODO: Implement playback highlighting
     Q_UNUSED(tick);
+}
+
+void NotationSection::applyNotationSettings()
+{
+    if (!m_lilypondWidget) return;
+    
+    LilyPondWidget::NotationSettings settings;
+    settings.keySignature = m_keySignatureCombo->currentData().toString();
+    settings.timeSignature = m_timeSignatureCombo->currentData().toString();
+    settings.staffType = m_staffTypeCombo->currentData().toString();
+    settings.fontSize = m_fontSizeSpinBox->value();
+    settings.showBarNumbers = m_showBarNumbersCheckbox->isChecked();
+    settings.resolution = m_resolutionCombo->currentData().toInt();
+    
+    m_lilypondWidget->setNotationSettings(settings);
 }

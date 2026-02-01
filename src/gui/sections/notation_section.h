@@ -8,6 +8,8 @@
 #include <QLabel>
 #include <QGroupBox>
 #include <QVBoxLayout>
+#include <QComboBox>
+#include <QSpinBox>
 
 #include <note_naga_engine/note_naga_engine.h>
 #include "section_interface.h"
@@ -40,6 +42,7 @@ public:
 private slots:
     void onPlaybackTickChanged(int tick);
     void onSequenceChanged();
+    void applyNotationSettings();
 
 private:
     NoteNagaEngine *m_engine;
@@ -63,6 +66,15 @@ private:
     QGroupBox *m_trackVisibilityGroup;
     QVBoxLayout *m_trackVisibilityLayout;
     QList<QCheckBox*> m_trackVisibilityCheckboxes;
+    
+    // Notation settings widgets
+    QGroupBox *m_notationSettingsGroup;
+    QComboBox *m_keySignatureCombo;
+    QComboBox *m_timeSignatureCombo;
+    QComboBox *m_staffTypeCombo;
+    QSpinBox *m_fontSizeSpinBox;
+    QCheckBox *m_showBarNumbersCheckbox;
+    QComboBox *m_resolutionCombo;
     
     // No sequence placeholder
     QLabel *m_noSequenceLabel;

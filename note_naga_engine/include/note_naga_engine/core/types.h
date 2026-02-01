@@ -11,6 +11,7 @@
 #include <complex>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -498,9 +499,11 @@ public:
     /**
      * @brief Exports the sequence to a standard MIDI file.
      * @param midi_file_path Path to save the MIDI file.
+     * @param trackIds Optional set of track IDs to include. If empty, all tracks are exported.
      * @return True if export was successful, false otherwise.
      */
-    bool exportToMidi(const std::string &midi_file_path) const;
+    bool exportToMidi(const std::string &midi_file_path, 
+                      const std::set<int> &trackIds = {}) const;
 
     /**
      * @brief Loads tracks for type 0 MIDI files.

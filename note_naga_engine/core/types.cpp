@@ -640,7 +640,8 @@ NoteNagaMidiSeq::loadType1Tracks(const MidiFile *midiFile) {
 // MIDI Export
 /*******************************************************************************************************/
 
-bool NoteNagaMidiSeq::exportToMidi(const std::string &midi_file_path) const {
+bool NoteNagaMidiSeq::exportToMidi(const std::string &midi_file_path,
+                                    const std::set<int> &trackIds) const {
   if (midi_file_path.empty()) {
     NOTE_NAGA_LOG_ERROR("No MIDI file path provided for export");
     return false;
@@ -677,9 +678,14 @@ bool NoteNagaMidiSeq::exportToMidi(const std::string &midi_file_path) const {
   
   midiFile.tracks.push_back(tempoTrack);
 
-  // Export each track
+  // Export each track (filter by trackIds if provided)
   for (const NoteNagaTrack *track : tracks) {
     if (!track) continue;
+    
+    // Skip tracks not in the filter set (if filter is provided)
+    if (!trackIds.empty() && trackIds.find(track->getId()) == trackIds.end()) {
+      continue;
+    }
 
     MidiTrack midiTrack;
     uint8_t channel = track->getChannel().value_or(0) & 0x0F;

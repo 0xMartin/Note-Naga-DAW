@@ -12,6 +12,7 @@
 #include <QPrinter>
 #include <QPrintDialog>
 #include <algorithm>
+#include <set>
 
 LilyPondWidget::LilyPondWidget(NoteNagaEngine *engine, QWidget *parent)
     : QWidget(parent)
@@ -292,6 +293,12 @@ void LilyPondWidget::setTrackVisibility(const QList<bool> &visibility)
     m_needsRender = true;
 }
 
+void LilyPondWidget::setNotationSettings(const NotationSettings &settings)
+{
+    m_settings = settings;
+    m_needsRender = true;
+}
+
 QWidget* LilyPondWidget::createTitleButtonWidget(QWidget *parent)
 {
     QWidget *container = new QWidget(parent);
@@ -345,9 +352,27 @@ void LilyPondWidget::render()
         return;
     }
     
-    // Step 1: Export MIDI sequence to temp file
+    // Clean up old temp files before generating new ones
+    QDir tempDir(m_tempDir->path());
+    for (const QString &file : tempDir.entryList(QStringList() << "*.mid" << "*.ly" << "*.png", QDir::Files)) {
+        tempDir.remove(file);
+    }
+    
+    // Step 1: Export MIDI sequence to temp file (only visible tracks)
     QString midiPath = m_tempDir->path() + "/notation.mid";
-    if (!m_sequence->exportToMidi(midiPath.toStdString())) {
+    
+    // Build set of visible track IDs based on m_trackVisibility
+    std::set<int> visibleTrackIds;
+    auto tracks = m_sequence->getTracks();
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        // If visibility list is empty or shorter, default to visible
+        bool isVisible = (i >= static_cast<size_t>(m_trackVisibility.size())) || m_trackVisibility[i];
+        if (isVisible) {
+            visibleTrackIds.insert(tracks[i]->getId());
+        }
+    }
+    
+    if (!m_sequence->exportToMidi(midiPath.toStdString(), visibleTrackIds)) {
         showError(tr("Failed to export MIDI file"));
         return;
     }
@@ -436,7 +461,12 @@ void LilyPondWidget::render()
     // trackBchannelD and trackBchannelDvoiceB are typically bass clef
     
     // Create a cleaner LilyPond source with proper piano staff
+    // Use settings for customization
+    QString barNumbersCmd = m_settings.showBarNumbers ? "" : "\\override Score.BarNumber.break-visibility = ##(#f #f #f)\n";
+    
     QString cleanSource = QString(R"(\version "2.24.0"
+
+#(set-global-staff-size %1)
 
 \paper {
   #(set-paper-size "a4")
@@ -447,11 +477,12 @@ void LilyPondWidget::render()
 }
 
 \header {
-  title = "%1"
+  title = "%2"
   tagline = ##f
 }
 
 \layout {
+  %3
   \context {
     \Voice
     \remove Note_heads_engraver
@@ -461,7 +492,7 @@ void LilyPondWidget::render()
   }
 }
 
-)").arg(m_title.isEmpty() ? "Untitled" : m_title);
+)").arg(m_settings.fontSize).arg(m_title.isEmpty() ? "Untitled" : m_title).arg(barNumbersCmd);
 
     // Extract individual track definitions from midi2ly output
     // Look for trackBchannelC (melody) and trackBchannelD (bass)
@@ -528,9 +559,12 @@ void LilyPondWidget::render()
             }
         }
         
-        // Build staves based on visibility
+        // Build staves based on visibility and settings
+        QString keyCmd = QString("\\key %1").arg(m_settings.keySignature);
+        QString timeCmd = QString("\\time %1").arg(m_settings.timeSignature);
+        
         if (showTreble) {
-            cleanSource += "treble = \\relative c' {\n  \\clef treble\n  \\key g \\major\n  \\time 4/4\n";
+            cleanSource += QString("treble = \\relative c' {\n  \\clef treble\n  %1\n  %2\n").arg(keyCmd).arg(timeCmd);
             if (!trebleContent.isEmpty()) {
                 // Clean up the content - remove voice commands
                 trebleContent.replace("\\voiceThree", "");
@@ -543,7 +577,7 @@ void LilyPondWidget::render()
         }
         
         if (showBass) {
-            cleanSource += "bass = \\relative c {\n  \\clef bass\n  \\key g \\major\n  \\time 4/4\n";
+            cleanSource += QString("bass = \\relative c {\n  \\clef bass\n  %1\n  %2\n").arg(keyCmd).arg(timeCmd);
             if (!bassContent.isEmpty()) {
                 // Clean up the content
                 bassContent.replace("\\voiceTwo", "");
@@ -708,10 +742,10 @@ void LilyPondWidget::startRendering(const QString &lilypondSource)
     
     m_process->setWorkingDirectory(m_tempDir->path());
     
-    // LilyPond arguments for PNG output with higher resolution
+    // LilyPond arguments for PNG output with configurable resolution
     QStringList args;
     args << "--png"
-         << "-dresolution=200"  // Higher resolution for better quality
+         << QString("-dresolution=%1").arg(m_settings.resolution)
          << "-o" << "notation"
          << lyPath;
     

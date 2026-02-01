@@ -35,12 +35,25 @@ class LilyPondWidget : public QWidget
     Q_OBJECT
 
 public:
+    // Notation settings structure
+    struct NotationSettings {
+        QString keySignature = "c \\major";   // LilyPond key (c, g, d, a, e, b, fis, cis for major; a, e, b, fis, cis, gis, dis for minor)
+        QString timeSignature = "4/4";        // Time signature
+        QString staffType = "piano";          // "piano" (grand staff), "treble", "bass", "single"
+        int fontSize = 18;                    // Staff size (default 18-20)
+        bool showBarNumbers = true;           // Show bar numbers
+        bool showTempo = true;                // Show tempo marking
+        int resolution = 200;                 // PNG resolution in DPI
+    };
+    
     explicit LilyPondWidget(NoteNagaEngine *engine, QWidget *parent = nullptr);
     ~LilyPondWidget();
 
     void setSequence(NoteNagaMidiSeq *sequence);
     void setTitle(const QString &title);
     void setTrackVisibility(const QList<bool> &visibility);
+    void setNotationSettings(const NotationSettings &settings);
+    NotationSettings getNotationSettings() const { return m_settings; }
     
     /**
      * @brief Creates a title button widget for use in dock title bar.
@@ -107,6 +120,7 @@ private:
     QList<bool> m_trackVisibility;
     QList<QPixmap> m_pagePixmaps;  // Original page images
     QList<QLabel*> m_pageLabels;   // Page display labels
+    NotationSettings m_settings;   // Notation settings
     
     double m_zoom;
     bool m_lilypondAvailable;
