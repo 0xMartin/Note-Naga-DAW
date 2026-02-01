@@ -918,10 +918,18 @@ void VerovioWidget::parseSvgMeasurePositions()
         double scaleX = svgWidth / viewBoxWidth;
         double scaleY = svgHeight / viewBoxHeight;
         
-        // Find all measures and their staff line positions
+        // Find page-margin transform offset (Verovio adds this)
+        // Pattern: <g class="page-margin" transform="translate(X, Y)">
+        static QRegularExpression marginRe(R"(class=\"page-margin\"\s+transform=\"translate\((\d+),\s*(\d+)\)\")");
+        QRegularExpressionMatch marginMatch = marginRe.match(svg);
+        int marginX = marginMatch.hasMatch() ? marginMatch.captured(1).toInt() : 0;
+        int marginY = marginMatch.hasMatch() ? marginMatch.captured(2).toInt() : 0;
+        
+        // Find all measures and their positions
         // Pattern: <g id="m1" class="measure">...</g>
         static QRegularExpression measureRe(R"(<g\s+id=\"(m\d+)\"\s+class=\"measure\">)");
-        static QRegularExpression staffPathRe(R"(<path\s+d=\"M(\d+)\s+(\d+)\s+L(\d+)\s+(\d+)\")");
+        static QRegularExpression staffPathRe(R"(<g[^>]+class=\"staff\">[\s\S]*?<path\s+d=\"M(\d+)\s+(\d+)\s+L(\d+)\s+(\d+)\")");
+        static QRegularExpression barLineRe(R"(<g[^>]+class=\"barLine\">[\s\S]*?<path\s+d=\"M(\d+)\s+(\d+)\s+L(\d+)\s+(\d+)\")");
         static QRegularExpression nextMeasureRe(R"(<g\s+id=\"m\d+\"\s+class=\"measure\">|</section>)");
         
         QRegularExpressionMatchIterator measureIt = measureRe.globalMatch(svg);
@@ -939,32 +947,44 @@ void VerovioWidget::parseSvgMeasurePositions()
             
             QString measureContent = svg.mid(measureStart, measureEnd - measureStart);
             
-            // Find staff lines within this measure to get Y range
+            // Find staff lines within this measure to get X start and Y range
             int minY = INT_MAX, maxY = 0;
-            int minX = INT_MAX, maxX = 0;
+            int xStart = INT_MAX, xEnd = 0;
             
-            QRegularExpressionMatchIterator pathIt = staffPathRe.globalMatch(measureContent);
+            // First staff path gives us X start (M value) - the beginning of this measure
+            QRegularExpressionMatch staffMatch = staffPathRe.match(measureContent);
+            if (staffMatch.hasMatch()) {
+                xStart = staffMatch.captured(1).toInt();  // M value = start of measure
+                xEnd = staffMatch.captured(3).toInt();    // L value = end (temporary, may be overridden by barLine)
+            }
+            
+            // Find all staff paths for Y range (all staves in this system)
+            static QRegularExpression allStaffPathRe(R"(<path\s+d=\"M(\d+)\s+(\d+)\s+L(\d+)\s+(\d+)\"\s+stroke-width=\"13\")");
+            QRegularExpressionMatchIterator pathIt = allStaffPathRe.globalMatch(measureContent);
             while (pathIt.hasNext()) {
                 QRegularExpressionMatch pathMatch = pathIt.next();
-                int x1 = pathMatch.captured(1).toInt();
                 int y1 = pathMatch.captured(2).toInt();
-                int x2 = pathMatch.captured(3).toInt();
                 int y2 = pathMatch.captured(4).toInt();
                 
-                minX = qMin(minX, qMin(x1, x2));
-                maxX = qMax(maxX, qMax(x1, x2));
                 minY = qMin(minY, qMin(y1, y2));
                 maxY = qMax(maxY, qMax(y1, y2));
             }
             
-            if (minY != INT_MAX && maxY != 0) {
+            // Find barLine for X end - this is the precise end of the measure
+            QRegularExpressionMatch barLineMatch = barLineRe.match(measureContent);
+            if (barLineMatch.hasMatch()) {
+                int barLineX = barLineMatch.captured(1).toInt();  // M value of barLine = end of measure
+                xEnd = barLineX;
+            }
+            
+            if (minY != INT_MAX && maxY != 0 && xStart != INT_MAX) {
                 MeasurePosition pos;
                 pos.pageIndex = pageIdx;
-                // Convert from viewBox coordinates to pixels
-                pos.xStart = static_cast<int>(minX * scaleX);
-                pos.xEnd = static_cast<int>(maxX * scaleX);
-                pos.yStart = static_cast<int>(minY * scaleY) - 10;  // Add some padding
-                pos.yEnd = static_cast<int>(maxY * scaleY) + 10;
+                // Convert from viewBox coordinates to pixels, adding margin offset
+                pos.xStart = static_cast<int>((xStart + marginX) * scaleX);
+                pos.xEnd = static_cast<int>((xEnd + marginX) * scaleX);
+                pos.yStart = static_cast<int>((minY + marginY) * scaleY) - 10;  // Add some padding
+                pos.yEnd = static_cast<int>((maxY + marginY) * scaleY) + 10;
                 pos.startTick = (measureNum - 1) * m_ticksPerMeasure;
                 pos.endTick = measureNum * m_ticksPerMeasure;
                 pos.measureId = measureId;
