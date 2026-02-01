@@ -368,6 +368,12 @@ NoteNagaTrack* NoteNagaMidiSeq::addTrack(int instrument_index) {
       0);
   this->tracks.push_back(newTrack);
 
+#ifndef QT_DEACTIVATED
+  // Connect metadata signal so name/color/etc changes are propagated
+  connect(newTrack, &NoteNagaTrack::metadataChanged, this,
+          &NoteNagaMidiSeq::trackMetadataChanged);
+#endif
+
   NN_QT_EMIT(trackListChanged());
   return newTrack;
 }

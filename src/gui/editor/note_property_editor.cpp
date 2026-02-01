@@ -77,47 +77,81 @@ void NotePropertyEditor::setupUI()
 {
     // Create toggle button (expand/collapse) - positioned at top-left corner
     m_toggleButton = new QPushButton(this);
-    m_toggleButton->setFixedSize(16, 16);
+    m_toggleButton->setFixedSize(20, 20);
     m_toggleButton->setToolTip(tr("Toggle Note Property Editor"));
     m_toggleButton->setStyleSheet(R"(
         QPushButton {
-            background: #32353c;
-            border: 1px solid #464a56;
-            border-radius: 0px;
-            color: #888;
-            font-size: 9px;
+            background: #2a2d35;
+            border: 1px solid #3d424d;
+            border-radius: 3px;
+            color: #9a9aa5;
+            font-size: 10px;
             font-weight: bold;
             padding: 0;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
         }
-        QPushButton:hover { background: #3a3d45; color: #fff; }
-        QPushButton:pressed { background: #4a4d55; }
+        QPushButton:hover { 
+            background: #353945; 
+            color: #e0e6ef;
+            border-color: #4a5160;
+        }
+        QPushButton:pressed { background: #404550; }
     )");
     m_toggleButton->setText("▼");
     connect(m_toggleButton, &QPushButton::clicked, this, [this]() {
         setExpanded(!m_expanded);
     });
     
-    // Track name label - top right
+    // Track name label - top right corner
     m_trackNameLabel = new QLabel(this);
-    m_trackNameLabel->setStyleSheet("color: #e0e6ef; font-size: 11px; font-weight: bold; background: transparent;");
+    m_trackNameLabel->setStyleSheet("color: #9a9aa5; font-size: 9px; background: transparent;");
     m_trackNameLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     m_trackNameLabel->setText(tr("No Track"));
     
-    // Create property selector buttons - positioned at top right
-    m_velocityButton = new QPushButton(tr("Vel"), this);
+    // Professional button style - compact square buttons for left margin
+    QString buttonStyle = R"(
+        QPushButton {
+            background: #2a2d35;
+            border: 1px solid #3d424d;
+            border-radius: 2px;
+            color: #9a9aa5;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 0;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
+        }
+        QPushButton:hover { 
+            background: #353945; 
+            color: #e0e6ef;
+            border-color: #4a5160;
+        }
+        QPushButton:checked { 
+            background: #404858; 
+            color: #e0e6ef; 
+            border-color: #5a6275; 
+        }
+    )";
+    
+    // Create property selector buttons - placed in left margin, below toggle, vertically stacked
+    m_velocityButton = new QPushButton(tr("V"), this);
     m_velocityButton->setCheckable(true);
     m_velocityButton->setChecked(true);
-    m_velocityButton->setFixedSize(36, 20);
-    m_velocityButton->setToolTip(tr("Edit Velocity"));
+    m_velocityButton->setFixedSize(20, 20);
+    m_velocityButton->setToolTip(tr("Velocity"));
+    m_velocityButton->setStyleSheet(buttonStyle);
     
-    m_panButton = new QPushButton(tr("Pan"), this);
+    m_panButton = new QPushButton(tr("P"), this);
     m_panButton->setCheckable(true);
     m_panButton->setChecked(false);
-    m_panButton->setFixedSize(36, 20);
-    m_panButton->setToolTip(tr("Edit Pan"));
-    
-    // Initial button style (will be updated by track color)
-    updateTrackColorStyles();
+    m_panButton->setFixedSize(20, 20);
+    m_panButton->setToolTip(tr("Pan"));
+    m_panButton->setStyleSheet(buttonStyle);
     
     connect(m_velocityButton, &QPushButton::clicked, this, [this]() {
         setPropertyType(PropertyType::Velocity);
@@ -126,15 +160,15 @@ void NotePropertyEditor::setupUI()
         setPropertyType(PropertyType::Pan);
     });
     
-    // Value label - bottom left
+    // Value label - in left margin area
     m_valueLabel = new QLabel(this);
-    m_valueLabel->setStyleSheet("color: #8af; font-size: 11px; background: transparent;");
-    m_valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_valueLabel->setStyleSheet("color: #7aa5d4; font-size: 9px; background: transparent;");
+    m_valueLabel->setAlignment(Qt::AlignCenter);
     m_valueLabel->setFixedWidth(40);
     
-    // Position controls - toggle at left, rest at right (will be repositioned in resizeEvent)
-    m_toggleButton->move(5, 5);
-    m_valueLabel->move(5, height() - 25);
+    // Position controls in left margin (will be repositioned in resizeEvent)
+    m_toggleButton->move(5, 4);
+    m_valueLabel->move(5, height() - 20);
 }
 
 void NotePropertyEditor::setPropertyType(PropertyType type)
@@ -158,6 +192,11 @@ void NotePropertyEditor::setExpanded(bool expanded)
     if (m_expanded != expanded) {
         m_expanded = expanded;
         m_toggleButton->setText(expanded ? "▼" : "▲");
+        
+        // Show/hide property buttons based on expanded state
+        m_velocityButton->setVisible(expanded);
+        m_panButton->setVisible(expanded);
+        m_valueLabel->setVisible(expanded);
         
         if (expanded) {
             setMinimumHeight(80);
@@ -323,7 +362,7 @@ void NotePropertyEditor::paintEvent(QPaintEvent *)
     // Draw property-specific content
     if (m_propertyType == PropertyType::Velocity) {
         drawVelocityLane(p);
-    } else {
+    } else if (m_propertyType == PropertyType::Pan) {
         drawPanLane(p);
     }
     
@@ -344,7 +383,7 @@ void NotePropertyEditor::paintEvent(QPaintEvent *)
         p.drawText(QRect(2, 28, m_leftMargin - 6, 15), Qt::AlignRight, "127");
         p.drawText(QRect(2, h / 2 - 7, m_leftMargin - 6, 15), Qt::AlignRight, "64");
         p.drawText(QRect(2, h - 20, m_leftMargin - 6, 15), Qt::AlignRight, "0");
-    } else {
+    } else if (m_propertyType == PropertyType::Pan) {
         p.drawText(QRect(2, 28, m_leftMargin - 6, 15), Qt::AlignRight, "R");
         p.drawText(QRect(2, h / 2 - 7, m_leftMargin - 6, 15), Qt::AlignRight, "C");
         p.drawText(QRect(2, h - 20, m_leftMargin - 6, 15), Qt::AlignRight, "L");
@@ -740,7 +779,12 @@ void NotePropertyEditor::contextMenuEvent(QContextMenuEvent *event)
     
     QMenu menu(this);
     
-    QString propName = (m_propertyType == PropertyType::Velocity) ? "Velocity" : "Pan";
+    QString propName;
+    if (m_propertyType == PropertyType::Velocity) {
+        propName = "Velocity";
+    } else {
+        propName = "Pan";
+    }
     
     // Current value
     QAction *currentAction = menu.addAction(QString("%1: %2").arg(propName).arg(bar->value));
@@ -765,7 +809,7 @@ void NotePropertyEditor::contextMenuEvent(QContextMenuEvent *event)
     
     menu.addSeparator();
     
-    // Preset values
+    // Preset values based on property type
     if (m_propertyType == PropertyType::Velocity) {
         QAction *maxAction = menu.addAction("Set to Maximum (127)");
         connect(maxAction, &QAction::triggered, this, [this]() { applyValueToContextBar(127); });
@@ -795,6 +839,7 @@ void NotePropertyEditor::onSetValueTriggered()
     if (!m_contextMenuBar) return;
     
     QString propName = (m_propertyType == PropertyType::Velocity) ? "Velocity" : "Pan";
+    
     bool ok;
     int value = QInputDialog::getInt(this, QString("Set %1").arg(propName),
                                       QString("Enter %1 value (0-127):").arg(propName),
@@ -919,22 +964,23 @@ void NotePropertyEditor::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
     
     int w = width();
-    int rightMargin = 8;
+    int h = height();
     
-    // Position controls at top right: [Track Name] [Vel] [Pan]
-    int panX = w - rightMargin - m_panButton->width();
-    int velX = panX - 4 - m_velocityButton->width();
+    // Position controls in left margin area (vertically stacked)
+    // Toggle button at top-left
+    m_toggleButton->move(5, 4);
+    m_toggleButton->raise();  // Ensure toggle is on top
     
-    m_velocityButton->move(velX, 5);
-    m_panButton->move(panX, 5);
+    // Property buttons below toggle with gap, vertically stacked
+    m_velocityButton->move(5, 30);
+    m_panButton->move(5, 52);
     
-    // Track name label left of buttons
-    int labelWidth = velX - 10 - m_leftMargin;
-    m_trackNameLabel->setFixedWidth(std::max(50, labelWidth));
-    m_trackNameLabel->move(velX - 10 - m_trackNameLabel->width(), 5);
+    // Track name label at top right corner
+    m_trackNameLabel->setFixedWidth(w - m_leftMargin - 10);
+    m_trackNameLabel->move(m_leftMargin + 5, 4);
     
-    // Value label at bottom left
-    m_valueLabel->move(5, height() - 25);
+    // Value label at bottom of left margin
+    m_valueLabel->move(5, h - 18);
 }
 
 void NotePropertyEditor::updateActiveTrack()
@@ -996,35 +1042,37 @@ void NotePropertyEditor::updateActiveTrack()
 
 void NotePropertyEditor::updateTrackColorStyles()
 {
-    // Create button styles using track color
-    QColor baseColor = m_trackColor;
-    QColor darkerColor = baseColor.darker(140);
-    QColor lighterColor = baseColor.lighter(120);
-    
-    QString buttonStyle = QString(R"(
+    // Professional neutral button style - no track color, just clean design
+    // Must include min/max width/height to keep buttons square
+    QString buttonStyle = R"(
         QPushButton {
-            background: #32353c;
-            border: 1px solid #464a56;
-            border-radius: 3px;
-            color: #aaa;
+            background: #2a2d35;
+            border: 1px solid #3d424d;
+            border-radius: 2px;
+            color: #9a9aa5;
             font-size: 10px;
+            font-weight: bold;
+            padding: 0;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
         }
         QPushButton:hover { 
-            background: %1; 
-            color: #fff;
-            border-color: %2;
+            background: #353945; 
+            color: #e0e6ef;
+            border-color: #4a5160;
         }
         QPushButton:checked { 
-            background: %3; 
-            color: #fff; 
-            border-color: %4; 
+            background: #404858; 
+            color: #e0e6ef; 
+            border-color: #5a6275; 
         }
-    )").arg(darkerColor.name(), baseColor.name(), baseColor.name(), lighterColor.name());
+    )";
     
     m_velocityButton->setStyleSheet(buttonStyle);
     m_panButton->setStyleSheet(buttonStyle);
     
-    // Update track name label color
-    m_trackNameLabel->setStyleSheet(QString("color: %1; font-size: 11px; font-weight: bold; background: transparent;")
-                                     .arg(baseColor.lighter(130).name()));
+    // Update track name label - subtle neutral color
+    m_trackNameLabel->setStyleSheet("color: #9a9aa5; font-size: 9px; background: transparent;");
 }
