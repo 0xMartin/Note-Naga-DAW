@@ -75,6 +75,7 @@ private:
     QSpinBox *m_scaleSpinBox;
     QCheckBox *m_showBarNumbersCheckbox;
     QCheckBox *m_showTitleCheckbox;
+    QCheckBox *m_showTempoCheckbox;
     QCheckBox *m_showInstrumentNamesCheckbox;
     QLineEdit *m_composerEdit;
     QComboBox *m_pageSizeCombo;

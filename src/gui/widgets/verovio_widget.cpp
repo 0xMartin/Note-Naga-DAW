@@ -1,6 +1,8 @@
 #include "verovio_widget.h"
 #include "../nn_gui_utils.h"
 
+#include <note_naga_engine/core/types.h>
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -392,7 +394,7 @@ QString VerovioWidget::generateMEI()
     mei += "      <titleStmt>\n";
     mei += QString("        <title>%1</title>\n").arg(m_title.isEmpty() ? "Untitled" : m_title.toHtmlEscaped());
     if (!m_settings.composer.isEmpty()) {
-        mei += QString("        <composer>%1</composer>\n").arg(m_settings.composer.toHtmlEscaped());
+        mei += QString("        <composer>Music by %1</composer>\n").arg(m_settings.composer.toHtmlEscaped());
     }
     mei += "      </titleStmt>\n";
     mei += "      <pubStmt/>\n";
@@ -425,28 +427,13 @@ QString VerovioWidget::generateMEI()
         // Get track name
         QString trackName = QString::fromStdString(tracks[i]->getName());
         
-        // Get instrument from GM index if available
+        // Get instrument from GM index if available using note_naga_engine
         QString instrumentName;
         auto instrumentIdx = tracks[i]->getInstrument();
         if (instrumentIdx.has_value()) {
-            // General MIDI instrument names (first 8 for simplicity)
-            static const char* gmInstruments[] = {
-                "Piano", "Bright Piano", "Electric Grand", "Honky-tonk",
-                "Electric Piano 1", "Electric Piano 2", "Harpsichord", "Clavinet",
-                "Celesta", "Glockenspiel", "Music Box", "Vibraphone",
-                "Marimba", "Xylophone", "Tubular Bells", "Dulcimer",
-                "Drawbar Organ", "Percussive Organ", "Rock Organ", "Church Organ",
-                "Reed Organ", "Accordion", "Harmonica", "Tango Accordion",
-                "Nylon Guitar", "Steel Guitar", "Jazz Guitar", "Clean Guitar",
-                "Muted Guitar", "Overdrive Guitar", "Distortion Guitar", "Harmonics",
-                "Acoustic Bass", "Finger Bass", "Pick Bass", "Fretless Bass",
-                "Slap Bass 1", "Slap Bass 2", "Synth Bass 1", "Synth Bass 2",
-                "Violin", "Viola", "Cello", "Contrabass",
-                "Tremolo Strings", "Pizzicato", "Harp", "Timpani"
-            };
-            int idx = instrumentIdx.value();
-            if (idx >= 0 && idx < 48) {
-                instrumentName = gmInstruments[idx];
+            auto gmInstrument = nn_find_instrument_by_index(instrumentIdx.value());
+            if (gmInstrument.has_value()) {
+                instrumentName = QString::fromStdString(gmInstrument->name);
             }
         }
         
@@ -479,12 +466,27 @@ QString VerovioWidget::generateMEI()
     mei += "          </scoreDef>\n";
     mei += "          <section>\n";
     
+    // Get tempo from sequence (in microseconds per beat) and convert to BPM
+    int bpm = 120;
+    if (m_sequence) {
+        int tempoMicros = m_sequence->getTempo();
+        if (tempoMicros > 0) {
+            bpm = 60000000 / tempoMicros;  // Convert microseconds per beat to BPM
+        }
+    }
+    if (bpm <= 0 || bpm > 300) bpm = 120;  // Sanity check
+    
     // Generate measures
     for (int measureNum = 0; measureNum < m_totalMeasures; ++measureNum) {
         int measureStart = measureNum * m_ticksPerMeasure;
         int measureEnd = measureStart + m_ticksPerMeasure;
         
         mei += QString("            <measure n=\"%1\" xml:id=\"m%1\">\n").arg(measureNum + 1);
+        
+        // Add tempo marking to first measure
+        if (measureNum == 0 && m_settings.showTempo) {
+            mei += QString("              <tempo tstamp=\"1\" midi.bpm=\"%1\" place=\"above\">♩ = %1</tempo>\n").arg(bpm);
+        }
         
         // Add each visible staff
         staffN = 1;
@@ -674,7 +676,7 @@ bool VerovioWidget::renderNotation()
             .arg(pageW)
             .arg(pageH)
             .arg(m_settings.showTitle ? "auto" : "none")
-            .arg(m_settings.showBarNumbers ? 1 : 0);
+            .arg(m_settings.showBarNumbers ? 5 : 0);
         
         m_toolkit->SetOptions(optionsJson.toStdString());
         

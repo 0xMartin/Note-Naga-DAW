@@ -229,6 +229,12 @@ void NotationSection::setupDockLayout()
     m_showTitleCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
     notationFormLayout->addRow("", m_showTitleCheckbox);
     
+    // Show Tempo
+    m_showTempoCheckbox = new QCheckBox(tr("Show tempo"));
+    m_showTempoCheckbox->setChecked(true);
+    m_showTempoCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
+    notationFormLayout->addRow("", m_showTempoCheckbox);
+    
     // Show Instrument Names
     m_showInstrumentNamesCheckbox = new QCheckBox(tr("Show instrument names"));
     m_showInstrumentNamesCheckbox->setChecked(true);
@@ -348,6 +354,8 @@ void NotationSection::connectSignals()
     connect(m_showBarNumbersCheckbox, &QCheckBox::toggled,
             this, &NotationSection::applyNotationSettings);
     connect(m_showTitleCheckbox, &QCheckBox::toggled,
+            this, &NotationSection::applyNotationSettings);
+    connect(m_showTempoCheckbox, &QCheckBox::toggled,
             this, &NotationSection::applyNotationSettings);
     connect(m_showInstrumentNamesCheckbox, &QCheckBox::toggled,
             this, &NotationSection::applyNotationSettings);
@@ -497,6 +505,7 @@ void NotationSection::applyNotationSettings()
     settings.scale = m_scaleSpinBox->value();
     settings.showBarNumbers = m_showBarNumbersCheckbox->isChecked();
     settings.showTitle = m_showTitleCheckbox->isChecked();
+    settings.showTempo = m_showTempoCheckbox->isChecked();
     settings.showInstrumentNames = m_showInstrumentNamesCheckbox->isChecked();
     settings.composer = m_composerEdit->text();
     

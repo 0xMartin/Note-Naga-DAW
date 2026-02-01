@@ -50,6 +50,7 @@ public:
         int scale = 40;                       // Scale percentage (30-100)
         bool showBarNumbers = true;           // Show bar numbers
         bool showTitle = true;                // Show title at top
+        bool showTempo = true;                // Show tempo marking
         bool showInstrumentNames = true;      // Show instrument names on staves
         QString composer = "";                // Composer name (optional)
         int pageWidth = 2100;                 // Page width in tenths of mm
