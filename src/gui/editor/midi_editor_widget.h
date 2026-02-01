@@ -153,6 +153,7 @@ private:
     
     // --- Active notes tracking (for row highlighting) ---
     QMap<int, int> m_activeNotes; // note -> trackIndex for active notes
+    QMap<int, int> m_lastActiveNotes; // previous state for comparison
 
     // --- UI controls ---
     QWidget *title_widget;

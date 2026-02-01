@@ -229,20 +229,25 @@ void MidiEditorWidget::refreshAll() {
 }
 
 void MidiEditorWidget::refreshMarker() {
-    if (marker_line) {
-        scene->removeItem(marker_line);
-        delete marker_line;
-        marker_line = nullptr;
-    }
-
     int marker_x = engine->getProject()->getCurrentTick() * config.time_scale;
     int visible_y0 = verticalScrollBar()->value();
     int visible_y1 = visible_y0 + viewport()->height();
 
-    if (marker_x > 0 && marker_x < content_width) {
-        marker_line = scene->addLine(marker_x, visible_y0, marker_x, visible_y1,
-                                     QPen(QColor(255, 88, 88), 2));
-        marker_line->setZValue(1000);
+    bool visible = (marker_x > 0 && marker_x < content_width);
+    
+    if (visible) {
+        if (!marker_line) {
+            // Create marker line if it doesn't exist
+            marker_line = scene->addLine(marker_x, visible_y0, marker_x, visible_y1,
+                                         QPen(QColor(255, 88, 88), 2));
+            marker_line->setZValue(1000);
+        } else {
+            // Reuse existing line - just update position
+            marker_line->setLine(marker_x, visible_y0, marker_x, visible_y1);
+            marker_line->setVisible(true);
+        }
+    } else if (marker_line) {
+        marker_line->setVisible(false);
     }
 }
 
@@ -1010,7 +1015,8 @@ void MidiEditorWidget::updateGrid() {
         grid_lines.push_back(l);
     }
     
-    // Apply initial highlighting
+    // Apply initial highlighting (force update by clearing last state)
+    m_lastActiveNotes.clear();
     updateRowHighlights();
 }
 
@@ -1020,17 +1026,35 @@ void MidiEditorWidget::updateRowHighlights() {
     // Update active notes first
     updateActiveNotes();
     
-    // Update each row background color based on active notes
+    // Quick check: if nothing changed, skip update
+    if (m_activeNotes == m_lastActiveNotes) return;
+    
+    // Collect notes that changed state
+    QSet<int> changedNotes;
+    for (auto it = m_activeNotes.begin(); it != m_activeNotes.end(); ++it) {
+        if (!m_lastActiveNotes.contains(it.key()) || m_lastActiveNotes.value(it.key()) != it.value()) {
+            changedNotes.insert(it.key());
+        }
+    }
+    for (auto it = m_lastActiveNotes.begin(); it != m_lastActiveNotes.end(); ++it) {
+        if (!m_activeNotes.contains(it.key())) {
+            changedNotes.insert(it.key());
+        }
+    }
+    
+    // Update only changed rows
+    const auto& tracks = last_seq->getTracks();
     for (auto* row_rect : row_backgrounds) {
         if (!row_rect) continue;
         
         int note_val = row_rect->data(0).toInt();
+        if (!changedNotes.contains(note_val)) continue;
+        
         QColor row_bg = (note_val % 2 == 0) ? grid_row_color1 : grid_row_color2;
         
         if (m_activeNotes.contains(note_val)) {
             // Subtle highlight - blend 15% of track color with background
             int trackIdx = m_activeNotes.value(note_val, 0);
-            const auto& tracks = last_seq->getTracks();
             if (trackIdx >= 0 && trackIdx < (int)tracks.size() && tracks[trackIdx]) {
                 QColor trackColor = tracks[trackIdx]->getColor().toQColor();
                 int r = (row_bg.red() * 85 + trackColor.red() * 15) / 100;
@@ -1042,6 +1066,9 @@ void MidiEditorWidget::updateRowHighlights() {
         
         row_rect->setBrush(QBrush(row_bg));
     }
+    
+    // Save current state for next comparison
+    m_lastActiveNotes = m_activeNotes;
 }
 
 void MidiEditorWidget::updateBarGrid() {
@@ -1239,7 +1266,8 @@ void MidiEditorWidget::clearScene() {
     bar_grid_labels.clear();
     row_backgrounds.clear();
     marker_line = nullptr;
-    selectedNotes.clear();  // Musíme vyčistit také výběr, protože by obsahoval neplatné pointery
+    selectedNotes.clear();
+    m_lastActiveNotes.clear();
 }
 
 void MidiEditorWidget::clearNotes() {
