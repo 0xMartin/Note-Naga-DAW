@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QGroupBox>
 #include <QVBoxLayout>
+#include <QLineEdit>
 #include <QComboBox>
 #include <QSpinBox>
 
@@ -71,10 +72,13 @@ private:
     QGroupBox *m_notationSettingsGroup;
     QComboBox *m_keySignatureCombo;
     QComboBox *m_timeSignatureCombo;
-    QComboBox *m_staffTypeCombo;
-    QSpinBox *m_fontSizeSpinBox;
+    QSpinBox *m_scaleSpinBox;
     QCheckBox *m_showBarNumbersCheckbox;
-    QComboBox *m_resolutionCombo;
+    QCheckBox *m_showTitleCheckbox;
+    QCheckBox *m_showInstrumentNamesCheckbox;
+    QLineEdit *m_composerEdit;
+    QComboBox *m_pageSizeCombo;
+    QCheckBox *m_landscapeCheckbox;
     
     // No sequence placeholder
     QLabel *m_noSequenceLabel;

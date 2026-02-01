@@ -47,10 +47,14 @@ public:
     struct NotationSettings {
         QString keySignature = "0";           // Key signature (-7 to +7, 0 = C major)
         QString timeSignature = "4/4";        // Time signature
-        int fontSize = 40;                    // Staff size (Verovio uses larger values)
+        int scale = 40;                       // Scale percentage (30-100)
         bool showBarNumbers = true;           // Show bar numbers
-        int pageWidth = 2100;                 // Page width in MEI units (A4 = 210mm * 10)
-        int pageHeight = 2970;                // Page height in MEI units (A4 = 297mm * 10)
+        bool showTitle = true;                // Show title at top
+        bool showInstrumentNames = true;      // Show instrument names on staves
+        QString composer = "";                // Composer name (optional)
+        int pageWidth = 2100;                 // Page width in tenths of mm
+        int pageHeight = 2970;                // Page height in tenths of mm
+        bool landscape = false;               // Landscape orientation
     };
     
     // Measure position info for playback highlighting

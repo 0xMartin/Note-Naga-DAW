@@ -182,19 +182,19 @@ void NotationSection::setupDockLayout()
         QSpinBox:hover { border-color: #5a5d65; }
     )";
     
-    // Key Signature
+    // Key Signature (Verovio uses -7 to +7 format)
     m_keySignatureCombo = new QComboBox;
     m_keySignatureCombo->setStyleSheet(comboStyle);
-    m_keySignatureCombo->addItem(tr("C Major / A minor"), "c \\major");
-    m_keySignatureCombo->addItem(tr("G Major / E minor"), "g \\major");
-    m_keySignatureCombo->addItem(tr("D Major / B minor"), "d \\major");
-    m_keySignatureCombo->addItem(tr("A Major / F# minor"), "a \\major");
-    m_keySignatureCombo->addItem(tr("E Major / C# minor"), "e \\major");
-    m_keySignatureCombo->addItem(tr("B Major / G# minor"), "b \\major");
-    m_keySignatureCombo->addItem(tr("F Major / D minor"), "f \\major");
-    m_keySignatureCombo->addItem(tr("Bb Major / G minor"), "bes \\major");
-    m_keySignatureCombo->addItem(tr("Eb Major / C minor"), "ees \\major");
-    m_keySignatureCombo->addItem(tr("Ab Major / F minor"), "aes \\major");
+    m_keySignatureCombo->addItem(tr("C Major / A minor"), "0");
+    m_keySignatureCombo->addItem(tr("G Major / E minor"), "1");
+    m_keySignatureCombo->addItem(tr("D Major / B minor"), "2");
+    m_keySignatureCombo->addItem(tr("A Major / F# minor"), "3");
+    m_keySignatureCombo->addItem(tr("E Major / C# minor"), "4");
+    m_keySignatureCombo->addItem(tr("B Major / G# minor"), "5");
+    m_keySignatureCombo->addItem(tr("F Major / D minor"), "-1");
+    m_keySignatureCombo->addItem(tr("Bb Major / G minor"), "-2");
+    m_keySignatureCombo->addItem(tr("Eb Major / C minor"), "-3");
+    m_keySignatureCombo->addItem(tr("Ab Major / F minor"), "-4");
     notationFormLayout->addRow(tr("Key:"), m_keySignatureCombo);
     
     // Time Signature
@@ -209,21 +209,13 @@ void NotationSection::setupDockLayout()
     m_timeSignatureCombo->addItem("12/8", "12/8");
     notationFormLayout->addRow(tr("Time:"), m_timeSignatureCombo);
     
-    // Staff Type
-    m_staffTypeCombo = new QComboBox;
-    m_staffTypeCombo->setStyleSheet(comboStyle);
-    m_staffTypeCombo->addItem(tr("Piano (Grand Staff)"), "piano");
-    m_staffTypeCombo->addItem(tr("Treble Clef Only"), "treble");
-    m_staffTypeCombo->addItem(tr("Bass Clef Only"), "bass");
-    notationFormLayout->addRow(tr("Staff:"), m_staffTypeCombo);
-    
-    // Font Size
-    m_fontSizeSpinBox = new QSpinBox;
-    m_fontSizeSpinBox->setStyleSheet(spinBoxStyle);
-    m_fontSizeSpinBox->setRange(12, 30);
-    m_fontSizeSpinBox->setValue(18);
-    m_fontSizeSpinBox->setSuffix(" pt");
-    notationFormLayout->addRow(tr("Size:"), m_fontSizeSpinBox);
+    // Scale (replaces font size)
+    m_scaleSpinBox = new QSpinBox;
+    m_scaleSpinBox->setStyleSheet(spinBoxStyle);
+    m_scaleSpinBox->setRange(20, 80);
+    m_scaleSpinBox->setValue(40);
+    m_scaleSpinBox->setSuffix("%");
+    notationFormLayout->addRow(tr("Scale:"), m_scaleSpinBox);
     
     // Show Bar Numbers
     m_showBarNumbersCheckbox = new QCheckBox(tr("Show bar numbers"));
@@ -231,14 +223,52 @@ void NotationSection::setupDockLayout()
     m_showBarNumbersCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
     notationFormLayout->addRow("", m_showBarNumbersCheckbox);
     
-    // Resolution
-    m_resolutionCombo = new QComboBox;
-    m_resolutionCombo->setStyleSheet(comboStyle);
-    m_resolutionCombo->addItem(tr("Low (150 DPI)"), 150);
-    m_resolutionCombo->addItem(tr("Medium (200 DPI)"), 200);
-    m_resolutionCombo->addItem(tr("High (300 DPI)"), 300);
-    m_resolutionCombo->setCurrentIndex(1);  // Default to 200 DPI
-    notationFormLayout->addRow(tr("Quality:"), m_resolutionCombo);
+    // Show Title
+    m_showTitleCheckbox = new QCheckBox(tr("Show title"));
+    m_showTitleCheckbox->setChecked(true);
+    m_showTitleCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
+    notationFormLayout->addRow("", m_showTitleCheckbox);
+    
+    // Show Instrument Names
+    m_showInstrumentNamesCheckbox = new QCheckBox(tr("Show instrument names"));
+    m_showInstrumentNamesCheckbox->setChecked(true);
+    m_showInstrumentNamesCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
+    notationFormLayout->addRow("", m_showInstrumentNamesCheckbox);
+    
+    // Separator
+    QFrame *separator = new QFrame;
+    separator->setFrameShape(QFrame::HLine);
+    separator->setStyleSheet("QFrame { color: #4a4d55; }");
+    notationFormLayout->addRow(separator);
+    
+    // Composer
+    m_composerEdit = new QLineEdit;
+    m_composerEdit->setStyleSheet(R"(
+        QLineEdit {
+            background: #3a3d45;
+            border: 1px solid #4a4d55;
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: white;
+        }
+        QLineEdit:focus { border-color: #4a9eff; }
+    )");
+    m_composerEdit->setPlaceholderText(tr("Enter composer name..."));
+    notationFormLayout->addRow(tr("Composer:"), m_composerEdit);
+    
+    // Page Size
+    m_pageSizeCombo = new QComboBox;
+    m_pageSizeCombo->setStyleSheet(comboStyle);
+    m_pageSizeCombo->addItem(tr("A4 (210×297mm)"), QSize(2100, 2970));
+    m_pageSizeCombo->addItem(tr("Letter (216×279mm)"), QSize(2160, 2790));
+    m_pageSizeCombo->addItem(tr("A3 (297×420mm)"), QSize(2970, 4200));
+    m_pageSizeCombo->addItem(tr("Legal (216×356mm)"), QSize(2160, 3560));
+    notationFormLayout->addRow(tr("Page:"), m_pageSizeCombo);
+    
+    // Landscape
+    m_landscapeCheckbox = new QCheckBox(tr("Landscape orientation"));
+    m_landscapeCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
+    notationFormLayout->addRow("", m_landscapeCheckbox);
     
     settingsLayout->addWidget(m_notationSettingsGroup);
     
@@ -313,13 +343,19 @@ void NotationSection::connectSignals()
             this, &NotationSection::applyNotationSettings);
     connect(m_timeSignatureCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &NotationSection::applyNotationSettings);
-    connect(m_staffTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &NotationSection::applyNotationSettings);
-    connect(m_fontSizeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+    connect(m_scaleSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &NotationSection::applyNotationSettings);
     connect(m_showBarNumbersCheckbox, &QCheckBox::toggled,
             this, &NotationSection::applyNotationSettings);
-    connect(m_resolutionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+    connect(m_showTitleCheckbox, &QCheckBox::toggled,
+            this, &NotationSection::applyNotationSettings);
+    connect(m_showInstrumentNamesCheckbox, &QCheckBox::toggled,
+            this, &NotationSection::applyNotationSettings);
+    connect(m_composerEdit, &QLineEdit::textChanged,
+            this, &NotationSection::applyNotationSettings);
+    connect(m_pageSizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &NotationSection::applyNotationSettings);
+    connect(m_landscapeCheckbox, &QCheckBox::toggled,
             this, &NotationSection::applyNotationSettings);
 }
 
@@ -458,8 +494,16 @@ void NotationSection::applyNotationSettings()
     VerovioWidget::NotationSettings settings;
     settings.keySignature = m_keySignatureCombo->currentData().toString();
     settings.timeSignature = m_timeSignatureCombo->currentData().toString();
-    settings.fontSize = m_fontSizeSpinBox->value();
+    settings.scale = m_scaleSpinBox->value();
     settings.showBarNumbers = m_showBarNumbersCheckbox->isChecked();
+    settings.showTitle = m_showTitleCheckbox->isChecked();
+    settings.showInstrumentNames = m_showInstrumentNamesCheckbox->isChecked();
+    settings.composer = m_composerEdit->text();
+    
+    QSize pageSize = m_pageSizeCombo->currentData().toSize();
+    settings.pageWidth = pageSize.width();
+    settings.pageHeight = pageSize.height();
+    settings.landscape = m_landscapeCheckbox->isChecked();
     
     m_notationWidget->setNotationSettings(settings);
 }

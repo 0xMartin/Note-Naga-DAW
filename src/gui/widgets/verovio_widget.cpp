@@ -391,6 +391,9 @@ QString VerovioWidget::generateMEI()
     mei += "    <fileDesc>\n";
     mei += "      <titleStmt>\n";
     mei += QString("        <title>%1</title>\n").arg(m_title.isEmpty() ? "Untitled" : m_title.toHtmlEscaped());
+    if (!m_settings.composer.isEmpty()) {
+        mei += QString("        <composer>%1</composer>\n").arg(m_settings.composer.toHtmlEscaped());
+    }
     mei += "      </titleStmt>\n";
     mei += "      <pubStmt/>\n";
     mei += "    </fileDesc>\n";
@@ -408,13 +411,67 @@ QString VerovioWidget::generateMEI()
         bool isVisible = (i >= static_cast<size_t>(m_trackVisibility.size())) || m_trackVisibility[i];
         if (!isVisible) continue;
         
-        QString clef = (i == 0) ? "G" : "F";
-        int clefLine = (i == 0) ? 2 : 4;
+        // Determine clef based on track average pitch
+        auto notes = tracks[i]->getNotes();
+        int avgPitch = 60;
+        if (!notes.empty()) {
+            int sum = 0;
+            for (const auto &n : notes) sum += n.note;
+            avgPitch = sum / static_cast<int>(notes.size());
+        }
+        QString clef = (avgPitch >= 60) ? "G" : "F";
+        int clefLine = (avgPitch >= 60) ? 2 : 4;
+        
+        // Get track name
+        QString trackName = QString::fromStdString(tracks[i]->getName());
+        
+        // Get instrument from GM index if available
+        QString instrumentName;
+        auto instrumentIdx = tracks[i]->getInstrument();
+        if (instrumentIdx.has_value()) {
+            // General MIDI instrument names (first 8 for simplicity)
+            static const char* gmInstruments[] = {
+                "Piano", "Bright Piano", "Electric Grand", "Honky-tonk",
+                "Electric Piano 1", "Electric Piano 2", "Harpsichord", "Clavinet",
+                "Celesta", "Glockenspiel", "Music Box", "Vibraphone",
+                "Marimba", "Xylophone", "Tubular Bells", "Dulcimer",
+                "Drawbar Organ", "Percussive Organ", "Rock Organ", "Church Organ",
+                "Reed Organ", "Accordion", "Harmonica", "Tango Accordion",
+                "Nylon Guitar", "Steel Guitar", "Jazz Guitar", "Clean Guitar",
+                "Muted Guitar", "Overdrive Guitar", "Distortion Guitar", "Harmonics",
+                "Acoustic Bass", "Finger Bass", "Pick Bass", "Fretless Bass",
+                "Slap Bass 1", "Slap Bass 2", "Synth Bass 1", "Synth Bass 2",
+                "Violin", "Viola", "Cello", "Contrabass",
+                "Tremolo Strings", "Pizzicato", "Harp", "Timpani"
+            };
+            int idx = instrumentIdx.value();
+            if (idx >= 0 && idx < 48) {
+                instrumentName = gmInstruments[idx];
+            }
+        }
+        
+        QString labelFull = trackName;
+        if (!instrumentName.isEmpty() && instrumentName != trackName) {
+            if (!labelFull.isEmpty()) labelFull += " - ";
+            labelFull += instrumentName;
+        }
+        if (labelFull.isEmpty()) {
+            labelFull = QString("Track %1").arg(i + 1);
+        }
+        QString labelAbbr = labelFull.left(8);
+        
+        QString labelAttr;
+        if (m_settings.showInstrumentNames) {
+            labelAttr = QString(" label=\"%1\" label.abbr=\"%2\"")
+                       .arg(labelFull.toHtmlEscaped())
+                       .arg(labelAbbr.toHtmlEscaped());
+        }
         
         mei += QString("              <staffDef n=\"%1\" lines=\"5\" clef.shape=\"%2\" clef.line=\"%3\" "
-                      "meter.count=\"%4\" meter.unit=\"%5\" key.sig=\"%6\"/>\n")
+                      "meter.count=\"%4\" meter.unit=\"%5\" key.sig=\"%6\"%7/>\n")
                .arg(staffN).arg(clef).arg(clefLine)
-               .arg(numerator).arg(denominator).arg(m_settings.keySignature);
+               .arg(numerator).arg(denominator).arg(m_settings.keySignature)
+               .arg(labelAttr);
         staffN++;
     }
     
@@ -599,17 +656,27 @@ bool VerovioWidget::renderNotation()
     
     try {
         // Configure Verovio options
-        std::string options = R"({
-            "scale": 40,
-            "pageWidth": 2100,
-            "pageHeight": 2970,
+        int pageW = m_settings.landscape ? m_settings.pageHeight : m_settings.pageWidth;
+        int pageH = m_settings.landscape ? m_settings.pageWidth : m_settings.pageHeight;
+        
+        QString optionsJson = QString(R"({
+            "scale": %1,
+            "pageWidth": %2,
+            "pageHeight": %3,
             "adjustPageHeight": true,
             "breaks": "auto",
             "mmOutput": false,
             "footer": "none",
-            "header": "none"
-        })";
-        m_toolkit->SetOptions(options);
+            "header": "%4",
+            "barLineWidth": 0.30,
+            "mnumInterval": %5
+        })").arg(m_settings.scale)
+            .arg(pageW)
+            .arg(pageH)
+            .arg(m_settings.showTitle ? "auto" : "none")
+            .arg(m_settings.showBarNumbers ? 1 : 0);
+        
+        m_toolkit->SetOptions(optionsJson.toStdString());
         
         // Load MEI
         if (!m_toolkit->LoadData(meiContent.toStdString())) {
