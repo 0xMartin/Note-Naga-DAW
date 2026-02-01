@@ -302,6 +302,8 @@ void MidiEditorWidget::currentTickChanged(int tick) {
         emit horizontalScrollChanged(value);
     }
 
+    // Update row highlighting for active notes (works for all follow modes)
+    updateRowHighlights();
     refreshMarker();
 }
 
@@ -409,15 +411,9 @@ void MidiEditorWidget::selectNote(NoteGraphics *noteGraphics, bool clearPrevious
         for (NoteGraphics *ng : selectedNotes) {
             QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
             if (shapeItem) {
-                bool is_selected = last_seq->getActiveTrack() &&
+                bool is_active_track = last_seq->getActiveTrack() &&
                                  last_seq->getActiveTrack()->getId() == ng->track->getId();
-                NN_Color_t track_color = ng->track->getColor();
-                float luminance = nn_yiq_luminance(track_color);
-                QPen outline = is_selected
-                    ? QPen(luminance < 128 ? Qt::white : Qt::black, 2)
-                    : QPen((luminance < 128 ? track_color.lighter(150) : track_color.darker(150))
-                               .toQColor());
-                shapeItem->setPen(outline);
+                shapeItem->setPen(getNotePen(ng->track, is_active_track, false));
                 shapeItem->setZValue(ng->track->getId() + 10);
             }
         }
@@ -431,8 +427,7 @@ void MidiEditorWidget::selectNote(NoteGraphics *noteGraphics, bool clearPrevious
         // Vizuálně označíme notu
         QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(noteGraphics->item);
         if (shapeItem) {
-            // Změníme barvu podle toho, jestli je to buben nebo klasická nota
-            shapeItem->setPen(QPen(selection_color, 2));
+            shapeItem->setPen(getNotePen(noteGraphics->track, false, true));
             shapeItem->setZValue(999); // Přesuneme vybranou notu nad ostatní
         }
         
@@ -452,17 +447,9 @@ void MidiEditorWidget::deselectNote(NoteGraphics *noteGraphics) {
     // Vrátíme vizuální stav noty do původního stavu
     QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(noteGraphics->item);
     if (shapeItem) {
-        // Resetujeme barvu a Z-index
-        bool is_selected = last_seq->getActiveTrack() &&
+        bool is_active_track = last_seq->getActiveTrack() &&
                          last_seq->getActiveTrack()->getId() == noteGraphics->track->getId();
-        NN_Color_t track_color = noteGraphics->track->getColor();
-        float luminance = nn_yiq_luminance(track_color);
-        QPen outline = is_selected
-            ? QPen(luminance < 128 ? Qt::white : Qt::black, 2)
-            : QPen((luminance < 128 ? track_color.lighter(150) : track_color.darker(150))
-                       .toQColor());
-                       
-        shapeItem->setPen(outline);
+        shapeItem->setPen(getNotePen(noteGraphics->track, is_active_track, false));
         shapeItem->setZValue(noteGraphics->track->getId() + 10);
     }
     
@@ -476,16 +463,9 @@ void MidiEditorWidget::clearSelection() {
     for (NoteGraphics *ng : selectedNotes) {
         QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
         if (shapeItem) {
-            bool is_selected = last_seq->getActiveTrack() &&
+            bool is_active_track = last_seq->getActiveTrack() &&
                              last_seq->getActiveTrack()->getId() == ng->track->getId();
-            NN_Color_t track_color = ng->track->getColor();
-            float luminance = nn_yiq_luminance(track_color);
-            QPen outline = is_selected
-                ? QPen(luminance < 128 ? Qt::white : Qt::black, 2)
-                : QPen((luminance < 128 ? track_color.lighter(150) : track_color.darker(150))
-                           .toQColor());
-                           
-            shapeItem->setPen(outline);
+            shapeItem->setPen(getNotePen(ng->track, is_active_track, false));
             shapeItem->setZValue(ng->track->getId() + 10);
         }
     }
@@ -1010,16 +990,57 @@ void MidiEditorWidget::updateGrid() {
     int visible_y0 = verticalScrollBar()->value();
     int visible_y1 = visible_y0 + viewport()->height();
 
+    // Clear old row backgrounds
+    row_backgrounds.clear();
+
     for (int idx = 0, note_val = MIN_NOTE; note_val <= MAX_NOTE; ++idx, ++note_val) {
         int y = content_height - (idx + 1) * config.key_height;
         if (y + config.key_height < visible_y0 || y > visible_y1) continue;
+        
+        // Base color without highlighting (highlighting is done in updateRowHighlights)
         QColor row_bg = (note_val % 2 == 0) ? grid_row_color1 : grid_row_color2;
+        
         auto row_bg_rect = scene->addRect(0, y, content_width, config.key_height,
                                           QPen(Qt::NoPen), QBrush(row_bg));
         row_bg_rect->setZValue(-100);
+        row_bg_rect->setData(0, note_val); // Store note value for later lookup
+        row_backgrounds.push_back(row_bg_rect);
 
         auto l = scene->addLine(0, y, content_width, y, QPen(line_color, 1));
         grid_lines.push_back(l);
+    }
+    
+    // Apply initial highlighting
+    updateRowHighlights();
+}
+
+void MidiEditorWidget::updateRowHighlights() {
+    if (!last_seq) return;
+    
+    // Update active notes first
+    updateActiveNotes();
+    
+    // Update each row background color based on active notes
+    for (auto* row_rect : row_backgrounds) {
+        if (!row_rect) continue;
+        
+        int note_val = row_rect->data(0).toInt();
+        QColor row_bg = (note_val % 2 == 0) ? grid_row_color1 : grid_row_color2;
+        
+        if (m_activeNotes.contains(note_val)) {
+            // Subtle highlight - blend 15% of track color with background
+            int trackIdx = m_activeNotes.value(note_val, 0);
+            const auto& tracks = last_seq->getTracks();
+            if (trackIdx >= 0 && trackIdx < (int)tracks.size() && tracks[trackIdx]) {
+                QColor trackColor = tracks[trackIdx]->getColor().toQColor();
+                int r = (row_bg.red() * 85 + trackColor.red() * 15) / 100;
+                int g = (row_bg.green() * 85 + trackColor.green() * 15) / 100;
+                int b = (row_bg.blue() * 85 + trackColor.blue() * 15) / 100;
+                row_bg = QColor(r, g, b);
+            }
+        }
+        
+        row_rect->setBrush(QBrush(row_bg));
     }
 }
 
@@ -1065,21 +1086,8 @@ void MidiEditorWidget::updateBarGrid() {
     }
 
     // --- Vykreslení podružných čar (šedé) podle gridu a zoomu ---
-    GridResolution resolution = static_cast<GridResolution>(combo_grid_resolution->currentData().toInt());
-    if (resolution == GridResolution::Off) return; // Pokud je mřížka vypnutá, nic nekreslíme
-
-    int grid_step_ticks = ppq; // Výchozí hodnota (1/4)
-    switch (resolution) {
-        case GridResolution::Whole:       grid_step_ticks = ppq * 4; break;
-        case GridResolution::Half:        grid_step_ticks = ppq * 2; break;
-        case GridResolution::Quarter:     grid_step_ticks = ppq; break;
-        case GridResolution::Eighth:      grid_step_ticks = ppq / 2; break;
-        case GridResolution::Sixteenth:   grid_step_ticks = ppq / 4; break;
-        case GridResolution::ThirtySecond:grid_step_ticks = ppq / 8; break;
-        default: break;
-    }
-
-    if (grid_step_ticks == 0) return;
+    int grid_step_ticks = getGridStepTicks();
+    if (grid_step_ticks == 0) return; // Grid is off
 
     // Optimalizace, aby se čáry nevykreslovaly příliš hustě
     double px_per_grid_step = config.time_scale * grid_step_ticks;
@@ -1109,12 +1117,7 @@ void MidiEditorWidget::drawNote(const NN_Note_t &note, const NoteNagaTrack *trac
         (is_selected ? track->getColor()
                      : nn_color_blend(track->getColor(),
                                       NN_Color_t::fromQColor(bg_color), 0.3));
-    float luminance = nn_yiq_luminance(t_color);
-    QPen outline =
-        is_selected
-            ? QPen(luminance < 128 ? Qt::white : Qt::black, 2)
-            : QPen((luminance < 128 ? t_color.lighter(150) : t_color.darker(150))
-                       .toQColor());
+    QPen outline = getNotePen(track, is_selected, false);
 
     if (is_drum) {
         int sz = h * 0.6;
@@ -1131,6 +1134,7 @@ void MidiEditorWidget::drawNote(const NN_Note_t &note, const NoteNagaTrack *trac
 
     QGraphicsSimpleTextItem *txt = nullptr;
     if (!is_drum && w > 20 && h > 9 && config.time_scale > 0.04) {
+        float luminance = nn_yiq_luminance(t_color);
         QString note_str = QString::fromStdString(nn_note_name(note.note));
         txt = scene->addSimpleText(note_str);
         txt->setBrush(QBrush(luminance < 128 ? Qt::white : Qt::black));
@@ -1233,6 +1237,7 @@ void MidiEditorWidget::clearScene() {
     grid_lines.clear();
     bar_grid_lines.clear();
     bar_grid_labels.clear();
+    row_backgrounds.clear();
     marker_line = nullptr;
     selectedNotes.clear();  // Musíme vyčistit také výběr, protože by obsahoval neplatné pointery
 }
@@ -1281,51 +1286,80 @@ void MidiEditorWidget::clearTrackNotes(int track_id) {
     }
 }
 
-int MidiEditorWidget::snapTickToGrid(int tick) const {
-    GridResolution resolution = static_cast<GridResolution>(combo_grid_resolution->currentData().toInt());
-    if (resolution == GridResolution::Off || !last_seq) {
-        return tick;
+void MidiEditorWidget::updateActiveNotes() {
+    m_activeNotes.clear();
+    
+    if (!last_seq || !engine->isPlaying()) {
+        return;
     }
+    
+    int currentTick = engine->getProject()->getCurrentTick();
+    const auto& tracks = last_seq->getTracks();
+    
+    for (int trackIdx = 0; trackIdx < (int)tracks.size(); ++trackIdx) {
+        const auto& track = tracks[trackIdx];
+        if (!track || !track->isVisible()) continue;
+        
+        for (const auto& note : track->getNotes()) {
+            if (!note.start.has_value() || !note.length.has_value()) continue;
+            
+            int noteStart = note.start.value();
+            int noteEnd = noteStart + note.length.value();
+            
+            // Check if note is currently playing
+            if (currentTick >= noteStart && currentTick < noteEnd) {
+                // Only store if not already stored (first track wins)
+                if (!m_activeNotes.contains(note.note)) {
+                    m_activeNotes.insert(note.note, trackIdx);
+                }
+            }
+        }
+    }
+}
+
+int MidiEditorWidget::getGridStepTicks() const {
+    if (!last_seq) return 0;
+    
+    GridResolution resolution = static_cast<GridResolution>(combo_grid_resolution->currentData().toInt());
+    if (resolution == GridResolution::Off) return 0;
 
     int ppq = last_seq->getPPQ();
-    int grid_step = ppq; // Default Quarter
-
+    
     switch (resolution) {
-        case GridResolution::Whole:       grid_step = ppq * 4; break;
-        case GridResolution::Half:        grid_step = ppq * 2; break;
-        case GridResolution::Quarter:     grid_step = ppq; break;
-        case GridResolution::Eighth:      grid_step = ppq / 2; break;
-        case GridResolution::Sixteenth:   grid_step = ppq / 4; break;
-        case GridResolution::ThirtySecond:grid_step = ppq / 8; break;
-        default: break;
+        case GridResolution::Whole:       return ppq * 4;
+        case GridResolution::Half:        return ppq * 2;
+        case GridResolution::Quarter:     return ppq;
+        case GridResolution::Eighth:      return ppq / 2;
+        case GridResolution::Sixteenth:   return ppq / 4;
+        case GridResolution::ThirtySecond:return ppq / 8;
+        default: return ppq;
     }
+}
 
-    if (grid_step == 0) return tick; // Ochrana před dělením nulou
+QPen MidiEditorWidget::getNotePen(const NoteNagaTrack *track, bool is_active_track, bool is_selected_note) const {
+    if (is_selected_note) {
+        return QPen(selection_color, 2);
+    }
+    
+    NN_Color_t t_color = track->getColor();
+    float luminance = nn_yiq_luminance(t_color);
+    
+    if (is_active_track) {
+        return QPen(luminance < 128 ? Qt::white : Qt::black, 2);
+    }
+    
+    return QPen((luminance < 128 ? t_color.lighter(150) : t_color.darker(150)).toQColor());
+}
 
+int MidiEditorWidget::snapTickToGrid(int tick) const {
+    int grid_step = getGridStepTicks();
+    if (grid_step == 0) return tick;
     return (tick / grid_step) * grid_step;
 }
 
 int MidiEditorWidget::snapTickToGridNearest(int tick) const {
-    GridResolution resolution = static_cast<GridResolution>(combo_grid_resolution->currentData().toInt());
-    if (resolution == GridResolution::Off || !last_seq) {
-        return tick;
-    }
-
-    int ppq = last_seq->getPPQ();
-    int grid_step = ppq; // Default Quarter
-
-    switch (resolution) {
-        case GridResolution::Whole:       grid_step = ppq * 4; break;
-        case GridResolution::Half:        grid_step = ppq * 2; break;
-        case GridResolution::Quarter:     grid_step = ppq; break;
-        case GridResolution::Eighth:      grid_step = ppq / 2; break;
-        case GridResolution::Sixteenth:   grid_step = ppq / 4; break;
-        case GridResolution::ThirtySecond:grid_step = ppq / 8; break;
-        default: break;
-    }
-
-    if (grid_step == 0) return tick; // Ochrana před dělením nulou
-
+    int grid_step = getGridStepTicks();
+    if (grid_step == 0) return tick;
     // Použijeme zaokrouhlení, aby se konec noty přichytil k nejbližší čáře gridu
     return static_cast<int>(round(static_cast<double>(tick) / grid_step)) * grid_step;
 }

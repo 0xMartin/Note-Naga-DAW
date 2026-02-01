@@ -11,6 +11,7 @@
 #include <QRubberBand>
 #include <QComboBox>
 #include <QLabel>
+#include <QSet>
 #include <vector>
 
 /** MIDI editor follow modes */
@@ -149,6 +150,9 @@ private:
     
     // Edge detection constants
     const int resizeEdgeMargin = 5; // pixely od okraje pro detekci změny velikosti
+    
+    // --- Active notes tracking (for row highlighting) ---
+    QMap<int, int> m_activeNotes; // note -> trackIndex for active notes
 
     // --- UI controls ---
     QWidget *title_widget;
@@ -167,6 +171,7 @@ private:
     std::vector<QGraphicsLineItem *> grid_lines;
     std::vector<QGraphicsLineItem *> bar_grid_lines;
     std::vector<QGraphicsSimpleTextItem *> bar_grid_labels;
+    std::vector<QGraphicsRectItem *> row_backgrounds; // Row background items for highlighting
 
     // --- Setup & Helpers ---
     void initTitleUI();
@@ -186,6 +191,8 @@ private:
     void clearScene();
     void clearNotes();
     void clearTrackNotes(int track_id);
+    void updateActiveNotes();
+    void updateRowHighlights();
     
     // --- Note Editing Functions ---
     void selectNote(NoteGraphics *noteGraphics, bool clearPrevious = true);
@@ -210,6 +217,8 @@ private:
     QRectF getRealNoteRect(const NoteGraphics *ng) const;
     int snapTickToGrid(int tick) const;
     int snapTickToGridNearest(int tick) const;
+    int getGridStepTicks() const;
+    QPen getNotePen(const NoteNagaTrack *track, bool is_active_track, bool is_selected_note) const;
 
 /*******************************************************************************************************/
 // Signal and Slots
