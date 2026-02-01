@@ -237,6 +237,8 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - [x] 📊 **Velocity Editor**: Visual velocity editing panel
 - [x] ✏️ **Enhanced Note Editing**: Better manipulation and selection tools
 - [x] 🎯 **Apply to Selection**: MIDI utilities work on selected notes only (or all if none selected)
+- [ ] **Project Settings and Info section**: BPM, time signature, location on disk, name, author, output devices
+- [ ] **Project Wizard**: Guide for creating new projects with initial settings
 
 ### 🟢 Advanced Features
 - [ ] 🎹 **MIDI Input**: Record notes from external MIDI devices

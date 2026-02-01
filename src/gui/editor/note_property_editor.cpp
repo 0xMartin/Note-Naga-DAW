@@ -112,12 +112,13 @@ void NotePropertyEditor::setupUI()
     m_trackNameLabel->setText(tr("No Track"));
     
     // Professional button style - compact square buttons for left margin
+    // Default dark neutral, checked gets subtle blue highlighting
     QString buttonStyle = R"(
         QPushButton {
             background: #2a2d35;
             border: 1px solid #3d424d;
             border-radius: 2px;
-            color: #9a9aa5;
+            color: #7a7a85;
             font-size: 10px;
             font-weight: bold;
             padding: 0;
@@ -128,13 +129,18 @@ void NotePropertyEditor::setupUI()
         }
         QPushButton:hover { 
             background: #353945; 
-            color: #e0e6ef;
+            color: #9a9aa5;
             border-color: #4a5160;
         }
         QPushButton:checked { 
-            background: #404858; 
-            color: #e0e6ef; 
-            border-color: #5a6275; 
+            background: #2a3a4a; 
+            color: #8ab4d8; 
+            border-color: #3477c0; 
+        }
+        QPushButton:checked:hover { 
+            background: #304860; 
+            color: #a0d0ff; 
+            border-color: #4a90d0; 
         }
     )";
     
@@ -1042,14 +1048,14 @@ void NotePropertyEditor::updateActiveTrack()
 
 void NotePropertyEditor::updateTrackColorStyles()
 {
-    // Professional neutral button style - no track color, just clean design
+    // Default dark neutral, checked gets subtle blue highlighting
     // Must include min/max width/height to keep buttons square
     QString buttonStyle = R"(
         QPushButton {
             background: #2a2d35;
             border: 1px solid #3d424d;
             border-radius: 2px;
-            color: #9a9aa5;
+            color: #7a7a85;
             font-size: 10px;
             font-weight: bold;
             padding: 0;
@@ -1060,13 +1066,18 @@ void NotePropertyEditor::updateTrackColorStyles()
         }
         QPushButton:hover { 
             background: #353945; 
-            color: #e0e6ef;
+            color: #9a9aa5;
             border-color: #4a5160;
         }
         QPushButton:checked { 
-            background: #404858; 
-            color: #e0e6ef; 
-            border-color: #5a6275; 
+            background: #2a3a4a; 
+            color: #8ab4d8; 
+            border-color: #3477c0; 
+        }
+        QPushButton:checked:hover { 
+            background: #304860; 
+            color: #a0d0ff; 
+            border-color: #4a90d0; 
         }
     )";
     

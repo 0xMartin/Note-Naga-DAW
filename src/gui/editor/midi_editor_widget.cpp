@@ -881,9 +881,9 @@ void MidiEditorWidget::updateRowHighlights() {
             int trackIdx = m_activeNotes.value(note_val, 0);
             if (trackIdx >= 0 && trackIdx < (int)tracks.size() && tracks[trackIdx]) {
                 QColor trackColor = tracks[trackIdx]->getColor().toQColor();
-                int r = (row_bg.red() * 85 + trackColor.red() * 15) / 100;
-                int g = (row_bg.green() * 85 + trackColor.green() * 15) / 100;
-                int b = (row_bg.blue() * 85 + trackColor.blue() * 15) / 100;
+                int r = (row_bg.red() * 88 + trackColor.red() * 12) / 100;
+                int g = (row_bg.green() * 88 + trackColor.green() * 12) / 100;
+                int b = (row_bg.blue() * 88 + trackColor.blue() * 12) / 100;
                 row_bg = QColor(r, g, b);
             }
         }
