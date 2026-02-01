@@ -79,7 +79,6 @@ set(HEADER_FILES
     # gui/editor
     src/gui/editor/midi_editor_widget.h
     # gui/widgets
-    src/gui/widgets/lilypond_widget.h
     src/gui/widgets/verovio_widget.h
     src/gui/widgets/dsp_block_widget.h
     src/gui/widgets/dsp_engine_widget.h
@@ -138,7 +137,6 @@ set(SOURCE_FILES
     src/gui/editor/midi_editor_widget.cpp
     src/gui/editor/note_property_editor.cpp
     # gui/widgets
-    src/gui/widgets/lilypond_widget.cpp
     src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp
     src/gui/widgets/dsp_engine_widget.cpp

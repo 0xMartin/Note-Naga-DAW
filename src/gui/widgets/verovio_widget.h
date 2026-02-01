@@ -127,8 +127,8 @@ private:
     void clearPages();
     void updateHighlight();
     void scrollToCurrentPosition();
-    
-    // MEI generation helpers
+    QString fixNestedSvgElements(const QString &svg);
+        // MEI generation helpers
     QString midiPitchToMEI(int midiPitch);
     QString ticksToDuration(int ticks, int ppq);
 
@@ -177,6 +177,32 @@ private:
     bool m_verovioAvailable;
     bool m_rendering;
     bool m_needsRender;
+};
+
+/**
+ * @brief Custom widget for displaying a notation page with highlight overlay
+ */
+class NotationPageWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit NotationPageWidget(QWidget *parent = nullptr);
+    
+    void setPixmap(const QPixmap &pixmap);
+    void setHighlightRegion(double yStart, double yEnd);  // Normalized 0-1
+    void clearHighlight();
+    
+    QSize sizeHint() const override;
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
+private:
+    QPixmap m_pixmap;
+    bool m_hasHighlight;
+    double m_highlightYStart;
+    double m_highlightYEnd;
 };
 
 #endif // VEROVIO_WIDGET_H

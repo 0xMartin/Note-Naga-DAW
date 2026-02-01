@@ -12,6 +12,8 @@
 #include <QPrintDialog>
 #include <QScrollBar>
 #include <QSvgRenderer>
+#include <QRegularExpression>
+#include <QProcess>
 #include <algorithm>
 #include <cmath>
 
@@ -19,8 +21,70 @@
 #include "toolkit.h"
 #include "vrv.h"
 
-// Re-use NotationPageWidget from lilypond_widget
-#include "lilypond_widget.h"
+// ============================================================================
+// NotationPageWidget - widget for displaying a notation page with highlight
+// ============================================================================
+
+NotationPageWidget::NotationPageWidget(QWidget *parent)
+    : QWidget(parent)
+    , m_hasHighlight(false)
+    , m_highlightYStart(0.0)
+    , m_highlightYEnd(0.0)
+{
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+}
+
+void NotationPageWidget::setPixmap(const QPixmap &pixmap)
+{
+    m_pixmap = pixmap;
+    setFixedSize(pixmap.size());
+    update();
+}
+
+void NotationPageWidget::setHighlightRegion(double yStart, double yEnd)
+{
+    m_hasHighlight = true;
+    m_highlightYStart = yStart;
+    m_highlightYEnd = yEnd;
+    update();
+}
+
+void NotationPageWidget::clearHighlight()
+{
+    m_hasHighlight = false;
+    update();
+}
+
+QSize NotationPageWidget::sizeHint() const
+{
+    return m_pixmap.size();
+}
+
+void NotationPageWidget::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event);
+    
+    QPainter painter(this);
+    
+    // Draw the pixmap
+    if (!m_pixmap.isNull()) {
+        painter.drawPixmap(0, 0, m_pixmap);
+    }
+    
+    // Draw highlight overlay
+    if (m_hasHighlight) {
+        int startY = static_cast<int>(m_highlightYStart * height());
+        int endY = static_cast<int>(m_highlightYEnd * height());
+        
+        QColor highlightColor(255, 255, 0, 60);  // Yellow with alpha
+        painter.fillRect(0, startY, width(), endY - startY, highlightColor);
+        
+        // Draw border lines
+        painter.setPen(QPen(QColor(255, 200, 0), 2));
+        painter.drawLine(0, startY, width(), startY);
+        painter.drawLine(0, endY, width(), endY);
+    }
+}
 
 // ============================================================================
 // VerovioWidget
@@ -450,6 +514,70 @@ QString VerovioWidget::midiPitchToMEI(int midiPitch)
     return note;
 }
 
+QString VerovioWidget::fixNestedSvgElements(const QString &svg)
+{
+    // Qt SVG Tiny 1.2 doesn't support nested <svg> elements
+    // Verovio generates nested SVGs for definitions and content
+    // We need to convert nested <svg> to <g> elements
+    
+    QString result = svg;
+    
+    // Find the first <svg opening tag (the root) and remember its end
+    int rootStart = result.indexOf("<svg");
+    if (rootStart == -1) return result;
+    
+    int rootEnd = result.indexOf(">", rootStart);
+    if (rootEnd == -1) return result;
+    
+    // Find all nested <svg tags after the root
+    int pos = rootEnd + 1;
+    while (true) {
+        int nestedStart = result.indexOf("<svg", pos);
+        if (nestedStart == -1) break;
+        
+        // Find the end of this tag
+        int tagEnd = result.indexOf(">", nestedStart);
+        if (tagEnd == -1) break;
+        
+        // Check if it's self-closing
+        bool selfClosing = result[tagEnd - 1] == '/';
+        
+        // Extract attributes (keeping x, y, width, height for transform)
+        QString tagContent = result.mid(nestedStart + 4, tagEnd - nestedStart - 4);
+        
+        // Extract x and y for transform
+        QRegularExpression xRegex(R"(x\s*=\s*["']([^"']+)["'])");
+        QRegularExpression yRegex(R"(y\s*=\s*["']([^"']+)["'])");
+        
+        auto xMatch = xRegex.match(tagContent);
+        auto yMatch = yRegex.match(tagContent);
+        
+        QString transform;
+        if (xMatch.hasMatch() || yMatch.hasMatch()) {
+            QString x = xMatch.hasMatch() ? xMatch.captured(1) : "0";
+            QString y = yMatch.hasMatch() ? yMatch.captured(1) : "0";
+            transform = QString(" transform=\"translate(%1,%2)\"").arg(x).arg(y);
+        }
+        
+        // Replace <svg with <g
+        QString replacement = "<g" + transform;
+        result.replace(nestedStart, 4, replacement);
+        
+        // Adjust position for next search
+        pos = nestedStart + replacement.length();
+        
+        // Find matching </svg> and replace with </g>
+        if (!selfClosing) {
+            int closeTag = result.indexOf("</svg>", pos);
+            if (closeTag != -1) {
+                result.replace(closeTag, 6, "</g>");
+            }
+        }
+    }
+    
+    return result;
+}
+
 bool VerovioWidget::renderNotation()
 {
     if (!m_toolkit) {
@@ -498,26 +626,51 @@ bool VerovioWidget::renderNotation()
         m_pageSvgs.clear();
         m_pagePixmaps.clear();
         
-        // Render each page to SVG
+        // Render each page to SVG and convert to PNG using rsvg-convert
         for (int page = 1; page <= pageCount; ++page) {
             std::string svg = m_toolkit->RenderToSVG(page);
-            m_pageSvgs.append(QString::fromStdString(svg));
+            QString svgStr = QString::fromStdString(svg);
+            m_pageSvgs.append(svgStr);
             
-            // Convert SVG to QPixmap
-            QSvgRenderer renderer(QByteArray::fromStdString(svg));
-            QSize size = renderer.defaultSize();
-            if (size.isEmpty()) {
-                size = QSize(800, 1200);
+            // Save SVG to temp file
+            QString svgPath = m_tempDir->path() + QString("/page_%1.svg").arg(page);
+            QString pngPath = m_tempDir->path() + QString("/page_%1.png").arg(page);
+            
+            QFile svgFile(svgPath);
+            if (svgFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                svgFile.write(svgStr.toUtf8());
+                svgFile.close();
+                qDebug() << "Saved SVG to" << svgPath << "size:" << svgStr.size();
+            } else {
+                qWarning() << "Failed to save SVG file" << svgPath;
             }
             
-            QPixmap pixmap(size);
-            pixmap.fill(Qt::white);
-            QPainter painter(&pixmap);
-            renderer.render(&painter);
-            painter.end();
+            // Convert SVG to PNG using rsvg-convert
+            QProcess rsvg;
+            rsvg.start("/opt/homebrew/bin/rsvg-convert", {"-o", pngPath, "-b", "white", svgPath});
+            if (!rsvg.waitForFinished(10000)) {
+                qWarning() << "rsvg-convert timed out or failed to start";
+            }
             
-            m_pagePixmaps.append(pixmap);
+            if (rsvg.exitCode() != 0) {
+                qWarning() << "rsvg-convert error:" << rsvg.readAllStandardError();
+            }
+            
+            // Load the PNG
+            QPixmap pixmap;
+            if (QFile::exists(pngPath) && pixmap.load(pngPath)) {
+                qDebug() << "Loaded PNG page" << page << "size:" << pixmap.size();
+                m_pagePixmaps.append(pixmap);
+            } else {
+                // Fallback: create empty pixmap
+                qWarning() << "Failed to load PNG for page" << page << "path:" << pngPath;
+                QPixmap emptyPixmap(800, 1200);
+                emptyPixmap.fill(Qt::white);
+                m_pagePixmaps.append(emptyPixmap);
+            }
         }
+        
+        qDebug() << "Total pages loaded:" << m_pagePixmaps.size();
         
         // Get timemap for synchronization
         std::string timemapJson = m_toolkit->RenderToTimemap();
@@ -643,16 +796,23 @@ void VerovioWidget::clearPages()
         delete widget;
     }
     m_pageWidgets.clear();
-    m_pagePixmaps.clear();
-    m_pageSvgs.clear();
+    // Don't clear m_pagePixmaps here - they are cleared in renderNotation
     m_measurePositions.clear();
 }
 
 void VerovioWidget::updateDisplay()
 {
-    clearPages();
+    // Clear only widgets, not pixmaps
+    for (NotationPageWidget *widget : m_pageWidgets) {
+        m_pagesLayout->removeWidget(widget);
+        delete widget;
+    }
+    m_pageWidgets.clear();
     
-    for (const QPixmap &pixmap : m_pagePixmaps) {
+    qDebug() << "updateDisplay: m_pagePixmaps count:" << m_pagePixmaps.size();
+    
+    for (int i = 0; i < m_pagePixmaps.size(); ++i) {
+        const QPixmap &pixmap = m_pagePixmaps[i];
         NotationPageWidget *pageWidget = new NotationPageWidget();
         
         QPixmap scaled = pixmap.scaled(
@@ -661,7 +821,10 @@ void VerovioWidget::updateDisplay()
             Qt::SmoothTransformation
         );
         
+        qDebug() << "Adding page" << i << "scaled size:" << scaled.size() << "isNull:" << scaled.isNull();
+        
         pageWidget->setPixmap(scaled);
+        pageWidget->setMinimumSize(scaled.size());
         pageWidget->setStyleSheet(R"(
             NotationPageWidget {
                 background: white;
@@ -672,6 +835,8 @@ void VerovioWidget::updateDisplay()
         m_pagesLayout->addWidget(pageWidget, 0, Qt::AlignHCenter);
         m_pageWidgets << pageWidget;
     }
+    
+    qDebug() << "updateDisplay complete, widgets added:" << m_pageWidgets.size();
     
     updateHighlight();
 }
