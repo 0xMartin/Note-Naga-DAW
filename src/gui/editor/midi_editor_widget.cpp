@@ -1,6 +1,10 @@
 #include "midi_editor_widget.h"
+#include "midi_editor_context_menu.h"
+#include "midi_editor_note_handler.h"
 
 #include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QLabel>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QMouseEvent>
@@ -16,11 +20,8 @@
 #define MAX_NOTE 127
 
 MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
-    : QGraphicsView(parent), engine(engine), bg_color("#32353c"),
-      fg_color("#e0e6ef"), line_color("#232731"), subline_color("#464a56"),
-      grid_bar_color("#6177d1"), grid_row_color1("#35363b"),
-      grid_row_color2("#292a2e"), grid_bar_label_color("#6fa5ff"),
-      grid_subdiv_color("#44464b"), selection_color("#70a7ff") {
+    : QGraphicsView(parent), engine(engine)
+{
     setObjectName("MidiEditorWidget");
     setFrameStyle(QFrame::NoFrame);
     setAlignment(Qt::AlignTop | Qt::AlignLeft);
@@ -32,12 +33,34 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     this->config.key_height = 16;
     this->config.tact_subdiv = 4;
     this->config.looping = false;
+    this->config.color_mode = NoteColorMode::TrackColor;
 
     this->content_width = 640;
     this->content_height = (127 - 0 + 1) * 16;
 
-    // Inicializace RubberBand pro výběr více not
+    // Initialize rubber band
     rubberBand = new QRubberBand(QRubberBand::Rectangle, this);
+
+    // Initialize helper classes
+    m_noteHandler = new MidiEditorNoteHandler(this, this);
+    m_contextMenu = new MidiEditorContextMenu(this, this);
+    
+    // Connect helper signals
+    connect(m_noteHandler, &MidiEditorNoteHandler::selectionChanged, this, &MidiEditorWidget::selectionChanged);
+    connect(m_noteHandler, &MidiEditorNoteHandler::notesModified, this, &MidiEditorWidget::notesModified);
+    
+    // Connect context menu signals
+    connect(m_contextMenu, &MidiEditorContextMenu::colorModeChanged, this, &MidiEditorWidget::onColorModeChanged);
+    connect(m_contextMenu, &MidiEditorContextMenu::deleteNotesRequested, this, &MidiEditorWidget::onDeleteNotes);
+    connect(m_contextMenu, &MidiEditorContextMenu::duplicateNotesRequested, this, &MidiEditorWidget::onDuplicateNotes);
+    connect(m_contextMenu, &MidiEditorContextMenu::selectAllRequested, this, &MidiEditorWidget::onSelectAll);
+    connect(m_contextMenu, &MidiEditorContextMenu::invertSelectionRequested, this, &MidiEditorWidget::onInvertSelection);
+    connect(m_contextMenu, &MidiEditorContextMenu::quantizeRequested, this, &MidiEditorWidget::onQuantize);
+    connect(m_contextMenu, &MidiEditorContextMenu::transposeUpRequested, this, &MidiEditorWidget::onTransposeUp);
+    connect(m_contextMenu, &MidiEditorContextMenu::transposeDownRequested, this, &MidiEditorWidget::onTransposeDown);
+    connect(m_contextMenu, &MidiEditorContextMenu::transposeOctaveUpRequested, this, &MidiEditorWidget::onTransposeOctaveUp);
+    connect(m_contextMenu, &MidiEditorContextMenu::transposeOctaveDownRequested, this, &MidiEditorWidget::onTransposeOctaveDown);
+    connect(m_contextMenu, &MidiEditorContextMenu::setVelocityRequested, this, &MidiEditorWidget::onSetVelocity);
 
     this->title_widget = nullptr;
     initTitleUI();
@@ -45,16 +68,20 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     scene = new QGraphicsScene(this);
     setScene(scene);
 
-    setBackgroundBrush(bg_color);
+    setBackgroundBrush(m_colors.bg_color);
     setMouseTracking(true);
+
+    // Create legend widget for velocity/pan color modes
+    m_legendWidget = new QWidget(this);
+    m_legendWidget->setFixedSize(120, 60);
+    m_legendWidget->setStyleSheet("background: transparent;");
+    m_legendWidget->hide();
 
     setupConnections();
 
-    // Init last_seq_ to current active sequence if available
     this->last_seq = engine->getProject()->getActiveSequence();
     refreshAll();
     
-    // Povolení reakce na stisk klávesy
     setFocusPolicy(Qt::StrongFocus);
 }
 
@@ -65,41 +92,39 @@ MidiEditorWidget::~MidiEditorWidget() {
 void MidiEditorWidget::setupConnections() {
     auto project = engine->getProject();
 
-    // project file loaded
     connect(project, &NoteNagaProject::projectFileLoaded, this, [this]() {
         this->last_seq = engine->getProject()->getActiveSequence();
         refreshAll();
     });
 
-    // active sequence changed (switching, opening another file, etc.)
     connect(project, &NoteNagaProject::activeSequenceChanged, this,
             [this](NoteNagaMidiSeq *seq) {
                 this->last_seq = seq;
                 refreshAll();
             });
 
-    // sequence metadata changed (refresh this sequence)
     connect(project, &NoteNagaProject::sequenceMetadataChanged, this,
             [this](NoteNagaMidiSeq *seq, const std::string &) {
                 this->last_seq = seq;
                 refreshAll();
             });
 
-    // track metadata changed (refresh only the given track)
     connect(project, &NoteNagaProject::trackMetaChanged, this,
             [this](NoteNagaTrack *track, const std::string &) {
                 refreshTrack(track);
             });
 
-    // playback position changed
     connect(project, &NoteNagaProject::currentTickChanged, this,
             &MidiEditorWidget::currentTickChanged);
 
-    // scrollbars value changed
+    // Connect playback stopped to clear row highlights
+    connect(engine, &NoteNagaEngine::playbackStopped, this,
+            &MidiEditorWidget::onPlaybackStopped);
+
     connect(horizontalScrollBar(), &QScrollBar::valueChanged, this,
             &MidiEditorWidget::refreshAll);
     connect(horizontalScrollBar(), &QScrollBar::valueChanged, this,
-            &MidiEditorWidget::horizontalScrollChanged);  // Emit signal for sync with other widgets
+            &MidiEditorWidget::horizontalScrollChanged);
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
             &MidiEditorWidget::refreshAll);
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
@@ -114,7 +139,7 @@ void MidiEditorWidget::initTitleUI() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
 
-    // --- Note Duration Combo Box ---
+    // Note Duration Combo Box
     QLabel *lblNoteDur = new QLabel("Note:");
     lblNoteDur->setStyleSheet("color: #CCCCCC; font-size: 9pt;");
     combo_note_duration = new QComboBox();
@@ -126,10 +151,9 @@ void MidiEditorWidget::initTitleUI() {
     combo_note_duration->addItem("1/8", static_cast<int>(NoteDuration::Eighth));
     combo_note_duration->addItem("1/16", static_cast<int>(NoteDuration::Sixteenth));
     combo_note_duration->addItem("1/32", static_cast<int>(NoteDuration::ThirtySecond));
-    combo_note_duration->setCurrentIndex(2); // 1/4 default
-   
+    combo_note_duration->setCurrentIndex(2);
 
-    // --- Grid Resolution Combo Box ---
+    // Grid Resolution Combo Box
     QLabel *lblGridRes = new QLabel("Grid:");
     lblGridRes->setStyleSheet("color: #CCCCCC; font-size: 9pt;");
     combo_grid_resolution = new QComboBox();
@@ -142,27 +166,30 @@ void MidiEditorWidget::initTitleUI() {
     combo_grid_resolution->addItem("1/16", static_cast<int>(GridResolution::Sixteenth));
     combo_grid_resolution->addItem("1/32", static_cast<int>(GridResolution::ThirtySecond));
     combo_grid_resolution->addItem("Off", static_cast<int>(GridResolution::Off));
-    combo_grid_resolution->setCurrentIndex(2); // 1/4 default
+    combo_grid_resolution->setCurrentIndex(2);
     connect(combo_grid_resolution, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MidiEditorWidget::refreshAll);
 
-    // follow mode buttons
+    // Follow mode buttons
     this->btn_follow_center = create_small_button(
         ":/icons/follow-from-center.svg", "Follow from Center", "FollowCenter");
     this->btn_follow_center->setCheckable(true);
     connect(btn_follow_center, &QPushButton::clicked, this, [this]() {
         selectFollowMode(MidiEditorFollowMode::CenterIsCurrent);
     });
+    
     this->btn_follow_left = create_small_button(":/icons/follow-from-left.svg",
                                                 "Follow from Left", "FollowLeft");
     this->btn_follow_left->setCheckable(true);
     connect(btn_follow_left, &QPushButton::clicked, this, [this]() {
         selectFollowMode(MidiEditorFollowMode::LeftSideIsCurrent);
     });
+    
     this->btn_follow_step = create_small_button(
         ":/icons/follow-step-by-step.svg", "Follow Step by Step", "FollowStep");
     this->btn_follow_step->setCheckable(true);
     connect(btn_follow_step, &QPushButton::clicked, this,
             [this]() { selectFollowMode(MidiEditorFollowMode::StepByStep); });
+    
     this->btn_follow_none = create_small_button(":/icons/follow-none.svg",
                                                 "Don't Follow", "FollowNone");
     this->btn_follow_none->setCheckable(true);
@@ -170,36 +197,37 @@ void MidiEditorWidget::initTitleUI() {
             [this]() { selectFollowMode(MidiEditorFollowMode::None); });
     selectFollowMode(MidiEditorFollowMode::CenterIsCurrent);
 
-    // zoom in/out for horizontal and vertical
+    // Zoom buttons
     QPushButton *btn_h_zoom_in = create_small_button(
         ":/icons/zoom-in-horizontal.svg", "Horizontal Zoom In", "HZoomIn");
     connect(btn_h_zoom_in, &QPushButton::clicked, this,
             [this]() { setTimeScale(config.time_scale * 1.2); });
+    
     QPushButton *btn_h_zoom_out = create_small_button(
         ":/icons/zoom-out-horizontal.svg", "Horizontal Zoom Out", "HZoomOut");
     connect(btn_h_zoom_out, &QPushButton::clicked, this,
             [this]() { setTimeScale(config.time_scale / 1.2); });
+    
     QPushButton *btn_v_zoom_in = create_small_button(
         ":/icons/zoom-in-vertical.svg", "Vertical Zoom In", "VZoomIn");
     connect(btn_v_zoom_in, &QPushButton::clicked, this,
             [this]() { setKeyHeight(ceil(config.key_height * 1.2)); });
+    
     QPushButton *btn_v_zoom_out = create_small_button(
         ":/icons/zoom-out-vertical.svg", "Vertical Zoom Out", "VZoomOut");
     connect(btn_v_zoom_out, &QPushButton::clicked, this,
             [this]() { setKeyHeight(floor(config.key_height / 1.2)); });
 
-    // looping button
-    btn_looping =
-        create_small_button(":/icons/loop.svg", "Toggle Looping", "Looping");
+    // Looping button
+    btn_looping = create_small_button(":/icons/loop.svg", "Toggle Looping", "Looping");
     btn_looping->setCheckable(true);
-    connect(btn_looping, &QPushButton::clicked, this,
-            &MidiEditorWidget::enableLooping);
+    connect(btn_looping, &QPushButton::clicked, this, &MidiEditorWidget::enableLooping);
     enableLooping(btn_looping->isChecked());
-    // Step forward button
+    
     QPushButton *btn_step = create_small_button(":/icons/step-forward.svg",
                                                 "Step Forward", "StepForward");
 
-    // Přidání widgetů do layoutu
+    // Add widgets to layout
     layout->addWidget(lblNoteDur, 0, Qt::AlignRight);
     layout->addWidget(combo_note_duration, 0, Qt::AlignRight);
     layout->addWidget(lblGridRes, 0, Qt::AlignRight);
@@ -220,7 +248,23 @@ void MidiEditorWidget::initTitleUI() {
 }
 
 /*******************************************************************************************************/
-// Public methods and slots
+// Public methods
+/*******************************************************************************************************/
+
+std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> MidiEditorWidget::getSelectedNotes() const {
+    return m_noteHandler->getSelectedNotesData();
+}
+
+bool MidiEditorWidget::hasSelection() const {
+    return m_noteHandler->hasSelection();
+}
+
+NoteDuration MidiEditorWidget::getNoteDuration() const {
+    return static_cast<NoteDuration>(combo_note_duration->currentData().toInt());
+}
+
+/*******************************************************************************************************/
+// Slots
 /*******************************************************************************************************/
 
 void MidiEditorWidget::refreshAll() {
@@ -237,12 +281,10 @@ void MidiEditorWidget::refreshMarker() {
     
     if (visible) {
         if (!marker_line) {
-            // Create marker line if it doesn't exist
             marker_line = scene->addLine(marker_x, visible_y0, marker_x, visible_y1,
                                          QPen(QColor(255, 88, 88), 2));
             marker_line->setZValue(1000);
         } else {
-            // Reuse existing line - just update position
             marker_line->setLine(marker_x, visible_y0, marker_x, visible_y1);
             marker_line->setVisible(true);
         }
@@ -254,7 +296,7 @@ void MidiEditorWidget::refreshMarker() {
 void MidiEditorWidget::refreshTrack(NoteNagaTrack *track) {
     if (!last_seq || !track)
         return;
-    clearTrackNotes(track->getId());
+    m_noteHandler->clearTrackNoteItems(track->getId());
     updateTrackNotes(track);
 }
 
@@ -300,14 +342,12 @@ void MidiEditorWidget::currentTickChanged(int tick) {
         }
         }
 
-        // set value for horizontal scroll and emit signal
         value = std::max(0, value);
         value = std::min(value, content_width - width);
         this->horizontalScrollBar()->setValue(value);
         emit horizontalScrollChanged(value);
     }
 
-    // Update row highlighting for active notes (works for all follow modes)
     updateRowHighlights();
     refreshMarker();
 }
@@ -338,8 +378,7 @@ void MidiEditorWidget::selectFollowMode(MidiEditorFollowMode mode) {
 }
 
 void MidiEditorWidget::enableLooping(bool enabled) {
-    if (config.looping == enabled)
-        return; // No change
+    if (config.looping == enabled) return;
     config.looping = enabled;
     this->engine->enableLooping(enabled);
     emit loopingChanged(config.looping);
@@ -350,19 +389,15 @@ void MidiEditorWidget::setTimeScale(double scale) {
     int viewport_width = viewport()->width();
     int old_scroll = horizontalScrollBar()->value();
 
-    // Časová pozice ve středu viewportu
     double center_tick = (old_scroll + viewport_width / 2.0) / old_scale;
 
     config.time_scale = std::max(0.02, scale);
     emit timeScaleChanged(config.time_scale);
 
-    // Aktualizuj obsah (pro novou šířku)
     recalculateContentSize();
 
-    // Nastav scroll tak, ať střed zůstane na stejném ticku
     int new_scroll = int(center_tick * config.time_scale - viewport_width / 2.0);
-    new_scroll =
-        std::max(0, std::min(new_scroll, content_width - viewport_width));
+    new_scroll = std::max(0, std::min(new_scroll, content_width - viewport_width));
     horizontalScrollBar()->setValue(new_scroll);
     emit horizontalScrollChanged(new_scroll);
 
@@ -374,363 +409,623 @@ void MidiEditorWidget::setKeyHeight(int h) {
     int viewport_height = viewport()->height();
     int old_scroll = verticalScrollBar()->value();
 
-    // Pozice key (index) ve středu viewportu
     double center_key = (old_scroll + viewport_height / 2.0) / old_height;
 
     config.key_height = std::max(5, std::min(30, h));
     emit keyHeightChanged(config.key_height);
 
-    // Aktualizuj obsah (pro novou výšku)
     recalculateContentSize();
 
-    // Nastav scroll tak, ať střed zůstane na stejné klávese
     int new_scroll = int(center_key * config.key_height - viewport_height / 2.0);
-    new_scroll =
-        std::max(0, std::min(new_scroll, content_height - viewport_height));
+    new_scroll = std::max(0, std::min(new_scroll, content_height - viewport_height));
     verticalScrollBar()->setValue(new_scroll);
     emit verticalScrollChanged(new_scroll);
 
     refreshAll();
 }
 
+void MidiEditorWidget::onPlaybackStopped() {
+    // Clear active notes and update row highlights when playback stops
+    m_activeNotes.clear();
+    updateRowHighlights();
+}
+
 /*******************************************************************************************************/
-// Note Selection and Manipulation Methods
+// Context Menu Action Slots
 /*******************************************************************************************************/
 
-std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> MidiEditorWidget::getSelectedNotes() const {
-    std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> result;
-    result.reserve(selectedNotes.size());
-    for (const NoteGraphics *ng : selectedNotes) {
-        if (ng && ng->track) {
-            result.push_back({ng->track, ng->note});
-        }
-    }
-    return result;
+void MidiEditorWidget::onColorModeChanged(NoteColorMode mode) {
+    config.color_mode = mode;
+    updateLegendVisibility();
+    refreshAll();
 }
 
-void MidiEditorWidget::selectNote(NoteGraphics *noteGraphics, bool clearPrevious) {
-    if (!noteGraphics) return;
+void MidiEditorWidget::onDeleteNotes() {
+    m_noteHandler->deleteSelectedNotes();
+}
+
+void MidiEditorWidget::onDuplicateNotes() {
+    m_noteHandler->duplicateSelectedNotes();
+}
+
+void MidiEditorWidget::onSelectAll() {
+    m_noteHandler->selectAll();
+}
+
+void MidiEditorWidget::onInvertSelection() {
+    m_noteHandler->invertSelection();
+}
+
+void MidiEditorWidget::onQuantize() {
+    m_noteHandler->quantizeSelectedNotes();
+}
+
+void MidiEditorWidget::onTransposeUp() {
+    m_noteHandler->transposeSelectedNotes(1);
+}
+
+void MidiEditorWidget::onTransposeDown() {
+    m_noteHandler->transposeSelectedNotes(-1);
+}
+
+void MidiEditorWidget::onTransposeOctaveUp() {
+    m_noteHandler->transposeSelectedNotes(12);
+}
+
+void MidiEditorWidget::onTransposeOctaveDown() {
+    m_noteHandler->transposeSelectedNotes(-12);
+}
+
+void MidiEditorWidget::onSetVelocity(int velocity) {
+    m_noteHandler->setSelectedNotesVelocity(velocity);
+}
+
+/*******************************************************************************************************/
+// Mouse Event Handlers
+/*******************************************************************************************************/
+
+void MidiEditorWidget::resizeEvent(QResizeEvent *event) {
+    QGraphicsView::resizeEvent(event);
     
-    if (clearPrevious) {
-        // Clear without emitting - we'll emit once at the end
-        for (NoteGraphics *ng : selectedNotes) {
-            QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
-            if (shapeItem) {
-                bool is_active_track = last_seq->getActiveTrack() &&
-                                 last_seq->getActiveTrack()->getId() == ng->track->getId();
-                shapeItem->setPen(getNotePen(ng->track, is_active_track, false));
-                shapeItem->setZValue(ng->track->getId() + 10);
-            }
-        }
-        selectedNotes.clear();
+    // Reposition legend widget
+    if (m_legendWidget && m_legendWidget->isVisible()) {
+        int x = width() - m_legendWidget->width() - 10;
+        int y = 10;
+        m_legendWidget->move(x, y);
     }
     
-    // Přidej notu do výběru, pokud tam ještě není
-    if (!selectedNotes.contains(noteGraphics)) {
-        selectedNotes.append(noteGraphics);
+    refreshAll();
+}
+
+void MidiEditorWidget::mousePressEvent(QMouseEvent *event) {
+    if (!last_seq) {
+        QGraphicsView::mousePressEvent(event);
+        return;
+    }
+    
+    setFocus();
+    QPointF scenePos = mapToScene(event->pos());
+    
+    if (event->button() == Qt::LeftButton) {
+        m_clickStartPos = scenePos;
+        m_isDragging = false;
         
-        // Vizuálně označíme notu
-        QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(noteGraphics->item);
-        if (shapeItem) {
-            shapeItem->setPen(getNotePen(noteGraphics->track, false, true));
-            shapeItem->setZValue(999); // Přesuneme vybranou notu nad ostatní
-        }
+        NoteGraphics *noteUnderCursor = m_noteHandler->findNoteUnderCursor(scenePos);
         
-        emit selectionChanged();
-    }
-}
-
-void MidiEditorWidget::deselectNote(NoteGraphics *noteGraphics) {
-    if (!noteGraphics) return;
-    
-    // Check if it's actually selected
-    if (!selectedNotes.contains(noteGraphics)) return;
-    
-    // Odeber notu z výběru
-    selectedNotes.removeOne(noteGraphics);
-    
-    // Vrátíme vizuální stav noty do původního stavu
-    QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(noteGraphics->item);
-    if (shapeItem) {
-        bool is_active_track = last_seq->getActiveTrack() &&
-                         last_seq->getActiveTrack()->getId() == noteGraphics->track->getId();
-        shapeItem->setPen(getNotePen(noteGraphics->track, is_active_track, false));
-        shapeItem->setZValue(noteGraphics->track->getId() + 10);
-    }
-    
-    emit selectionChanged();
-}
-
-void MidiEditorWidget::clearSelection() {
-    if (selectedNotes.isEmpty()) return;
-    
-    // Odznačíme všechny vybrané noty
-    for (NoteGraphics *ng : selectedNotes) {
-        QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
-        if (shapeItem) {
-            bool is_active_track = last_seq->getActiveTrack() &&
-                             last_seq->getActiveTrack()->getId() == ng->track->getId();
-            shapeItem->setPen(getNotePen(ng->track, is_active_track, false));
-            shapeItem->setZValue(ng->track->getId() + 10);
-        }
-    }
-    selectedNotes.clear();
-    
-    emit selectionChanged();
-}
-
-void MidiEditorWidget::selectNotesInRect(const QRectF &rect) {
-    if (!last_seq) return;
-    
-    int countBefore = selectedNotes.size();
-    
-    // Procházíme všechny viditelné noty a kontrolujeme, zda jsou v obdélníku
-    for (auto &trackPair : note_items) {
-        for (auto &ng : trackPair) {
-            QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng.item);
-            if (shapeItem) {
-                QRectF noteRect = getRealNoteRect(&ng);
-                if (rect.intersects(noteRect)) {
-                    // Add without emitting - we'll emit once at the end
-                    if (!selectedNotes.contains(&ng)) {
-                        selectedNotes.append(&ng);
-                        shapeItem->setPen(QPen(selection_color, 2));
-                        shapeItem->setZValue(999);
-                    }
-                }
-            }
-        }
-    }
-    
-    // Emit once if selection changed
-    if (selectedNotes.size() != countBefore) {
-        emit selectionChanged();
-    }
-}
-
-MidiEditorWidget::NoteGraphics* MidiEditorWidget::findNoteUnderCursor(const QPointF &scenePos) {
-    if (!last_seq) return nullptr;
-
-    // Procházíme všechny viditelné noty a kontrolujeme, zda obsahují bod
-    for (auto &trackPair : note_items) {
-        for (auto &ng : trackPair) {
-            QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng.item);
-            if (shapeItem) {
-                QRectF noteRect = getRealNoteRect(&ng);
-                if (noteRect.contains(scenePos)) {
-                    return &ng;
-                }
-            }
-        }
-    }
-    return nullptr;
-}
-
-bool MidiEditorWidget::isNoteEdge(NoteGraphics *ng, const QPointF &scenePos) {
-    if (!ng) return false;
-    
-    QRectF rect = getRealNoteRect(ng);
-    
-    // Kontrolujeme pravý okraj noty
-    return (scenePos.x() >= rect.right() - resizeEdgeMargin && 
-            scenePos.x() <= rect.right() + resizeEdgeMargin);
-}
-
-void MidiEditorWidget::addNewNote(const QPointF &scenePos) {
-    if (!last_seq) return;
-    
-    NoteNagaTrack *activeTrack = last_seq->getActiveTrack();
-    if (!activeTrack) return;
-    
-    int tick = sceneXToTick(scenePos.x());
-    int noteValue = sceneYToNote(scenePos.y());
-    noteValue = std::max(MIN_NOTE, std::min(MAX_NOTE, noteValue));
-    
-    NN_Note_t newNote;
-    newNote.note = noteValue;
-    newNote.start = this->snapTickToGrid(tick);
-    newNote.velocity = 64; // Default velocity for new notes
-    newNote.parent = activeTrack; // Set parent track
-    
-    int ppq = last_seq->getPPQ();
-    NoteDuration duration = static_cast<NoteDuration>(combo_note_duration->currentData().toInt());
-    int noteLength = ppq; // Výchozí je 1/4
-
-    switch (duration) {
-        case NoteDuration::Whole:       noteLength = ppq * 4; break;
-        case NoteDuration::Half:        noteLength = ppq * 2; break;
-        case NoteDuration::Quarter:     noteLength = ppq; break;
-        case NoteDuration::Eighth:      noteLength = ppq / 2; break;
-        case NoteDuration::Sixteenth:   noteLength = ppq / 4; break;
-        case NoteDuration::ThirtySecond:noteLength = ppq / 8; break;
-    }
-    newNote.length = std::max(1, noteLength); // Zajistíme minimální délku 1
-
-    // Zkontroluj, zda na cílové pozici již neexistuje jiná nota
-    for (const auto& existingNote : activeTrack->getNotes()) {
-        // Kontrolujeme pouze noty se stejnou výškou tónu
-        if (existingNote.note == newNote.note) {
-            // Získání časových intervalů pro porovnání
-            int newNoteStart = newNote.start.value_or(0);
-            int newNoteEnd = newNoteStart + newNote.length.value_or(0);
-            int existingNoteStart = existingNote.start.value_or(0);
-            int existingNoteEnd = existingNoteStart + existingNote.length.value_or(0);
-
-            // Podmínka pro detekci překrytí dvou intervalů
-            if (newNoteStart < existingNoteEnd && existingNoteStart < newNoteEnd) {
-                return; // Překryv nalezen, notu nepřidávej
-            }
-        }
-    }
-
-    // prida notu
-    activeTrack->addNote(newNote);
-    last_seq->computeMaxTick();
-    
-    emit notesModified();
-    
-    refreshTrack(activeTrack);
-}
-
-void MidiEditorWidget::moveSelectedNotes(const QPointF &delta) {
-    if (selectedNotes.isEmpty() || (delta.x() == 0 && delta.y() == 0)) return;
-    
-    // Přepočteme delta na ticky a hodnoty not
-    int deltaTicks = delta.x() / config.time_scale;
-    int deltaNotes = -delta.y() / config.key_height; // záporné, protože y je invertované
-    
-    // Pokud není žádná změna, ukončíme
-    //if (deltaTicks == 0 && deltaNotes == 0) return;
-    
-    // Upravíme pozice všech vybraných not
-    for (NoteGraphics *ng : selectedNotes) {
-        QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
-        if (shapeItem) {
-            // Fyzicky přesuneme grafický objekt noty
-            shapeItem->moveBy(delta.x(), delta.y());
+        if (noteUnderCursor) {
+            bool isSelected = m_noteHandler->selectedNotes().contains(noteUnderCursor);
             
-            // Přesuneme také textový label, pokud existuje
-            if (ng->label) {
-                ng->label->moveBy(delta.x(), delta.y());
+            if (!isSelected) {
+                // Select the note
+                m_noteHandler->selectNote(noteUnderCursor, !(event->modifiers() & Qt::ControlModifier));
             }
+            
+            // Start drag for move/resize
+            if (m_noteHandler->isNoteEdge(noteUnderCursor, scenePos)) {
+                m_noteHandler->startDrag(scenePos, NoteDragMode::Resize);
+                QApplication::setOverrideCursor(Qt::SizeHorCursor);
+            } else {
+                m_noteHandler->startDrag(scenePos, NoteDragMode::Move);
+                QApplication::setOverrideCursor(Qt::SizeAllCursor);
+            }
+            m_isDragging = true;
+        } else {
+            // Clear selection unless Ctrl is held
+            if (!(event->modifiers() & Qt::ControlModifier)) {
+                m_noteHandler->clearSelection();
+            }
+            
+            // Start rubber band selection
+            m_noteHandler->startDrag(scenePos, NoteDragMode::Select);
+            rubberBandOrigin = event->pos();
+            rubberBand->setGeometry(QRect(rubberBandOrigin, QSize()));
+            rubberBand->show();
         }
+    }
+    else if (event->button() == Qt::RightButton) {
+        // Show context menu
+        m_contextMenu->show(event->globalPos(), m_noteHandler->hasSelection());
+    }
+    
+    QGraphicsView::mousePressEvent(event);
+}
+
+void MidiEditorWidget::mouseMoveEvent(QMouseEvent *event) {
+    if (!last_seq) {
+        QGraphicsView::mouseMoveEvent(event);
+        return;
+    }
+    
+    QPointF scenePos = mapToScene(event->pos());
+    NoteDragMode dragMode = m_noteHandler->dragMode();
+    
+    if (dragMode == NoteDragMode::Select && rubberBand->isVisible()) {
+        rubberBand->setGeometry(QRect(rubberBandOrigin, event->pos()).normalized());
+    }
+    else if (dragMode == NoteDragMode::Move && m_noteHandler->hasSelection()) {
+        // Calculate delta from last position
+        static QPointF lastPos = scenePos;
+        QPointF actualDelta = scenePos - lastPos;
+        lastPos = scenePos;
+        m_noteHandler->moveSelectedNotes(actualDelta);
+        m_noteHandler->updateDrag(scenePos);
+        m_isDragging = true;
+    }
+    else if (dragMode == NoteDragMode::Resize && m_noteHandler->hasSelection()) {
+        static QPointF lastPos = scenePos;
+        QPointF delta = scenePos - lastPos;
+        lastPos = scenePos;
+        m_noteHandler->resizeSelectedNotes(delta);
+        m_noteHandler->updateDrag(scenePos);
+    }
+    else if (dragMode == NoteDragMode::None) {
+        NoteGraphics *noteUnderCursor = m_noteHandler->findNoteUnderCursor(scenePos);
+        if (noteUnderCursor && m_noteHandler->isNoteEdge(noteUnderCursor, scenePos)) {
+            setCursor(Qt::SizeHorCursor);
+        } else {
+            setCursor(Qt::ArrowCursor);
+        }
+    }
+    
+    QGraphicsView::mouseMoveEvent(event);
+}
+
+void MidiEditorWidget::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        NoteDragMode dragMode = m_noteHandler->dragMode();
+        QPointF scenePos = mapToScene(event->pos());
+        
+        // Check if it was a click (no significant movement)
+        bool wasClick = (scenePos - m_clickStartPos).manhattanLength() < 3;
+        
+        if (dragMode == NoteDragMode::Select && rubberBand->isVisible()) {
+            QRect viewRect = rubberBand->geometry();
+            QRectF sceneRect = mapToScene(viewRect).boundingRect();
+            
+            // Only select if there was actual dragging
+            if (!wasClick) {
+                m_noteHandler->selectNotesInRect(sceneRect);
+            } else {
+                // It was a click on empty space - add new note
+                m_noteHandler->addNewNote(m_clickStartPos);
+                
+                // Also set playback position
+                int tick = sceneXToTick(m_clickStartPos.x());
+                engine->getProject()->setCurrentTick(tick);
+                emit positionSelected(tick);
+                refreshMarker();
+            }
+            rubberBand->hide();
+        }
+        
+        if (dragMode == NoteDragMode::Move || dragMode == NoteDragMode::Resize) {
+            if (!wasClick) {
+                m_noteHandler->applyNoteChanges();
+            }
+            QApplication::restoreOverrideCursor();
+        }
+        
+        m_noteHandler->endDrag();
+        m_isDragging = false;
+    }
+    
+    QGraphicsView::mouseReleaseEvent(event);
+}
+
+void MidiEditorWidget::wheelEvent(QWheelEvent *event) {
+    Qt::KeyboardModifiers mods = event->modifiers();
+
+#ifdef Q_OS_MAC
+    bool ctrlZoom = mods & (Qt::ControlModifier | Qt::MetaModifier);
+#else
+    bool ctrlZoom = mods & Qt::ControlModifier;
+#endif
+
+    if (ctrlZoom) {
+        double zoom_factor = (event->angleDelta().y() > 0) ? 1.2 : 0.8;
+        setTimeScale(config.time_scale * zoom_factor);
+    } else if (std::abs(event->angleDelta().x()) > std::abs(event->angleDelta().y())) {
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - event->angleDelta().x() / 8);
+    } else {
+        verticalScrollBar()->setValue(verticalScrollBar()->value() - event->angleDelta().y() / 8);
+    }
+
+    event->accept();
+}
+
+void MidiEditorWidget::keyPressEvent(QKeyEvent *event) {
+    if (!last_seq) {
+        QGraphicsView::keyPressEvent(event);
+        return;
+    }
+    
+    if ((event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) && m_noteHandler->hasSelection()) {
+        m_noteHandler->deleteSelectedNotes();
+    }
+    else if (event->key() == Qt::Key_Escape) {
+        m_noteHandler->clearSelection();
+    }
+    else if (event->key() == Qt::Key_A && (event->modifiers() & Qt::ControlModifier)) {
+        m_noteHandler->selectAll();
+    }
+    else if (event->key() == Qt::Key_D && (event->modifiers() & Qt::ControlModifier)) {
+        m_noteHandler->duplicateSelectedNotes();
+    }
+    else if (event->key() == Qt::Key_Q && (event->modifiers() & Qt::ControlModifier)) {
+        m_noteHandler->quantizeSelectedNotes();
+    }
+    else if (event->key() == Qt::Key_Up && m_noteHandler->hasSelection()) {
+        int semitones = (event->modifiers() & Qt::ShiftModifier) ? 12 : 1;
+        m_noteHandler->transposeSelectedNotes(semitones);
+    }
+    else if (event->key() == Qt::Key_Down && m_noteHandler->hasSelection()) {
+        int semitones = (event->modifiers() & Qt::ShiftModifier) ? -12 : -1;
+        m_noteHandler->transposeSelectedNotes(semitones);
+    }
+    else {
+        QGraphicsView::keyPressEvent(event);
     }
 }
 
-void MidiEditorWidget::resizeSelectedNotes(const QPointF &delta) {
-    if (selectedNotes.isEmpty() || delta.x() == 0) return;
-    
-    // Přepočteme delta na ticky
-    int deltaLength = delta.x() / config.time_scale;
-    
-    if (deltaLength == 0) return;
-    
-    // Změníme velikost všech vybraných not
-    for (NoteGraphics *ng : selectedNotes) {
-        QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng->item);
-        if (shapeItem) {
-            if (QGraphicsRectItem *rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(ng->item)) {
-                // Pro obdélníkové noty
-                QRectF rect = rectItem->rect();
-                qreal newWidth = std::max(1.0, rect.width() + delta.x());
-                rectItem->setRect(rect.x(), rect.y(), newWidth, rect.height());
-            }
-            // Pro bubny (kruhové noty) není potřeba měnit velikost
-        }
+/*******************************************************************************************************/
+// Scene Update Methods
+/*******************************************************************************************************/
+
+void MidiEditorWidget::recalculateContentSize() {
+    if (last_seq) {
+        content_width = int((last_seq->getMaxTick() + 1) * config.time_scale) + 16;
+        content_height = (MAX_NOTE - MIN_NOTE + 1) * config.key_height;
+    } else {
+        content_width = 640;
+        content_height = (MAX_NOTE - MIN_NOTE + 1) * config.key_height;
     }
+    setSceneRect(0, 0, content_width, content_height);
 }
 
-void MidiEditorWidget::applyNoteChanges() {
-    // 1. Ujistíme se, že máme co měnit a že máme uložený původní stav
-    if (selectedNotes.isEmpty() || dragStartNoteStates.isEmpty()) {
+void MidiEditorWidget::updateScene() {
+    clearScene();
+    scene->setBackgroundBrush(m_colors.bg_color);
+
+    if (!last_seq) {
+        auto *txt = scene->addSimpleText("Open file");
+        txt->setBrush(m_colors.fg_color);
+        txt->setFont(QFont("Arial", 22, QFont::Bold));
+        txt->setPos(sceneRect().width() / 2 - 100, sceneRect().height() / 2 - 20);
         return;
     }
 
-    QPointF totalDelta = lastDragPos - dragStartPos;
-    QSet<NoteNagaTrack*> affectedTracks;
-    QList<QPair<NoteGraphics*, NN_Note_t>> changesToApply;
-
-    // --- Fáze 1: Výpočet změn ---
-    // V této fázi se nic nemění, zůstává stejná
-    for (NoteGraphics *ng : selectedNotes) {
-        if (!dragStartNoteStates.contains(ng)) continue;
-
-        NN_Note_t originalNote = dragStartNoteStates.value(ng);
-        NN_Note_t newNote = originalNote;
-
-        if (dragMode == DragMode::Move) {
-            int deltaTicks = totalDelta.x() / config.time_scale;
-            int deltaNotes = -round(totalDelta.y() / config.key_height);
-            if (newNote.start.has_value()) {
-                newNote.start = snapTickToGrid(originalNote.start.value() + deltaTicks);
-            }
-            newNote.note = originalNote.note + deltaNotes;
-            newNote.note = std::max(MIN_NOTE, std::min(MAX_NOTE, newNote.note));
-        } else if (dragMode == DragMode::Resize) {
-            int deltaLength = totalDelta.x() / config.time_scale;
-            if (newNote.length.has_value() && newNote.start.has_value()) {
-                int originalEndTick = originalNote.start.value() + originalNote.length.value();
-                int snappedEndTick = snapTickToGridNearest(originalEndTick + deltaLength);
-                newNote.length = std::max(1, snappedEndTick - originalNote.start.value());
-            }
-        }
-        changesToApply.append({ng, newNote});
-    }
-
-    // --- Fáze 2: Aplikace změn (s blokováním signálů) ---
-    
-    // Zablokujeme signály, aby se uprostřed cyklu nespustilo překreslení
-    auto project = engine->getProject();
-    bool signalsWereBlocked = project->signalsBlocked();
-    project->blockSignals(true);
-
-    for (const auto& change : changesToApply) {
-        NoteGraphics* ng = change.first;
-        NN_Note_t newNote = change.second;
-        NN_Note_t originalNote = dragStartNoteStates.value(ng);
-        
-        ng->track->removeNote(originalNote);
-        ng->track->addNote(newNote);
-        
-        affectedTracks.insert(ng->track);
-    }
-    
-    // Aktualizujeme interní data grafických objektů (teď už je to bezpečné)
-    for (const auto& change : changesToApply) {
-        change.first->note = change.second;
-    }
-
-    // Odblokujeme signály
-    project->blockSignals(signalsWereBlocked);
-    
-    dragStartNoteStates.clear();
-    last_seq->computeMaxTick();
-
-    // Signál o změně not emitujeme až teď, když je vše hotovo
-    emit notesModified();
-
-    // --- Fáze 3: Překreslení a vyčištění ---
-    for (NoteNagaTrack* track : affectedTracks) {
-        refreshTrack(track);
-    }
-
-    // Vyčistíme výběr, protože ukazatele v něm jsou po překreslení neplatné
-    clearSelection();
+    updateGrid();
+    updateBarGrid();
+    updateAllNotes();
+    refreshMarker();
 }
 
-QRectF MidiEditorWidget::getRealNoteRect(const NoteGraphics *ng) const {
-    QRectF rect;
-    
-    // Pro obdélníkové noty
-    if (QGraphicsRectItem *rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(ng->item)) {
-        rect = rectItem->sceneBoundingRect();
-    } 
-    // Pro kruhové noty (bubny)
-    else if (QGraphicsEllipseItem *ellipseItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(ng->item)) {
-        rect = ellipseItem->sceneBoundingRect();
+void MidiEditorWidget::updateGrid() {
+    int visible_y0 = verticalScrollBar()->value();
+    int visible_y1 = visible_y0 + viewport()->height();
+
+    row_backgrounds.clear();
+
+    for (int idx = 0, note_val = MIN_NOTE; note_val <= MAX_NOTE; ++idx, ++note_val) {
+        int y = content_height - (idx + 1) * config.key_height;
+        if (y + config.key_height < visible_y0 || y > visible_y1) continue;
+        
+        QColor row_bg = (note_val % 2 == 0) ? m_colors.grid_row_color1 : m_colors.grid_row_color2;
+        
+        auto row_bg_rect = scene->addRect(0, y, content_width, config.key_height,
+                                          QPen(Qt::NoPen), QBrush(row_bg));
+        row_bg_rect->setZValue(-100);
+        row_bg_rect->setData(0, note_val);
+        row_backgrounds.push_back(row_bg_rect);
+
+        auto l = scene->addLine(0, y, content_width, y, QPen(m_colors.line_color, 1));
+        grid_lines.push_back(l);
     }
     
-    return rect;
+    m_lastActiveNotes.clear();
+    updateRowHighlights();
+}
+
+void MidiEditorWidget::updateRowHighlights() {
+    if (!last_seq) return;
+    
+    updateActiveNotes();
+    
+    if (m_activeNotes == m_lastActiveNotes) return;
+    
+    QSet<int> changedNotes;
+    for (auto it = m_activeNotes.begin(); it != m_activeNotes.end(); ++it) {
+        if (!m_lastActiveNotes.contains(it.key()) || m_lastActiveNotes.value(it.key()) != it.value()) {
+            changedNotes.insert(it.key());
+        }
+    }
+    for (auto it = m_lastActiveNotes.begin(); it != m_lastActiveNotes.end(); ++it) {
+        if (!m_activeNotes.contains(it.key())) {
+            changedNotes.insert(it.key());
+        }
+    }
+    
+    const auto& tracks = last_seq->getTracks();
+    for (auto* row_rect : row_backgrounds) {
+        if (!row_rect) continue;
+        
+        int note_val = row_rect->data(0).toInt();
+        if (!changedNotes.contains(note_val)) continue;
+        
+        QColor row_bg = (note_val % 2 == 0) ? m_colors.grid_row_color1 : m_colors.grid_row_color2;
+        
+        if (m_activeNotes.contains(note_val)) {
+            int trackIdx = m_activeNotes.value(note_val, 0);
+            if (trackIdx >= 0 && trackIdx < (int)tracks.size() && tracks[trackIdx]) {
+                QColor trackColor = tracks[trackIdx]->getColor().toQColor();
+                int r = (row_bg.red() * 85 + trackColor.red() * 15) / 100;
+                int g = (row_bg.green() * 85 + trackColor.green() * 15) / 100;
+                int b = (row_bg.blue() * 85 + trackColor.blue() * 15) / 100;
+                row_bg = QColor(r, g, b);
+            }
+        }
+        
+        row_rect->setBrush(QBrush(row_bg));
+    }
+    
+    m_lastActiveNotes = m_activeNotes;
+}
+
+void MidiEditorWidget::updateActiveNotes() {
+    m_activeNotes.clear();
+    
+    if (!last_seq || !engine->isPlaying()) {
+        return;
+    }
+    
+    int currentTick = engine->getProject()->getCurrentTick();
+    const auto& tracks = last_seq->getTracks();
+    
+    for (int trackIdx = 0; trackIdx < (int)tracks.size(); ++trackIdx) {
+        const auto& track = tracks[trackIdx];
+        if (!track || !track->isVisible()) continue;
+        
+        for (const auto& note : track->getNotes()) {
+            if (!note.start.has_value() || !note.length.has_value()) continue;
+            
+            int noteStart = note.start.value();
+            int noteEnd = noteStart + note.length.value();
+            
+            if (currentTick >= noteStart && currentTick < noteEnd) {
+                if (!m_activeNotes.contains(note.note)) {
+                    m_activeNotes.insert(note.note, trackIdx);
+                }
+            }
+        }
+    }
+}
+
+void MidiEditorWidget::updateBarGrid() {
+    if (!last_seq) return;
+
+    int ppq = last_seq->getPPQ();
+    int bar_length = ppq * 4;
+    int first_bar = 0;
+    int last_bar = (last_seq->getMaxTick() / bar_length) + 2;
+
+    int visible_x0 = horizontalScrollBar()->value();
+    int visible_x1 = visible_x0 + viewport()->width();
+    int visible_y0 = verticalScrollBar()->value();
+
+    double px_per_bar = config.time_scale * bar_length;
+
+    int bar_skip = 1;
+    double min_bar_dist_px = 58;
+    while (px_per_bar * bar_skip < min_bar_dist_px) {
+        bar_skip *= 2;
+    }
+
+    QFont label_font("Arial", 11, QFont::Bold);
+    for (int bar = first_bar; bar < last_bar; bar += bar_skip) {
+        int x = tickToSceneX(bar * bar_length);
+        if (x < visible_x0 - 200 || x > visible_x1 + 200) continue;
+
+        auto l = scene->addLine(x, 0, x, content_height, QPen(m_colors.grid_bar_color, 1.5));
+        l->setZValue(2);
+        bar_grid_lines.push_back(l);
+
+        if (px_per_bar > 30) {
+            auto label = scene->addSimpleText(QString::number(bar + 1));
+            label->setFont(label_font);
+            label->setBrush(m_colors.grid_bar_label_color);
+            label->setPos(x + 4, visible_y0 + 4);
+            label->setZValue(9999);
+            bar_grid_labels.push_back(label);
+        }
+    }
+
+    int grid_step_ticks = getGridStepTicks();
+    if (grid_step_ticks == 0) return;
+
+    double px_per_grid_step = config.time_scale * grid_step_ticks;
+    int grid_skip = 1;
+    while (px_per_grid_step * grid_skip < 8.0) {
+        grid_skip *= 2;
+    }
+
+    int total_ticks = last_bar * bar_length;
+    for (int tick = 0; tick < total_ticks; tick += grid_step_ticks * grid_skip) {
+        if (tick % bar_length == 0) continue;
+
+        int x = tickToSceneX(tick);
+        if (x < visible_x0 - 200 || x > visible_x1 + 200) continue;
+        
+        auto lsub = scene->addLine(x, 0, x, content_height, QPen(m_colors.grid_subdiv_color, 1));
+        lsub->setZValue(1);
+    }
+}
+
+void MidiEditorWidget::updateAllNotes() {
+    m_noteHandler->clearNoteItems();
+    if (!last_seq) return;
+    
+    int visible_x0 = horizontalScrollBar()->value();
+    int visible_x1 = visible_x0 + viewport()->width();
+    int visible_y0 = verticalScrollBar()->value();
+    int visible_y1 = visible_y0 + viewport()->height();
+
+    for (const auto &track : last_seq->getTracks()) {
+        if (!track || !track->isVisible()) continue;
+        
+        bool is_drum = engine->getMixer()->isPercussion(track);
+        bool is_selected = last_seq->getActiveTrack() &&
+                         last_seq->getActiveTrack()->getId() == track->getId();
+
+        for (const auto &note : track->getNotes()) {
+            if (!note.start.has_value() || !note.length.has_value()) continue;
+            
+            int y = content_height - (note.note - MIN_NOTE + 1) * config.key_height;
+            int x = note.start.value() * config.time_scale;
+            int w = std::max(1, int(note.length.value() * config.time_scale));
+            int h = config.key_height;
+            
+            if (!((x + w > visible_x0 && x < visible_x1) &&
+                (y + h > visible_y0 && y < visible_y1))) continue;
+                
+            drawNote(note, track, is_selected, is_drum, x, y, w, h);
+        }
+    }
+}
+
+void MidiEditorWidget::updateTrackNotes(NoteNagaTrack *track) {
+    if (!last_seq || !track) return;
+    
+    int visible_x0 = horizontalScrollBar()->value();
+    int visible_x1 = visible_x0 + viewport()->width();
+    int visible_y0 = verticalScrollBar()->value();
+    int visible_y1 = visible_y0 + viewport()->height();
+
+    bool is_drum = engine->getMixer()->isPercussion(track);
+    bool is_selected = last_seq->getActiveTrack() &&
+                     last_seq->getActiveTrack()->getId() == track->getId();
+
+    for (const auto &note : track->getNotes()) {
+        if (!note.start.has_value() || !note.length.has_value()) continue;
+        
+        int y = content_height - (note.note - MIN_NOTE + 1) * config.key_height;
+        int x = note.start.value() * config.time_scale;
+        int w = std::max(1, int(note.length.value() * config.time_scale));
+        int h = config.key_height;
+        
+        if (!((x + w > visible_x0 && x < visible_x1) &&
+              (y + h > visible_y0 && y < visible_y1))) continue;
+              
+        drawNote(note, track, is_selected, is_drum, x, y, w, h);
+    }
+}
+
+QColor MidiEditorWidget::getNoteColor(const NN_Note_t &note, const NoteNagaTrack *track) const {
+    switch (config.color_mode) {
+    case NoteColorMode::Velocity: {
+        int vel = note.velocity.value_or(100);
+        // Blue (low) -> Green (mid) -> Red (high)
+        if (vel < 64) {
+            int t = vel * 4;
+            return QColor(0, t, 255 - t);
+        } else {
+            int t = (vel - 64) * 4;
+            return QColor(t, 255 - t, 0);
+        }
+    }
+    case NoteColorMode::Pan: {
+        // Pan: 0=left (blue), 64=center (green), 127=right (red)
+        int pan = note.pan.value_or(64); // Default to center
+        pan = std::clamp(pan, 0, 127);
+        if (pan < 64) {
+            // Left side: Blue -> Green
+            int t = pan * 4; // 0-252
+            return QColor(0, t, 255 - t);
+        } else {
+            // Right side: Green -> Red
+            int t = (pan - 64) * 4; // 0-252
+            return QColor(t, 255 - t, 0);
+        }
+    }
+    case NoteColorMode::TrackColor:
+    default:
+        return track->getColor().toQColor();
+    }
+}
+
+void MidiEditorWidget::drawNote(const NN_Note_t &note, const NoteNagaTrack *track,
+                                bool is_selected, bool is_drum, int x, int y, int w, int h) {
+    QGraphicsItem *shape = nullptr;
+    
+    QColor baseColor = getNoteColor(note, track);
+    NN_Color_t t_color = is_selected ? NN_Color_t::fromQColor(baseColor)
+                                     : nn_color_blend(NN_Color_t::fromQColor(baseColor),
+                                                      NN_Color_t::fromQColor(m_colors.bg_color), 0.3);
+    QPen outline = getNotePen(track, is_selected, false);
+
+    if (is_drum) {
+        int sz = h * 0.6;
+        int cx = x + w / 2;
+        int cy = y + h / 2;
+        int left = cx - sz / 2;
+        int top = cy - sz / 2;
+        shape = scene->addEllipse(left, top, sz, sz, outline, QBrush(t_color.toQColor()));
+    } else {
+        shape = scene->addRect(x, y, w, h, outline, QBrush(t_color.toQColor()));
+    }
+    shape->setZValue(is_selected ? 999 : track->getId() + 10);
+
+    QGraphicsSimpleTextItem *txt = nullptr;
+    if (!is_drum && w > 20 && h > 9 && config.time_scale > 0.04) {
+        float luminance = nn_yiq_luminance(t_color);
+        QString note_str = QString::fromStdString(nn_note_name(note.note));
+        txt = scene->addSimpleText(note_str);
+        txt->setBrush(QBrush(luminance < 128 ? Qt::white : Qt::black));
+        QFont f("Arial", std::max(6, h - 6));
+        txt->setFont(f);
+        txt->setPos(x + 2, y + 2);
+        txt->setZValue(shape->zValue() + 1);
+    }
+    
+    NoteGraphics ng = {shape, txt, note, const_cast<NoteNagaTrack*>(track)};
+    m_noteHandler->noteItems()[track->getId()].push_back(ng);
+}
+
+void MidiEditorWidget::clearScene() {
+    // Clear note items tracking BEFORE scene->clear() to avoid dangling pointers
+    // scene->clear() will delete all items, so we just clear our tracking structures
+    m_noteHandler->noteItems().clear();
+    auto &selectedNotes = const_cast<QList<NoteGraphics*>&>(m_noteHandler->selectedNotes());
+    selectedNotes.clear();
+    
+    // Now safe to clear the scene - all tracking structures are already cleared
+    scene->clear();
+    
+    grid_lines.clear();
+    bar_grid_lines.clear();
+    bar_grid_labels.clear();
+    row_backgrounds.clear();
+    marker_line = nullptr;
+    m_lastActiveNotes.clear();
 }
 
 /*******************************************************************************************************/
@@ -754,597 +1049,6 @@ qreal MidiEditorWidget::noteToSceneY(int note) const {
     return content_height - (note - MIN_NOTE + 1) * config.key_height;
 }
 
-/*******************************************************************************************************/
-// Qt GUI Event Handlers
-/*******************************************************************************************************/
-
-void MidiEditorWidget::resizeEvent(QResizeEvent *event) {
-    QGraphicsView::resizeEvent(event);
-    refreshAll();
-}
-
-void MidiEditorWidget::mousePressEvent(QMouseEvent *event) {
-    if (!last_seq) {
-        QGraphicsView::mousePressEvent(event);
-        return;
-    }
-    
-    setFocus(); // Zaměříme widget, aby reagoval na klávesové zkratky
-    QPointF scenePos = mapToScene(event->pos());
-    
-    // Levé tlačítko myši - výběr, přesun, změna pozice kurzoru
-    if (event->button() == Qt::LeftButton) {
-        NoteGraphics *noteUnderCursor = findNoteUnderCursor(scenePos);
-        
-        // Pokud je pod kurzorem nota
-        if (noteUnderCursor) {
-            bool isSelected = selectedNotes.contains(noteUnderCursor);
-            
-            if (!isSelected) {
-                selectNote(noteUnderCursor, !(event->modifiers() & Qt::ControlModifier));
-                dragMode = DragMode::None;
-            } else {
-                // FIX: Uložíme si původní stav VŠECH vybraných not
-                dragStartNoteStates.clear();
-                for (NoteGraphics *note : selectedNotes) {
-                    dragStartNoteStates[note] = note->note;
-                }
-
-                if (isNoteEdge(noteUnderCursor, scenePos)) {
-                    dragMode = DragMode::Resize;
-                    QApplication::setOverrideCursor(Qt::SizeHorCursor);
-                } else {
-                    dragMode = DragMode::Move;
-                    QApplication::setOverrideCursor(Qt::SizeAllCursor);
-                }
-                
-                dragStartPos = scenePos;
-                lastDragPos = scenePos;
-            }
-        }
-        // Jinak zahájíme výběr obdélníkem nebo přesuneme kurzor
-        else { 
-            // Zrušíme výběr, pokud uživatel nezačíná výběr s držením Ctrl
-            if (!(event->modifiers() & Qt::ControlModifier)) {
-                clearSelection();
-            }
-
-            // Nastavíme novou pozici kurzoru
-            int tick = sceneXToTick(scenePos.x());
-            engine->getProject()->setCurrentTick(tick);
-            emit positionSelected(tick);
-            refreshMarker();
-            
-            // Zahájíme výběr obdélníkem
-            dragMode = DragMode::Select;
-            rubberBandOrigin = event->pos();
-            rubberBand->setGeometry(QRect(rubberBandOrigin, QSize()));
-            rubberBand->show();
-        }
-    }
-    // Pravé tlačítko - přidání nové noty
-    else if (event->button() == Qt::RightButton) {
-        addNewNote(scenePos);
-    }
-    
-    QGraphicsView::mousePressEvent(event);
-}
-
-void MidiEditorWidget::mouseMoveEvent(QMouseEvent *event) {
-    if (!last_seq) {
-        QGraphicsView::mouseMoveEvent(event);
-        return;
-    }
-    
-    QPointF scenePos = mapToScene(event->pos());
-    
-    // Přetahování obdélníku pro výběr
-    if (dragMode == DragMode::Select && rubberBand->isVisible()) {
-        rubberBand->setGeometry(QRect(rubberBandOrigin, event->pos()).normalized());
-    }
-    // Přesun vybraných not
-    else if (dragMode == DragMode::Move && !selectedNotes.isEmpty()) {
-        QPointF delta = scenePos - lastDragPos;
-        moveSelectedNotes(delta);
-        lastDragPos = scenePos;
-    }
-    // Změna délky vybraných not
-    else if (dragMode == DragMode::Resize && !selectedNotes.isEmpty()) {
-        QPointF delta = scenePos - lastDragPos;
-        resizeSelectedNotes(delta);
-        lastDragPos = scenePos;
-    }
-    // Detekce okraje noty pro změnu kurzoru
-    else if (dragMode == DragMode::None) {
-        NoteGraphics *noteUnderCursor = findNoteUnderCursor(scenePos);
-        if (noteUnderCursor && isNoteEdge(noteUnderCursor, scenePos)) {
-            setCursor(Qt::SizeHorCursor);
-        } else {
-            setCursor(Qt::ArrowCursor);
-        }
-    }
-    
-    QGraphicsView::mouseMoveEvent(event);
-}
-
-void MidiEditorWidget::mouseReleaseEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
-        // Dokončení výběru pomocí rubber band
-        if (dragMode == DragMode::Select && rubberBand->isVisible()) {
-            QRect viewRect = rubberBand->geometry();
-            QRectF sceneRect = mapToScene(viewRect).boundingRect();
-            selectNotesInRect(sceneRect);
-            rubberBand->hide();
-        }
-        
-        // Aplikujeme změny not, pokud jsme je přesouvali nebo měnili velikost
-        if (dragMode == DragMode::Move || dragMode == DragMode::Resize) {
-            applyNoteChanges();
-            QApplication::restoreOverrideCursor();
-        }
-        
-        // Reset drag mode
-        dragMode = DragMode::None;
-    }
-    
-    QGraphicsView::mouseReleaseEvent(event);
-}
-
-void MidiEditorWidget::wheelEvent(QWheelEvent *event) {
-    Qt::KeyboardModifiers mods = event->modifiers();
-
-#ifdef Q_OS_MAC
-    bool ctrlZoom = mods & (Qt::ControlModifier | Qt::MetaModifier);
-#else
-    bool ctrlZoom = mods & Qt::ControlModifier;
-#endif
-
-    if (ctrlZoom) {
-        // Zoom (Ctrl nebo Command + kolečko)
-        double zoom_factor = (event->angleDelta().y() > 0) ? 1.2 : 0.8;
-        setTimeScale(config.time_scale * zoom_factor);
-    } else if (std::abs(event->angleDelta().x()) > std::abs(event->angleDelta().y())) {
-        // Skutečný horizontální pohyb kolečkem (nebo Shift + Wheel na Macu)
-        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - event->angleDelta().x() / 8);
-    } else {
-        // Vertikální posun (default)
-        verticalScrollBar()->setValue(verticalScrollBar()->value() - event->angleDelta().y() / 8);
-    }
-
-    event->accept();
-}
-
-void MidiEditorWidget::keyPressEvent(QKeyEvent *event) {
-    if (!last_seq) {
-        QGraphicsView::keyPressEvent(event);
-        return;
-    }
-    
-    // Mazání vybraných not (Delete nebo Backspace)
-    if ((event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) && !selectedNotes.isEmpty()) {
-        
-        QSet<NoteNagaTrack*> affectedTracks;
-        
-        // Zablokujeme signály, aby se předešlo pádům při hromadných změnách
-        auto project = engine->getProject();
-        bool signalsWereBlocked = project->signalsBlocked();
-        project->blockSignals(true);
-        
-        for (NoteGraphics *ng : selectedNotes) {
-            ng->track->removeNote(ng->note);
-            affectedTracks.insert(ng->track);
-        }
-        
-        // Odblokujeme signály
-        project->blockSignals(signalsWereBlocked);
-        
-        // Uložíme si, které stopy překreslit, a vyčistíme výběr
-        // Důležité: clearSelection() musí být před refreshTrack()
-        clearSelection();
-        
-        last_seq->computeMaxTick();
-        emit notesModified();
-        
-        // Překreslíme jen ovlivněné stopy
-        for (NoteNagaTrack *track : affectedTracks) {
-            refreshTrack(track);
-        }
-    }
-    // Zrušení výběru klávesou Escape
-    else if (event->key() == Qt::Key_Escape) {
-        clearSelection();
-    } else {
-        QGraphicsView::keyPressEvent(event);
-    }
-}
-
-/*******************************************************************************************************/
-// UI Update Methods
-/*******************************************************************************************************/
-
-void MidiEditorWidget::recalculateContentSize() {
-    if (last_seq) {
-        content_width = int((last_seq->getMaxTick() + 1) * config.time_scale) + 16;
-        content_height = (MAX_NOTE - MIN_NOTE + 1) * config.key_height;
-    } else {
-        content_width = 640;
-        content_height = (MAX_NOTE - MIN_NOTE + 1) * config.key_height;
-    }
-    setSceneRect(0, 0, content_width, content_height);
-}
-
-void MidiEditorWidget::updateScene() {
-    clearScene();
-    scene->setBackgroundBrush(bg_color);
-
-    if (!last_seq) {
-        auto *txt = scene->addSimpleText("Open file");
-        txt->setBrush(fg_color);
-        txt->setFont(QFont("Arial", 22, QFont::Bold));
-        txt->setPos(sceneRect().width() / 2 - 100, sceneRect().height() / 2 - 20);
-        return;
-    }
-
-    updateGrid();
-    updateBarGrid();
-    updateAllNotes();
-    refreshMarker();
-}
-
-void MidiEditorWidget::updateGrid() {
-    int visible_y0 = verticalScrollBar()->value();
-    int visible_y1 = visible_y0 + viewport()->height();
-
-    // Clear old row backgrounds
-    row_backgrounds.clear();
-
-    for (int idx = 0, note_val = MIN_NOTE; note_val <= MAX_NOTE; ++idx, ++note_val) {
-        int y = content_height - (idx + 1) * config.key_height;
-        if (y + config.key_height < visible_y0 || y > visible_y1) continue;
-        
-        // Base color without highlighting (highlighting is done in updateRowHighlights)
-        QColor row_bg = (note_val % 2 == 0) ? grid_row_color1 : grid_row_color2;
-        
-        auto row_bg_rect = scene->addRect(0, y, content_width, config.key_height,
-                                          QPen(Qt::NoPen), QBrush(row_bg));
-        row_bg_rect->setZValue(-100);
-        row_bg_rect->setData(0, note_val); // Store note value for later lookup
-        row_backgrounds.push_back(row_bg_rect);
-
-        auto l = scene->addLine(0, y, content_width, y, QPen(line_color, 1));
-        grid_lines.push_back(l);
-    }
-    
-    // Apply initial highlighting (force update by clearing last state)
-    m_lastActiveNotes.clear();
-    updateRowHighlights();
-}
-
-void MidiEditorWidget::updateRowHighlights() {
-    if (!last_seq) return;
-    
-    // Update active notes first
-    updateActiveNotes();
-    
-    // Quick check: if nothing changed, skip update
-    if (m_activeNotes == m_lastActiveNotes) return;
-    
-    // Collect notes that changed state
-    QSet<int> changedNotes;
-    for (auto it = m_activeNotes.begin(); it != m_activeNotes.end(); ++it) {
-        if (!m_lastActiveNotes.contains(it.key()) || m_lastActiveNotes.value(it.key()) != it.value()) {
-            changedNotes.insert(it.key());
-        }
-    }
-    for (auto it = m_lastActiveNotes.begin(); it != m_lastActiveNotes.end(); ++it) {
-        if (!m_activeNotes.contains(it.key())) {
-            changedNotes.insert(it.key());
-        }
-    }
-    
-    // Update only changed rows
-    const auto& tracks = last_seq->getTracks();
-    for (auto* row_rect : row_backgrounds) {
-        if (!row_rect) continue;
-        
-        int note_val = row_rect->data(0).toInt();
-        if (!changedNotes.contains(note_val)) continue;
-        
-        QColor row_bg = (note_val % 2 == 0) ? grid_row_color1 : grid_row_color2;
-        
-        if (m_activeNotes.contains(note_val)) {
-            // Subtle highlight - blend 15% of track color with background
-            int trackIdx = m_activeNotes.value(note_val, 0);
-            if (trackIdx >= 0 && trackIdx < (int)tracks.size() && tracks[trackIdx]) {
-                QColor trackColor = tracks[trackIdx]->getColor().toQColor();
-                int r = (row_bg.red() * 85 + trackColor.red() * 15) / 100;
-                int g = (row_bg.green() * 85 + trackColor.green() * 15) / 100;
-                int b = (row_bg.blue() * 85 + trackColor.blue() * 15) / 100;
-                row_bg = QColor(r, g, b);
-            }
-        }
-        
-        row_rect->setBrush(QBrush(row_bg));
-    }
-    
-    // Save current state for next comparison
-    m_lastActiveNotes = m_activeNotes;
-}
-
-void MidiEditorWidget::updateBarGrid() {
-    if (!last_seq)
-        return;
-
-    int ppq = last_seq->getPPQ();
-    int bar_length = ppq * 4; // Délka jednoho taktu v ticích
-    int first_bar = 0;
-    int last_bar = (last_seq->getMaxTick() / bar_length) + 2;
-
-    int visible_x0 = horizontalScrollBar()->value();
-    int visible_x1 = visible_x0 + viewport()->width();
-    int visible_y0 = verticalScrollBar()->value();
-
-    double px_per_bar = config.time_scale * bar_length;
-
-    // --- Vykreslení hlavních taktových čar (modré) ---
-    int bar_skip = 1;
-    double min_bar_dist_px = 58; // Minimální mezera mezi popisky taktů
-    while (px_per_bar * bar_skip < min_bar_dist_px) {
-        bar_skip *= 2;
-    }
-
-    QFont label_font("Arial", 11, QFont::Bold);
-    for (int bar = first_bar; bar < last_bar; bar += bar_skip) {
-        int x = tickToSceneX(bar * bar_length);
-        if (x < visible_x0 - 200 || x > visible_x1 + 200) continue;
-
-        auto l = scene->addLine(x, 0, x, content_height, QPen(grid_bar_color, 1.5));
-        l->setZValue(2);
-        bar_grid_lines.push_back(l);
-
-        if (px_per_bar > 30) {
-            auto label = scene->addSimpleText(QString::number(bar + 1));
-            label->setFont(label_font);
-            label->setBrush(grid_bar_label_color);
-            label->setPos(x + 4, visible_y0 + 4);
-            label->setZValue(9999);
-            bar_grid_labels.push_back(label);
-        }
-    }
-
-    // --- Vykreslení podružných čar (šedé) podle gridu a zoomu ---
-    int grid_step_ticks = getGridStepTicks();
-    if (grid_step_ticks == 0) return; // Grid is off
-
-    // Optimalizace, aby se čáry nevykreslovaly příliš hustě
-    double px_per_grid_step = config.time_scale * grid_step_ticks;
-    int grid_skip = 1;
-    while (px_per_grid_step * grid_skip < 8.0) { // Minimální mezera mezi čarami 8 pixelů
-        grid_skip *= 2;
-    }
-
-    int total_ticks = last_bar * bar_length;
-    for (int tick = 0; tick < total_ticks; tick += grid_step_ticks * grid_skip) {
-        // Přeskočíme hlavní taktové čáry, aby se nepřekrývaly
-        if (tick % bar_length == 0) continue;
-
-        int x = tickToSceneX(tick);
-        if (x < visible_x0 - 200 || x > visible_x1 + 200) continue;
-        
-        auto lsub = scene->addLine(x, 0, x, content_height, QPen(grid_subdiv_color, 1));
-        lsub->setZValue(1);
-    }
-}
-
-void MidiEditorWidget::drawNote(const NN_Note_t &note, const NoteNagaTrack *track,
-                                bool is_selected, bool is_drum, int x, int y, int w,
-                                int h) {
-    QGraphicsItem *shape = nullptr;
-    NN_Color_t t_color =
-        (is_selected ? track->getColor()
-                     : nn_color_blend(track->getColor(),
-                                      NN_Color_t::fromQColor(bg_color), 0.3));
-    QPen outline = getNotePen(track, is_selected, false);
-
-    if (is_drum) {
-        int sz = h * 0.6;
-        int cx = x + w / 2;
-        int cy = y + h / 2;
-        int left = cx - sz / 2;
-        int top = cy - sz / 2;
-        shape = scene->addEllipse(left, top, sz, sz, outline,
-                                QBrush(t_color.toQColor()));
-    } else {
-        shape = scene->addRect(x, y, w, h, outline, QBrush(t_color.toQColor()));
-    }
-    shape->setZValue(is_selected ? 999 : track->getId() + 10);
-
-    QGraphicsSimpleTextItem *txt = nullptr;
-    if (!is_drum && w > 20 && h > 9 && config.time_scale > 0.04) {
-        float luminance = nn_yiq_luminance(t_color);
-        QString note_str = QString::fromStdString(nn_note_name(note.note));
-        txt = scene->addSimpleText(note_str);
-        txt->setBrush(QBrush(luminance < 128 ? Qt::white : Qt::black));
-        QFont f("Arial", std::max(6, h - 6));
-        txt->setFont(f);
-        txt->setPos(x + 2, y + 2);
-        txt->setZValue(shape->zValue() + 1);
-    }
-    
-    // Uložíme si informace o notě pro pozdější manipulaci
-    NoteGraphics ng = {shape, txt, note, const_cast<NoteNagaTrack*>(track)};
-    note_items[track->getId()].push_back(ng);
-    
-    // Pokud byla nota předtím označena, musíme ji označit
-    bool wasSelected = false;
-    for (int i = 0; i < selectedNotes.size(); i++) {
-        if (selectedNotes[i]->track->getId() == track->getId() && 
-            selectedNotes[i]->note.note == note.note && 
-            selectedNotes[i]->note.start.value_or(-1) == note.start.value_or(-1) && 
-            selectedNotes[i]->note.length.value_or(-1) == note.length.value_or(-1)) {
-            // Nahradíme starou referenci novou a označíme notu
-            selectedNotes[i] = &note_items[track->getId()].back();
-            wasSelected = true;
-            
-            // Vizuálně označíme notu
-            QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(shape);
-            if (shapeItem) {
-                shapeItem->setPen(QPen(selection_color, 2));
-                shapeItem->setZValue(999);
-            }
-            break;
-        }
-    }
-}
-
-void MidiEditorWidget::updateAllNotes() {
-    clearNotes();
-    if (!last_seq)
-        return;
-    int visible_x0 = horizontalScrollBar()->value();
-    int visible_x1 = visible_x0 + viewport()->width();
-    int visible_y0 = verticalScrollBar()->value();
-    int visible_y1 = visible_y0 + viewport()->height();
-
-    for (const auto &track : last_seq->getTracks()) {
-        if (!track || !track->isVisible())
-            continue;
-        bool is_drum = engine->getMixer()->isPercussion(track);
-        bool is_selected = last_seq->getActiveTrack() &&
-                         last_seq->getActiveTrack()->getId() == track->getId();
-
-        for (const auto &note : track->getNotes()) {
-            if (!note.start.has_value() || !note.length.has_value())
-                continue;
-            int y = content_height - (note.note - MIN_NOTE + 1) * config.key_height;
-            int x = note.start.value() * config.time_scale;
-            int w = std::max(1, int(note.length.value() * config.time_scale));
-            int h = config.key_height;
-            if (!((x + w > visible_x0 && x < visible_x1) &&
-                (y + h > visible_y0 && y < visible_y1)))
-                continue;
-            drawNote(note, track, is_selected, is_drum, x, y, w, h);
-        }
-    }
-}
-
-void MidiEditorWidget::updateTrackNotes(NoteNagaTrack *track) {
-    if (!last_seq || !track)
-        return;
-    int visible_x0 = horizontalScrollBar()->value();
-    int visible_x1 = visible_x0 + viewport()->width();
-    int visible_y0 = verticalScrollBar()->value();
-    int visible_y1 = visible_y0 + viewport()->height();
-
-    bool is_drum = engine->getMixer()->isPercussion(track);
-    bool is_selected = last_seq->getActiveTrack() &&
-                     last_seq->getActiveTrack()->getId() == track->getId();
-
-    for (const auto &note : track->getNotes()) {
-        if (!note.start.has_value() || !note.length.has_value())
-            continue;
-        int y = content_height - (note.note - MIN_NOTE + 1) * config.key_height;
-        int x = note.start.value() * config.time_scale;
-        int w = std::max(1, int(note.length.value() * config.time_scale));
-        int h = config.key_height;
-        if (!((x + w > visible_x0 && x < visible_x1) &&
-              (y + h > visible_y0 && y < visible_y1)))
-            continue;
-        drawNote(note, track, is_selected, is_drum, x, y, w, h);
-    }
-}
-
-/*******************************************************************************************************/
-// Scene Management Methods
-/*******************************************************************************************************/
-
-void MidiEditorWidget::clearScene() {
-    scene->clear();
-    note_items.clear();
-    grid_lines.clear();
-    bar_grid_lines.clear();
-    bar_grid_labels.clear();
-    row_backgrounds.clear();
-    marker_line = nullptr;
-    selectedNotes.clear();
-    m_lastActiveNotes.clear();
-}
-
-void MidiEditorWidget::clearNotes() {
-    // Zapamatujeme si, které noty byly vybrané (podle dat, ne podle pointerů)
-    QList<QPair<int, NN_Note_t>> selectedNoteData;
-    for (NoteGraphics *ng : selectedNotes) {
-        selectedNoteData.append(qMakePair(ng->track->getId(), ng->note));
-    }
-    
-    // Odstraníme všechny grafické objekty not
-    for (auto &arr : note_items) {
-        for (auto &ng : arr) {
-            if (ng.item)
-                scene->removeItem(ng.item);
-            if (ng.label)
-                scene->removeItem(ng.label);
-        }
-    }
-    
-    note_items.clear();
-    selectedNotes.clear(); // Vyčistíme výběr, protože pointery budou neplatné
-}
-
-void MidiEditorWidget::clearTrackNotes(int track_id) {
-    // Před odstraněním not odebereme z výběru noty této stopy
-    for (int i = 0; i < selectedNotes.size(); /* no increment */) {
-        if (selectedNotes[i]->track->getId() == track_id) {
-            selectedNotes.removeAt(i);
-        } else {
-            ++i;
-        }
-    }
-    
-    // Odstraníme grafické objekty not této stopy
-    auto it = note_items.find(track_id);
-    if (it != note_items.end()) {
-        for (auto &ng : it.value()) {
-            if (ng.item)
-                scene->removeItem(ng.item);
-            if (ng.label)
-                scene->removeItem(ng.label);
-        }
-        note_items.erase(it);
-    }
-}
-
-void MidiEditorWidget::updateActiveNotes() {
-    m_activeNotes.clear();
-    
-    if (!last_seq || !engine->isPlaying()) {
-        return;
-    }
-    
-    int currentTick = engine->getProject()->getCurrentTick();
-    const auto& tracks = last_seq->getTracks();
-    
-    for (int trackIdx = 0; trackIdx < (int)tracks.size(); ++trackIdx) {
-        const auto& track = tracks[trackIdx];
-        if (!track || !track->isVisible()) continue;
-        
-        for (const auto& note : track->getNotes()) {
-            if (!note.start.has_value() || !note.length.has_value()) continue;
-            
-            int noteStart = note.start.value();
-            int noteEnd = noteStart + note.length.value();
-            
-            // Check if note is currently playing
-            if (currentTick >= noteStart && currentTick < noteEnd) {
-                // Only store if not already stored (first track wins)
-                if (!m_activeNotes.contains(note.note)) {
-                    m_activeNotes.insert(note.note, trackIdx);
-                }
-            }
-        }
-    }
-}
-
 int MidiEditorWidget::getGridStepTicks() const {
     if (!last_seq) return 0;
     
@@ -1366,7 +1070,7 @@ int MidiEditorWidget::getGridStepTicks() const {
 
 QPen MidiEditorWidget::getNotePen(const NoteNagaTrack *track, bool is_active_track, bool is_selected_note) const {
     if (is_selected_note) {
-        return QPen(selection_color, 2);
+        return QPen(m_colors.selection_color, 2);
     }
     
     NN_Color_t t_color = track->getColor();
@@ -1388,6 +1092,97 @@ int MidiEditorWidget::snapTickToGrid(int tick) const {
 int MidiEditorWidget::snapTickToGridNearest(int tick) const {
     int grid_step = getGridStepTicks();
     if (grid_step == 0) return tick;
-    // Použijeme zaokrouhlení, aby se konec noty přichytil k nejbližší čáře gridu
     return static_cast<int>(round(static_cast<double>(tick) / grid_step)) * grid_step;
+}
+
+void MidiEditorWidget::updateLegendVisibility() {
+    if (!m_legendWidget) return;
+    
+    bool showLegend = (config.color_mode == NoteColorMode::Velocity || 
+                       config.color_mode == NoteColorMode::Pan);
+    
+    if (showLegend) {
+        // Update legend content
+        QString labelText = (config.color_mode == NoteColorMode::Velocity) ? "Velocity" : "Pan";
+        QString leftLabel = (config.color_mode == NoteColorMode::Velocity) ? "0" : "L";
+        QString midLabel = (config.color_mode == NoteColorMode::Velocity) ? "64" : "C";
+        QString rightLabel = (config.color_mode == NoteColorMode::Velocity) ? "127" : "R";
+        
+        // Create gradient bar with labels
+        QString gradientStyle = 
+            "QWidget#legendBar {"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+            "    stop:0 rgb(0,0,255), stop:0.5 rgb(0,255,0), stop:1 rgb(255,0,0));"
+            "  border: 1px solid #555;"
+            "  border-radius: 2px;"
+            "}";
+        
+        // Clear old layout completely
+        if (m_legendWidget->layout()) {
+            QLayout *oldLayout = m_legendWidget->layout();
+            // Delete all child widgets and layouts recursively
+            while (QLayoutItem *item = oldLayout->takeAt(0)) {
+                if (QWidget *widget = item->widget()) {
+                    widget->deleteLater();
+                }
+                if (QLayout *childLayout = item->layout()) {
+                    while (QLayoutItem *childItem = childLayout->takeAt(0)) {
+                        if (QWidget *childWidget = childItem->widget()) {
+                            childWidget->deleteLater();
+                        }
+                        delete childItem;
+                    }
+                }
+                delete item;
+            }
+            delete oldLayout;
+        }
+        
+        QVBoxLayout *layout = new QVBoxLayout(m_legendWidget);
+        layout->setContentsMargins(5, 5, 5, 5);
+        layout->setSpacing(2);
+        
+        QLabel *titleLabel = new QLabel(labelText);
+        titleLabel->setStyleSheet("color: white; font-size: 10px; font-weight: bold;");
+        titleLabel->setAlignment(Qt::AlignCenter);
+        layout->addWidget(titleLabel);
+        
+        QWidget *gradientBar = new QWidget();
+        gradientBar->setObjectName("legendBar");
+        gradientBar->setFixedHeight(12);
+        gradientBar->setStyleSheet(gradientStyle);
+        layout->addWidget(gradientBar);
+        
+        QHBoxLayout *labelsLayout = new QHBoxLayout();
+        labelsLayout->setContentsMargins(0, 0, 0, 0);
+        
+        QLabel *lbl0 = new QLabel(leftLabel);
+        lbl0->setStyleSheet("color: white; font-size: 9px;");
+        lbl0->setAlignment(Qt::AlignLeft);
+        
+        QLabel *lbl64 = new QLabel(midLabel);
+        lbl64->setStyleSheet("color: white; font-size: 9px;");
+        lbl64->setAlignment(Qt::AlignCenter);
+        
+        QLabel *lbl127 = new QLabel(rightLabel);
+        lbl127->setStyleSheet("color: white; font-size: 9px;");
+        lbl127->setAlignment(Qt::AlignRight);
+        
+        labelsLayout->addWidget(lbl0);
+        labelsLayout->addStretch();
+        labelsLayout->addWidget(lbl64);
+        labelsLayout->addStretch();
+        labelsLayout->addWidget(lbl127);
+        
+        layout->addLayout(labelsLayout);
+        
+        // Position in top-right corner
+        int x = width() - m_legendWidget->width() - 10;
+        int y = 10;
+        m_legendWidget->move(x, y);
+        m_legendWidget->show();
+        m_legendWidget->raise();
+    } else {
+        m_legendWidget->hide();
+    }
 }

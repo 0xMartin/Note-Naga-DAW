@@ -85,9 +85,14 @@ public slots:
 
 signals:
     /**
-     * @brief Emitted when a note property is modified
+     * @brief Emitted when a note property is modified (during drag - for data sync)
      */
     void notePropertyChanged(NoteNagaTrack *track, int noteIndex, int newValue);
+    
+    /**
+     * @brief Emitted when note property editing is complete (on mouse release - for UI refresh)
+     */
+    void notePropertyEditFinished(NoteNagaTrack *track);
 
     /**
      * @brief Emitted when expanded state changes

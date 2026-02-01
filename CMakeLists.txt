@@ -78,6 +78,9 @@ set(HEADER_FILES
     src/gui/dock_system/dock_title_bar.h
     # gui/editor
     src/gui/editor/midi_editor_widget.h
+    src/gui/editor/midi_editor_types.h
+    src/gui/editor/midi_editor_context_menu.h
+    src/gui/editor/midi_editor_note_handler.h
     # gui/widgets
     src/gui/widgets/verovio_widget.h
     src/gui/widgets/dsp_block_widget.h
@@ -135,6 +138,8 @@ set(SOURCE_FILES
     src/gui/dock_system/dock_title_bar.cpp
     # gui/editor
     src/gui/editor/midi_editor_widget.cpp
+    src/gui/editor/midi_editor_context_menu.cpp
+    src/gui/editor/midi_editor_note_handler.cpp
     src/gui/editor/note_property_editor.cpp
     # gui/widgets
     src/gui/widgets/verovio_widget.cpp

@@ -683,6 +683,8 @@ void NotePropertyEditor::mouseMoveEvent(QMouseEvent *event)
 void NotePropertyEditor::mouseReleaseEvent(QMouseEvent *event)
 {
     if (m_isDragging) {
+        NoteNagaTrack *editedTrack = m_editingBar ? m_editingBar->track : nullptr;
+        
         m_isDragging = false;
         m_isSnapping = false;
         m_snapValue = -1;
@@ -690,10 +692,11 @@ void NotePropertyEditor::mouseReleaseEvent(QMouseEvent *event)
         setCursor(Qt::ArrowCursor);
         m_valueLabel->clear();
         
-        // Notify MIDI editor of change
-        if (m_midiEditor) {
-            m_midiEditor->update();
+        // Emit signal that editing is finished - this triggers UI refresh in MIDI editor
+        if (editedTrack) {
+            emit notePropertyEditFinished(editedTrack);
         }
+        
         update();  // Redraw to remove snap line
     }
     QWidget::mouseReleaseEvent(event);
@@ -875,11 +878,8 @@ void NotePropertyEditor::applyValueToContextBar(int value)
         }
         m_contextMenuBar->track->setNotes(notes);
         emit notePropertyChanged(m_contextMenuBar->track, m_contextMenuBar->noteIndex, value);
-    }
-    
-    // Notify MIDI editor of change
-    if (m_midiEditor) {
-        m_midiEditor->update();
+        // Also emit edit finished for context menu actions (they are immediate)
+        emit notePropertyEditFinished(m_contextMenuBar->track);
     }
     
     update();

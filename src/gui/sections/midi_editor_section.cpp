@@ -204,6 +204,12 @@ void MidiEditorSection::connectSignals()
             m_notePropertyEditor, &NotePropertyEditor::onNotesChanged);
     connect(m_midiEditor, &MidiEditorWidget::selectionChanged,
             m_notePropertyEditor, &NotePropertyEditor::onSelectionChanged);
+    
+    // When note property editing is finished, refresh the MIDI editor
+    // Using notePropertyEditFinished (emitted on mouse release) instead of
+    // notePropertyChanged (emitted during drag) to avoid excessive refreshes
+    connect(m_notePropertyEditor, &NotePropertyEditor::notePropertyEditFinished,
+            m_midiEditor, &MidiEditorWidget::refreshTrack);
 }
 
 void MidiEditorSection::toggleNotePropertyEditor()
