@@ -132,8 +132,9 @@ private:
     void updateHighlight();
     void scrollToCurrentPosition();
     QString fixNestedSvgElements(const QString &svg);
-        // MEI generation helpers
-    QString midiPitchToMEI(int midiPitch);
+    
+    // MEI generation helpers
+    QString midiPitchToMEI(int midiPitch, int durationTicks, int ppq);
     QString ticksToDuration(int ticks, int ppq);
 
     NoteNagaEngine *m_engine;
