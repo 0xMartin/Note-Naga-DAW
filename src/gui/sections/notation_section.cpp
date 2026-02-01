@@ -9,6 +9,7 @@
 #include "../widgets/midi_control_bar_widget.h"
 #include "../dock_system/advanced_dock_widget.h"
 #include <note_naga_engine/nn_utils.h>
+#include <note_naga_engine/core/types.h>
 
 NotationSection::NotationSection(NoteNagaEngine *engine, QWidget *parent)
     : QMainWindow(parent)
@@ -217,12 +218,6 @@ void NotationSection::setupDockLayout()
     m_scaleSpinBox->setSuffix("%");
     notationFormLayout->addRow(tr("Scale:"), m_scaleSpinBox);
     
-    // Show Bar Numbers
-    m_showBarNumbersCheckbox = new QCheckBox(tr("Show bar numbers"));
-    m_showBarNumbersCheckbox->setChecked(true);
-    m_showBarNumbersCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
-    notationFormLayout->addRow("", m_showBarNumbersCheckbox);
-    
     // Show Title
     m_showTitleCheckbox = new QCheckBox(tr("Show title"));
     m_showTitleCheckbox->setChecked(true);
@@ -351,8 +346,6 @@ void NotationSection::connectSignals()
             this, &NotationSection::applyNotationSettings);
     connect(m_scaleSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &NotationSection::applyNotationSettings);
-    connect(m_showBarNumbersCheckbox, &QCheckBox::toggled,
-            this, &NotationSection::applyNotationSettings);
     connect(m_showTitleCheckbox, &QCheckBox::toggled,
             this, &NotationSection::applyNotationSettings);
     connect(m_showTempoCheckbox, &QCheckBox::toggled,
@@ -449,6 +442,18 @@ void NotationSection::updateTrackVisibilityCheckboxes()
             name = tr("Track %1").arg(i + 1);
         }
         
+        // Add instrument name if available
+        auto instrumentIdx = tracks[i]->getInstrument();
+        if (instrumentIdx.has_value()) {
+            auto gmInstrument = nn_find_instrument_by_index(instrumentIdx.value());
+            if (gmInstrument.has_value()) {
+                QString instrumentName = QString::fromStdString(gmInstrument->name);
+                if (!instrumentName.isEmpty() && instrumentName != name) {
+                    name += QString(" (%1)").arg(instrumentName);
+                }
+            }
+        }
+        
         QCheckBox *cb = new QCheckBox(name);
         // Only first track visible by default (for cleaner notation view)
         cb->setChecked(i == 0);
@@ -503,7 +508,6 @@ void NotationSection::applyNotationSettings()
     settings.keySignature = m_keySignatureCombo->currentData().toString();
     settings.timeSignature = m_timeSignatureCombo->currentData().toString();
     settings.scale = m_scaleSpinBox->value();
-    settings.showBarNumbers = m_showBarNumbersCheckbox->isChecked();
     settings.showTitle = m_showTitleCheckbox->isChecked();
     settings.showTempo = m_showTempoCheckbox->isChecked();
     settings.showInstrumentNames = m_showInstrumentNamesCheckbox->isChecked();

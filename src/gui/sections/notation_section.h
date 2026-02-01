@@ -73,7 +73,6 @@ private:
     QComboBox *m_keySignatureCombo;
     QComboBox *m_timeSignatureCombo;
     QSpinBox *m_scaleSpinBox;
-    QCheckBox *m_showBarNumbersCheckbox;
     QCheckBox *m_showTitleCheckbox;
     QCheckBox *m_showTempoCheckbox;
     QCheckBox *m_showInstrumentNamesCheckbox;

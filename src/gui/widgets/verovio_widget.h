@@ -48,7 +48,6 @@ public:
         QString keySignature = "0";           // Key signature (-7 to +7, 0 = C major)
         QString timeSignature = "4/4";        // Time signature
         int scale = 40;                       // Scale percentage (30-100)
-        bool showBarNumbers = true;           // Show bar numbers
         bool showTitle = true;                // Show title at top
         bool showTempo = true;                // Show tempo marking
         bool showInstrumentNames = true;      // Show instrument names on staves

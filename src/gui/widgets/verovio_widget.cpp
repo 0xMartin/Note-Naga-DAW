@@ -150,7 +150,6 @@ void VerovioWidget::initVerovio()
         }
         
         m_verovioAvailable = true;
-        qDebug() << "Verovio initialized, resource path:" << m_verovioResourcePath;
         
     } catch (const std::exception &e) {
         m_errorMessage = tr("Failed to initialize Verovio: %1").arg(e.what());
@@ -447,18 +446,21 @@ QString VerovioWidget::generateMEI()
         }
         QString labelAbbr = labelFull.left(8);
         
-        QString labelAttr;
-        if (m_settings.showInstrumentNames) {
-            labelAttr = QString(" label=\"%1\" label.abbr=\"%2\"")
-                       .arg(labelFull.toHtmlEscaped())
-                       .arg(labelAbbr.toHtmlEscaped());
-        }
-        
+        // Create staffDef with optional label child element
         mei += QString("              <staffDef n=\"%1\" lines=\"5\" clef.shape=\"%2\" clef.line=\"%3\" "
-                      "meter.count=\"%4\" meter.unit=\"%5\" key.sig=\"%6\"%7/>\n")
+                      "meter.count=\"%4\" meter.unit=\"%5\" key.sig=\"%6\"")
                .arg(staffN).arg(clef).arg(clefLine)
-               .arg(numerator).arg(denominator).arg(m_settings.keySignature)
-               .arg(labelAttr);
+               .arg(numerator).arg(denominator).arg(m_settings.keySignature);
+        
+        if (m_settings.showInstrumentNames) {
+            // Use label and labelAbbr child elements
+            mei += ">\n";
+            mei += QString("                <label>%1</label>\n").arg(labelFull.toHtmlEscaped());
+            mei += QString("                <labelAbbr>%1</labelAbbr>\n").arg(labelAbbr.toHtmlEscaped());
+            mei += "              </staffDef>\n";
+        } else {
+            mei += "/>\n";
+        }
         staffN++;
     }
     
@@ -483,9 +485,9 @@ QString VerovioWidget::generateMEI()
         
         mei += QString("            <measure n=\"%1\" xml:id=\"m%1\">\n").arg(measureNum + 1);
         
-        // Add tempo marking to first measure
+        // Add tempo marking in first measure (must be direct child of measure, not layer)
         if (measureNum == 0 && m_settings.showTempo) {
-            mei += QString("              <tempo tstamp=\"1\" midi.bpm=\"%1\" place=\"above\">♩ = %1</tempo>\n").arg(bpm);
+            mei += QString("              <tempo tstamp=\"1\" staff=\"1\" midi.bpm=\"%1\" place=\"above\">&#x2669; = %1</tempo>\n").arg(bpm);
         }
         
         // Add each visible staff
@@ -548,7 +550,7 @@ QString VerovioWidget::generateMEI()
         meiFile.close();
     }
     
-    qDebug() << "Generated MEI with" << m_totalMeasures << "measures";
+
     
     return mei;
 }
@@ -670,13 +672,11 @@ bool VerovioWidget::renderNotation()
             "mmOutput": false,
             "footer": "none",
             "header": "%4",
-            "barLineWidth": 0.30,
-            "mnumInterval": %5
+            "barLineWidth": 0.30
         })").arg(m_settings.scale)
             .arg(pageW)
             .arg(pageH)
-            .arg(m_settings.showTitle ? "auto" : "none")
-            .arg(m_settings.showBarNumbers ? 5 : 0);
+            .arg(m_settings.showTitle ? "auto" : "none");
         
         m_toolkit->SetOptions(optionsJson.toStdString());
         
@@ -689,7 +689,7 @@ bool VerovioWidget::renderNotation()
         
         // Get page count
         int pageCount = m_toolkit->GetPageCount();
-        qDebug() << "Verovio rendered" << pageCount << "pages";
+
         
         // Clear old data
         m_pageSvgs.clear();
@@ -709,9 +709,6 @@ bool VerovioWidget::renderNotation()
             if (svgFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 svgFile.write(svgStr.toUtf8());
                 svgFile.close();
-                qDebug() << "Saved SVG to" << svgPath << "size:" << svgStr.size();
-            } else {
-                qWarning() << "Failed to save SVG file" << svgPath;
             }
             
             // Convert SVG to PNG using rsvg-convert
@@ -728,7 +725,6 @@ bool VerovioWidget::renderNotation()
             // Load the PNG
             QPixmap pixmap;
             if (QFile::exists(pngPath) && pixmap.load(pngPath)) {
-                qDebug() << "Loaded PNG page" << page << "size:" << pixmap.size();
                 m_pagePixmaps.append(pixmap);
             } else {
                 // Fallback: create empty pixmap
@@ -739,7 +735,7 @@ bool VerovioWidget::renderNotation()
             }
         }
         
-        qDebug() << "Total pages loaded:" << m_pagePixmaps.size();
+
         
         // Get timemap for synchronization
         std::string timemapJson = m_toolkit->RenderToTimemap();
@@ -801,7 +797,7 @@ void VerovioWidget::parseTimemap(const QString &timemapJson)
         }
     }
     
-    qDebug() << "Parsed timemap with" << m_timemap.size() << "note events";
+
 }
 
 void VerovioWidget::buildMeasureMap()
@@ -840,7 +836,7 @@ void VerovioWidget::buildMeasureMap()
         m_measurePositions.append(pos);
     }
     
-    qDebug() << "Built measure map with" << m_measurePositions.size() << "positions";
+
 }
 
 void VerovioWidget::showError(const QString &message)
@@ -878,7 +874,7 @@ void VerovioWidget::updateDisplay()
     }
     m_pageWidgets.clear();
     
-    qDebug() << "updateDisplay: m_pagePixmaps count:" << m_pagePixmaps.size();
+
     
     for (int i = 0; i < m_pagePixmaps.size(); ++i) {
         const QPixmap &pixmap = m_pagePixmaps[i];
@@ -890,7 +886,7 @@ void VerovioWidget::updateDisplay()
             Qt::SmoothTransformation
         );
         
-        qDebug() << "Adding page" << i << "scaled size:" << scaled.size() << "isNull:" << scaled.isNull();
+
         
         pageWidget->setPixmap(scaled);
         pageWidget->setMinimumSize(scaled.size());
@@ -905,7 +901,7 @@ void VerovioWidget::updateDisplay()
         m_pageWidgets << pageWidget;
     }
     
-    qDebug() << "updateDisplay complete, widgets added:" << m_pageWidgets.size();
+
     
     updateHighlight();
 }
