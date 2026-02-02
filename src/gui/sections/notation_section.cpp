@@ -124,6 +124,8 @@ void NotationSection::setupDockLayout()
     m_settingsScrollArea->setFrameShape(QFrame::NoFrame);
     m_settingsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
     m_settingsScrollArea->setMinimumWidth(250);
+    m_settingsScrollArea->setMaximumWidth(350);
+    m_settingsScrollArea->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     
     m_settingsWidget = new QWidget;
     m_settingsWidget->setStyleSheet("background: transparent;");
@@ -308,9 +310,12 @@ void NotationSection::setupDockLayout()
     splitDockWidget(m_docks["notation"], m_docks["settings"], Qt::Horizontal);
     
     // Set initial size ratios (larger notation view)
-    QList<QDockWidget*> order = {m_docks["notation"], m_docks["settings"]};
-    QList<int> sizes = {800, 250};
-    resizeDocks(order, sizes, Qt::Horizontal);
+    // Use QTimer to ensure layout is computed before resizing
+    QTimer::singleShot(0, this, [this]() {
+        QList<QDockWidget*> order = {m_docks["notation"], m_docks["settings"]};
+        QList<int> sizes = {1000, 280};
+        resizeDocks(order, sizes, Qt::Horizontal);
+    });
 }
 
 void NotationSection::connectSignals()

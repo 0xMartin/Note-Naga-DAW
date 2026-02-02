@@ -135,6 +135,8 @@ void MidiEditorSection::setupDockLayout()
 
     // === Track list dock (left top) ===
     m_trackListWidget = new TrackListWidget(m_engine, this);
+    m_trackListWidget->setMaximumWidth(350);
+    m_trackListWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     
     auto *tracklistDock = new AdvancedDockWidget(
         tr("Tracks"), 
@@ -152,6 +154,8 @@ void MidiEditorSection::setupDockLayout()
 
     // === Mixer dock (left bottom) ===
     m_mixerWidget = new TrackMixerWidget(m_engine, this);
+    m_mixerWidget->setMaximumWidth(350);
+    m_mixerWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     
     auto *mixerDock = new AdvancedDockWidget(
         tr("Track Mixer"), 
@@ -188,14 +192,17 @@ void MidiEditorSection::setupDockLayout()
     }
 
     // Adjust initial size ratios - editor takes most horizontal space
-    QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
-    QList<int> hSizes = {280, 1000};
-    resizeDocks(hOrder, hSizes, Qt::Horizontal);
-    
-    // Adjust vertical ratios for left side - tracklist smaller, mixer larger
-    QList<QDockWidget*> vOrder = {m_docks["tracklist"], m_docks["mixer"]};
-    QList<int> vSizes = {300, 400};
-    resizeDocks(vOrder, vSizes, Qt::Vertical);
+    // Use QTimer to ensure layout is computed before resizing
+    QTimer::singleShot(0, this, [this]() {
+        QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
+        QList<int> hSizes = {280, 1000};
+        resizeDocks(hOrder, hSizes, Qt::Horizontal);
+        
+        // Adjust vertical ratios for left side - tracklist smaller, mixer larger
+        QList<QDockWidget*> vOrder = {m_docks["tracklist"], m_docks["mixer"]};
+        QList<int> vSizes = {300, 400};
+        resizeDocks(vOrder, vSizes, Qt::Vertical);
+    });
 }
 
 void MidiEditorSection::connectSignals()
@@ -346,12 +353,15 @@ void MidiEditorSection::resetLayout()
     m_docks["editor"]->raise();
 
     // Set sizes - editor takes most horizontal space
-    QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
-    QList<int> hSizes = {280, 1000};
-    resizeDocks(hOrder, hSizes, Qt::Horizontal);
-    
-    // Adjust vertical ratios for left side
-    QList<QDockWidget*> vOrder = {m_docks["tracklist"], m_docks["mixer"]};
-    QList<int> vSizes = {300, 400};
-    resizeDocks(vOrder, vSizes, Qt::Vertical);
+    // Use QTimer to ensure layout is computed before resizing
+    QTimer::singleShot(0, this, [this]() {
+        QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
+        QList<int> hSizes = {280, 1000};
+        resizeDocks(hOrder, hSizes, Qt::Horizontal);
+        
+        // Adjust vertical ratios for left side
+        QList<QDockWidget*> vOrder = {m_docks["tracklist"], m_docks["mixer"]};
+        QList<int> vSizes = {300, 400};
+        resizeDocks(vOrder, vSizes, Qt::Vertical);
+    });
 }

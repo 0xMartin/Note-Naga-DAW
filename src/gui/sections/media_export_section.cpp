@@ -197,7 +197,9 @@ void MediaExportSection::setupDockLayout()
     m_settingsScrollArea->setWidgetResizable(true);
     m_settingsScrollArea->setFrameShape(QFrame::NoFrame);
     m_settingsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
-    m_settingsScrollArea->setMinimumWidth(380); 
+    m_settingsScrollArea->setMinimumWidth(380);
+    m_settingsScrollArea->setMaximumWidth(450);
+    m_settingsScrollArea->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding); 
     
     m_settingsWidget = new QWidget;
     m_settingsWidget->setStyleSheet("background: transparent;");
@@ -576,10 +578,13 @@ void MediaExportSection::setupDockLayout()
     // === Configure dock layout ===
     splitDockWidget(previewDock, settingsDock, Qt::Horizontal);
     
-    // Set horizontal ratio: preview:settings = 60:40
-    QList<QDockWidget*> horizDocks = {previewDock, settingsDock};
-    QList<int> horizSizes = {600, 400};
-    resizeDocks(horizDocks, horizSizes, Qt::Horizontal);
+    // Set horizontal ratio: preview:settings = 70:30 (preview larger)
+    // Use QTimer to ensure layout is computed before resizing
+    QTimer::singleShot(0, this, [this]() {
+        QList<QDockWidget*> horizDocks = {m_docks["preview"], m_docks["settings"]};
+        QList<int> horizSizes = {1000, 350};
+        resizeDocks(horizDocks, horizSizes, Qt::Horizontal);
+    });
 
     m_progressWidget->setVisible(false);
     
