@@ -149,6 +149,7 @@ set(SOURCE_FILES
     src/gui/widgets/midi_keyboard_ruler.cpp
     src/gui/widgets/midi_tact_ruler.cpp
     src/gui/widgets/routing_entry_widget.cpp
+    src/gui/widgets/timeline_overview_widget.cpp
     src/gui/widgets/track_list_widget.cpp
     src/gui/widgets/track_mixer_widget.cpp
     src/gui/widgets/track_widget.cpp

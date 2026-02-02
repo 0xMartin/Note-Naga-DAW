@@ -16,6 +16,7 @@ class MidiKeyboardRuler;
 class TrackListWidget;
 class TrackMixerWidget;
 class NotePropertyEditor;
+class TimelineOverviewWidget;
 
 /**
  * @brief MidiEditorSection provides the MIDI Editor section layout with:
@@ -66,6 +67,7 @@ private:
     TrackListWidget *m_trackListWidget;
     TrackMixerWidget *m_mixerWidget;
     NotePropertyEditor *m_notePropertyEditor;
+    TimelineOverviewWidget *m_timelineOverview;
     
     // Splitter for MIDI editor / Note property editor
     QSplitter *m_editorSplitter;

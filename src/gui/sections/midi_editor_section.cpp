@@ -6,6 +6,7 @@
 #include "../widgets/midi_control_bar_widget.h"
 #include "../widgets/midi_keyboard_ruler.h"
 #include "../widgets/midi_tact_ruler.h"
+#include "../widgets/timeline_overview_widget.h"
 #include "../widgets/track_list_widget.h"
 #include "../widgets/track_mixer_widget.h"
 
@@ -66,10 +67,15 @@ void MidiEditorSection::setupDockLayout()
     m_midiTactRuler = new MidiTactRuler(m_engine, this);
     m_midiTactRuler->setTimeScale(m_midiEditor->getConfig()->time_scale);
 
+    // Timeline overview widget (minimap) - at bottom of MIDI editor column
+    m_timelineOverview = new TimelineOverviewWidget(m_engine, this);
+
     grid->addWidget(new QWidget(), 0, 0);
     grid->addWidget(m_midiTactRuler, 0, 1);
     grid->addWidget(m_midiKeyboardRuler, 1, 0);
     grid->addWidget(m_midiEditor, 1, 1);
+    grid->addWidget(new QWidget(), 2, 0);  // Empty cell below keyboard ruler
+    grid->addWidget(m_timelineOverview, 2, 1);  // Timeline below MIDI editor
     grid->setRowStretch(1, 1);
     grid->setColumnStretch(1, 1);
 
@@ -223,6 +229,39 @@ void MidiEditorSection::connectSignals()
     // notePropertyChanged (emitted during drag) to avoid excessive refreshes
     connect(m_notePropertyEditor, &NotePropertyEditor::notePropertyEditFinished,
             m_midiEditor, &MidiEditorWidget::refreshTrack);
+    
+    // Timeline overview widget signals
+    connect(m_midiEditor, &MidiEditorWidget::timeScaleChanged, 
+            m_timelineOverview, &TimelineOverviewWidget::setTimeScale);
+    connect(m_midiEditor, &MidiEditorWidget::notesModified,
+            m_timelineOverview, &TimelineOverviewWidget::refresh);
+    
+    // Update timeline viewport when editor scrolls
+    connect(m_midiEditor, &MidiEditorWidget::horizontalScrollChanged, this, [this](int scrollValue) {
+        if (!m_midiEditor || !m_midiEditor->getSequence()) return;
+        
+        double timeScale = m_midiEditor->getConfig()->time_scale;
+        int viewportWidth = m_midiEditor->viewport()->width();
+        
+        int startTick = static_cast<int>(scrollValue / timeScale);
+        int endTick = static_cast<int>((scrollValue + viewportWidth) / timeScale);
+        
+        m_timelineOverview->setViewportRange(startTick, endTick);
+    });
+    
+    // Navigate when clicking on timeline overview
+    connect(m_timelineOverview, &TimelineOverviewWidget::viewportNavigationRequested, this, [this](int tick) {
+        if (!m_midiEditor) return;
+        
+        double timeScale = m_midiEditor->getConfig()->time_scale;
+        int viewportWidth = m_midiEditor->viewport()->width();
+        
+        // Center the view on the clicked tick
+        int scrollValue = static_cast<int>(tick * timeScale - viewportWidth / 2);
+        scrollValue = qMax(0, scrollValue);
+        
+        m_midiEditor->horizontalScrollBar()->setValue(scrollValue);
+    });
 }
 
 void MidiEditorSection::toggleNotePropertyEditor()
