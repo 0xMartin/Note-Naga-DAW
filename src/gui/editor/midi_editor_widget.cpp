@@ -49,6 +49,9 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     connect(m_noteHandler, &MidiEditorNoteHandler::selectionChanged, this, &MidiEditorWidget::selectionChanged);
     connect(m_noteHandler, &MidiEditorNoteHandler::notesModified, this, &MidiEditorWidget::notesModified);
     
+    // Refresh editor when notes are modified (added, deleted, moved, etc.)
+    connect(m_noteHandler, &MidiEditorNoteHandler::notesModified, this, &MidiEditorWidget::refreshAll);
+    
     // Connect context menu signals
     connect(m_contextMenu, &MidiEditorContextMenu::colorModeChanged, this, &MidiEditorWidget::onColorModeChanged);
     connect(m_contextMenu, &MidiEditorContextMenu::deleteNotesRequested, this, &MidiEditorWidget::onDeleteNotes);
@@ -322,8 +325,8 @@ void MidiEditorWidget::refreshMarker() {
 void MidiEditorWidget::refreshTrack(NoteNagaTrack *track) {
     if (!last_seq || !track)
         return;
-    m_noteHandler->clearTrackNoteItems(track->getId());
-    updateTrackNotes(track);
+    // Full refresh to update note colors, visibility, etc.
+    refreshAll();
 }
 
 void MidiEditorWidget::refreshSequence(NoteNagaMidiSeq *seq) {
@@ -804,9 +807,9 @@ void MidiEditorWidget::recalculateContentSize() {
     int min_width = viewport()->width() * 2;
     
     if (last_seq) {
-        // Content based on last note + extra space for adding new notes (1/2 viewport width)
+        // Content based on last note + extra space for adding new notes (2x viewport width)
         int content_based_width = int((last_seq->getMaxTick() + 1) * config.time_scale) + 16;
-        int extra_scroll_space = viewport()->width() / 2;
+        int extra_scroll_space = viewport()->width() * 2;
         content_width = std::max(min_width, content_based_width + extra_scroll_space);
         content_height = (MAX_NOTE - MIN_NOTE + 1) * config.key_height;
     } else {

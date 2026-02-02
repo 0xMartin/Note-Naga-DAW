@@ -55,7 +55,7 @@ void TimelineOverviewWidget::connectSignals()
                 this, &TimelineOverviewWidget::onPlaybackPositionChanged);
     }
 
-    updateMaxTick();
+    // Don't call updateMaxTick() here - wait for MIDI editor to set it via setMaxTick()
 }
 
 void TimelineOverviewWidget::onSequenceChanged(NoteNagaMidiSeq *seq)
@@ -76,7 +76,7 @@ void TimelineOverviewWidget::onSequenceChanged(NoteNagaMidiSeq *seq)
         m_activeTrack = m_sequence->getActiveTrack();
     }
 
-    updateMaxTick();
+    // Don't call updateMaxTick() here - wait for MIDI editor to set it via setMaxTick()
     
     // Initialize viewport to start of timeline
     // Assume a reasonable default visible range (will be updated when scroll happens)
@@ -90,7 +90,7 @@ void TimelineOverviewWidget::onSequenceChanged(NoteNagaMidiSeq *seq)
 void TimelineOverviewWidget::onActiveTrackChanged(NoteNagaTrack *track)
 {
     m_activeTrack = track;
-    updateMaxTick();
+    // Don't call updateMaxTick() here - MIDI editor controls the max tick
     update();
 }
 
@@ -127,7 +127,8 @@ void TimelineOverviewWidget::setMaxTick(int maxTick)
 
 void TimelineOverviewWidget::refresh()
 {
-    updateMaxTick();
+    // Don't call updateMaxTick() here - the max tick should be set by MIDI editor
+    // via setMaxTick() to include the extra scroll space
     update();
 }
 

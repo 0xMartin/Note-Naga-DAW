@@ -43,17 +43,8 @@ bool NoteNagaProject::loadProject(const std::string &project_path) {
 
     NoteNagaMidiSeq *sequence = new NoteNagaMidiSeq();
     sequence->loadFromMidi(project_path);
-    addSequence(sequence);
+    addSequence(sequence);  // This now sets up all signal connections
 
-#ifndef QT_DEACTIVATED
-    connect(sequence, &NoteNagaMidiSeq::metadataChanged, this,
-            &NoteNagaProject::sequenceMetadataChanged);
-    connect(sequence, &NoteNagaMidiSeq::trackMetadataChanged, this,
-            &NoteNagaProject::trackMetaChanged);
-    connect(sequence, &NoteNagaMidiSeq::trackListChanged, this, [this, sequence](){
-        this->activeSequenceTrackListChanged(sequence);
-    });
-#endif
     NN_QT_EMIT(this->projectFileLoaded());
     NOTE_NAGA_LOG_INFO("Project loaded from: " + project_path);
     return true;
@@ -62,6 +53,18 @@ bool NoteNagaProject::loadProject(const std::string &project_path) {
 void NoteNagaProject::addSequence(NoteNagaMidiSeq *sequence) {
     if (sequence) {
         sequences.push_back(sequence);
+        
+#ifndef QT_DEACTIVATED
+        // Connect sequence signals to project signals
+        connect(sequence, &NoteNagaMidiSeq::metadataChanged, this,
+                &NoteNagaProject::sequenceMetadataChanged);
+        connect(sequence, &NoteNagaMidiSeq::trackMetadataChanged, this,
+                &NoteNagaProject::trackMetaChanged);
+        connect(sequence, &NoteNagaMidiSeq::trackListChanged, this, [this, sequence](){
+            this->activeSequenceTrackListChanged(sequence);
+        });
+#endif
+        
         if (!this->active_sequence) {
             this->active_sequence = sequence;
             NN_QT_EMIT(activeSequenceChanged(sequence));
