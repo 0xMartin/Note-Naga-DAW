@@ -794,15 +794,29 @@ void MidiEditorWidget::keyPressEvent(QKeyEvent *event) {
 // Scene Update Methods
 /*******************************************************************************************************/
 
+int MidiEditorWidget::getMaxTickFromContent() const {
+    if (config.time_scale <= 0) return 0;
+    return static_cast<int>(content_width / config.time_scale);
+}
+
 void MidiEditorWidget::recalculateContentSize() {
+    // Calculate minimum width - at least 2x viewport width for empty sequences
+    int min_width = viewport()->width() * 2;
+    
     if (last_seq) {
-        content_width = int((last_seq->getMaxTick() + 1) * config.time_scale) + 16;
+        // Content based on last note + extra space for adding new notes (1/2 viewport width)
+        int content_based_width = int((last_seq->getMaxTick() + 1) * config.time_scale) + 16;
+        int extra_scroll_space = viewport()->width() / 2;
+        content_width = std::max(min_width, content_based_width + extra_scroll_space);
         content_height = (MAX_NOTE - MIN_NOTE + 1) * config.key_height;
     } else {
-        content_width = 640;
+        content_width = min_width;
         content_height = (MAX_NOTE - MIN_NOTE + 1) * config.key_height;
     }
     setSceneRect(0, 0, content_width, content_height);
+    
+    // Notify timeline overview about new max tick
+    emit contentSizeChanged(getMaxTickFromContent());
 }
 
 void MidiEditorWidget::updateScene() {
@@ -929,7 +943,10 @@ void MidiEditorWidget::updateBarGrid() {
     int ppq = last_seq->getPPQ();
     int bar_length = ppq * 4;
     int first_bar = 0;
-    int last_bar = (last_seq->getMaxTick() / bar_length) + 2;
+    
+    // Calculate last_bar based on content_width to ensure grid covers entire scrollable area
+    int max_tick_from_content = static_cast<int>(content_width / config.time_scale);
+    int last_bar = (max_tick_from_content / bar_length) + 2;
 
     int visible_x0 = horizontalScrollBar()->value();
     int visible_x1 = visible_x0 + viewport()->width();

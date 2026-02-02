@@ -236,6 +236,8 @@ void MidiEditorSection::connectSignals()
             m_timelineOverview, &TimelineOverviewWidget::setTimeScale);
     connect(m_midiEditor, &MidiEditorWidget::notesModified,
             m_timelineOverview, &TimelineOverviewWidget::refresh);
+    connect(m_midiEditor, &MidiEditorWidget::contentSizeChanged,
+            m_timelineOverview, &TimelineOverviewWidget::setMaxTick);
     
     // Update timeline viewport when editor scrolls
     connect(m_midiEditor, &MidiEditorWidget::horizontalScrollChanged, this, [this](int scrollValue) {

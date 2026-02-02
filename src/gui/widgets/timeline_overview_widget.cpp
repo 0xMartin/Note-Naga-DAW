@@ -113,6 +113,18 @@ void TimelineOverviewWidget::setTimeScale(double scale)
     update();
 }
 
+void TimelineOverviewWidget::setMaxTick(int maxTick)
+{
+    m_maxTick = maxTick;
+    
+    // Ensure minimum timeline length
+    if (m_maxTick < 1920) {  // At least 1 bar at 480 PPQ
+        m_maxTick = 1920;
+    }
+    
+    update();
+}
+
 void TimelineOverviewWidget::refresh()
 {
     updateMaxTick();

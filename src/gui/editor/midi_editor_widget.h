@@ -58,6 +58,12 @@ public:
     
     // --- Track refresh (called by helper classes) ---
     void refreshTrack(NoteNagaTrack *track);
+    
+    /**
+     * @brief Get the maximum tick value based on the scrollable content width
+     * @return Maximum tick value for the timeline overview
+     */
+    int getMaxTickFromContent() const;
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -77,6 +83,7 @@ signals:
     void loopingChanged(bool enabled);
     void notesModified();
     void selectionChanged();
+    void contentSizeChanged(int maxTick);
 
 public slots:
     void setTimeScale(double scale);

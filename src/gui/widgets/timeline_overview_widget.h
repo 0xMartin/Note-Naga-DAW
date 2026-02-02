@@ -35,6 +35,12 @@ public:
      */
     void setTimeScale(double scale);
 
+    /**
+     * @brief Set the maximum tick for the timeline (from MIDI editor content width)
+     * @param maxTick The maximum tick value for the scrollable area
+     */
+    void setMaxTick(int maxTick);
+
 public slots:
     void refresh();
     void onPlaybackPositionChanged(int tick);

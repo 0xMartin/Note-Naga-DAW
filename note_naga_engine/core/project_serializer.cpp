@@ -100,8 +100,9 @@ bool NoteNagaProjectSerializer::loadProject(const QString &filePath, NoteNagaPro
     // Clear existing project data
     NoteNagaProject *project = m_engine->getProject();
     if (project) {
-        // Clear existing sequences
-        for (NoteNagaMidiSeq *seq : project->getSequences()) {
+        // Clear existing sequences - copy list first to avoid iterator invalidation
+        std::vector<NoteNagaMidiSeq*> seqsCopy = project->getSequences();
+        for (NoteNagaMidiSeq *seq : seqsCopy) {
             project->removeSequence(seq);
             delete seq;
         }
@@ -423,8 +424,9 @@ bool NoteNagaProjectSerializer::deserializeDSPBlocks(const QJsonArray &blocksArr
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
     if (!dspEngine) return false;
     
-    // Clear existing DSP blocks
-    for (NoteNagaDSPBlockBase *block : dspEngine->getDSPBlocks()) {
+    // Clear existing DSP blocks - copy list first to avoid iterator invalidation
+    std::vector<NoteNagaDSPBlockBase*> blocksCopy = dspEngine->getDSPBlocks();
+    for (NoteNagaDSPBlockBase *block : blocksCopy) {
         dspEngine->removeDSPBlock(block);
         delete block;
     }
@@ -455,20 +457,16 @@ bool NoteNagaProjectSerializer::deserializeDSPBlocks(const QJsonArray &blocksArr
 
 bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synthsArray)
 {
-    NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: starting with " + std::to_string(synthsArray.size()) + " synths");
-    
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
     if (!dspEngine) return false;
     
     // Get existing synthesizers
     std::vector<NoteNagaSynthesizer*> synths = m_engine->getSynthesizers();
-    NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: existing synths count = " + std::to_string(synths.size()));
     
     for (const QJsonValue &synthVal : synthsArray) {
         QJsonObject synthObj = synthVal.toObject();
         QString synthName = synthObj["name"].toString();
         QString synthType = synthObj["type"].toString();
-        NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: processing synth '" + synthName.toStdString() + "' type=" + synthType.toStdString());
         
         // Find existing synth by name
         NoteNagaSynthesizer *synth = nullptr;
@@ -481,7 +479,6 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
         
         // If synth not found, create it
         if (!synth && !synthType.isEmpty()) {
-            NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: creating new synth");
             if (synthType == "fluidsynth") {
                 QString sfPath = synthObj["soundFontPath"].toString();
                 synth = new NoteNagaSynthFluidSynth(synthName.toStdString(), sfPath.toStdString());
@@ -494,7 +491,6 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
             // Update synth list
             synths = m_engine->getSynthesizers();
         } else if (synth) {
-            NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: synth exists, updating config");
             // Synth exists, update its configuration
             NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
             NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
@@ -502,9 +498,7 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
             if (fluidSynth && synthObj.contains("soundFontPath")) {
                 QString sfPath = synthObj["soundFontPath"].toString();
                 if (!sfPath.isEmpty()) {
-                    NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: calling setSoundFont");
                     fluidSynth->setSoundFont(sfPath.toStdString());
-                    NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: setSoundFont done");
                 }
             } else if (externalMidi && synthObj.contains("midiPort")) {
                 QString midiPort = synthObj["midiPort"].toString();
@@ -519,8 +513,9 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
         // Load DSP blocks for this synth
         INoteNagaSoftSynth *softSynth = dynamic_cast<INoteNagaSoftSynth*>(synth);
         if (softSynth && synthObj.contains("dspBlocks")) {
-            // Clear existing DSP blocks for this synth
-            for (NoteNagaDSPBlockBase *block : dspEngine->getSynthDSPBlocks(softSynth)) {
+            // Clear existing DSP blocks for this synth - copy list first to avoid iterator invalidation
+            std::vector<NoteNagaDSPBlockBase*> synthBlocksCopy = dspEngine->getSynthDSPBlocks(softSynth);
+            for (NoteNagaDSPBlockBase *block : synthBlocksCopy) {
                 dspEngine->removeSynthDSPBlock(softSynth, block);
                 delete block;
             }
