@@ -448,7 +448,7 @@ void MidiEditorNoteHandler::applyNoteChanges() {
         return;
     }
 
-    auto project = m_editor->getEngine()->getProject();
+    auto project = m_editor->getEngine()->getRuntimeData();
     bool signalsWereBlocked = project->signalsBlocked();
     project->blockSignals(true);
 
@@ -498,7 +498,7 @@ void MidiEditorNoteHandler::deleteSelectedNotes() {
     
     QSet<NoteNagaTrack*> affectedTracks;
     
-    auto project = m_editor->getEngine()->getProject();
+    auto project = m_editor->getEngine()->getRuntimeData();
     bool signalsWereBlocked = project->signalsBlocked();
     project->blockSignals(true);
     
@@ -530,7 +530,7 @@ void MidiEditorNoteHandler::duplicateSelectedNotes() {
     
     QSet<NoteNagaTrack*> affectedTracks;
     
-    auto project = m_editor->getEngine()->getProject();
+    auto project = m_editor->getEngine()->getRuntimeData();
     bool signalsWereBlocked = project->signalsBlocked();
     project->blockSignals(true);
     
@@ -575,7 +575,7 @@ void MidiEditorNoteHandler::moveSelectedNotesToTrack(NoteNagaTrack *targetTrack)
     // Get existing notes on target track for overlap check
     std::vector<NN_Note_t> targetExisting = targetTrack->getNotes();
     
-    auto project = m_editor->getEngine()->getProject();
+    auto project = m_editor->getEngine()->getRuntimeData();
     bool signalsWereBlocked = project->signalsBlocked();
     project->blockSignals(true);
     
@@ -666,7 +666,7 @@ void MidiEditorNoteHandler::quantizeSelectedNotes() {
     
     QSet<NoteNagaTrack*> affectedTracks;
     
-    auto project = m_editor->getEngine()->getProject();
+    auto project = m_editor->getEngine()->getRuntimeData();
     bool signalsWereBlocked = project->signalsBlocked();
     project->blockSignals(true);
     
@@ -700,7 +700,7 @@ void MidiEditorNoteHandler::transposeSelectedNotes(int semitones) {
     
     QSet<NoteNagaTrack*> affectedTracks;
     
-    auto project = m_editor->getEngine()->getProject();
+    auto project = m_editor->getEngine()->getRuntimeData();
     bool signalsWereBlocked = project->signalsBlocked();
     project->blockSignals(true);
     
@@ -734,7 +734,7 @@ void MidiEditorNoteHandler::setSelectedNotesVelocity(int velocity) {
     velocity = std::max(1, std::min(127, velocity));
     QSet<NoteNagaTrack*> affectedTracks;
     
-    auto project = m_editor->getEngine()->getProject();
+    auto project = m_editor->getEngine()->getRuntimeData();
     bool signalsWereBlocked = project->signalsBlocked();
     project->blockSignals(true);
     

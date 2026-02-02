@@ -201,10 +201,10 @@ public:
     /*******************************************************************************************************/
 
     /**
-     * @brief Gets the current project.
+     * @brief Gets the runtime data.
      * @return Pointer to the NoteNagaRuntimeData.
      */
-    NoteNagaRuntimeData *getProject() { return this->project; }
+    NoteNagaRuntimeData *getRuntimeData() { return this->runtime_data; }
 
     /**
      * @brief Gets the mixer instance.
@@ -277,7 +277,7 @@ Q_SIGNALS:
 #endif
 
 protected:
-    NoteNagaRuntimeData *project;                        ///< Pointer to the current project instance
+    NoteNagaRuntimeData *runtime_data;                   ///< Pointer to the runtime data instance
     NoteNagaPlaybackWorker *playback_worker;         ///< Pointer to the playback worker instance
     NoteNagaMixer *mixer;                            ///< Pointer to the mixer instance
     NoteNagaDSPEngine *dsp_engine;                   ///< Pointer to the DSP engine instance

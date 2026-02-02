@@ -200,12 +200,12 @@ bool MediaExporter::exportAudio(const QString &outputPath)
 
     const int sampleRate = 44100;
     const int numChannels = 2;
-    const double totalDuration = nn_ticks_to_seconds(m_engine->getProject()->getActiveSequence()->getMaxTick(), m_engine->getProject()->getPPQ(), m_engine->getProject()->getTempo()) + 2.0;
+    const double totalDuration = nn_ticks_to_seconds(m_engine->getRuntimeData()->getActiveSequence()->getMaxTick(), m_engine->getRuntimeData()->getPPQ(), m_engine->getRuntimeData()->getTempo()) + 2.0;
     const int totalSamples = static_cast<int>(totalDuration * sampleRate);
 
     std::vector<float> audioBuffer(totalSamples * numChannels, 0.0f);
 
-    NoteNagaRuntimeData *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
     NoteNagaMidiSeq *activeSequence = project->getActiveSequence();
     NoteNagaMixer *mixer = m_engine->getMixer();
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
@@ -302,7 +302,7 @@ bool MediaExporter::exportVideoBatched(const QString &outputPath)
     simRenderer.setRenderSettings(m_settings);
     simRenderer.prepareKeyboardLayout(m_resolution); // Important for positions!
 
-    double totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), m_engine->getProject()->getPPQ(), m_engine->getProject()->getTempo()) + 1.0;
+    double totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), m_engine->getRuntimeData()->getPPQ(), m_engine->getRuntimeData()->getTempo()) + 1.0;
     m_totalFrames = static_cast<int>(totalDuration * m_fps);
     m_framesRendered = 0;
 

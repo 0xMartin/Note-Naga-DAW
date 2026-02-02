@@ -13,13 +13,13 @@ TrackListWidget::TrackListWidget(NoteNagaEngine *engine_, QWidget *parent)
   initTitleUI();
   initUI();
 
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   reloadTracks(seq);
 
   // Signals
-  connect(engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged, this,
+  connect(engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged, this,
           &TrackListWidget::reloadTracks);
-  connect(engine->getProject(),
+  connect(engine->getRuntimeData(),
           &NoteNagaRuntimeData::activeSequenceTrackListChanged, this,
           &TrackListWidget::reloadTracks);
   connect(engine->getMixer(), &NoteNagaMixer::noteInSignal, this,
@@ -145,7 +145,7 @@ void TrackListWidget::handlePlayingNote(const NN_Note_t &note) {
   NoteNagaTrack *track = note.parent;
   if (!track)
     return;
-  NoteNagaRuntimeData *project = engine->getProject();
+  NoteNagaRuntimeData *project = engine->getRuntimeData();
 
   double time_ms = note_time_ms(note, project->getPPQ(), project->getTempo());
   for (auto *w : track_widgets) {
@@ -159,7 +159,7 @@ void TrackListWidget::handlePlayingNote(const NN_Note_t &note) {
 }
 
 void TrackListWidget::onAddTrack() {
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) {
     QMessageBox::warning(this, "No Active Sequence",
                          "Please load a MIDI file first to add tracks.");
@@ -176,7 +176,7 @@ void TrackListWidget::onAddTrack() {
 }
 
 void TrackListWidget::onRemoveTrack() {
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) {
     QMessageBox::warning(this, "No Active Sequence",
                          "Please load a MIDI file first to add tracks.");
@@ -209,7 +209,7 @@ void TrackListWidget::onRemoveTrack() {
 }
 
 void TrackListWidget::onClearTracks() {
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) {
     QMessageBox::warning(this, "No Active Sequence",
                          "Please load a MIDI file first to clear tracks.");
@@ -230,7 +230,7 @@ void TrackListWidget::onClearTracks() {
 }
 
 void TrackListWidget::onReloadTracks() {
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) {
     QMessageBox::warning(this, "No Active Sequence",
                          "Please load a MIDI file first to add tracks.");
@@ -246,7 +246,7 @@ void TrackListWidget::onReloadTracks() {
 }
 
 void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoint &globalPos) {
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) return;
   
   NoteNagaTrack *track = trackWidget->getTrack();
@@ -344,7 +344,7 @@ void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoin
 }
 
 void TrackListWidget::onDuplicateTrack() {
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) return;
   
   if (selected_row < 0 || selected_row >= (int)track_widgets.size()) return;
@@ -373,7 +373,7 @@ void TrackListWidget::onDuplicateTrack() {
 }
 
 void TrackListWidget::onMoveTrackUp() {
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) return;
   
   if (selected_row <= 0 || selected_row >= (int)seq->getTracks().size()) return;
@@ -383,7 +383,7 @@ void TrackListWidget::onMoveTrackUp() {
 }
 
 void TrackListWidget::onMoveTrackDown() {
-  NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) return;
   
   if (selected_row < 0 || selected_row >= (int)seq->getTracks().size() - 1) return;

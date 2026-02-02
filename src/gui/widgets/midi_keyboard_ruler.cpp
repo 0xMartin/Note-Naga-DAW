@@ -220,7 +220,7 @@ void MidiKeyboardRuler::leaveEvent(QEvent *event) {
 }
 
 void MidiKeyboardRuler::mousePressEvent(QMouseEvent *event) {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         return;
     }

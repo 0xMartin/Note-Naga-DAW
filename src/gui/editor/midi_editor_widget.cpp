@@ -108,7 +108,7 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
 
     setupConnections();
 
-    this->last_seq = engine->getProject()->getActiveSequence();
+    this->last_seq = engine->getRuntimeData()->getActiveSequence();
     refreshAll();
     
     setFocusPolicy(Qt::StrongFocus);
@@ -119,10 +119,10 @@ MidiEditorWidget::~MidiEditorWidget() {
 }
 
 void MidiEditorWidget::setupConnections() {
-    auto project = engine->getProject();
+    auto project = engine->getRuntimeData();
 
     connect(project, &NoteNagaRuntimeData::projectFileLoaded, this, [this]() {
-        this->last_seq = engine->getProject()->getActiveSequence();
+        this->last_seq = engine->getRuntimeData()->getActiveSequence();
         refreshAll();
     });
 
@@ -302,7 +302,7 @@ void MidiEditorWidget::refreshAll() {
 }
 
 void MidiEditorWidget::refreshMarker() {
-    int marker_x = engine->getProject()->getCurrentTick() * config.time_scale;
+    int marker_x = engine->getRuntimeData()->getCurrentTick() * config.time_scale;
     int visible_y0 = verticalScrollBar()->value();
     int visible_y1 = visible_y0 + viewport()->height();
 
@@ -918,7 +918,7 @@ void MidiEditorWidget::updateActiveNotes() {
         return;
     }
     
-    int currentTick = engine->getProject()->getCurrentTick();
+    int currentTick = engine->getRuntimeData()->getCurrentTick();
     const auto& tracks = last_seq->getTracks();
     
     for (int trackIdx = 0; trackIdx < (int)tracks.size(); ++trackIdx) {

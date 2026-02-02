@@ -349,7 +349,7 @@ void MainWindow::show_hide_dock(const QString &name, bool checked) {
 
 void MainWindow::export_video() {
     // Get active sequence from engine
-    NoteNagaMidiSeq *active_sequence = this->engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *active_sequence = this->engine->getRuntimeData()->getActiveSequence();
 
     // Check if any sequence is loaded
     if (!active_sequence) {
@@ -419,7 +419,7 @@ void MainWindow::goto_start() {
 }
 
 void MainWindow::goto_end() {
-    this->engine->setPlaybackPosition(this->engine->getProject()->getMaxTick());
+    this->engine->setPlaybackPosition(this->engine->getRuntimeData()->getMaxTick());
     MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     if (midi_editor) {
         midi_editor->horizontalScrollBar()->setValue(midi_editor->horizontalScrollBar()->maximum());
@@ -460,7 +460,7 @@ void MainWindow::open_midi() {
 }
 
 void MainWindow::export_midi() {
-    NoteNagaMidiSeq *active_sequence = this->engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *active_sequence = this->engine->getRuntimeData()->getActiveSequence();
     if (!active_sequence) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to export.");
         return;
@@ -489,7 +489,7 @@ void MainWindow::export_midi() {
 }
 
 void MainWindow::reset_all_colors() {
-    NoteNagaMidiSeq *active_sequence = this->engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *active_sequence = this->engine->getRuntimeData()->getActiveSequence();
     if (!active_sequence) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence found.");
         return;
@@ -504,7 +504,7 @@ void MainWindow::reset_all_colors() {
 }
 
 void MainWindow::randomize_all_colors() {
-    NoteNagaMidiSeq *active_sequence = this->engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *active_sequence = this->engine->getRuntimeData()->getActiveSequence();
     if (!active_sequence) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence found.");
         return;
@@ -553,7 +553,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 // === MIDI utility implementation ===
 
 void MainWindow::util_quantize() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -572,7 +572,7 @@ void MainWindow::util_quantize() {
 }
 
 void MainWindow::util_humanize() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -593,7 +593,7 @@ void MainWindow::util_humanize() {
 }
 
 void MainWindow::util_transpose() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -612,7 +612,7 @@ void MainWindow::util_transpose() {
 }
 
 void MainWindow::util_set_velocity() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -631,7 +631,7 @@ void MainWindow::util_set_velocity() {
 }
 
 void MainWindow::util_scale_velocity() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -650,7 +650,7 @@ void MainWindow::util_scale_velocity() {
 }
 
 void MainWindow::util_set_duration() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -669,7 +669,7 @@ void MainWindow::util_set_duration() {
 }
 
 void MainWindow::util_scale_duration() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -688,7 +688,7 @@ void MainWindow::util_scale_duration() {
 }
 
 void MainWindow::util_legato() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -701,7 +701,7 @@ void MainWindow::util_legato() {
 }
 
 void MainWindow::util_staccato() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -720,7 +720,7 @@ void MainWindow::util_staccato() {
 }
 
 void MainWindow::util_invert() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -739,7 +739,7 @@ void MainWindow::util_invert() {
 }
 
 void MainWindow::util_retrograde() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -749,7 +749,7 @@ void MainWindow::util_retrograde() {
 }
 
 void MainWindow::util_delete_overlapping() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;
@@ -759,7 +759,7 @@ void MainWindow::util_delete_overlapping() {
 }
 
 void MainWindow::util_scale_timing() {
-    NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
     if (!seq) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to process.");
         return;

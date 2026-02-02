@@ -682,7 +682,7 @@ void MediaExportSection::connectEngineSignals()
             });
     
     // Listen for sequence changes
-    connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
+    connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged,
             this, [this](NoteNagaMidiSeq*) {
                 refreshSequence();
             });
@@ -690,7 +690,7 @@ void MediaExportSection::connectEngineSignals()
 
 void MediaExportSection::refreshSequence()
 {
-    m_sequence = m_engine->getProject()->getActiveSequence();
+    m_sequence = m_engine->getRuntimeData()->getActiveSequence();
     
     if (!m_sequence) {
         // Show placeholder, hide docks
@@ -720,7 +720,7 @@ void MediaExportSection::refreshSequence()
         QTimer::singleShot(10, this, &MediaExportSection::updatePreviewSettings);
     }
     
-    onPlaybackTickChanged(m_engine->getProject()->getCurrentTick());
+    onPlaybackTickChanged(m_engine->getRuntimeData()->getCurrentTick());
 }
 
 void MediaExportSection::initPreviewWorker()

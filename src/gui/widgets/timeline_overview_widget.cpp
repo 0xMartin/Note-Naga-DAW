@@ -37,11 +37,11 @@ void TimelineOverviewWidget::connectSignals()
     if (!m_engine) return;
 
     // Connect to project/sequence changes
-    if (m_engine->getProject()) {
-        connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
+    if (m_engine->getRuntimeData()) {
+        connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged,
                 this, &TimelineOverviewWidget::onSequenceChanged);
 
-        m_sequence = m_engine->getProject()->getActiveSequence();
+        m_sequence = m_engine->getRuntimeData()->getActiveSequence();
         if (m_sequence) {
             connect(m_sequence, &NoteNagaMidiSeq::activeTrackChanged,
                     this, &TimelineOverviewWidget::onActiveTrackChanged);
@@ -50,8 +50,8 @@ void TimelineOverviewWidget::connectSignals()
     }
 
     // Connect to playback position changes
-    if (m_engine->getProject()) {
-        connect(m_engine->getProject(), &NoteNagaRuntimeData::currentTickChanged,
+    if (m_engine->getRuntimeData()) {
+        connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::currentTickChanged,
                 this, &TimelineOverviewWidget::onPlaybackPositionChanged);
     }
 

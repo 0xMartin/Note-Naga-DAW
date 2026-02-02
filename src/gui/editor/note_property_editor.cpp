@@ -55,7 +55,7 @@ NotePropertyEditor::NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget 
     
     // Connect to project signals for track changes
     if (m_engine) {
-        NoteNagaMidiSeq *seq = m_engine->getProject()->getActiveSequence();
+        NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
         if (seq) {
             connect(seq, &NoteNagaMidiSeq::activeTrackChanged, 
                     this, &NotePropertyEditor::onActiveTrackChanged);
@@ -64,7 +64,7 @@ NotePropertyEditor::NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget 
         }
         
         // Also listen for sequence changes to reconnect
-        connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
+        connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged,
                 this, &NotePropertyEditor::onSequenceChanged);
     }
 }
@@ -296,7 +296,7 @@ void NotePropertyEditor::rebuildNoteBars()
     
     if (!m_engine || !m_midiEditor) return;
     
-    NoteNagaMidiSeq *seq = m_engine->getProject()->getActiveSequence();
+    NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
     if (!seq) return;
     
     // Update active track info
@@ -1065,7 +1065,7 @@ void NotePropertyEditor::updateActiveTrack()
     NoteNagaTrack *newActiveTrack = nullptr;
     
     if (m_engine) {
-        NoteNagaMidiSeq *seq = m_engine->getProject()->getActiveSequence();
+        NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
         if (seq) {
             // Use the sequence's active track (set by track list selection)
             newActiveTrack = seq->getActiveTrack();
@@ -1082,7 +1082,7 @@ void NotePropertyEditor::updateActiveTrack()
     
     // Last fallback: first visible track
     if (!newActiveTrack && m_engine) {
-        NoteNagaMidiSeq *seq = m_engine->getProject()->getActiveSequence();
+        NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
         if (seq) {
             const auto &tracks = seq->getTracks();
             for (NoteNagaTrack *track : tracks) {

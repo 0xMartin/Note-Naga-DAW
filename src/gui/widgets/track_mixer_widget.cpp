@@ -458,7 +458,7 @@ void TrackMixerWidget::onAddEntry() {
         // If "Any" is selected, use the default behavior
         engine->getMixer()->addRoutingEntry();
     } else {
-        NoteNagaMidiSeq *seq = engine->getProject()->getActiveSequence();
+        NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
         if (!seq) return;
         // Create an entry with the selected synthesizer
         NoteNagaRoutingEntry entry(seq->getActiveTrack(), current_synth_name, 0);
@@ -559,7 +559,7 @@ void TrackMixerWidget::onMinVolumeAllTracks() {
 void TrackMixerWidget::handlePlayingNote(const NN_Note_t &note,
                                          const std::string &device_name, int channel) {
     // channel signalization
-    NoteNagaRuntimeData *project = engine->getProject();
+    NoteNagaRuntimeData *project = engine->getRuntimeData();
     int time_ms = int(note_time_ms(note, project->getPPQ(), project->getTempo()));
     if (note.velocity.has_value() && note.velocity.value() > 0) {
         setChannelOutputValue(device_name, channel, note.velocity.value(), time_ms);

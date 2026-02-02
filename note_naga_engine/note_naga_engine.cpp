@@ -10,7 +10,7 @@ NoteNagaEngine::NoteNagaEngine()
     : QObject(nullptr)
 #endif
 {
-    this->project = nullptr;
+    this->runtime_data = nullptr;
     this->mixer = nullptr;
     this->playback_worker = nullptr;
     this->dsp_engine = nullptr;
@@ -45,9 +45,9 @@ NoteNagaEngine::~NoteNagaEngine() {
         delete synth;
     }
 
-    if (project) {
-        delete project;
-        project = nullptr;
+    if (runtime_data) {
+        delete runtime_data;
+        runtime_data = nullptr;
     }
 
     if (spectrum_analyzer) {
@@ -94,18 +94,18 @@ bool NoteNagaEngine::initialize() {
     if (!this->metronome) {
         this->metronome = new NoteNagaMetronome();
         this->metronome->setSampleRate(44100);
-        this->metronome->setProject(this->project);
+        this->metronome->setProject(this->runtime_data);
     }
 
-    // project
-    if (!this->project) this->project = new NoteNagaRuntimeData();
+    // runtime data
+    if (!this->runtime_data) this->runtime_data = new NoteNagaRuntimeData();
 
     // mixer
-    if (!this->mixer) { this->mixer = new NoteNagaMixer(this->project, &this->synthesizers); }
+    if (!this->mixer) { this->mixer = new NoteNagaMixer(this->runtime_data, &this->synthesizers); }
 
     // playback worker
     if (!this->playback_worker) {
-        this->playback_worker = new NoteNagaPlaybackWorker(this->project, this->mixer, 30.0);
+        this->playback_worker = new NoteNagaPlaybackWorker(this->runtime_data, this->mixer, 30.0);
 
         this->playback_worker->addFinishedCallback([this]() {
             if (mixer) mixer->stopAllNotes();
@@ -129,7 +129,7 @@ bool NoteNagaEngine::initialize() {
         this->audio_worker->start(44100, 512);
     }
 
-    bool status = this->project && this->mixer && this->playback_worker &&
+    bool status = this->runtime_data && this->mixer && this->playback_worker &&
                   !this->synthesizers.empty() && this->audio_worker && this->dsp_engine;
     if (status) {
         NOTE_NAGA_LOG_INFO("Initialized successfully");
@@ -144,10 +144,10 @@ bool NoteNagaEngine::initialize() {
 /*******************************************************************************************************/
 
 void NoteNagaEngine::changeTempo(int new_tempo) {
-    if (this->project) {
-        this->project->setTempo(new_tempo);
+    if (this->runtime_data) {
+        this->runtime_data->setTempo(new_tempo);
     } else {
-        NOTE_NAGA_LOG_ERROR("Failed to change tempo: Project is not initialized");
+        NOTE_NAGA_LOG_ERROR("Failed to change tempo: Runtime data is not initialized");
     }
     if (playback_worker) {
         playback_worker->recalculateWorkerTempo();
@@ -197,10 +197,10 @@ void NoteNagaEngine::stopSingleNote(const NN_Note_t &midi_note) {
 
 void NoteNagaEngine::setPlaybackPosition(int tick) {
     if (playback_worker && playback_worker->isPlaying()) { playback_worker->stop(); }
-    if (this->project) {
-        this->project->setCurrentTick(tick);
+    if (this->runtime_data) {
+        this->runtime_data->setCurrentTick(tick);
     } else {
-        NOTE_NAGA_LOG_ERROR("Failed to set playback position: Project is not initialized");
+        NOTE_NAGA_LOG_ERROR("Failed to set playback position: Runtime data is not initialized");
     }
 }
 
@@ -209,12 +209,12 @@ void NoteNagaEngine::setPlaybackPosition(int tick) {
 /*******************************************************************************************************/
 
 bool NoteNagaEngine::loadProject(const std::string &midi_file_path) {
-    if (!this->project) {
-        NOTE_NAGA_LOG_ERROR("Project is not initialized");
+    if (!this->runtime_data) {
+        NOTE_NAGA_LOG_ERROR("Runtime data is not initialized");
         return false;
     }
     this->stopPlayback();
-    return this->project->loadProject(midi_file_path);
+    return this->runtime_data->loadProject(midi_file_path);
 }
 
 /*******************************************************************************************************/

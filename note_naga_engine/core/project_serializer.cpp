@@ -34,7 +34,7 @@ bool NoteNagaProjectSerializer::saveProject(const QString &filePath, const NoteN
     
     // Save MIDI sequences
     QJsonArray sequencesArray;
-    NoteNagaRuntimeData *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
     if (project) {
         for (NoteNagaMidiSeq *seq : project->getSequences()) {
             if (seq) {
@@ -101,7 +101,7 @@ bool NoteNagaProjectSerializer::loadProject(const QString &filePath, NoteNagaPro
     outMetadata = NoteNagaProjectMetadata::fromJson(root["metadata"].toObject());
     
     // Clear existing project data
-    NoteNagaRuntimeData *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
     if (project) {
         // Clear existing sequences - copy list first to avoid iterator invalidation
         std::vector<NoteNagaMidiSeq*> seqsCopy = project->getSequences();
@@ -176,7 +176,7 @@ bool NoteNagaProjectSerializer::createEmptyProject(const NoteNagaProjectMetadata
         return false;
     }
     
-    NoteNagaRuntimeData *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
     if (!project) {
         m_lastError = "Project is null";
         return false;
@@ -554,7 +554,7 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
 bool NoteNagaProjectSerializer::deserializeRoutingTable(const QJsonArray &routingArray)
 {
     NoteNagaMixer *mixer = m_engine->getMixer();
-    NoteNagaRuntimeData *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
     if (!mixer || !project) return false;
     
     // Clear existing routing

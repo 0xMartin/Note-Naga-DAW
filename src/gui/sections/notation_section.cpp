@@ -316,11 +316,11 @@ void NotationSection::setupDockLayout()
 void NotationSection::connectSignals()
 {
     // Connect to engine signals
-    connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
+    connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged,
             this, &NotationSection::onSequenceChanged);
     
     // Playback tick updates - connect to project's currentTickChanged
-    connect(m_engine->getProject(), &NoteNagaRuntimeData::currentTickChanged,
+    connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::currentTickChanged,
             this, &NotationSection::onPlaybackTickChanged);
     
     // Control bar playback signals
@@ -332,11 +332,11 @@ void NotationSection::connectSignals()
         }
     });
     connect(m_controlBar, &MidiControlBarWidget::goToStart, this, [this]() {
-        m_engine->getProject()->setCurrentTick(0);
+        m_engine->getRuntimeData()->setCurrentTick(0);
     });
     connect(m_controlBar, &MidiControlBarWidget::goToEnd, this, [this]() {
         if (m_sequence) {
-            m_engine->getProject()->setCurrentTick(m_sequence->getMaxTick());
+            m_engine->getRuntimeData()->setCurrentTick(m_sequence->getMaxTick());
         }
     });
     
@@ -368,7 +368,7 @@ void NotationSection::onSequenceChanged()
 
 void NotationSection::refreshSequence()
 {
-    m_sequence = m_engine->getProject()->getActiveSequence();
+    m_sequence = m_engine->getRuntimeData()->getActiveSequence();
     
     if (!m_sequence) {
         // Show placeholder, hide docks

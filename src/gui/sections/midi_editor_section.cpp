@@ -192,7 +192,7 @@ void MidiEditorSection::connectSignals()
 {
     // Tact ruler click -> set playback position
     connect(m_midiTactRuler, &MidiTactRuler::positionSelected, this, [this](int tick) {
-        NoteNagaRuntimeData *project = m_engine->getProject();
+        NoteNagaRuntimeData *project = m_engine->getRuntimeData();
         bool wasPlaying = m_engine->isPlaying();
         if (wasPlaying) {
             m_engine->stopPlayback();
@@ -253,7 +253,7 @@ void MidiEditorSection::connectSignals()
     });
     
     // Update timeline overview when sequence changes (initial load)
-    connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged, this, [this](NoteNagaMidiSeq*) {
+    connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged, this, [this](NoteNagaMidiSeq*) {
         // Delay update to allow MIDI editor to set up first
         QTimer::singleShot(50, this, [this]() {
             if (!m_midiEditor || !m_midiEditor->getSequence()) return;
