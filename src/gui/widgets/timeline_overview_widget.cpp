@@ -19,7 +19,7 @@ TimelineOverviewWidget::TimelineOverviewWidget(NoteNagaEngine *engine, QWidget *
       // Colors matching the editor theme
       m_backgroundColor(QColor(40, 42, 48)),
       m_borderColor(QColor(61, 66, 77)),
-      m_noteBlockColor(QColor(255, 255, 255, 90)),
+      m_noteBlockColor(QColor(255, 255, 255, 110)),
       m_playbackMarkerColor(QColor(255, 80, 80)),
       m_viewportColor(QColor(112, 167, 255, 60)),
       m_startEndMarkerColor(QColor(111, 165, 255, 100))

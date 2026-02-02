@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QElapsedTimer>
+#include <QMenu>
 #include <QString>
 #include <QTimer>
 #include <QWidget>
@@ -10,8 +11,12 @@
 /**
  * @brief Multi-channel volume bar widget for displaying audio levels.
  *
- * This widget displays multiple channels of audio levels with customizable colors,
- * dynamic animations, and labels.
+ * Professional FL Studio-style meter with:
+ * - LED segmented display
+ * - Peak hold indicators
+ * - Clip indicators
+ * - Context menu with options
+ * - Dynamic animations
  */
 class MultiChannelVolumeBar : public QWidget {
     Q_OBJECT
@@ -61,12 +66,51 @@ public:
      * @param labels Vector of QStrings for channel labels.
      */
     void setLabels(const std::vector<QString> &labels);
+    
+    /**
+     * @brief Resets all peak hold indicators.
+     */
+    void resetPeaks();
+    
+    /**
+     * @brief Resets clip indicators for all channels.
+     */
+    void resetClips();
+    
+    /**
+     * @brief Sets whether to show LED segments or solid bars.
+     */
+    void setLedMode(bool enabled);
+    
+    /**
+     * @brief Sets whether to show peak hold indicators.
+     */
+    void setPeakHoldEnabled(bool enabled);
+
+signals:
+    /**
+     * @brief Emitted when a channel is clicked.
+     * @param channel_idx Index of the clicked channel.
+     */
+    void channelClicked(int channel_idx);
+    
+    /**
+     * @brief Emitted when a channel is double-clicked (solo).
+     * @param channel_idx Index of the double-clicked channel.
+     */
+    void channelSoloed(int channel_idx);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void leaveEvent(QEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 private slots:
     void onAnimTick();
+    void onPeakDecayTick();
 
 private:
     int channels;
@@ -93,6 +137,33 @@ private:
     float decay_steepness;
     std::vector<float> target_values;
     QTimer *timer;
+    
+    // Peak hold
+    std::vector<float> peak_values;
+    std::vector<QElapsedTimer *> peak_timers;
+    QTimer *peak_decay_timer;
+    bool peak_hold_enabled;
+    int peak_hold_time_ms;  // How long to hold peak before decay
+    
+    // Clip indicators
+    std::vector<bool> clip_indicators;
+    float clip_threshold;
+    
+    // LED mode
+    bool led_mode;
+    int led_segment_count;
+    int led_gap;
+    
+    // Hover state
+    int hovered_channel;
+    
+    // Helper methods
+    int getChannelAtPos(const QPoint &pos);
+    void drawLedSegments(QPainter &painter, int x, int y, int width, int height, float value);
+    void drawSolidBar(QPainter &painter, int x, int y, int width, int height, float value);
+    void drawPeakIndicator(QPainter &painter, int x, int y, int width, int bar_area_height, float peak);
+    void drawClipIndicator(QPainter &painter, int x, int y, int width, bool clipped);
+    QColor getColorForLevel(float normalized_value);
 
     /**
      * @brief Exponential decay function for animation.
