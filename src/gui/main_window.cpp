@@ -60,8 +60,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true)
             // User cancelled wizard - close application
             QApplication::quit();
         } else {
-            // Project loaded successfully - show main window
-            show();
+            // Project loaded successfully - show main window maximized
+            showMaximized();
         }
     });
 }
@@ -277,6 +277,7 @@ void MainWindow::setup_sections() {
     // Set initial section
     m_sectionStack->setCurrentIndex(0);
     m_currentSection = AppSection::Project;
+    m_projectSection->onSectionActivated();  // Activate the initial section
     
     // Connect project section signals
     connect(m_projectSection, &ProjectSection::saveRequested, 
@@ -824,10 +825,6 @@ bool MainWindow::showProjectWizard() {
     
     updateWindowTitle();
     m_autosaveTimer->start();
-    
-    // Switch to MIDI editor after loading
-    m_sectionSwitcher->setCurrentSection(AppSection::MidiEditor);
-    onSectionChanged(AppSection::MidiEditor);
     
     return true;
 }

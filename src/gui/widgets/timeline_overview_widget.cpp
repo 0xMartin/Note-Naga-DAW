@@ -17,12 +17,12 @@ TimelineOverviewWidget::TimelineOverviewWidget(NoteNagaEngine *engine, QWidget *
       m_isDragging(false),
       m_dragViewport(false),
       // Colors matching the editor theme
-      m_backgroundColor(QColor(0x28, 0x2a, 0x30)),
-      m_borderColor(QColor(0x3d, 0x42, 0x4d)),
-      m_noteBlockColor(QColor(0x50, 0x80, 0xc0, 180)),
-      m_playbackMarkerColor(QColor(0xff, 0x50, 0x50)),
-      m_viewportColor(QColor(0x70, 0xa7, 0xff, 60)),
-      m_startEndMarkerColor(QColor(0x6f, 0xa5, 0xff, 100))
+      m_backgroundColor(QColor(40, 42, 48)),
+      m_borderColor(QColor(61, 66, 77)),
+      m_noteBlockColor(QColor(255, 255, 255, 90)),
+      m_playbackMarkerColor(QColor(255, 80, 80)),
+      m_viewportColor(QColor(112, 167, 255, 60)),
+      m_startEndMarkerColor(QColor(111, 165, 255, 100))
 {
     setMouseTracking(true);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -191,9 +191,6 @@ void TimelineOverviewWidget::paintEvent(QPaintEvent *event)
 
     // Draw note blocks for active track
     if (m_activeTrack) {
-        QColor trackColor = m_activeTrack->getColor().toQColor();
-        trackColor.setAlpha(160);
-
         const auto& notes = m_activeTrack->getNotes();
 
         // Group notes into density blocks for visualization
@@ -218,7 +215,7 @@ void TimelineOverviewWidget::paintEvent(QPaintEvent *event)
 
         // Draw note density blocks
         painter.setPen(Qt::NoPen);
-        painter.setBrush(trackColor);
+        painter.setBrush(m_noteBlockColor);
 
         int blockStart = -1;
         for (int i = 0; i < numSegments; ++i) {
@@ -249,7 +246,7 @@ void TimelineOverviewWidget::paintEvent(QPaintEvent *event)
         int vpStartX = tickToX(m_viewportStartTick);
         int vpEndX = tickToX(m_viewportEndTick);
 
-        painter.setPen(QPen(QColor(0x70, 0xa7, 0xff, 150), 1));
+        painter.setPen(QPen(QColor(112, 167, 255, 150), 1));
         painter.setBrush(m_viewportColor);
         painter.drawRect(vpStartX, 1, vpEndX - vpStartX, h - 3);
     }

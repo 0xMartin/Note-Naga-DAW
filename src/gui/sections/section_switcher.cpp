@@ -47,7 +47,7 @@ SectionButton::SectionButton(const QIcon &icon, const QString &text, QWidget *pa
 // === SectionSwitcher implementation ===
 
 SectionSwitcher::SectionSwitcher(QWidget *parent)
-    : QWidget(parent), m_currentSection(AppSection::MidiEditor)
+    : QWidget(parent), m_currentSection(AppSection::Project)
 {
     setupUi();
 }
