@@ -1,7 +1,7 @@
 #pragma once
 
 #include <note_naga_engine/note_naga_api.h>
-#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/runtime_data.h>
 
 /**
  * @brief Sample-accurate metronome driven by project ticks.
@@ -12,7 +12,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaMetronome {
 public:
     NoteNagaMetronome();
 
-    void setProject(NoteNagaProject* project) { project_ = project; }
+    void setProject(NoteNagaRuntimeData* project) { project_ = project; }
     void setEnabled(bool enabled) { enabled_ = enabled; }
     void setSampleRate(unsigned int sr) { sampleRate_ = sr; }
 
@@ -25,7 +25,7 @@ public:
     void render(float* left, float* right, size_t numFrames);
 
 private:
-    NoteNagaProject* project_ = nullptr;
+    NoteNagaRuntimeData* project_ = nullptr;
     bool enabled_ = false;
     unsigned int sampleRate_ = 44100;
 

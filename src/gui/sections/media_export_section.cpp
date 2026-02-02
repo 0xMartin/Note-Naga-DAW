@@ -682,7 +682,7 @@ void MediaExportSection::connectEngineSignals()
             });
     
     // Listen for sequence changes
-    connect(m_engine->getProject(), &NoteNagaProject::activeSequenceChanged,
+    connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
             this, [this](NoteNagaMidiSeq*) {
                 refreshSequence();
             });

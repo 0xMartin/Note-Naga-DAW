@@ -7,7 +7,7 @@
 // Playback Worker
 /*******************************************************************************************************/
 
-NoteNagaPlaybackWorker::NoteNagaPlaybackWorker(NoteNagaProject *project, NoteNagaMixer *mixer,
+NoteNagaPlaybackWorker::NoteNagaPlaybackWorker(NoteNagaRuntimeData *project, NoteNagaMixer *mixer,
                                double timer_interval_ms)
 #ifndef QT_DEACTIVATED
     : QObject(nullptr)
@@ -184,7 +184,7 @@ void NoteNagaPlaybackWorker::cleanupThread() {
 // Playback Thread Worker
 /*******************************************************************************************************/
 
-PlaybackThreadWorker::PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMixer *mixer,
+PlaybackThreadWorker::PlaybackThreadWorker(NoteNagaRuntimeData *project, NoteNagaMixer *mixer,
                                            double timer_interval) {
     this->project = project;
     this->mixer = mixer;

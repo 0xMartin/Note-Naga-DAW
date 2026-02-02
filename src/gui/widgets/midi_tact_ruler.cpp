@@ -39,7 +39,7 @@ void MidiTactRuler::setHorizontalScroll(int val) {
 
 void MidiTactRuler::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        NoteNagaProject *project = engine->getProject();
+        NoteNagaRuntimeData *project = engine->getProject();
         int click_x = int(event->position().x()) + horizontalScroll;
         int tick = int(double(click_x) / (project->getPPQ() * time_scale) * project->getPPQ());
         emit positionSelected(tick);
@@ -71,7 +71,7 @@ void MidiTactRuler::paintEvent(QPaintEvent* event) {
     painter.fillRect(r, bg_color);
     painter.setFont(font);
 
-    NoteNagaProject *project = engine->getProject();
+    NoteNagaRuntimeData *project = engine->getProject();
     double ppq = project->getPPQ();
     double beat_px = ppq * time_scale;
 

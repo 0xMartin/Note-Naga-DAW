@@ -316,11 +316,11 @@ void NotationSection::setupDockLayout()
 void NotationSection::connectSignals()
 {
     // Connect to engine signals
-    connect(m_engine->getProject(), &NoteNagaProject::activeSequenceChanged,
+    connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
             this, &NotationSection::onSequenceChanged);
     
     // Playback tick updates - connect to project's currentTickChanged
-    connect(m_engine->getProject(), &NoteNagaProject::currentTickChanged,
+    connect(m_engine->getProject(), &NoteNagaRuntimeData::currentTickChanged,
             this, &NotationSection::onPlaybackTickChanged);
     
     // Control bar playback signals

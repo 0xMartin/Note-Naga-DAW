@@ -17,10 +17,10 @@ TrackListWidget::TrackListWidget(NoteNagaEngine *engine_, QWidget *parent)
   reloadTracks(seq);
 
   // Signals
-  connect(engine->getProject(), &NoteNagaProject::activeSequenceChanged, this,
+  connect(engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged, this,
           &TrackListWidget::reloadTracks);
   connect(engine->getProject(),
-          &NoteNagaProject::activeSequenceTrackListChanged, this,
+          &NoteNagaRuntimeData::activeSequenceTrackListChanged, this,
           &TrackListWidget::reloadTracks);
   connect(engine->getMixer(), &NoteNagaMixer::noteInSignal, this,
           &TrackListWidget::handlePlayingNote);
@@ -145,7 +145,7 @@ void TrackListWidget::handlePlayingNote(const NN_Note_t &note) {
   NoteNagaTrack *track = note.parent;
   if (!track)
     return;
-  NoteNagaProject *project = engine->getProject();
+  NoteNagaRuntimeData *project = engine->getProject();
 
   double time_ms = note_time_ms(note, project->getPPQ(), project->getTempo());
   for (auto *w : track_widgets) {

@@ -663,9 +663,9 @@ TrackPreviewWidget::TrackPreviewWidget(NoteNagaEngine *engine, QWidget *parent)
             this, &TrackPreviewWidget::updateViewportRect);
     
     // Connect signals
-    connect(m_engine->getProject(), &NoteNagaProject::activeSequenceChanged,
+    connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
             this, &TrackPreviewWidget::onSequenceChanged);
-    connect(m_engine->getProject(), &NoteNagaProject::currentTickChanged,
+    connect(m_engine->getProject(), &NoteNagaRuntimeData::currentTickChanged,
             this, &TrackPreviewWidget::onTickChanged);
     connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::currentTickChanged,
             this, &TrackPreviewWidget::onTickChanged);

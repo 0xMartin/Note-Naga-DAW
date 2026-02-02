@@ -1,3 +1,6 @@
+// Project serializer requires Qt - only compiled when QT_DEACTIVATED is not defined
+#ifndef QT_DEACTIVATED
+
 #include <note_naga_engine/core/project_serializer.h>
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/dsp/dsp_factory.h>
@@ -31,7 +34,7 @@ bool NoteNagaProjectSerializer::saveProject(const QString &filePath, const NoteN
     
     // Save MIDI sequences
     QJsonArray sequencesArray;
-    NoteNagaProject *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getProject();
     if (project) {
         for (NoteNagaMidiSeq *seq : project->getSequences()) {
             if (seq) {
@@ -98,7 +101,7 @@ bool NoteNagaProjectSerializer::loadProject(const QString &filePath, NoteNagaPro
     outMetadata = NoteNagaProjectMetadata::fromJson(root["metadata"].toObject());
     
     // Clear existing project data
-    NoteNagaProject *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getProject();
     if (project) {
         // Clear existing sequences - copy list first to avoid iterator invalidation
         std::vector<NoteNagaMidiSeq*> seqsCopy = project->getSequences();
@@ -173,7 +176,7 @@ bool NoteNagaProjectSerializer::createEmptyProject(const NoteNagaProjectMetadata
         return false;
     }
     
-    NoteNagaProject *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getProject();
     if (!project) {
         m_lastError = "Project is null";
         return false;
@@ -551,7 +554,7 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
 bool NoteNagaProjectSerializer::deserializeRoutingTable(const QJsonArray &routingArray)
 {
     NoteNagaMixer *mixer = m_engine->getMixer();
-    NoteNagaProject *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getProject();
     if (!mixer || !project) return false;
     
     // Clear existing routing
@@ -629,3 +632,5 @@ NoteNagaDSPBlockBase *NoteNagaProjectSerializer::createDSPBlockByName(const QStr
     
     return nullptr;
 }
+
+#endif // QT_DEACTIVATED

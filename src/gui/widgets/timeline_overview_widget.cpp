@@ -38,7 +38,7 @@ void TimelineOverviewWidget::connectSignals()
 
     // Connect to project/sequence changes
     if (m_engine->getProject()) {
-        connect(m_engine->getProject(), &NoteNagaProject::activeSequenceChanged,
+        connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
                 this, &TimelineOverviewWidget::onSequenceChanged);
 
         m_sequence = m_engine->getProject()->getActiveSequence();
@@ -51,7 +51,7 @@ void TimelineOverviewWidget::connectSignals()
 
     // Connect to playback position changes
     if (m_engine->getProject()) {
-        connect(m_engine->getProject(), &NoteNagaProject::currentTickChanged,
+        connect(m_engine->getProject(), &NoteNagaRuntimeData::currentTickChanged,
                 this, &TimelineOverviewWidget::onPlaybackPositionChanged);
     }
 

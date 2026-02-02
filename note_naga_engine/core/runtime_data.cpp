@@ -1,9 +1,9 @@
-#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/runtime_data.h>
 
 #include <algorithm>
 #include <note_naga_engine/logger.h>
 
-NoteNagaProject::NoteNagaProject()
+NoteNagaRuntimeData::NoteNagaRuntimeData()
 #ifndef QT_DEACTIVATED
     : QObject(nullptr)
 #endif
@@ -13,18 +13,18 @@ NoteNagaProject::NoteNagaProject()
     active_sequence = nullptr;
     current_tick = 0;
     max_tick = 0;
-    NOTE_NAGA_LOG_INFO("Project manager initialized");
+    NOTE_NAGA_LOG_INFO("Runtime data initialized");
 }
 
-NoteNagaProject::~NoteNagaProject() {
+NoteNagaRuntimeData::~NoteNagaRuntimeData() {
     for (NoteNagaMidiSeq *seq : sequences) {
         if (seq) delete seq;
     }
     sequences.clear();
-    NOTE_NAGA_LOG_INFO("Project manager destroyed");
+    NOTE_NAGA_LOG_INFO("Runtime data destroyed");
 }
 
-bool NoteNagaProject::loadProject(const std::string &project_path) {
+bool NoteNagaRuntimeData::loadProject(const std::string &project_path) {
     if (project_path.empty()) { 
         NOTE_NAGA_LOG_ERROR("Project path is empty, cannot load project");
         return false;
@@ -50,16 +50,16 @@ bool NoteNagaProject::loadProject(const std::string &project_path) {
     return true;
 }
 
-void NoteNagaProject::addSequence(NoteNagaMidiSeq *sequence) {
+void NoteNagaRuntimeData::addSequence(NoteNagaMidiSeq *sequence) {
     if (sequence) {
         sequences.push_back(sequence);
         
 #ifndef QT_DEACTIVATED
         // Connect sequence signals to project signals
         connect(sequence, &NoteNagaMidiSeq::metadataChanged, this,
-                &NoteNagaProject::sequenceMetadataChanged);
+                &NoteNagaRuntimeData::sequenceMetadataChanged);
         connect(sequence, &NoteNagaMidiSeq::trackMetadataChanged, this,
-                &NoteNagaProject::trackMetaChanged);
+                &NoteNagaRuntimeData::trackMetaChanged);
         connect(sequence, &NoteNagaMidiSeq::trackListChanged, this, [this, sequence](){
             this->activeSequenceTrackListChanged(sequence);
         });
@@ -73,7 +73,7 @@ void NoteNagaProject::addSequence(NoteNagaMidiSeq *sequence) {
     }
 }
 
-void NoteNagaProject::removeSequence(NoteNagaMidiSeq *sequence) {
+void NoteNagaRuntimeData::removeSequence(NoteNagaMidiSeq *sequence) {
     if (sequence) {
         auto it = std::remove(sequences.begin(), sequences.end(), sequence);
         if (it != sequences.end()) {
@@ -90,25 +90,25 @@ void NoteNagaProject::removeSequence(NoteNagaMidiSeq *sequence) {
     }
 }
 
-int NoteNagaProject::getPPQ() const {
+int NoteNagaRuntimeData::getPPQ() const {
     NoteNagaMidiSeq *active_sequence = getActiveSequence();
     if (active_sequence) { return active_sequence->getPPQ(); }
     return ppq;
 }
 
-int NoteNagaProject::getTempo() const {
+int NoteNagaRuntimeData::getTempo() const {
     NoteNagaMidiSeq *active_sequence = getActiveSequence();
     if (active_sequence) { return active_sequence->getTempo(); }
     return tempo;
 }
 
-void NoteNagaProject::setCurrentTick(int tick) {
+void NoteNagaRuntimeData::setCurrentTick(int tick) {
     if (this->current_tick == tick) return;
     this->current_tick = tick;
     NN_QT_EMIT(currentTickChanged(this->current_tick));
 }
 
-bool NoteNagaProject::setActiveSequence(NoteNagaMidiSeq *sequence) {
+bool NoteNagaRuntimeData::setActiveSequence(NoteNagaMidiSeq *sequence) {
     if (sequence == this->active_sequence) {
         NOTE_NAGA_LOG_WARNING("Active sequence is already set to the requested sequence");
         return false;
@@ -134,13 +134,13 @@ bool NoteNagaProject::setActiveSequence(NoteNagaMidiSeq *sequence) {
     return false;
 }
 
-int NoteNagaProject::getMaxTick() const {
+int NoteNagaRuntimeData::getMaxTick() const {
     NoteNagaMidiSeq *active_sequence = getActiveSequence();
     if (!active_sequence) { return 0; }
     return active_sequence->getMaxTick();
 }
 
-NoteNagaMidiSeq *NoteNagaProject::getSequenceById(int sequence_id) {
+NoteNagaMidiSeq *NoteNagaRuntimeData::getSequenceById(int sequence_id) {
     for (NoteNagaMidiSeq *seq : this->sequences) {
         if (seq && seq->getId() == sequence_id) { return seq; }
     }

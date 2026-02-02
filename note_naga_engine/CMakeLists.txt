@@ -40,7 +40,7 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/core/lock_free_spsc_queue.h
     ./include/note_naga_engine/core/lock_free_mpmc_queue.h
     ./include/note_naga_engine/core/async_queue_component.h
-    ./include/note_naga_engine/core/project_data.h
+    ./include/note_naga_engine/core/runtime_data.h
     ./include/note_naga_engine/core/note_naga_synthesizer.h
     ./include/note_naga_engine/core/project_file_types.h
     ./include/note_naga_engine/core/project_serializer.h
@@ -86,7 +86,7 @@ set(SOURCE_FILES
     ./nn_utils.cpp
     # core
     ./core/soundfont_finder.cpp
-    ./core/project_data.cpp
+    ./core/runtime_data.cpp
     ./core/types.cpp
     ./core/project_serializer.cpp
     ./core/recent_projects_manager.cpp
@@ -170,6 +170,7 @@ target_link_libraries(note_naga_engine
         PkgConfig::GLIB2
         PkgConfig::FLUIDSYNTH
         PkgConfig::RTMIDI
+        PkgConfig::RTAUDIO
 )
 endif()
 

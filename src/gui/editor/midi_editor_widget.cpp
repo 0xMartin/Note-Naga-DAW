@@ -121,29 +121,29 @@ MidiEditorWidget::~MidiEditorWidget() {
 void MidiEditorWidget::setupConnections() {
     auto project = engine->getProject();
 
-    connect(project, &NoteNagaProject::projectFileLoaded, this, [this]() {
+    connect(project, &NoteNagaRuntimeData::projectFileLoaded, this, [this]() {
         this->last_seq = engine->getProject()->getActiveSequence();
         refreshAll();
     });
 
-    connect(project, &NoteNagaProject::activeSequenceChanged, this,
+    connect(project, &NoteNagaRuntimeData::activeSequenceChanged, this,
             [this](NoteNagaMidiSeq *seq) {
                 this->last_seq = seq;
                 refreshAll();
             });
 
-    connect(project, &NoteNagaProject::sequenceMetadataChanged, this,
+    connect(project, &NoteNagaRuntimeData::sequenceMetadataChanged, this,
             [this](NoteNagaMidiSeq *seq, const std::string &) {
                 this->last_seq = seq;
                 refreshAll();
             });
 
-    connect(project, &NoteNagaProject::trackMetaChanged, this,
+    connect(project, &NoteNagaRuntimeData::trackMetaChanged, this,
             [this](NoteNagaTrack *track, const std::string &) {
                 refreshTrack(track);
             });
 
-    connect(project, &NoteNagaProject::currentTickChanged, this,
+    connect(project, &NoteNagaRuntimeData::currentTickChanged, this,
             &MidiEditorWidget::currentTickChanged);
 
     // Connect playback stopped to clear row highlights

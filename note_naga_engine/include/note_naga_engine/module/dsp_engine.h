@@ -7,10 +7,11 @@
 #include <note_naga_engine/module/metronome.h>
 #include <note_naga_engine/module/spectrum_analyzer.h>
 #include <note_naga_engine/module/pan_analyzer.h>
-#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/runtime_data.h>
 
 #include <vector>
 #include <mutex>
+#include <map>
 
 /** 
  * @brief NoteNagaDSPEngine is the main DSP engine for the Note Naga project.

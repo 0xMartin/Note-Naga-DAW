@@ -2,7 +2,7 @@
 
 #include <note_naga_engine/core/async_queue_component.h>
 #include <note_naga_engine/core/note_naga_synthesizer.h>
-#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/runtime_data.h>
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_api.h>
 
@@ -74,10 +74,10 @@ class NOTE_NAGA_ENGINE_API NoteNagaMixer : public AsyncQueueComponent<NN_MixerMe
 public:
     /**
      * @brief Constructs the mixer and initializes the synthesizer and outputs.
-     * @param project Pointer to the NoteNagaProject instance.
+     * @param project Pointer to the NoteNagaRuntimeData instance.
      * @param synthesizers Optional pointer to a vector of synthesizers to use.
      */
-    explicit NoteNagaMixer(NoteNagaProject *project,
+    explicit NoteNagaMixer(NoteNagaRuntimeData *project,
                            std::vector<NoteNagaSynthesizer *> *synthesizers);
 
     /**
@@ -226,7 +226,7 @@ protected:
 
 private:
     ///< Pointer to the associated project
-    NoteNagaProject *project;
+    NoteNagaRuntimeData *project;
     ///< List of synthesizers used by the mixer
     std::vector<NoteNagaSynthesizer *> *synthesizers;
 

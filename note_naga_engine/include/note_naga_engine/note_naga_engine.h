@@ -3,7 +3,7 @@
 #include <note_naga_engine/note_naga_api.h>
 
 #include <note_naga_engine/core/note_naga_synthesizer.h>
-#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/runtime_data.h>
 #include <note_naga_engine/core/types.h>
 
 #include <note_naga_engine/module/audio_worker.h>
@@ -29,14 +29,14 @@
  * -B build -DQT_DEACTIVATED=ON".
  *
  * Engine how this main components:
- * - NoteNagaProject: Represents the current project and its MIDI data.
+ * - NoteNagaRuntimeData: Represents the current runtime data and its MIDI data.
  * - NoteNagaMixer: Manages audio mixing and track control.
  * - PlaybackWorker: Handles playback in a separate thread, allowing for smooth audio
  * playback.
  *
  * Note data structure:
  * - NoteNagaNote <-(parent)- NoteNagaTrack <-(parent)- NoteNagaMidiSeq <-(parent)-
- * NoteNagaProject
+ * NoteNagaRuntimeData
  *
  * Note play workflow:
  * NoteNagaNote -> PlaybackWorker -> NoteNagaMixer -(Synthesizer)-> DSPEngine -> Audio
@@ -202,9 +202,9 @@ public:
 
     /**
      * @brief Gets the current project.
-     * @return Pointer to the NoteNagaProject.
+     * @return Pointer to the NoteNagaRuntimeData.
      */
-    NoteNagaProject *getProject() { return this->project; }
+    NoteNagaRuntimeData *getProject() { return this->project; }
 
     /**
      * @brief Gets the mixer instance.
@@ -277,7 +277,7 @@ Q_SIGNALS:
 #endif
 
 protected:
-    NoteNagaProject *project;                        ///< Pointer to the current project instance
+    NoteNagaRuntimeData *project;                        ///< Pointer to the current project instance
     NoteNagaPlaybackWorker *playback_worker;         ///< Pointer to the playback worker instance
     NoteNagaMixer *mixer;                            ///< Pointer to the mixer instance
     NoteNagaDSPEngine *dsp_engine;                   ///< Pointer to the DSP engine instance

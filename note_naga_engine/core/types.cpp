@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <map>
 
 #include <note_naga_engine/logger.h>
 #include <string>

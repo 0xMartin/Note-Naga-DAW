@@ -1,5 +1,8 @@
 #pragma once
 
+// Recent projects manager requires Qt - only available when QT_DEACTIVATED is not defined
+#ifndef QT_DEACTIVATED
+
 #include <QString>
 #include <QStringList>
 #include <QSettings>
@@ -106,3 +109,5 @@ private:
     QString m_lastDirectory;
     QSettings m_settings;
 };
+
+#endif // QT_DEACTIVATED

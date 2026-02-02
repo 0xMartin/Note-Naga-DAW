@@ -1,8 +1,11 @@
 #pragma once
 
+// Project serializer requires Qt - only available when QT_DEACTIVATED is not defined
+#ifndef QT_DEACTIVATED
+
 #include <note_naga_engine/note_naga_api.h>
 #include <note_naga_engine/core/project_file_types.h>
-#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/runtime_data.h>
 #include <note_naga_engine/core/dsp_block_base.h>
 #include <note_naga_engine/module/mixer.h>
 #include <note_naga_engine/module/dsp_engine.h>
@@ -91,3 +94,5 @@ private:
     // DSP block factory
     NoteNagaDSPBlockBase *createDSPBlockByName(const QString &name);
 };
+
+#endif // QT_DEACTIVATED

@@ -23,7 +23,7 @@ class NOTE_NAGA_ENGINE_API NoteNagaSpectrumAnalyzer
     Q_OBJECT
 #else
 class NOTE_NAGA_ENGINE_API NoteNagaSpectrumAnalyzer
-    : public AsyncQueueComponent<NN_AsyncTriggerMessage_t> {
+    : public AsyncQueueComponent<NN_AsyncTriggerMessage_t, 16> {
 #endif
 public:
     explicit NoteNagaSpectrumAnalyzer(size_t fft_size, ChannelMode mode = ChannelMode::Merged);

@@ -19,7 +19,7 @@ MidiControlBarWidget::MidiControlBarWidget(NoteNagaEngine *engine_, QWidget *par
     initUI();
 
     // midi sequence change signals
-    connect(this->engine->getProject(), &NoteNagaProject::activeSequenceChanged, this,
+    connect(this->engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged, this,
             [this](NoteNagaMidiSeq *seq) {
                 this->ppq = seq->getPPQ();
                 this->tempo = seq->getTempo();
@@ -28,7 +28,7 @@ MidiControlBarWidget::MidiControlBarWidget(NoteNagaEngine *engine_, QWidget *par
                 this->updateProgressBar();
                 this->updateBPM();
             });
-    connect(this->engine->getProject(), &NoteNagaProject::sequenceMetadataChanged, this,
+    connect(this->engine->getProject(), &NoteNagaRuntimeData::sequenceMetadataChanged, this,
             [this](NoteNagaMidiSeq *seq, const std::string &param) {
                 this->ppq = seq->getPPQ();
                 this->tempo = seq->getTempo();
@@ -38,7 +38,7 @@ MidiControlBarWidget::MidiControlBarWidget(NoteNagaEngine *engine_, QWidget *par
                 this->updateBPM();
             });
     // current tick changed signal
-    connect(this->engine->getProject(), &NoteNagaProject::currentTickChanged, this,
+    connect(this->engine->getProject(), &NoteNagaRuntimeData::currentTickChanged, this,
             [this]() { this->updateProgressBar(); });
     // Playback worker start/stop signals
     connect(this->engine, &NoteNagaEngine::playbackStarted, this,
@@ -167,7 +167,7 @@ void MidiControlBarWidget::initUI() {
 }
 
 void MidiControlBarWidget::updateBPM() {
-    NoteNagaProject *project = this->engine->getProject();
+    NoteNagaRuntimeData *project = this->engine->getProject();
     // update bmp label
     double bpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 0.0;
     tempo_label->setText(QString("%1 BPM").arg(bpm, 0, 'f', 2));
@@ -177,7 +177,7 @@ void MidiControlBarWidget::updateBPM() {
 }
 
 void MidiControlBarWidget::updateProgressBar() {
-    NoteNagaProject *project = this->engine->getProject();
+    NoteNagaRuntimeData *project = this->engine->getProject();
     double us_per_tick = double(this->tempo) / double(this->ppq);
     double cur_sec = double(project->getCurrentTick()) * us_per_tick / 1'000'000.0;
     progress_bar->setCurrentTime(cur_sec);
@@ -228,7 +228,7 @@ void MidiControlBarWidget::metronomeBtnClicked() {
 }
 
 void MidiControlBarWidget::onProgressBarPositionPressed(float seconds) {
-    NoteNagaProject *project = this->engine->getProject();
+    NoteNagaRuntimeData *project = this->engine->getProject();
     if (!project) return;
 
     // Calculate tick position based on seconds
@@ -246,7 +246,7 @@ void MidiControlBarWidget::onProgressBarPositionPressed(float seconds) {
 }
 
 void MidiControlBarWidget::onProgressBarPositionDragged(float seconds) {
-    NoteNagaProject *project = this->engine->getProject();
+    NoteNagaRuntimeData *project = this->engine->getProject();
     if (!project) return;
 
     // Calculate tick position based on seconds

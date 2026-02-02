@@ -1,5 +1,8 @@
 #pragma once
 
+// Project file types require Qt - only available when QT_DEACTIVATED is not defined
+#ifndef QT_DEACTIVATED
+
 #include <note_naga_engine/note_naga_api.h>
 
 #include <QString>
@@ -196,3 +199,5 @@ struct NOTE_NAGA_ENGINE_API MidiSequenceConfig {
         return config;
     }
 };
+
+#endif // QT_DEACTIVATED

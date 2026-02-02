@@ -4,11 +4,11 @@
 #include <note_naga_engine/logger.h>
 
 #ifndef QT_DEACTIVATED
-NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project,
+NoteNagaMixer::NoteNagaMixer(NoteNagaRuntimeData *project,
                              std::vector<NoteNagaSynthesizer *> *synthesizers)
     : QObject(nullptr), AsyncQueueComponent()
 #else
-NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, std::vector<NoteNagaSynthesizer *> *synthesizers)
+NoteNagaMixer::NoteNagaMixer(NoteNagaRuntimeData *project, std::vector<NoteNagaSynthesizer *> *synthesizers)
     : AsyncQueueComponent()
 #endif
 {
@@ -22,7 +22,7 @@ NoteNagaMixer::NoteNagaMixer(NoteNagaProject *project, std::vector<NoteNagaSynth
     
 
 #ifndef QT_DEACTIVATED
-    connect(project, &NoteNagaProject::projectFileLoaded, this,
+    connect(project, &NoteNagaRuntimeData::projectFileLoaded, this,
             &NoteNagaMixer::createDefaultRouting);
 #endif
 

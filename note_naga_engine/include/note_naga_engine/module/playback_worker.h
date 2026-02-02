@@ -1,6 +1,6 @@
 #pragma once
 
-#include <note_naga_engine/core/project_data.h>
+#include <note_naga_engine/core/runtime_data.h>
 #include <note_naga_engine/module/mixer.h>
 #include <note_naga_engine/note_naga_api.h>
 
@@ -40,11 +40,11 @@ public:
 
     /**
      * @brief Constructs the playback worker.
-     * @param project Pointer to NoteNagaProject.
+     * @param project Pointer to NoteNagaRuntimeData.
      * @param mixer Pointer to NoteNagaMixer.
      * @param timer_interval_ms Worker timer interval in milliseconds.
      */
-    explicit NoteNagaPlaybackWorker(NoteNagaProject *project, NoteNagaMixer *mixer,
+    explicit NoteNagaPlaybackWorker(NoteNagaRuntimeData *project, NoteNagaMixer *mixer,
                             double timer_interval_ms);
 
     /**
@@ -116,7 +116,7 @@ public:
     void removePlayingStateCallback(CallbackId id);
 
 private:
-    NoteNagaProject *project; ///< Pointer to project data (not owned)
+    NoteNagaRuntimeData *project; ///< Pointer to project data (not owned)
     NoteNagaMixer *mixer;     ///< Pointer to mixer (not owned)
 
     // Internal State
@@ -204,11 +204,11 @@ public:
 
     /**
      * @brief Constructs the worker.
-     * @param project Pointer to NoteNagaProject instance.
+     * @param project Pointer to NoteNagaRuntimeData instance.
      * @param mixer Pointer to NoteNagaMixer instance.
      * @param timer_interval Timer interval in milliseconds.
      */
-    PlaybackThreadWorker(NoteNagaProject *project, NoteNagaMixer *mixer,
+    PlaybackThreadWorker(NoteNagaRuntimeData *project, NoteNagaMixer *mixer,
                          double timer_interval);
 
     /**
@@ -261,7 +261,7 @@ public:
     std::atomic<bool> should_stop{false}; ///< Flag to signal worker thread should stop
 
 private:
-    NoteNagaProject *project; ///< Pointer to project data (not owned)
+    NoteNagaRuntimeData *project; ///< Pointer to project data (not owned)
     NoteNagaMixer *mixer;     ///< Pointer to mixer (not owned)
 
     // Timing

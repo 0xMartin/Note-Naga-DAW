@@ -771,7 +771,7 @@ void ProjectSection::updateStatistics()
 {
     if (!m_engine) return;
 
-    NoteNagaProject *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getProject();
     if (!project) return;
 
     NoteNagaMidiSeq *seq = project->getActiveSequence();

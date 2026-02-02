@@ -98,7 +98,7 @@ bool NoteNagaEngine::initialize() {
     }
 
     // project
-    if (!this->project) this->project = new NoteNagaProject();
+    if (!this->project) this->project = new NoteNagaRuntimeData();
 
     // mixer
     if (!this->mixer) { this->mixer = new NoteNagaMixer(this->project, &this->synthesizers); }

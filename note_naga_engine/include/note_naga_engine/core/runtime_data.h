@@ -11,29 +11,29 @@
 #include <vector>
 
 /*******************************************************************************************************/
-// Note Naga Project
+// Note Naga Runtime Data
 /*******************************************************************************************************/
 
 /**
- * @brief Represents a Note Naga project containing MIDI sequences and tracks.
+ * @brief Represents a Note Naga runtime data container holding MIDI sequences and tracks.
  */
 #ifndef QT_DEACTIVATED
-class NOTE_NAGA_ENGINE_API NoteNagaProject : public QObject {
+class NOTE_NAGA_ENGINE_API NoteNagaRuntimeData : public QObject {
     Q_OBJECT
 #else
-class NOTE_NAGA_ENGINE_API NoteNagaProject {
+class NOTE_NAGA_ENGINE_API NoteNagaRuntimeData {
 #endif
 
 public:
     /**
-     * @brief Constructor for Note Naga project.
+     * @brief Constructor for Note Naga runtime data.
      */
-    NoteNagaProject();
+    NoteNagaRuntimeData();
 
     /**
-     * @brief Destructor for Note Naga project.
+     * @brief Destructor for Note Naga runtime data.
      */
-    virtual ~NoteNagaProject();
+    virtual ~NoteNagaRuntimeData();
 
     /**
      * @brief Loads a project from the specified path.

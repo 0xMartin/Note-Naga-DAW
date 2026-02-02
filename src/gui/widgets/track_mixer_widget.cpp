@@ -559,7 +559,7 @@ void TrackMixerWidget::onMinVolumeAllTracks() {
 void TrackMixerWidget::handlePlayingNote(const NN_Note_t &note,
                                          const std::string &device_name, int channel) {
     // channel signalization
-    NoteNagaProject *project = engine->getProject();
+    NoteNagaRuntimeData *project = engine->getProject();
     int time_ms = int(note_time_ms(note, project->getPPQ(), project->getTempo()));
     if (note.velocity.has_value() && note.velocity.value() > 0) {
         setChannelOutputValue(device_name, channel, note.velocity.value(), time_ms);

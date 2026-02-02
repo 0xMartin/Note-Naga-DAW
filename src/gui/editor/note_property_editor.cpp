@@ -64,7 +64,7 @@ NotePropertyEditor::NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget 
         }
         
         // Also listen for sequence changes to reconnect
-        connect(m_engine->getProject(), &NoteNagaProject::activeSequenceChanged,
+        connect(m_engine->getProject(), &NoteNagaRuntimeData::activeSequenceChanged,
                 this, &NotePropertyEditor::onSequenceChanged);
     }
 }

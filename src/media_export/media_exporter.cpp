@@ -205,7 +205,7 @@ bool MediaExporter::exportAudio(const QString &outputPath)
 
     std::vector<float> audioBuffer(totalSamples * numChannels, 0.0f);
 
-    NoteNagaProject *project = m_engine->getProject();
+    NoteNagaRuntimeData *project = m_engine->getProject();
     NoteNagaMidiSeq *activeSequence = project->getActiveSequence();
     NoteNagaMixer *mixer = m_engine->getMixer();
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();

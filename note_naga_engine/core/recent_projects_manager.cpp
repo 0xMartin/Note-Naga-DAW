@@ -1,3 +1,6 @@
+// Recent projects manager requires Qt - only compiled when QT_DEACTIVATED is not defined
+#ifndef QT_DEACTIVATED
+
 #include <note_naga_engine/core/recent_projects_manager.h>
 #include <QStandardPaths>
 #include <QDir>
@@ -152,3 +155,5 @@ void RecentProjectsManager::save()
     
     m_settings.sync();
 }
+
+#endif // QT_DEACTIVATED
