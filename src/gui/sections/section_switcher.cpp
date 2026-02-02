@@ -72,6 +72,7 @@ void SectionSwitcher::setupUi()
     };
 
     QList<SectionInfo> sections = {
+        {AppSection::Project, ":/icons/app_section_project.svg", tr("Project")},
         {AppSection::MidiEditor, ":/icons/app_section_midi.svg", tr("MIDI Editor")},
         {AppSection::DspEditor, ":/icons/app_section_dsp.svg", tr("DSP Editor")},
         {AppSection::MediaExport, ":/icons/app_section_media.svg", tr("Media Export")},

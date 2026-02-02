@@ -13,6 +13,7 @@
 #include <QToolBar>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QTimer>
 
 #include <note_naga_engine/nn_utils.h>
 
@@ -22,8 +23,9 @@
 #include "editor/midi_editor_widget.h"
 #include "widgets/track_list_widget.h"
 #include "widgets/track_mixer_widget.h"
+#include "dialogs/project_wizard_dialog.h"
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true), m_currentSection(AppSection::MidiEditor) {
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true), m_currentSection(AppSection::Project) {
     setWindowTitle("Note Naga");
     resize(1200, 800);
     QRect qr = frameGeometry();
@@ -34,14 +36,48 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true)
     this->engine = new NoteNagaEngine();
     this->engine->initialize();
 
+    // Initialize project management
+    m_projectSerializer = new NoteNagaProjectSerializer(engine);
+    m_recentProjectsManager = new RecentProjectsManager();
+    
+    // Setup autosave timer (every 2 minutes)
+    m_autosaveTimer = new QTimer(this);
+    m_autosaveTimer->setInterval(2 * 60 * 1000); // 2 minutes
+    connect(m_autosaveTimer, &QTimer::timeout, this, &MainWindow::onAutosave);
+
     setup_actions();
     setup_menu_bar();
     setup_toolbar();
     setup_sections();
     connect_signals();
+    
+    // Hide main window until project is loaded
+    hide();
+    
+    // Show project wizard on startup
+    QTimer::singleShot(100, this, [this]() {
+        if (!showProjectWizard()) {
+            // User cancelled wizard - close application
+            QApplication::quit();
+        } else {
+            // Project loaded successfully - show main window
+            show();
+        }
+    });
 }
 
 MainWindow::~MainWindow() {
+    if (m_autosaveTimer) {
+        m_autosaveTimer->stop();
+    }
+    if (m_projectSerializer) {
+        delete m_projectSerializer;
+        m_projectSerializer = nullptr;
+    }
+    if (m_recentProjectsManager) {
+        delete m_recentProjectsManager;
+        m_recentProjectsManager = nullptr;
+    }
     if (this->engine) {
         delete this->engine;
         this->engine = nullptr; 
@@ -214,16 +250,18 @@ void MainWindow::setup_sections() {
     m_sectionStack = new QStackedWidget();
     
     // Create sections
+    m_projectSection = new ProjectSection(engine, m_projectSerializer, this);
     m_midiEditorSection = new MidiEditorSection(engine, this);
     m_dspEditorSection = new DSPEditorSection(engine, this);
     m_notationSection = new NotationSection(engine, this);
     m_mediaExportSection = new MediaExportSection(engine, this);
     
     // Add sections to stack (order must match AppSection enum)
-    m_sectionStack->addWidget(m_midiEditorSection);  // index 0 - MidiEditor
-    m_sectionStack->addWidget(m_dspEditorSection);   // index 1 - DspEditor
-    m_sectionStack->addWidget(m_mediaExportSection); // index 2 - MediaExport
-    m_sectionStack->addWidget(m_notationSection);    // index 3 - Notation
+    m_sectionStack->addWidget(m_projectSection);     // index 0 - Project
+    m_sectionStack->addWidget(m_midiEditorSection);  // index 1 - MidiEditor
+    m_sectionStack->addWidget(m_dspEditorSection);   // index 2 - DspEditor
+    m_sectionStack->addWidget(m_mediaExportSection); // index 3 - MediaExport
+    m_sectionStack->addWidget(m_notationSection);    // index 4 - Notation
     
     // Create section switcher (bottom bar)
     m_sectionSwitcher = new SectionSwitcher(this);
@@ -238,7 +276,17 @@ void MainWindow::setup_sections() {
     
     // Set initial section
     m_sectionStack->setCurrentIndex(0);
-    m_currentSection = AppSection::MidiEditor;
+    m_currentSection = AppSection::Project;
+    
+    // Connect project section signals
+    connect(m_projectSection, &ProjectSection::saveRequested, 
+            this, &MainWindow::onProjectSaveRequested);
+    connect(m_projectSection, &ProjectSection::saveAsRequested, 
+            this, &MainWindow::onProjectSaveAsRequested);
+    connect(m_projectSection, &ProjectSection::exportMidiRequested, 
+            this, &MainWindow::onProjectExportMidiRequested);
+    connect(m_projectSection, &ProjectSection::unsavedChangesChanged, 
+            this, &MainWindow::onProjectUnsavedChanged);
 }
 
 void MainWindow::onSectionChanged(AppSection section) {
@@ -249,6 +297,9 @@ void MainWindow::onSectionChanged(AppSection section) {
     
     // Deactivate previous section to save resources
     switch (m_currentSection) {
+        case AppSection::Project:
+            m_projectSection->onSectionDeactivated();
+            break;
         case AppSection::MidiEditor:
             m_midiEditorSection->onSectionDeactivated();
             break;
@@ -269,6 +320,9 @@ void MainWindow::onSectionChanged(AppSection section) {
     
     // Activate new section
     switch (section) {
+        case AppSection::Project:
+            m_projectSection->onSectionActivated();
+            break;
         case AppSection::MidiEditor:
             m_midiEditorSection->onSectionActivated();
             break;
@@ -470,6 +524,27 @@ void MainWindow::about_dialog() {
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
+    // Check for unsaved changes
+    if (m_hasUnsavedChanges || m_projectSection->hasUnsavedChanges()) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this, "Unsaved Changes",
+            "You have unsaved changes. Do you want to save before closing?",
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save
+        );
+        
+        if (reply == QMessageBox::Cancel) {
+            event->ignore();
+            return;
+        } else if (reply == QMessageBox::Save) {
+            if (!saveProject()) {
+                // Save failed or cancelled
+                event->ignore();
+                return;
+            }
+        }
+    }
+    
     event->accept();
 }
 
@@ -698,4 +773,202 @@ void MainWindow::util_scale_timing() {
             NN_Utils::scaleTiming(*seq, factor);
         }
     }
+}
+
+// === Project Management ===
+
+bool MainWindow::showProjectWizard() {
+    ProjectWizardDialog wizard(engine, m_recentProjectsManager, this);
+    
+    if (wizard.exec() != QDialog::Accepted) {
+        return false;
+    }
+    
+    switch (wizard.getWizardResult()) {
+        case ProjectWizardDialog::WizardResult::NewProject: {
+            createNewProject(wizard.getProjectMetadata());
+            break;
+        }
+        case ProjectWizardDialog::WizardResult::OpenProject:
+        case ProjectWizardDialog::WizardResult::OpenRecent: {
+            if (!openProject(wizard.getSelectedFilePath())) {
+                QMessageBox::critical(this, "Error", "Failed to open project.");
+                return showProjectWizard(); // Try again
+            }
+            break;
+        }
+        case ProjectWizardDialog::WizardResult::ImportMidi: {
+            // Import MIDI and create project metadata
+            NoteNagaProjectMetadata meta;
+            meta.name = QFileInfo(wizard.getSelectedFilePath()).baseName();
+            meta.createdAt = QDateTime::currentDateTime();
+            meta.modifiedAt = QDateTime::currentDateTime();
+            
+            if (!m_projectSerializer->importMidiAsProject(wizard.getSelectedFilePath(), meta)) {
+                QMessageBox::critical(this, "Error", "Failed to import MIDI file.");
+                return showProjectWizard(); // Try again
+            }
+            
+            m_projectMetadata = meta;
+            m_currentProjectPath.clear(); // Not saved yet
+            m_projectSection->setProjectMetadata(m_projectMetadata);
+            m_projectSection->setProjectFilePath(QString());
+            m_hasUnsavedChanges = true;
+            break;
+        }
+        default:
+            return false;
+    }
+    
+    updateWindowTitle();
+    m_autosaveTimer->start();
+    
+    // Switch to MIDI editor after loading
+    m_sectionSwitcher->setCurrentSection(AppSection::MidiEditor);
+    onSectionChanged(AppSection::MidiEditor);
+    
+    return true;
+}
+
+void MainWindow::createNewProject(const NoteNagaProjectMetadata &metadata) {
+    m_projectMetadata = metadata;
+    m_currentProjectPath.clear();
+    
+    if (!m_projectSerializer->createEmptyProject(metadata)) {
+        QMessageBox::warning(this, "Warning", "Failed to create empty project. Using default.");
+    }
+    
+    m_projectSection->setProjectMetadata(m_projectMetadata);
+    m_projectSection->setProjectFilePath(QString());
+    m_hasUnsavedChanges = true;
+    
+    updateWindowTitle();
+}
+
+bool MainWindow::openProject(const QString &filePath) {
+    NoteNagaProjectMetadata loadedMetadata;
+    
+    if (!m_projectSerializer->loadProject(filePath, loadedMetadata)) {
+        return false;
+    }
+    
+    m_projectMetadata = loadedMetadata;
+    m_currentProjectPath = filePath;
+    m_hasUnsavedChanges = false;
+    
+    m_projectSection->setProjectMetadata(m_projectMetadata);
+    m_projectSection->setProjectFilePath(m_currentProjectPath);
+    m_projectSection->markAsSaved();
+    
+    // Add to recent projects
+    m_recentProjectsManager->addRecentProject(filePath, m_projectMetadata.name);
+    
+    updateWindowTitle();
+    
+    return true;
+}
+
+bool MainWindow::saveProject() {
+    if (m_currentProjectPath.isEmpty()) {
+        return saveProjectAs();
+    }
+    
+    // Get latest metadata from section
+    m_projectMetadata = m_projectSection->getProjectMetadata();
+    
+    if (!m_projectSerializer->saveProject(m_currentProjectPath, m_projectMetadata)) {
+        QMessageBox::critical(this, "Save Failed", 
+            QString("Failed to save project:\n%1").arg(m_projectSerializer->lastError()));
+        return false;
+    }
+    
+    m_hasUnsavedChanges = false;
+    m_projectSection->markAsSaved();
+    
+    // Update recent projects
+    m_recentProjectsManager->addRecentProject(m_currentProjectPath, m_projectMetadata.name);
+    
+    updateWindowTitle();
+    
+    return true;
+}
+
+bool MainWindow::saveProjectAs() {
+    QString startDir = m_recentProjectsManager->getLastProjectDirectory();
+    QString suggestedName = m_projectMetadata.name.isEmpty() ? "project" : m_projectMetadata.name;
+    suggestedName = suggestedName.replace(QRegularExpression("[^a-zA-Z0-9_-]"), "_");
+    
+    QString filePath = QFileDialog::getSaveFileName(
+        this,
+        "Save Project As",
+        startDir + "/" + suggestedName + ".nnproj",
+        "NoteNaga Projects (*.nnproj)"
+    );
+    
+    if (filePath.isEmpty()) {
+        return false;
+    }
+    
+    // Ensure extension
+    if (!filePath.endsWith(".nnproj", Qt::CaseInsensitive)) {
+        filePath += ".nnproj";
+    }
+    
+    m_currentProjectPath = filePath;
+    m_projectSection->setProjectFilePath(m_currentProjectPath);
+    
+    // Update directory
+    m_recentProjectsManager->setLastProjectDirectory(QFileInfo(filePath).absolutePath());
+    
+    return saveProject();
+}
+
+void MainWindow::onAutosave() {
+    if (m_currentProjectPath.isEmpty()) {
+        return; // Can't autosave without a file path
+    }
+    
+    if (!m_hasUnsavedChanges && !m_projectSection->hasUnsavedChanges()) {
+        return; // Nothing to save
+    }
+    
+    // Get latest metadata from section
+    m_projectMetadata = m_projectSection->getProjectMetadata();
+    
+    if (m_projectSerializer->saveProject(m_currentProjectPath, m_projectMetadata)) {
+        m_hasUnsavedChanges = false;
+        m_projectSection->markAsSaved();
+        updateWindowTitle();
+    }
+}
+
+void MainWindow::updateWindowTitle() {
+    QString title = "Note Naga";
+    
+    if (!m_projectMetadata.name.isEmpty()) {
+        title += " - " + m_projectMetadata.name;
+    }
+    
+    if (m_hasUnsavedChanges || m_projectSection->hasUnsavedChanges()) {
+        title += " *";
+    }
+    
+    setWindowTitle(title);
+}
+
+void MainWindow::onProjectUnsavedChanged(bool hasChanges) {
+    Q_UNUSED(hasChanges);
+    updateWindowTitle();
+}
+
+void MainWindow::onProjectSaveRequested() {
+    saveProject();
+}
+
+void MainWindow::onProjectSaveAsRequested() {
+    saveProjectAs();
+}
+
+void MainWindow::onProjectExportMidiRequested() {
+    export_midi();
 }

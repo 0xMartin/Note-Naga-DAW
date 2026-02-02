@@ -5,14 +5,19 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QStackedWidget>
+#include <QTimer>
 
 #include <note_naga_engine/note_naga_engine.h>
+#include <note_naga_engine/core/project_file_types.h>
+#include <note_naga_engine/core/project_serializer.h>
+#include <note_naga_engine/core/recent_projects_manager.h>
 
 #include "sections/section_switcher.h"
 #include "sections/midi_editor_section.h"
 #include "sections/dsp_editor_section.h"
 #include "sections/notation_section.h"
 #include "sections/media_export_section.h"
+#include "sections/project_section.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -42,7 +47,7 @@ private slots:
     // Section switching
     void onSectionChanged(AppSection section);
 
-    // === Nové sloty pro MIDI utility ===
+    //Midi utility slots
     void util_quantize();
     void util_humanize();
     void util_transpose();
@@ -64,12 +69,21 @@ private:
     bool auto_follow;
     AppSection m_currentSection;
 
+    // Project management
+    NoteNagaProjectSerializer *m_projectSerializer;
+    RecentProjectsManager *m_recentProjectsManager;
+    NoteNagaProjectMetadata m_projectMetadata;
+    QString m_currentProjectPath;
+    bool m_hasUnsavedChanges = false;
+    QTimer *m_autosaveTimer;
+
     // Section system
     QWidget *m_centralContainer;
     QStackedWidget *m_sectionStack;
     SectionSwitcher *m_sectionSwitcher;
     
     // Sections
+    ProjectSection *m_projectSection;
     MidiEditorSection *m_midiEditorSection;
     DSPEditorSection *m_dspEditorSection;
     NotationSection *m_notationSection;
@@ -114,4 +128,17 @@ private:
     void setup_toolbar();
     void setup_sections();
     void connect_signals();
+    
+    // Project management
+    bool showProjectWizard();
+    void createNewProject(const NoteNagaProjectMetadata &metadata);
+    bool openProject(const QString &filePath);
+    bool saveProject();
+    bool saveProjectAs();
+    void onAutosave();
+    void updateWindowTitle();
+    void onProjectUnsavedChanged(bool hasChanges);
+    void onProjectSaveRequested();
+    void onProjectSaveAsRequested();
+    void onProjectExportMidiRequested();
 };

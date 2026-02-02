@@ -29,6 +29,6 @@ int main(int argc, char* argv[]) {
     app.setApplicationName("Note Naga");
 
     MainWindow mw;
-    mw.show();
+    // Window visibility is managed by the project wizard in MainWindow constructor
     return app.exec();
 }

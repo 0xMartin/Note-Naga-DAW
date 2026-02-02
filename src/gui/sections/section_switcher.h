@@ -12,10 +12,11 @@
  * @brief AppSection enum defines available application sections
  */
 enum class AppSection {
-    MidiEditor = 0,
-    DspEditor = 1,
-    MediaExport = 2,
-    Notation = 3
+    Project = 0,
+    MidiEditor = 1,
+    DspEditor = 2,
+    MediaExport = 3,
+    Notation = 4
 };
 
 /**

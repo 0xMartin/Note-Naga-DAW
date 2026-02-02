@@ -52,6 +52,7 @@ set(HEADER_FILES
     src/gui/sections/media_export_section.h
     src/gui/sections/notation_section.h
     src/gui/sections/track_preview_widget.h
+    src/gui/sections/project_section.h
     # gui/components
     src/gui/components/audio_dial.h
     src/gui/components/audio_dial_centered.h
@@ -72,6 +73,7 @@ set(HEADER_FILES
     src/gui/dialogs/dsp_block_chooser_dialog.h
     src/gui/dialogs/instrument_selector_dialog.h
     src/gui/dialogs/mixer_settings_dialog.h
+    src/gui/dialogs/project_wizard_dialog.h
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.h
     src/gui/dock_system/dock_indicator_overlay.h
@@ -111,6 +113,7 @@ set(SOURCE_FILES
     src/gui/sections/media_export_section.cpp
     src/gui/sections/notation_section.cpp
     src/gui/sections/track_preview_widget.cpp
+    src/gui/sections/project_section.cpp
     # gui/components
     src/gui/components/audio_dial.cpp
     src/gui/components/audio_dial_centered.cpp
@@ -132,6 +135,7 @@ set(SOURCE_FILES
     src/gui/dialogs/dsp_block_chooser_dialog.cpp
     src/gui/dialogs/instrument_selector_dialog.cpp
     src/gui/dialogs/mixer_settings_dialog.cpp
+    src/gui/dialogs/project_wizard_dialog.cpp
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.cpp
     src/gui/dock_system/dock_indicator_overlay.cpp

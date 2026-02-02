@@ -42,6 +42,9 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/core/async_queue_component.h
     ./include/note_naga_engine/core/project_data.h
     ./include/note_naga_engine/core/note_naga_synthesizer.h
+    ./include/note_naga_engine/core/project_file_types.h
+    ./include/note_naga_engine/core/project_serializer.h
+    ./include/note_naga_engine/core/recent_projects_manager.h
     # include/note_naga_engine/io
     ./include/note_naga_engine/io/midi_file.h
     # include/note_naga_engine/module
@@ -85,6 +88,8 @@ set(SOURCE_FILES
     ./core/soundfont_finder.cpp
     ./core/project_data.cpp
     ./core/types.cpp
+    ./core/project_serializer.cpp
+    ./core/recent_projects_manager.cpp
     # io
     ./io/midi_file.cpp
     # module
