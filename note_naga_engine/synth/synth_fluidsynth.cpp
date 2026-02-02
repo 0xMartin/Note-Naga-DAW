@@ -1,6 +1,9 @@
 #include <note_naga_engine/synth/synth_fluidsynth.h>
 
 #include <note_naga_engine/logger.h>
+#include <cstring>
+#include <thread>
+#include <chrono>
 
 NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
                                                  const std::string &sf2_path)
@@ -26,7 +29,11 @@ NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
 }
 
 NoteNagaSynthFluidSynth::~NoteNagaSynthFluidSynth() {
-  std::lock_guard<std::mutex> lock(synth_mutex_);
+  // Mark synth as not ready to stop any rendering
+  synth_ready_.store(false, std::memory_order_release);
+  
+  // Small delay to ensure audio callback finishes
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   if (fluidsynth_)
     delete_fluid_synth(fluidsynth_);
@@ -36,7 +43,12 @@ NoteNagaSynthFluidSynth::~NoteNagaSynthFluidSynth() {
 
 void NoteNagaSynthFluidSynth::renderAudio(float *left, float *right,
                                           size_t num_frames) {
-  std::lock_guard<std::mutex> lock(synth_mutex_);
+  // Check if synth is ready - if not, output silence
+  if (!synth_ready_.load(std::memory_order_acquire)) {
+    std::memset(left, 0, sizeof(float) * num_frames);
+    std::memset(right, 0, sizeof(float) * num_frames);
+    return;
+  }
 
   // render audio using FluidSynth
   fluid_synth_write_float(this->fluidsynth_, num_frames, left, 0, 1, right, 0,
@@ -122,7 +134,10 @@ void NoteNagaSynthFluidSynth::stopAllNotes(NoteNagaMidiSeq *seq,
 }
 
 void NoteNagaSynthFluidSynth::setMasterPan(float pan) {
-  std::lock_guard<std::mutex> lock(synth_mutex_);
+  // Skip if synth is being reconfigured
+  if (!synth_ready_.load(std::memory_order_acquire)) {
+    return;
+  }
   
   // Convert pan (-1.0 to 1.0) to MIDI CC value (0=left, 64=center, 127=right)
   float clampedPan = std::clamp(pan, -1.0f, 1.0f);
@@ -145,11 +160,11 @@ std::string NoteNagaSynthFluidSynth::getConfig(const std::string &key) const {
 
 bool NoteNagaSynthFluidSynth::setConfig(const std::string &key,
                                         const std::string &value) {
-  std::lock_guard<std::mutex> lock(synth_mutex_);
-
+  // Don't lock here - setSoundFont() handles its own locking
   if (key == "soundfont") {
+    bool result = setSoundFont(value);
     NN_QT_EMIT(synthUpdated(this));
-    return setSoundFont(value);
+    return result;
   }
   return false;
 }
@@ -160,8 +175,14 @@ NoteNagaSynthFluidSynth::getSupportedConfigKeys() const {
 }
 
 bool NoteNagaSynthFluidSynth::setSoundFont(const std::string &sf2_path) {
-  // Stop all notes
+  // Mark synth as not ready to stop audio rendering
+  synth_ready_.store(false, std::memory_order_release);
+  
+  // Stop all notes first
   stopAllNotes();
+  
+  // Small delay to ensure audio callback finishes current iteration
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   // Save the new path
   sf2_path_ = sf2_path;
@@ -191,6 +212,9 @@ bool NoteNagaSynthFluidSynth::setSoundFont(const std::string &sf2_path) {
 
   NOTE_NAGA_LOG_INFO("FluidSynth reloaded with soundfont: " + sf2_path +
                      ", sfid=" + std::to_string(sfid));
+
+  // Mark synth as ready again
+  synth_ready_.store(true, std::memory_order_release);
 
   return sfid >= 0; // Return true if loading was successful
 }

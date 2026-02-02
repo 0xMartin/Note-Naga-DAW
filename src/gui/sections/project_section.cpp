@@ -113,88 +113,97 @@ QWidget* ProjectSection::createMetadataWidget()
     QWidget *widget = new QWidget(this);
     widget->setStyleSheet("background: #2a2d35;");
     
-    QScrollArea *scrollArea = new QScrollArea;
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+    QVBoxLayout *mainLayout = new QVBoxLayout(widget);
+    mainLayout->setContentsMargins(8, 8, 8, 8);
+    mainLayout->setSpacing(6);
     
-    QWidget *content = new QWidget;
-    content->setStyleSheet("background: transparent;");
-    QFormLayout *layout = new QFormLayout(content);
-    layout->setContentsMargins(15, 15, 15, 15);
-    layout->setSpacing(12);
-    
-    QString labelStyle = "color: #8899a6; font-size: 12px;";
+    QString labelStyle = "color: #6a7580; font-size: 11px; font-weight: 500;";
     QString inputStyle = R"(
         QLineEdit, QTextEdit {
-            background: #232b38;
+            background: #1e2228;
             color: #d4d8de;
             border: 1px solid #3a4654;
-            border-radius: 6px;
-            padding: 8px 12px;
-            font-size: 13px;
+            border-radius: 3px;
+            padding: 5px 8px;
+            font-size: 12px;
         }
         QLineEdit:focus, QTextEdit:focus {
-            border-color: #5590c7;
+            border-color: #3477c0;
         }
     )";
-    QString readonlyStyle = "color: #7eb8f9; font-size: 13px; font-weight: 500;";
+    QString readonlyStyle = "color: #8899a6; font-size: 11px;";
     
     // Project Name
-    QLabel *nameLabel = new QLabel(tr("Project Name:"));
+    QLabel *nameLabel = new QLabel(tr("NAME"));
     nameLabel->setStyleSheet(labelStyle);
+    mainLayout->addWidget(nameLabel);
     m_projectNameEdit = new QLineEdit;
     m_projectNameEdit->setStyleSheet(inputStyle);
-    m_projectNameEdit->setPlaceholderText(tr("Enter project name"));
+    m_projectNameEdit->setPlaceholderText(tr("Project name"));
+    m_projectNameEdit->setMaximumHeight(28);
     connect(m_projectNameEdit, &QLineEdit::textChanged, this, &ProjectSection::onMetadataEdited);
-    layout->addRow(nameLabel, m_projectNameEdit);
+    mainLayout->addWidget(m_projectNameEdit);
     
     // Author
-    QLabel *authorLabel = new QLabel(tr("Author:"));
+    QLabel *authorLabel = new QLabel(tr("AUTHOR"));
     authorLabel->setStyleSheet(labelStyle);
+    mainLayout->addWidget(authorLabel);
     m_authorEdit = new QLineEdit;
     m_authorEdit->setStyleSheet(inputStyle);
-    m_authorEdit->setPlaceholderText(tr("Enter author name"));
+    m_authorEdit->setPlaceholderText(tr("Author name"));
+    m_authorEdit->setMaximumHeight(28);
     connect(m_authorEdit, &QLineEdit::textChanged, this, &ProjectSection::onMetadataEdited);
-    layout->addRow(authorLabel, m_authorEdit);
+    mainLayout->addWidget(m_authorEdit);
     
     // Description
-    QLabel *descLabel = new QLabel(tr("Description:"));
+    QLabel *descLabel = new QLabel(tr("DESCRIPTION"));
     descLabel->setStyleSheet(labelStyle);
+    mainLayout->addWidget(descLabel);
     m_descriptionEdit = new QTextEdit;
     m_descriptionEdit->setStyleSheet(inputStyle);
-    m_descriptionEdit->setPlaceholderText(tr("Enter project description (optional)"));
-    m_descriptionEdit->setMaximumHeight(100);
+    m_descriptionEdit->setPlaceholderText(tr("Optional description"));
+    m_descriptionEdit->setMaximumHeight(60);
     connect(m_descriptionEdit, &QTextEdit::textChanged, this, &ProjectSection::onMetadataEdited);
-    layout->addRow(descLabel, m_descriptionEdit);
+    mainLayout->addWidget(m_descriptionEdit);
     
-    // File Path (read-only)
-    QLabel *pathLabel = new QLabel(tr("File Path:"));
-    pathLabel->setStyleSheet(labelStyle);
-    m_filePathLabel = new QLabel("-");
-    m_filePathLabel->setStyleSheet("color: #667788; font-size: 12px;");
-    m_filePathLabel->setWordWrap(true);
-    layout->addRow(pathLabel, m_filePathLabel);
+    // Separator
+    QFrame *sep = new QFrame;
+    sep->setFrameShape(QFrame::HLine);
+    sep->setStyleSheet("background: #3a4654; max-height: 1px;");
+    mainLayout->addWidget(sep);
     
-    // Created At
+    // Info grid for timestamps and path
+    QGridLayout *infoGrid = new QGridLayout;
+    infoGrid->setContentsMargins(0, 4, 0, 0);
+    infoGrid->setHorizontalSpacing(12);
+    infoGrid->setVerticalSpacing(4);
+    
     QLabel *createdLabel = new QLabel(tr("Created:"));
     createdLabel->setStyleSheet(labelStyle);
+    infoGrid->addWidget(createdLabel, 0, 0);
     m_createdAtLabel = new QLabel("-");
     m_createdAtLabel->setStyleSheet(readonlyStyle);
-    layout->addRow(createdLabel, m_createdAtLabel);
+    infoGrid->addWidget(m_createdAtLabel, 0, 1);
     
-    // Modified At
-    QLabel *modifiedLabel = new QLabel(tr("Last Modified:"));
+    QLabel *modifiedLabel = new QLabel(tr("Modified:"));
     modifiedLabel->setStyleSheet(labelStyle);
+    infoGrid->addWidget(modifiedLabel, 1, 0);
     m_modifiedAtLabel = new QLabel("-");
     m_modifiedAtLabel->setStyleSheet(readonlyStyle);
-    layout->addRow(modifiedLabel, m_modifiedAtLabel);
+    infoGrid->addWidget(m_modifiedAtLabel, 1, 1);
     
-    scrollArea->setWidget(content);
+    QLabel *pathLabel = new QLabel(tr("Path:"));
+    pathLabel->setStyleSheet(labelStyle);
+    infoGrid->addWidget(pathLabel, 2, 0, Qt::AlignTop);
+    m_filePathLabel = new QLabel("-");
+    m_filePathLabel->setStyleSheet(readonlyStyle);
+    m_filePathLabel->setWordWrap(true);
+    infoGrid->addWidget(m_filePathLabel, 2, 1);
     
-    QVBoxLayout *mainLayout = new QVBoxLayout(widget);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->addWidget(scrollArea);
+    infoGrid->setColumnStretch(1, 1);
+    mainLayout->addLayout(infoGrid);
+    
+    mainLayout->addStretch();
     
     return widget;
 }
@@ -205,15 +214,15 @@ QWidget* ProjectSection::createStatisticsWidget()
     widget->setStyleSheet("background: #2a2d35;");
     
     QGridLayout *layout = new QGridLayout(widget);
-    layout->setContentsMargins(15, 15, 15, 15);
-    layout->setHorizontalSpacing(30);
-    layout->setVerticalSpacing(10);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setHorizontalSpacing(16);
+    layout->setVerticalSpacing(6);
     
-    QString labelStyle = "color: #8899a6; font-size: 12px;";
-    QString valueStyle = "color: #7eb8f9; font-size: 13px; font-weight: 500;";
+    QString labelStyle = "color: #6a7580; font-size: 11px;";
+    QString valueStyle = "color: #d4d8de; font-size: 12px; font-weight: 500;";
     
     // Row 0
-    QLabel *tracksLabel = new QLabel(tr("Tracks:"));
+    QLabel *tracksLabel = new QLabel(tr("Tracks"));
     tracksLabel->setStyleSheet(labelStyle);
     layout->addWidget(tracksLabel, 0, 0);
     
@@ -221,7 +230,7 @@ QWidget* ProjectSection::createStatisticsWidget()
     m_trackCountLabel->setStyleSheet(valueStyle);
     layout->addWidget(m_trackCountLabel, 0, 1);
     
-    QLabel *notesLabel = new QLabel(tr("Total Notes:"));
+    QLabel *notesLabel = new QLabel(tr("Notes"));
     notesLabel->setStyleSheet(labelStyle);
     layout->addWidget(notesLabel, 0, 2);
     
@@ -230,7 +239,7 @@ QWidget* ProjectSection::createStatisticsWidget()
     layout->addWidget(m_noteCountLabel, 0, 3);
     
     // Row 1
-    QLabel *tempoLabel = new QLabel(tr("Tempo:"));
+    QLabel *tempoLabel = new QLabel(tr("Tempo"));
     tempoLabel->setStyleSheet(labelStyle);
     layout->addWidget(tempoLabel, 1, 0);
     
@@ -238,7 +247,7 @@ QWidget* ProjectSection::createStatisticsWidget()
     m_tempoLabel->setStyleSheet(valueStyle);
     layout->addWidget(m_tempoLabel, 1, 1);
     
-    QLabel *ppqLabel = new QLabel(tr("PPQ:"));
+    QLabel *ppqLabel = new QLabel(tr("PPQ"));
     ppqLabel->setStyleSheet(labelStyle);
     layout->addWidget(ppqLabel, 1, 2);
     
@@ -247,7 +256,7 @@ QWidget* ProjectSection::createStatisticsWidget()
     layout->addWidget(m_ppqLabel, 1, 3);
     
     // Row 2
-    QLabel *durationLabel = new QLabel(tr("Duration:"));
+    QLabel *durationLabel = new QLabel(tr("Duration"));
     durationLabel->setStyleSheet(labelStyle);
     layout->addWidget(durationLabel, 2, 0);
     
@@ -257,7 +266,7 @@ QWidget* ProjectSection::createStatisticsWidget()
     
     layout->setColumnStretch(1, 1);
     layout->setColumnStretch(3, 1);
-    layout->setRowStretch(3, 1); // Push content up
+    layout->setRowStretch(3, 1);
     
     return widget;
 }
@@ -268,33 +277,33 @@ QWidget* ProjectSection::createSynthesizerWidget()
     widget->setStyleSheet("background: #2a2d35;");
     
     QVBoxLayout *layout = new QVBoxLayout(widget);
-    layout->setContentsMargins(10, 10, 10, 10);
-    layout->setSpacing(8);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
     
     QString listStyle = R"(
         QListWidget {
-            background: #232b38;
+            background: #1e2228;
             color: #d4d8de;
             border: 1px solid #3a4654;
-            border-radius: 6px;
-            padding: 4px;
-            font-size: 13px;
+            border-radius: 3px;
+            padding: 2px;
+            font-size: 12px;
         }
         QListWidget::item {
-            padding: 8px;
-            border-radius: 4px;
+            padding: 5px 8px;
+            border-radius: 2px;
         }
         QListWidget::item:selected {
             background: #3477c0;
         }
         QListWidget::item:hover:!selected {
-            background: #3a4654;
+            background: #2d3640;
         }
     )";
     
     m_synthList = new QListWidget;
     m_synthList->setStyleSheet(listStyle);
-    m_synthList->setMinimumHeight(100);
+    m_synthList->setMinimumHeight(80);
     connect(m_synthList, &QListWidget::itemSelectionChanged, this, &ProjectSection::onSynthSelectionChanged);
     layout->addWidget(m_synthList);
     
@@ -303,48 +312,46 @@ QWidget* ProjectSection::createSynthesizerWidget()
             background: #2d3640;
             color: #d4d8de;
             border: 1px solid #3a4654;
-            border-radius: 6px;
-            padding: 8px 16px;
-            font-size: 12px;
+            border-radius: 3px;
+            padding: 5px 10px;
+            font-size: 11px;
         }
         QPushButton:hover {
             background: #3a4654;
-            border-color: #4a6080;
         }
         QPushButton:pressed {
             background: #4a6080;
         }
         QPushButton:disabled {
-            background: #232b38;
+            background: #1e2228;
             color: #556677;
-            border-color: #3a4654;
         }
     )";
     
     QString comboStyle = R"(
         QComboBox {
-            background: #232b38;
+            background: #1e2228;
             color: #d4d8de;
             border: 1px solid #3a4654;
-            border-radius: 6px;
-            padding: 6px 12px;
-            font-size: 12px;
-            min-width: 100px;
+            border-radius: 3px;
+            padding: 4px 8px;
+            font-size: 11px;
+            min-width: 90px;
         }
         QComboBox:hover {
             border-color: #4a6080;
         }
-        QComboBox::drop-down { border: none; width: 20px; }
+        QComboBox::drop-down { border: none; width: 18px; }
         QComboBox QAbstractItemView {
-            background: #232b38;
-            border: 1px solid #4a4d55;
+            background: #1e2228;
+            border: 1px solid #3a4654;
             selection-background-color: #3477c0;
         }
     )";
     
     // Add row: type combo + add button
     QHBoxLayout *addLayout = new QHBoxLayout;
-    addLayout->setSpacing(8);
+    addLayout->setSpacing(6);
     
     m_synthTypeCombo = new QComboBox;
     m_synthTypeCombo->setStyleSheet(comboStyle);
@@ -362,7 +369,7 @@ QWidget* ProjectSection::createSynthesizerWidget()
     
     // Action buttons row
     QHBoxLayout *btnLayout = new QHBoxLayout;
-    btnLayout->setSpacing(8);
+    btnLayout->setSpacing(6);
     
     m_configureSynthBtn = new QPushButton(tr("Configure"));
     m_configureSynthBtn->setStyleSheet(buttonStyle);
@@ -393,23 +400,21 @@ QWidget* ProjectSection::createActionsWidget()
     QWidget *widget = new QWidget(this);
     widget->setStyleSheet("background: #2a2d35;");
     
-    QVBoxLayout *layout = new QVBoxLayout(widget);
-    layout->setContentsMargins(15, 15, 15, 15);
-    layout->setSpacing(10);
+    QHBoxLayout *layout = new QHBoxLayout(widget);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(8);
     
     QString buttonStyle = R"(
         QPushButton {
             background: #2d3640;
             color: #d4d8de;
             border: 1px solid #3a4654;
-            border-radius: 6px;
-            padding: 12px 24px;
-            font-size: 13px;
-            font-weight: 500;
+            border-radius: 3px;
+            padding: 6px 12px;
+            font-size: 11px;
         }
         QPushButton:hover {
             background: #3a4654;
-            border-color: #4a6080;
         }
         QPushButton:pressed {
             background: #4a6080;
@@ -421,9 +426,9 @@ QWidget* ProjectSection::createActionsWidget()
             background: #3477c0;
             color: #ffffff;
             border: none;
-            border-radius: 6px;
-            padding: 12px 24px;
-            font-size: 13px;
+            border-radius: 3px;
+            padding: 6px 12px;
+            font-size: 11px;
             font-weight: 600;
         }
         QPushButton:hover {
@@ -434,19 +439,19 @@ QWidget* ProjectSection::createActionsWidget()
         }
     )";
     
-    m_saveBtn = new QPushButton(tr("💾  Save"));
+    m_saveBtn = new QPushButton(tr("Save"));
     m_saveBtn->setStyleSheet(primaryButtonStyle);
     m_saveBtn->setCursor(Qt::PointingHandCursor);
     connect(m_saveBtn, &QPushButton::clicked, this, &ProjectSection::onSaveClicked);
     layout->addWidget(m_saveBtn);
     
-    m_saveAsBtn = new QPushButton(tr("📝  Save As..."));
+    m_saveAsBtn = new QPushButton(tr("Save As..."));
     m_saveAsBtn->setStyleSheet(buttonStyle);
     m_saveAsBtn->setCursor(Qt::PointingHandCursor);
     connect(m_saveAsBtn, &QPushButton::clicked, this, &ProjectSection::onSaveAsClicked);
     layout->addWidget(m_saveAsBtn);
     
-    m_exportMidiBtn = new QPushButton(tr("🎹  Export MIDI..."));
+    m_exportMidiBtn = new QPushButton(tr("Export MIDI..."));
     m_exportMidiBtn->setStyleSheet(buttonStyle);
     m_exportMidiBtn->setCursor(Qt::PointingHandCursor);
     connect(m_exportMidiBtn, &QPushButton::clicked, this, &ProjectSection::onExportMidiClicked);

@@ -3,6 +3,7 @@
 #include <note_naga_engine/core/note_naga_synthesizer.h>
 #include <note_naga_engine/core/types.h>
 #include <fluidsynth.h>
+#include <atomic>
 #include <mutex>
 #include <string>
 
@@ -47,6 +48,9 @@ public:
 protected:
     // Mutex for thread-safe access to the synthesizer
     std::mutex synth_mutex_;
+    
+    // Atomic flag to indicate synth is ready for rendering
+    std::atomic<bool> synth_ready_{true};
 
     // FluidSynth interní struktury
     fluid_settings_t *synth_settings_;

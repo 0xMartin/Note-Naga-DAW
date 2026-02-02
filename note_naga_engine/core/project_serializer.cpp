@@ -455,16 +455,20 @@ bool NoteNagaProjectSerializer::deserializeDSPBlocks(const QJsonArray &blocksArr
 
 bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synthsArray)
 {
+    NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: starting with " + std::to_string(synthsArray.size()) + " synths");
+    
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
     if (!dspEngine) return false;
     
     // Get existing synthesizers
     std::vector<NoteNagaSynthesizer*> synths = m_engine->getSynthesizers();
+    NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: existing synths count = " + std::to_string(synths.size()));
     
     for (const QJsonValue &synthVal : synthsArray) {
         QJsonObject synthObj = synthVal.toObject();
         QString synthName = synthObj["name"].toString();
         QString synthType = synthObj["type"].toString();
+        NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: processing synth '" + synthName.toStdString() + "' type=" + synthType.toStdString());
         
         // Find existing synth by name
         NoteNagaSynthesizer *synth = nullptr;
@@ -477,6 +481,7 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
         
         // If synth not found, create it
         if (!synth && !synthType.isEmpty()) {
+            NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: creating new synth");
             if (synthType == "fluidsynth") {
                 QString sfPath = synthObj["soundFontPath"].toString();
                 synth = new NoteNagaSynthFluidSynth(synthName.toStdString(), sfPath.toStdString());
@@ -489,6 +494,7 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
             // Update synth list
             synths = m_engine->getSynthesizers();
         } else if (synth) {
+            NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: synth exists, updating config");
             // Synth exists, update its configuration
             NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
             NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
@@ -496,7 +502,9 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synths
             if (fluidSynth && synthObj.contains("soundFontPath")) {
                 QString sfPath = synthObj["soundFontPath"].toString();
                 if (!sfPath.isEmpty()) {
+                    NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: calling setSoundFont");
                     fluidSynth->setSoundFont(sfPath.toStdString());
+                    NOTE_NAGA_LOG_INFO("[Serializer] deserializeSynthesizers: setSoundFont done");
                 }
             } else if (externalMidi && synthObj.contains("midiPort")) {
                 QString midiPort = synthObj["midiPort"].toString();
