@@ -894,8 +894,7 @@ bool MainWindow::saveProject() {
     m_projectMetadata = m_projectSection->getProjectMetadata();
     
     if (!m_projectSerializer->saveProject(m_currentProjectPath.toStdString(), m_projectMetadata)) {
-        QMessageBox::critical(this, "Save Failed", 
-            QString("Failed to save project:\n%1").arg(QString::fromStdString(m_projectSerializer->lastError())));
+        m_projectSection->showSaveError(QString::fromStdString(m_projectSerializer->lastError()));
         return false;
     }
     
@@ -992,13 +991,40 @@ void MainWindow::onProjectMetadataChanged() {
 }
 
 void MainWindow::onProjectSaveRequested() {
-    saveProject();
+    if (saveProject()) {
+        m_projectSection->showSaveSuccess(m_currentProjectPath);
+    }
 }
 
 void MainWindow::onProjectSaveAsRequested() {
-    saveProjectAs();
+    if (saveProjectAs()) {
+        m_projectSection->showSaveSuccess(m_currentProjectPath);
+    }
 }
 
 void MainWindow::onProjectExportMidiRequested() {
-    export_midi();
+    NoteNagaMidiSeq *active_sequence = this->engine->getRuntimeData()->getActiveSequence();
+    if (!active_sequence) {
+        m_projectSection->showExportError(tr("No active MIDI sequence to export."));
+        return;
+    }
+
+    QString fname =
+        QFileDialog::getSaveFileName(this, "Export as MIDI", "", "MIDI Files (*.mid *.midi)");
+    
+    if (fname.isEmpty()) {
+        return; // User cancelled
+    }
+
+    // Ensure file has .mid extension
+    if (!fname.endsWith(".mid", Qt::CaseInsensitive) && 
+        !fname.endsWith(".midi", Qt::CaseInsensitive)) {
+        fname += ".mid";
+    }
+
+    if (active_sequence->exportToMidi(fname.toStdString())) {
+        m_projectSection->showExportSuccess(fname);
+    } else {
+        m_projectSection->showExportError(tr("Failed to export MIDI file. Check the log for details."));
+    }
 }

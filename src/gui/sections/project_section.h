@@ -1,16 +1,15 @@
 #pragma once
 
-#include <QMainWindow>
+#include <QWidget>
 #include <QLabel>
 #include <QLineEdit>
 #include <QTextEdit>
 #include <QPushButton>
-#include <QGroupBox>
 #include <QVBoxLayout>
 #include <QGridLayout>
 #include <QListWidget>
 #include <QComboBox>
-#include <QMap>
+#include <QScrollArea>
 
 #include <note_naga_engine/core/project_file_types.h>
 #include "section_interface.h"
@@ -18,21 +17,20 @@
 class NoteNagaEngine;
 class RecentProjectsManager;
 class NoteNagaProjectSerializer;
-class AdvancedDockWidget;
 
 /**
  * @brief ProjectSection displays and allows editing of project metadata.
  * 
- * This section shows:
+ * Redesigned as a single scrollable page with centered content (Bootstrap-like container).
+ * Shows:
+ * - Logo and title at the top
  * - Project name, author, description
  * - Creation and modification timestamps
  * - Project statistics (tracks, notes, duration)
  * - Synthesizer management
  * - Quick actions (save, save as, export MIDI)
- * 
- * Uses AdvancedDockWidget for flexible layout.
  */
-class ProjectSection : public QMainWindow, public ISection {
+class ProjectSection : public QWidget, public ISection {
     Q_OBJECT
 
 public:
@@ -79,31 +77,32 @@ public:
      * @brief Refresh synthesizer list from engine
      */
     void refreshSynthesizerList();
+    
+    /**
+     * @brief Show save success dialog
+     */
+    void showSaveSuccess(const QString &filePath = QString());
+    
+    /**
+     * @brief Show save error dialog
+     */
+    void showSaveError(const QString &error);
+    
+    /**
+     * @brief Show export success dialog
+     */
+    void showExportSuccess(const QString &filePath);
+    
+    /**
+     * @brief Show export error dialog
+     */
+    void showExportError(const QString &error);
 
 signals:
-    /**
-     * @brief Emitted when save is requested
-     */
     void saveRequested();
-
-    /**
-     * @brief Emitted when save-as is requested
-     */
     void saveAsRequested();
-
-    /**
-     * @brief Emitted when MIDI export is requested
-     */
     void exportMidiRequested();
-
-    /**
-     * @brief Emitted when metadata is changed
-     */
     void metadataChanged();
-
-    /**
-     * @brief Emitted when project has unsaved changes
-     */
     void unsavedChangesChanged(bool hasChanges);
 
 private slots:
@@ -116,21 +115,34 @@ private slots:
     void onRemoveSynthClicked();
     void onConfigureSynthClicked();
     void onSynthSelectionChanged();
+    void onTempoChanged(double bpm);
+    void onPPQChanged(int ppq);
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
-    void setupDockLayout();
-    QWidget* createMetadataWidget();
-    QWidget* createStatisticsWidget();
-    QWidget* createSynthesizerWidget();
-    QWidget* createActionsWidget();
+    void setupUI();
+    QWidget* createHeaderSection();
+    QWidget* createActionsBar();
+    QWidget* createMetadataSection();
+    QWidget* createSequenceSettingsSection();
+    QWidget* createStatisticsSection();
+    QWidget* createFileInfoSection();
+    QWidget* createSynthesizerSection();
+    QWidget* createCard(const QString &title, QWidget *content);
     void updateStatistics();
+    void updateSequenceSettings();
     void refreshUI();
+    void updateContainerWidth();
 
     NoteNagaEngine *m_engine;
     NoteNagaProjectSerializer *m_serializer;
     
-    // Dock widgets
-    QMap<QString, AdvancedDockWidget*> m_docks;
+    // Layout
+    QScrollArea *m_scrollArea;
+    QWidget *m_container;
+    QVBoxLayout *m_containerLayout;
     
     // Metadata
     NoteNagaProjectMetadata m_metadata;
@@ -144,13 +156,18 @@ private:
     QLabel *m_createdAtLabel;
     QLabel *m_modifiedAtLabel;
     QLabel *m_filePathLabel;
+    QLabel *m_fileFormatLabel;
+    QLabel *m_fileVersionLabel;
+
+    // UI Elements - Sequence Settings
+    class QDoubleSpinBox *m_tempoSpinBox;
+    class QSpinBox *m_ppqSpinBox;
+    QLabel *m_timeSignatureLabel;
 
     // UI Elements - Statistics
     QLabel *m_trackCountLabel;
     QLabel *m_noteCountLabel;
     QLabel *m_durationLabel;
-    QLabel *m_tempoLabel;
-    QLabel *m_ppqLabel;
 
     // UI Elements - Synthesizers
     QListWidget *m_synthList;
