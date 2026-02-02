@@ -1,71 +1,129 @@
 #include "project_section.h"
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/core/project_serializer.h>
+#include <note_naga_engine/synth/synth_fluidsynth.h>
+#include <note_naga_engine/synth/synth_external_midi.h>
 
 #include <QScrollArea>
 #include <QFrame>
 #include <QFont>
 #include <QDateTime>
+#include <QInputDialog>
+#include <QMessageBox>
+#include <QFormLayout>
+#include <QFileDialog>
+#include <QDir>
+
+#include "../dock_system/advanced_dock_widget.h"
 
 ProjectSection::ProjectSection(NoteNagaEngine *engine,
                                NoteNagaProjectSerializer *serializer,
                                QWidget *parent)
-    : QWidget(parent)
+    : QMainWindow(parent)
     , m_engine(engine)
     , m_serializer(serializer)
 {
-    setupUI();
+    // Remove window frame for embedded use
+    setWindowFlags(Qt::Widget);
+    setDockNestingEnabled(true);
+    
+    // Remove central widget - we only use docks
+    QWidget *dummyCentral = new QWidget(this);
+    dummyCentral->setMaximumSize(0, 0);
+    setCentralWidget(dummyCentral);
+    
+    setStyleSheet("QMainWindow { background-color: #1a1a1f; }");
+    
+    setupDockLayout();
 }
 
-void ProjectSection::setupUI()
+void ProjectSection::setupDockLayout()
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(20);
+    // === LEFT DOCK: Metadata ===
+    QWidget *metadataWidget = createMetadataWidget();
+    
+    auto *metadataDock = new AdvancedDockWidget(
+        tr("Project Metadata"),
+        QIcon(":/icons/project.svg"),
+        nullptr,
+        this
+    );
+    metadataDock->setWidget(metadataWidget);
+    metadataDock->setObjectName("metadata");
+    metadataDock->setAllowedAreas(Qt::AllDockWidgetAreas);
+    metadataDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    addDockWidget(Qt::LeftDockWidgetArea, metadataDock);
+    m_docks["metadata"] = metadataDock;
+    
+    // === RIGHT TOP DOCK: Statistics ===
+    QWidget *statisticsWidget = createStatisticsWidget();
+    
+    auto *statisticsDock = new AdvancedDockWidget(
+        tr("Statistics"),
+        QIcon(":/icons/chart.svg"),
+        nullptr,
+        this
+    );
+    statisticsDock->setWidget(statisticsWidget);
+    statisticsDock->setObjectName("statistics");
+    statisticsDock->setAllowedAreas(Qt::AllDockWidgetAreas);
+    statisticsDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    addDockWidget(Qt::RightDockWidgetArea, statisticsDock);
+    m_docks["statistics"] = statisticsDock;
+    
+    // === RIGHT MIDDLE DOCK: Synthesizers ===
+    QWidget *synthWidget = createSynthesizerWidget();
+    
+    auto *synthDock = new AdvancedDockWidget(
+        tr("Synthesizers"),
+        QIcon(":/icons/synth.svg"),
+        nullptr,
+        this
+    );
+    synthDock->setWidget(synthWidget);
+    synthDock->setObjectName("synthesizers");
+    synthDock->setAllowedAreas(Qt::AllDockWidgetAreas);
+    synthDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    addDockWidget(Qt::RightDockWidgetArea, synthDock);
+    m_docks["synthesizers"] = synthDock;
+    
+    // === RIGHT BOTTOM DOCK: Actions ===
+    QWidget *actionsWidget = createActionsWidget();
+    
+    auto *actionsDock = new AdvancedDockWidget(
+        tr("Quick Actions"),
+        QIcon(":/icons/actions.svg"),
+        nullptr,
+        this
+    );
+    actionsDock->setWidget(actionsWidget);
+    actionsDock->setObjectName("actions");
+    actionsDock->setAllowedAreas(Qt::AllDockWidgetAreas);
+    actionsDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    addDockWidget(Qt::RightDockWidgetArea, actionsDock);
+    m_docks["actions"] = actionsDock;
+    
+    // Stack statistics, synthesizers, and actions vertically
+    splitDockWidget(statisticsDock, synthDock, Qt::Vertical);
+    splitDockWidget(synthDock, actionsDock, Qt::Vertical);
+}
 
-    // Create scroll area for content
-    QScrollArea *scrollArea = new QScrollArea();
+QWidget* ProjectSection::createMetadataWidget()
+{
+    QWidget *widget = new QWidget(this);
+    widget->setStyleSheet("background: #2a2d35;");
+    
+    QScrollArea *scrollArea = new QScrollArea;
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet("QScrollArea { background: transparent; }");
-
-    QWidget *scrollContent = new QWidget();
-    QVBoxLayout *contentLayout = new QVBoxLayout(scrollContent);
-    contentLayout->setContentsMargins(0, 0, 20, 0);
-    contentLayout->setSpacing(24);
-
-    // === Header ===
-    QLabel *headerLabel = new QLabel("📁 Project Information");
-    headerLabel->setFont(QFont("Segoe UI", 20, QFont::Bold));
-    headerLabel->setStyleSheet("color: #7eb8f9; letter-spacing: 1px; margin-bottom: 5px;");
-    contentLayout->addWidget(headerLabel);
-
-    // === Metadata Group ===
-    QGroupBox *metadataGroup = new QGroupBox("Project Metadata");
-    metadataGroup->setStyleSheet(R"(
-        QGroupBox {
-            font-size: 14px;
-            font-weight: 600;
-            color: #b0b8c0;
-            border: 1px solid #3a4654;
-            border-radius: 8px;
-            margin-top: 16px;
-            padding-top: 16px;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            left: 12px;
-            padding: 0 8px;
-            background: #1e242c;
-        }
-    )");
-
-    QGridLayout *metadataLayout = new QGridLayout(metadataGroup);
-    metadataLayout->setHorizontalSpacing(16);
-    metadataLayout->setVerticalSpacing(12);
-    metadataLayout->setContentsMargins(16, 24, 16, 16);
-
+    scrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+    
+    QWidget *content = new QWidget;
+    content->setStyleSheet("background: transparent;");
+    QFormLayout *layout = new QFormLayout(content);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setSpacing(12);
+    
     QString labelStyle = "color: #8899a6; font-size: 12px;";
     QString inputStyle = R"(
         QLineEdit, QTextEdit {
@@ -81,144 +139,264 @@ void ProjectSection::setupUI()
         }
     )";
     QString readonlyStyle = "color: #7eb8f9; font-size: 13px; font-weight: 500;";
-
-    int row = 0;
-
+    
     // Project Name
-    QLabel *nameLabel = new QLabel("Project Name:");
+    QLabel *nameLabel = new QLabel(tr("Project Name:"));
     nameLabel->setStyleSheet(labelStyle);
-    metadataLayout->addWidget(nameLabel, row, 0);
-
-    m_projectNameEdit = new QLineEdit();
+    m_projectNameEdit = new QLineEdit;
     m_projectNameEdit->setStyleSheet(inputStyle);
-    m_projectNameEdit->setPlaceholderText("Enter project name");
+    m_projectNameEdit->setPlaceholderText(tr("Enter project name"));
     connect(m_projectNameEdit, &QLineEdit::textChanged, this, &ProjectSection::onMetadataEdited);
-    metadataLayout->addWidget(m_projectNameEdit, row, 1);
-    row++;
-
+    layout->addRow(nameLabel, m_projectNameEdit);
+    
     // Author
-    QLabel *authorLabel = new QLabel("Author:");
+    QLabel *authorLabel = new QLabel(tr("Author:"));
     authorLabel->setStyleSheet(labelStyle);
-    metadataLayout->addWidget(authorLabel, row, 0);
-
-    m_authorEdit = new QLineEdit();
+    m_authorEdit = new QLineEdit;
     m_authorEdit->setStyleSheet(inputStyle);
-    m_authorEdit->setPlaceholderText("Enter author name");
+    m_authorEdit->setPlaceholderText(tr("Enter author name"));
     connect(m_authorEdit, &QLineEdit::textChanged, this, &ProjectSection::onMetadataEdited);
-    metadataLayout->addWidget(m_authorEdit, row, 1);
-    row++;
-
+    layout->addRow(authorLabel, m_authorEdit);
+    
     // Description
-    QLabel *descLabel = new QLabel("Description:");
+    QLabel *descLabel = new QLabel(tr("Description:"));
     descLabel->setStyleSheet(labelStyle);
-    descLabel->setAlignment(Qt::AlignTop);
-    metadataLayout->addWidget(descLabel, row, 0);
-
-    m_descriptionEdit = new QTextEdit();
+    m_descriptionEdit = new QTextEdit;
     m_descriptionEdit->setStyleSheet(inputStyle);
-    m_descriptionEdit->setPlaceholderText("Enter project description (optional)");
+    m_descriptionEdit->setPlaceholderText(tr("Enter project description (optional)"));
     m_descriptionEdit->setMaximumHeight(100);
     connect(m_descriptionEdit, &QTextEdit::textChanged, this, &ProjectSection::onMetadataEdited);
-    metadataLayout->addWidget(m_descriptionEdit, row, 1);
-    row++;
-
+    layout->addRow(descLabel, m_descriptionEdit);
+    
     // File Path (read-only)
-    QLabel *pathLabel = new QLabel("File Path:");
+    QLabel *pathLabel = new QLabel(tr("File Path:"));
     pathLabel->setStyleSheet(labelStyle);
-    metadataLayout->addWidget(pathLabel, row, 0);
-
     m_filePathLabel = new QLabel("-");
     m_filePathLabel->setStyleSheet("color: #667788; font-size: 12px;");
     m_filePathLabel->setWordWrap(true);
-    metadataLayout->addWidget(m_filePathLabel, row, 1);
-    row++;
-
+    layout->addRow(pathLabel, m_filePathLabel);
+    
     // Created At
-    QLabel *createdLabel = new QLabel("Created:");
+    QLabel *createdLabel = new QLabel(tr("Created:"));
     createdLabel->setStyleSheet(labelStyle);
-    metadataLayout->addWidget(createdLabel, row, 0);
-
     m_createdAtLabel = new QLabel("-");
     m_createdAtLabel->setStyleSheet(readonlyStyle);
-    metadataLayout->addWidget(m_createdAtLabel, row, 1);
-    row++;
-
+    layout->addRow(createdLabel, m_createdAtLabel);
+    
     // Modified At
-    QLabel *modifiedLabel = new QLabel("Last Modified:");
+    QLabel *modifiedLabel = new QLabel(tr("Last Modified:"));
     modifiedLabel->setStyleSheet(labelStyle);
-    metadataLayout->addWidget(modifiedLabel, row, 0);
-
     m_modifiedAtLabel = new QLabel("-");
     m_modifiedAtLabel->setStyleSheet(readonlyStyle);
-    metadataLayout->addWidget(m_modifiedAtLabel, row, 1);
+    layout->addRow(modifiedLabel, m_modifiedAtLabel);
+    
+    scrollArea->setWidget(content);
+    
+    QVBoxLayout *mainLayout = new QVBoxLayout(widget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->addWidget(scrollArea);
+    
+    return widget;
+}
 
-    metadataLayout->setColumnStretch(1, 1);
-    contentLayout->addWidget(metadataGroup);
-
-    // === Statistics Group ===
-    QGroupBox *statsGroup = new QGroupBox("Project Statistics");
-    statsGroup->setStyleSheet(metadataGroup->styleSheet());
-
-    QGridLayout *statsLayout = new QGridLayout(statsGroup);
-    statsLayout->setHorizontalSpacing(40);
-    statsLayout->setVerticalSpacing(12);
-    statsLayout->setContentsMargins(16, 24, 16, 16);
-
-    // Row 1
-    QLabel *tracksLabel = new QLabel("Tracks:");
+QWidget* ProjectSection::createStatisticsWidget()
+{
+    QWidget *widget = new QWidget(this);
+    widget->setStyleSheet("background: #2a2d35;");
+    
+    QGridLayout *layout = new QGridLayout(widget);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setHorizontalSpacing(30);
+    layout->setVerticalSpacing(10);
+    
+    QString labelStyle = "color: #8899a6; font-size: 12px;";
+    QString valueStyle = "color: #7eb8f9; font-size: 13px; font-weight: 500;";
+    
+    // Row 0
+    QLabel *tracksLabel = new QLabel(tr("Tracks:"));
     tracksLabel->setStyleSheet(labelStyle);
-    statsLayout->addWidget(tracksLabel, 0, 0);
-
+    layout->addWidget(tracksLabel, 0, 0);
+    
     m_trackCountLabel = new QLabel("0");
-    m_trackCountLabel->setStyleSheet(readonlyStyle);
-    statsLayout->addWidget(m_trackCountLabel, 0, 1);
-
-    QLabel *notesLabel = new QLabel("Total Notes:");
+    m_trackCountLabel->setStyleSheet(valueStyle);
+    layout->addWidget(m_trackCountLabel, 0, 1);
+    
+    QLabel *notesLabel = new QLabel(tr("Total Notes:"));
     notesLabel->setStyleSheet(labelStyle);
-    statsLayout->addWidget(notesLabel, 0, 2);
-
+    layout->addWidget(notesLabel, 0, 2);
+    
     m_noteCountLabel = new QLabel("0");
-    m_noteCountLabel->setStyleSheet(readonlyStyle);
-    statsLayout->addWidget(m_noteCountLabel, 0, 3);
-
-    // Row 2
-    QLabel *tempoLabel = new QLabel("Tempo:");
+    m_noteCountLabel->setStyleSheet(valueStyle);
+    layout->addWidget(m_noteCountLabel, 0, 3);
+    
+    // Row 1
+    QLabel *tempoLabel = new QLabel(tr("Tempo:"));
     tempoLabel->setStyleSheet(labelStyle);
-    statsLayout->addWidget(tempoLabel, 1, 0);
-
+    layout->addWidget(tempoLabel, 1, 0);
+    
     m_tempoLabel = new QLabel("120 BPM");
-    m_tempoLabel->setStyleSheet(readonlyStyle);
-    statsLayout->addWidget(m_tempoLabel, 1, 1);
-
-    QLabel *ppqLabel = new QLabel("PPQ:");
+    m_tempoLabel->setStyleSheet(valueStyle);
+    layout->addWidget(m_tempoLabel, 1, 1);
+    
+    QLabel *ppqLabel = new QLabel(tr("PPQ:"));
     ppqLabel->setStyleSheet(labelStyle);
-    statsLayout->addWidget(ppqLabel, 1, 2);
-
+    layout->addWidget(ppqLabel, 1, 2);
+    
     m_ppqLabel = new QLabel("480");
-    m_ppqLabel->setStyleSheet(readonlyStyle);
-    statsLayout->addWidget(m_ppqLabel, 1, 3);
-
-    // Row 3
-    QLabel *durationLabel = new QLabel("Duration:");
+    m_ppqLabel->setStyleSheet(valueStyle);
+    layout->addWidget(m_ppqLabel, 1, 3);
+    
+    // Row 2
+    QLabel *durationLabel = new QLabel(tr("Duration:"));
     durationLabel->setStyleSheet(labelStyle);
-    statsLayout->addWidget(durationLabel, 2, 0);
-
+    layout->addWidget(durationLabel, 2, 0);
+    
     m_durationLabel = new QLabel("0:00");
-    m_durationLabel->setStyleSheet(readonlyStyle);
-    statsLayout->addWidget(m_durationLabel, 2, 1);
+    m_durationLabel->setStyleSheet(valueStyle);
+    layout->addWidget(m_durationLabel, 2, 1);
+    
+    layout->setColumnStretch(1, 1);
+    layout->setColumnStretch(3, 1);
+    layout->setRowStretch(3, 1); // Push content up
+    
+    return widget;
+}
 
-    statsLayout->setColumnStretch(1, 1);
-    statsLayout->setColumnStretch(3, 1);
-    contentLayout->addWidget(statsGroup);
+QWidget* ProjectSection::createSynthesizerWidget()
+{
+    QWidget *widget = new QWidget(this);
+    widget->setStyleSheet("background: #2a2d35;");
+    
+    QVBoxLayout *layout = new QVBoxLayout(widget);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(8);
+    
+    QString listStyle = R"(
+        QListWidget {
+            background: #232b38;
+            color: #d4d8de;
+            border: 1px solid #3a4654;
+            border-radius: 6px;
+            padding: 4px;
+            font-size: 13px;
+        }
+        QListWidget::item {
+            padding: 8px;
+            border-radius: 4px;
+        }
+        QListWidget::item:selected {
+            background: #3477c0;
+        }
+        QListWidget::item:hover:!selected {
+            background: #3a4654;
+        }
+    )";
+    
+    m_synthList = new QListWidget;
+    m_synthList->setStyleSheet(listStyle);
+    m_synthList->setMinimumHeight(100);
+    connect(m_synthList, &QListWidget::itemSelectionChanged, this, &ProjectSection::onSynthSelectionChanged);
+    layout->addWidget(m_synthList);
+    
+    QString buttonStyle = R"(
+        QPushButton {
+            background: #2d3640;
+            color: #d4d8de;
+            border: 1px solid #3a4654;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+        QPushButton:hover {
+            background: #3a4654;
+            border-color: #4a6080;
+        }
+        QPushButton:pressed {
+            background: #4a6080;
+        }
+        QPushButton:disabled {
+            background: #232b38;
+            color: #556677;
+            border-color: #3a4654;
+        }
+    )";
+    
+    QString comboStyle = R"(
+        QComboBox {
+            background: #232b38;
+            color: #d4d8de;
+            border: 1px solid #3a4654;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            min-width: 100px;
+        }
+        QComboBox:hover {
+            border-color: #4a6080;
+        }
+        QComboBox::drop-down { border: none; width: 20px; }
+        QComboBox QAbstractItemView {
+            background: #232b38;
+            border: 1px solid #4a4d55;
+            selection-background-color: #3477c0;
+        }
+    )";
+    
+    // Add row: type combo + add button
+    QHBoxLayout *addLayout = new QHBoxLayout;
+    addLayout->setSpacing(8);
+    
+    m_synthTypeCombo = new QComboBox;
+    m_synthTypeCombo->setStyleSheet(comboStyle);
+    m_synthTypeCombo->addItem(tr("FluidSynth"), "fluidsynth");
+    m_synthTypeCombo->addItem(tr("External MIDI"), "external_midi");
+    addLayout->addWidget(m_synthTypeCombo);
+    
+    m_addSynthBtn = new QPushButton(tr("Add"));
+    m_addSynthBtn->setStyleSheet(buttonStyle);
+    connect(m_addSynthBtn, &QPushButton::clicked, this, &ProjectSection::onAddSynthClicked);
+    addLayout->addWidget(m_addSynthBtn);
+    
+    addLayout->addStretch();
+    layout->addLayout(addLayout);
+    
+    // Action buttons row
+    QHBoxLayout *btnLayout = new QHBoxLayout;
+    btnLayout->setSpacing(8);
+    
+    m_configureSynthBtn = new QPushButton(tr("Configure"));
+    m_configureSynthBtn->setStyleSheet(buttonStyle);
+    m_configureSynthBtn->setEnabled(false);
+    connect(m_configureSynthBtn, &QPushButton::clicked, this, &ProjectSection::onConfigureSynthClicked);
+    btnLayout->addWidget(m_configureSynthBtn);
+    
+    m_renameSynthBtn = new QPushButton(tr("Rename"));
+    m_renameSynthBtn->setStyleSheet(buttonStyle);
+    m_renameSynthBtn->setEnabled(false);
+    connect(m_renameSynthBtn, &QPushButton::clicked, this, &ProjectSection::onRenameSynthClicked);
+    btnLayout->addWidget(m_renameSynthBtn);
+    
+    m_removeSynthBtn = new QPushButton(tr("Remove"));
+    m_removeSynthBtn->setStyleSheet(buttonStyle);
+    m_removeSynthBtn->setEnabled(false);
+    connect(m_removeSynthBtn, &QPushButton::clicked, this, &ProjectSection::onRemoveSynthClicked);
+    btnLayout->addWidget(m_removeSynthBtn);
+    
+    btnLayout->addStretch();
+    layout->addLayout(btnLayout);
+    
+    return widget;
+}
 
-    // === Actions Group ===
-    QGroupBox *actionsGroup = new QGroupBox("Quick Actions");
-    actionsGroup->setStyleSheet(metadataGroup->styleSheet());
-
-    QHBoxLayout *actionsLayout = new QHBoxLayout(actionsGroup);
-    actionsLayout->setSpacing(16);
-    actionsLayout->setContentsMargins(16, 24, 16, 16);
-
+QWidget* ProjectSection::createActionsWidget()
+{
+    QWidget *widget = new QWidget(this);
+    widget->setStyleSheet("background: #2a2d35;");
+    
+    QVBoxLayout *layout = new QVBoxLayout(widget);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setSpacing(10);
+    
     QString buttonStyle = R"(
         QPushButton {
             background: #2d3640;
@@ -255,38 +433,244 @@ void ProjectSection::setupUI()
             background: #2a6090;
         }
     )";
-
-    m_saveBtn = new QPushButton("💾  Save");
+    
+    m_saveBtn = new QPushButton(tr("💾  Save"));
     m_saveBtn->setStyleSheet(primaryButtonStyle);
     m_saveBtn->setCursor(Qt::PointingHandCursor);
     connect(m_saveBtn, &QPushButton::clicked, this, &ProjectSection::onSaveClicked);
-    actionsLayout->addWidget(m_saveBtn);
-
-    m_saveAsBtn = new QPushButton("📝  Save As...");
+    layout->addWidget(m_saveBtn);
+    
+    m_saveAsBtn = new QPushButton(tr("📝  Save As..."));
     m_saveAsBtn->setStyleSheet(buttonStyle);
     m_saveAsBtn->setCursor(Qt::PointingHandCursor);
     connect(m_saveAsBtn, &QPushButton::clicked, this, &ProjectSection::onSaveAsClicked);
-    actionsLayout->addWidget(m_saveAsBtn);
-
-    m_exportMidiBtn = new QPushButton("🎹  Export MIDI...");
+    layout->addWidget(m_saveAsBtn);
+    
+    m_exportMidiBtn = new QPushButton(tr("🎹  Export MIDI..."));
     m_exportMidiBtn->setStyleSheet(buttonStyle);
     m_exportMidiBtn->setCursor(Qt::PointingHandCursor);
     connect(m_exportMidiBtn, &QPushButton::clicked, this, &ProjectSection::onExportMidiClicked);
-    actionsLayout->addWidget(m_exportMidiBtn);
+    layout->addWidget(m_exportMidiBtn);
+    
+    layout->addStretch();
+    
+    return widget;
+}
 
-    actionsLayout->addStretch();
-    contentLayout->addWidget(actionsGroup);
+void ProjectSection::refreshSynthesizerList()
+{
+    m_synthList->clear();
+    
+    if (!m_engine) return;
+    
+    const auto &synths = m_engine->getSynthesizers();
+    for (NoteNagaSynthesizer *synth : synths) {
+        if (synth) {
+            QString name = QString::fromStdString(synth->getName());
+            if (name.isEmpty()) {
+                name = tr("Unnamed Synth");
+            }
+            QListWidgetItem *item = new QListWidgetItem(name);
+            item->setData(Qt::UserRole, QVariant::fromValue(static_cast<void*>(synth)));
+            m_synthList->addItem(item);
+        }
+    }
+    
+    bool hasSelection = m_synthList->currentRow() >= 0;
+    m_renameSynthBtn->setEnabled(hasSelection);
+    m_removeSynthBtn->setEnabled(hasSelection);
+    m_configureSynthBtn->setEnabled(hasSelection);
+}
 
-    contentLayout->addStretch();
+void ProjectSection::onSynthSelectionChanged()
+{
+    bool hasSelection = m_synthList->currentRow() >= 0;
+    m_renameSynthBtn->setEnabled(hasSelection);
+    m_removeSynthBtn->setEnabled(hasSelection);
+    m_configureSynthBtn->setEnabled(hasSelection);
+}
 
-    scrollArea->setWidget(scrollContent);
-    mainLayout->addWidget(scrollArea);
+void ProjectSection::onRenameSynthClicked()
+{
+    int row = m_synthList->currentRow();
+    if (row < 0) return;
+    
+    const auto &synths = m_engine->getSynthesizers();
+    if (row >= static_cast<int>(synths.size())) return;
+    
+    NoteNagaSynthesizer *synth = synths[row];
+    if (!synth) return;
+    
+    bool ok;
+    QString newName = QInputDialog::getText(
+        this,
+        tr("Rename Synthesizer"),
+        tr("Enter new name:"),
+        QLineEdit::Normal,
+        QString::fromStdString(synth->getName()),
+        &ok
+    );
+    
+    if (ok && !newName.isEmpty()) {
+        synth->setName(newName.toStdString());
+        m_synthList->item(row)->setText(newName);
+        onMetadataEdited(); // Mark as unsaved
+    }
+}
+
+void ProjectSection::onAddSynthClicked()
+{
+    QString type = m_synthTypeCombo->currentData().toString();
+    QString baseName;
+    
+    if (type == "fluidsynth") {
+        baseName = "FluidSynth";
+    } else if (type == "external_midi") {
+        baseName = "External MIDI";
+    } else {
+        return;
+    }
+    
+    // Generate unique name
+    int suffix = 1;
+    QString finalName;
+    bool nameExists;
+    do {
+        nameExists = false;
+        finalName = suffix == 1 ? baseName : QString("%1 %2").arg(baseName).arg(suffix);
+        
+        for (int i = 0; i < m_synthList->count(); ++i) {
+            if (m_synthList->item(i)->text() == finalName) {
+                nameExists = true;
+                break;
+            }
+        }
+        if (nameExists) suffix++;
+    } while (nameExists);
+    
+    try {
+        NoteNagaSynthesizer *newSynth = nullptr;
+        
+        if (type == "fluidsynth") {
+            newSynth = new NoteNagaSynthFluidSynth(finalName.toStdString(), "");
+        } else if (type == "external_midi") {
+            newSynth = new NoteNagaSynthExternalMidi(finalName.toStdString());
+        }
+        
+        if (newSynth) {
+            m_engine->addSynthesizer(newSynth);
+            refreshSynthesizerList();
+            
+            // Select new synth
+            for (int i = 0; i < m_synthList->count(); ++i) {
+                if (m_synthList->item(i)->data(Qt::UserRole).value<void*>() == newSynth) {
+                    m_synthList->setCurrentRow(i);
+                    break;
+                }
+            }
+            onMetadataEdited();
+        }
+    } catch (const std::exception &e) {
+        QMessageBox::critical(this, tr("Error"),
+            tr("Failed to create synthesizer: %1").arg(e.what()));
+    }
+}
+
+void ProjectSection::onRemoveSynthClicked()
+{
+    int row = m_synthList->currentRow();
+    if (row < 0) return;
+    
+    QListWidgetItem *item = m_synthList->item(row);
+    if (!item) return;
+    
+    NoteNagaSynthesizer *synth = static_cast<NoteNagaSynthesizer*>(
+        item->data(Qt::UserRole).value<void*>());
+    
+    if (!synth) return;
+    
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this,
+        tr("Remove Synthesizer"),
+        tr("Are you sure you want to remove '%1'?").arg(item->text()),
+        QMessageBox::Yes | QMessageBox::No
+    );
+    
+    if (reply == QMessageBox::Yes) {
+        m_engine->removeSynthesizer(synth);
+        refreshSynthesizerList();
+        onMetadataEdited();
+    }
+}
+
+void ProjectSection::onConfigureSynthClicked()
+{
+    int row = m_synthList->currentRow();
+    if (row < 0) return;
+    
+    QListWidgetItem *item = m_synthList->item(row);
+    if (!item) return;
+    
+    NoteNagaSynthesizer *synth = static_cast<NoteNagaSynthesizer*>(
+        item->data(Qt::UserRole).value<void*>());
+    
+    if (!synth) return;
+    
+    // Check synth type and show appropriate configuration
+    NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
+    NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
+    
+    if (fluidSynth) {
+        // Configure FluidSynth - select SoundFont
+        QString currentSF = QString::fromStdString(fluidSynth->getSoundFontPath());
+        QString sfPath = QFileDialog::getOpenFileName(
+            this,
+            tr("Select SoundFont"),
+            currentSF.isEmpty() ? QDir::homePath() : QFileInfo(currentSF).absolutePath(),
+            tr("SoundFont Files (*.sf2 *.sf3 *.dls);;All Files (*)")
+        );
+        
+        if (!sfPath.isEmpty()) {
+            fluidSynth->setSoundFont(sfPath.toStdString());
+            onMetadataEdited();
+        }
+    } else if (externalMidi) {
+        // Configure External MIDI - select port
+        auto ports = NoteNagaSynthExternalMidi::getAvailableMidiOutputPorts();
+        QStringList portNames;
+        for (const auto &port : ports) {
+            portNames << QString::fromStdString(port);
+        }
+        
+        if (portNames.isEmpty()) {
+            QMessageBox::information(this, tr("No MIDI Ports"),
+                tr("No external MIDI ports are available."));
+            return;
+        }
+        
+        bool ok;
+        QString selected = QInputDialog::getItem(
+            this,
+            tr("Select MIDI Port"),
+            tr("Choose MIDI output port:"),
+            portNames,
+            0,
+            false,
+            &ok
+        );
+        
+        if (ok && !selected.isEmpty()) {
+            externalMidi->setMidiOutputPort(selected.toStdString());
+            onMetadataEdited();
+        }
+    }
 }
 
 void ProjectSection::onSectionActivated()
 {
     refreshUI();
     updateStatistics();
+    refreshSynthesizerList();
 }
 
 void ProjectSection::onSectionDeactivated()
@@ -312,7 +696,7 @@ NoteNagaProjectMetadata ProjectSection::getProjectMetadata() const
 void ProjectSection::setProjectFilePath(const QString &filePath)
 {
     m_projectFilePath = filePath;
-    m_filePathLabel->setText(filePath.isEmpty() ? "Not saved yet" : filePath);
+    m_filePathLabel->setText(filePath.isEmpty() ? tr("Not saved yet") : filePath);
 }
 
 void ProjectSection::markAsSaved()
@@ -375,7 +759,7 @@ void ProjectSection::refreshUI()
         m_modifiedAtLabel->setText("-");
     }
 
-    m_filePathLabel->setText(m_projectFilePath.isEmpty() ? "Not saved yet" : m_projectFilePath);
+    m_filePathLabel->setText(m_projectFilePath.isEmpty() ? tr("Not saved yet") : m_projectFilePath);
 }
 
 void ProjectSection::updateStatistics()

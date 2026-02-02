@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QWidget>
+#include <QMainWindow>
 #include <QLabel>
 #include <QLineEdit>
 #include <QTextEdit>
@@ -8,6 +8,9 @@
 #include <QGroupBox>
 #include <QVBoxLayout>
 #include <QGridLayout>
+#include <QListWidget>
+#include <QComboBox>
+#include <QMap>
 
 #include <note_naga_engine/core/project_file_types.h>
 #include "section_interface.h"
@@ -15,6 +18,7 @@
 class NoteNagaEngine;
 class RecentProjectsManager;
 class NoteNagaProjectSerializer;
+class AdvancedDockWidget;
 
 /**
  * @brief ProjectSection displays and allows editing of project metadata.
@@ -23,9 +27,12 @@ class NoteNagaProjectSerializer;
  * - Project name, author, description
  * - Creation and modification timestamps
  * - Project statistics (tracks, notes, duration)
+ * - Synthesizer management
  * - Quick actions (save, save as, export MIDI)
+ * 
+ * Uses AdvancedDockWidget for flexible layout.
  */
-class ProjectSection : public QWidget, public ISection {
+class ProjectSection : public QMainWindow, public ISection {
     Q_OBJECT
 
 public:
@@ -67,6 +74,11 @@ public:
      * @brief Mark changes as saved
      */
     void markAsSaved();
+    
+    /**
+     * @brief Refresh synthesizer list from engine
+     */
+    void refreshSynthesizerList();
 
 signals:
     /**
@@ -99,14 +111,26 @@ private slots:
     void onSaveClicked();
     void onSaveAsClicked();
     void onExportMidiClicked();
+    void onRenameSynthClicked();
+    void onAddSynthClicked();
+    void onRemoveSynthClicked();
+    void onConfigureSynthClicked();
+    void onSynthSelectionChanged();
 
 private:
-    void setupUI();
+    void setupDockLayout();
+    QWidget* createMetadataWidget();
+    QWidget* createStatisticsWidget();
+    QWidget* createSynthesizerWidget();
+    QWidget* createActionsWidget();
     void updateStatistics();
     void refreshUI();
 
     NoteNagaEngine *m_engine;
     NoteNagaProjectSerializer *m_serializer;
+    
+    // Dock widgets
+    QMap<QString, AdvancedDockWidget*> m_docks;
     
     // Metadata
     NoteNagaProjectMetadata m_metadata;
@@ -127,6 +151,14 @@ private:
     QLabel *m_durationLabel;
     QLabel *m_tempoLabel;
     QLabel *m_ppqLabel;
+
+    // UI Elements - Synthesizers
+    QListWidget *m_synthList;
+    QComboBox *m_synthTypeCombo;
+    QPushButton *m_addSynthBtn;
+    QPushButton *m_removeSynthBtn;
+    QPushButton *m_renameSynthBtn;
+    QPushButton *m_configureSynthBtn;
 
     // UI Elements - Actions
     QPushButton *m_saveBtn;

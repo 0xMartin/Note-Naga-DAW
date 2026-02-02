@@ -7,7 +7,6 @@
 #include <QInputDialog>
 
 #include "../nn_gui_utils.h"
-#include "../dialogs/mixer_settings_dialog.h"
 
 TrackMixerWidget::TrackMixerWidget(NoteNagaEngine *engine_, QWidget *parent)
     : QWidget(parent), engine(engine_), selected_entry_index(-1),
@@ -39,16 +38,7 @@ void TrackMixerWidget::initTitleUI() {
     QHBoxLayout *layout = new QHBoxLayout(title_widget);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-
-    // mixer settings
-    QPushButton *btn_settings = create_small_button(
-        ":/icons/settings.svg", "Mixer Settings", "MixerSettingsButton");
-    connect(btn_settings, &QPushButton::clicked, this, [this]() {
-        MixerSettingsDialog dlg(engine, this);
-        dlg.exec();
-    });
-
-    layout->addWidget(btn_settings, 0, Qt::AlignRight);
+    // Title widget is now empty (Mixer Settings moved to Project Section)
 }
 
 void TrackMixerWidget::initUI() {

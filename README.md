@@ -225,8 +225,8 @@ Access advanced MIDI editing tools from the `Edit` menu:
 ### 🔴 High Priority (v1.0)
 - [x] 🐛 **Fix**: Newly added notes not playing during playback
 - [x] 💾 **MIDI Export**: Save projects as standard MIDI files
-- [ ] 💾 **Project Save/Load**: Complete project persistence
-- [ ] 📁 **Project Explorer**: Dialog for new/open/recent projects
+- [x] 💾 **Project Save/Load**: Complete project persistence
+- [x] 📁 **Project Explorer**: Dialog for new/open/recent projects
 
 ### 🟡 UI/UX Improvements
 - [x] 🎨 **Section-based Layout**: Split app into dedicated sections
@@ -237,8 +237,8 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - [x] 📊 **Velocity Editor**: Visual velocity editing panel
 - [x] ✏️ **Enhanced Note Editing**: Better manipulation and selection tools
 - [x] 🎯 **Apply to Selection**: MIDI utilities work on selected notes only (or all if none selected)
-- [ ] **Project Settings and Info section**: BPM, time signature, location on disk, name, author, output devices
-- [ ] **Project Wizard**: Guide for creating new projects with initial settings
+- [x] **Project Settings and Info section**: BPM, time signature, location on disk, name, author, output devices
+- [x] **Project Wizard**: Guide for creating new projects with initial settings
 
 ### 🟢 Advanced Features
 - [ ] 🎹 **MIDI Input**: Record notes from external MIDI devices

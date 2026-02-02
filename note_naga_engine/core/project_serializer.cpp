@@ -1,6 +1,8 @@
 #include <note_naga_engine/core/project_serializer.h>
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/dsp/dsp_factory.h>
+#include <note_naga_engine/synth/synth_fluidsynth.h>
+#include <note_naga_engine/synth/synth_external_midi.h>
 
 #include <QFile>
 #include <QJsonDocument>
@@ -39,7 +41,10 @@ bool NoteNagaProjectSerializer::saveProject(const QString &filePath, const NoteN
     }
     root["sequences"] = sequencesArray;
     
-    // Save DSP blocks
+    // Save synthesizers (with their names and DSP blocks)
+    root["synthesizers"] = serializeSynthesizers();
+    
+    // Save master DSP blocks
     root["dspBlocks"] = serializeDSPBlocks();
     
     // Save DSP enabled state
@@ -118,7 +123,12 @@ bool NoteNagaProjectSerializer::loadProject(const QString &filePath, NoteNagaPro
         project->setActiveSequence(project->getSequences().front());
     }
     
-    // Load DSP blocks
+    // Load synthesizers (with their names and DSP blocks)
+    if (root.contains("synthesizers")) {
+        deserializeSynthesizers(root["synthesizers"].toArray());
+    }
+    
+    // Load master DSP blocks
     if (!deserializeDSPBlocks(root["dspBlocks"].toArray())) {
         m_lastError = "Failed to load DSP blocks";
         // Continue anyway, DSP is not critical
@@ -249,6 +259,28 @@ QJsonArray NoteNagaProjectSerializer::serializeTrack(NoteNagaTrack *track)
     return notesArray;
 }
 
+QJsonObject NoteNagaProjectSerializer::serializeDSPBlock(NoteNagaDSPBlockBase *block)
+{
+    QJsonObject blockObj;
+    if (!block) return blockObj;
+    
+    blockObj["type"] = QString::fromStdString(block->getBlockName());
+    blockObj["active"] = block->isActive();
+    
+    // Serialize parameters
+    QJsonArray paramsArray;
+    std::vector<DSPParamDescriptor> descriptors = block->getParamDescriptors();
+    for (size_t i = 0; i < descriptors.size(); ++i) {
+        QJsonObject paramObj;
+        paramObj["name"] = QString::fromStdString(descriptors[i].name);
+        paramObj["value"] = static_cast<double>(block->getParamValue(i));
+        paramsArray.append(paramObj);
+    }
+    blockObj["parameters"] = paramsArray;
+    
+    return blockObj;
+}
+
 QJsonArray NoteNagaProjectSerializer::serializeDSPBlocks()
 {
     QJsonArray blocksArray;
@@ -258,26 +290,53 @@ QJsonArray NoteNagaProjectSerializer::serializeDSPBlocks()
     
     for (NoteNagaDSPBlockBase *block : dspEngine->getDSPBlocks()) {
         if (!block) continue;
-        
-        QJsonObject blockObj;
-        blockObj["type"] = QString::fromStdString(block->getBlockName());
-        blockObj["active"] = block->isActive();
-        
-        // Serialize parameters
-        QJsonArray paramsArray;
-        std::vector<DSPParamDescriptor> descriptors = block->getParamDescriptors();
-        for (size_t i = 0; i < descriptors.size(); ++i) {
-            QJsonObject paramObj;
-            paramObj["name"] = QString::fromStdString(descriptors[i].name);
-            paramObj["value"] = static_cast<double>(block->getParamValue(i));
-            paramsArray.append(paramObj);
-        }
-        blockObj["parameters"] = paramsArray;
-        
-        blocksArray.append(blockObj);
+        blocksArray.append(serializeDSPBlock(block));
     }
     
     return blocksArray;
+}
+
+QJsonArray NoteNagaProjectSerializer::serializeSynthesizers()
+{
+    QJsonArray synthsArray;
+    
+    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+    if (!dspEngine) return synthsArray;
+    
+    // Serialize each synthesizer
+    for (NoteNagaSynthesizer *synth : m_engine->getSynthesizers()) {
+        if (!synth) continue;
+        
+        QJsonObject synthObj;
+        synthObj["name"] = QString::fromStdString(synth->getName());
+        
+        // Determine synth type and save config
+        NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
+        NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
+        
+        if (fluidSynth) {
+            synthObj["type"] = "fluidsynth";
+            synthObj["soundFontPath"] = QString::fromStdString(fluidSynth->getSoundFontPath());
+        } else if (externalMidi) {
+            synthObj["type"] = "external_midi";
+            synthObj["midiPort"] = QString::fromStdString(externalMidi->getCurrentPortName());
+        }
+        
+        // Get DSP blocks for this synth (need to cast to ISoftSynth interface)
+        INoteNagaSoftSynth *softSynth = dynamic_cast<INoteNagaSoftSynth*>(synth);
+        if (softSynth) {
+            QJsonArray synthDspArray;
+            for (NoteNagaDSPBlockBase *block : dspEngine->getSynthDSPBlocks(softSynth)) {
+                if (!block) continue;
+                synthDspArray.append(serializeDSPBlock(block));
+            }
+            synthObj["dspBlocks"] = synthDspArray;
+        }
+        
+        synthsArray.append(synthObj);
+    }
+    
+    return synthsArray;
 }
 
 QJsonArray NoteNagaProjectSerializer::serializeRoutingTable()
@@ -389,6 +448,97 @@ bool NoteNagaProjectSerializer::deserializeDSPBlocks(const QJsonArray &blocksArr
         }
         
         dspEngine->addDSPBlock(block);
+    }
+    
+    return true;
+}
+
+bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synthsArray)
+{
+    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+    if (!dspEngine) return false;
+    
+    // Get existing synthesizers
+    std::vector<NoteNagaSynthesizer*> synths = m_engine->getSynthesizers();
+    
+    for (const QJsonValue &synthVal : synthsArray) {
+        QJsonObject synthObj = synthVal.toObject();
+        QString synthName = synthObj["name"].toString();
+        QString synthType = synthObj["type"].toString();
+        
+        // Find existing synth by name
+        NoteNagaSynthesizer *synth = nullptr;
+        for (NoteNagaSynthesizer *s : synths) {
+            if (s && QString::fromStdString(s->getName()) == synthName) {
+                synth = s;
+                break;
+            }
+        }
+        
+        // If synth not found, create it
+        if (!synth && !synthType.isEmpty()) {
+            if (synthType == "fluidsynth") {
+                QString sfPath = synthObj["soundFontPath"].toString();
+                synth = new NoteNagaSynthFluidSynth(synthName.toStdString(), sfPath.toStdString());
+                m_engine->addSynthesizer(synth);
+            } else if (synthType == "external_midi") {
+                QString midiPort = synthObj["midiPort"].toString();
+                synth = new NoteNagaSynthExternalMidi(synthName.toStdString(), midiPort.toStdString());
+                m_engine->addSynthesizer(synth);
+            }
+            // Update synth list
+            synths = m_engine->getSynthesizers();
+        } else if (synth) {
+            // Synth exists, update its configuration
+            NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
+            NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
+            
+            if (fluidSynth && synthObj.contains("soundFontPath")) {
+                QString sfPath = synthObj["soundFontPath"].toString();
+                if (!sfPath.isEmpty()) {
+                    fluidSynth->setSoundFont(sfPath.toStdString());
+                }
+            } else if (externalMidi && synthObj.contains("midiPort")) {
+                QString midiPort = synthObj["midiPort"].toString();
+                if (!midiPort.isEmpty()) {
+                    externalMidi->setMidiOutputPort(midiPort.toStdString());
+                }
+            }
+        }
+        
+        if (!synth) continue;  // Could not find or create synth
+        
+        // Load DSP blocks for this synth
+        INoteNagaSoftSynth *softSynth = dynamic_cast<INoteNagaSoftSynth*>(synth);
+        if (softSynth && synthObj.contains("dspBlocks")) {
+            // Clear existing DSP blocks for this synth
+            for (NoteNagaDSPBlockBase *block : dspEngine->getSynthDSPBlocks(softSynth)) {
+                dspEngine->removeSynthDSPBlock(softSynth, block);
+                delete block;
+            }
+            
+            // Load new blocks
+            QJsonArray dspArray = synthObj["dspBlocks"].toArray();
+            for (const QJsonValue &blockVal : dspArray) {
+                QJsonObject blockObj = blockVal.toObject();
+                
+                QString blockType = blockObj["type"].toString();
+                NoteNagaDSPBlockBase *block = createDSPBlockByName(blockType);
+                if (!block) continue;
+                
+                block->setActive(blockObj["active"].toBool(true));
+                
+                // Load parameters
+                QJsonArray paramsArray = blockObj["parameters"].toArray();
+                for (int i = 0; i < paramsArray.size(); ++i) {
+                    QJsonObject paramObj = paramsArray[i].toObject();
+                    float value = static_cast<float>(paramObj["value"].toDouble());
+                    block->setParamValue(i, value);
+                }
+                
+                dspEngine->addSynthDSPBlock(softSynth, block);
+            }
+        }
     }
     
     return true;

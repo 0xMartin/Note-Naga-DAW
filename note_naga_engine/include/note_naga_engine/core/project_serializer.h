@@ -77,12 +77,15 @@ private:
     QJsonObject serializeSequence(NoteNagaMidiSeq *seq);
     QJsonArray serializeTrack(NoteNagaTrack *track);
     QJsonArray serializeDSPBlocks();
+    QJsonArray serializeSynthesizers();
     QJsonArray serializeRoutingTable();
+    QJsonObject serializeDSPBlock(NoteNagaDSPBlockBase *block);
     
     // Deserialization helpers
     bool deserializeSequence(const QJsonObject &seqObj, NoteNagaMidiSeq *seq);
     bool deserializeTrack(const QJsonObject &trackObj, NoteNagaTrack *track);
     bool deserializeDSPBlocks(const QJsonArray &blocksArray);
+    bool deserializeSynthesizers(const QJsonArray &synthsArray);
     bool deserializeRoutingTable(const QJsonArray &routingArray);
     
     // DSP block factory
