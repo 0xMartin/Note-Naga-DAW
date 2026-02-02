@@ -138,6 +138,7 @@ private:
     void onAutosave();
     void updateWindowTitle();
     void onProjectUnsavedChanged(bool hasChanges);
+    void onProjectMetadataChanged();
     void onProjectSaveRequested();
     void onProjectSaveAsRequested();
     void onProjectExportMidiRequested();

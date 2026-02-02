@@ -32,6 +32,11 @@ public:
     explicit DSPEngineWidget(NoteNagaEngine *engine, QWidget *parent = nullptr);
 
     QWidget *getTitleWidget() const { return this->title_widget; }
+    
+    /**
+     * @brief Refresh DSP widgets from engine state
+     */
+    void refresh() { refreshDSPWidgets(); }
 
 private:
     NoteNagaEngine * engine;

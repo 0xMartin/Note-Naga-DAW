@@ -174,3 +174,10 @@ void DSPEditorSection::onSectionDeactivated()
         m_engine->getPanAnalyzer()->setEnabled(false);
     }
 }
+
+void DSPEditorSection::refreshDSPWidgets()
+{
+    if (m_dspWidget) {
+        m_dspWidget->refresh();
+    }
+}

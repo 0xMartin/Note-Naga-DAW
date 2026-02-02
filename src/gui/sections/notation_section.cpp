@@ -35,6 +35,16 @@ NotationSection::~NotationSection()
 {
 }
 
+void NotationSection::setProjectMetadata(const NoteNagaProjectMetadata &metadata)
+{
+    m_projectMetadata = metadata;
+    // Auto-apply if we have a widget
+    if (m_notationWidget) {
+        m_notationWidget->setTitle(m_projectMetadata.name);
+        applyNotationSettings();
+    }
+}
+
 void NotationSection::onSectionActivated()
 {
     m_sectionActive = true;
@@ -242,20 +252,11 @@ void NotationSection::setupDockLayout()
     separator->setStyleSheet("QFrame { color: #4a4d55; }");
     notationFormLayout->addRow(separator);
     
-    // Composer
-    m_composerEdit = new QLineEdit;
-    m_composerEdit->setStyleSheet(R"(
-        QLineEdit {
-            background: #3a3d45;
-            border: 1px solid #4a4d55;
-            border-radius: 4px;
-            padding: 4px 8px;
-            color: white;
-        }
-        QLineEdit:focus { border-color: #4a9eff; }
-    )");
-    m_composerEdit->setPlaceholderText(tr("Enter composer name..."));
-    notationFormLayout->addRow(tr("Composer:"), m_composerEdit);
+    // Show Author checkbox (uses project author)
+    m_showComposerCheckbox = new QCheckBox(tr("Show author"));
+    m_showComposerCheckbox->setChecked(true);
+    m_showComposerCheckbox->setStyleSheet("QCheckBox { color: #ccc; }");
+    notationFormLayout->addRow("", m_showComposerCheckbox);
     
     // Page Size
     m_pageSizeCombo = new QComboBox;
@@ -352,7 +353,7 @@ void NotationSection::connectSignals()
             this, &NotationSection::applyNotationSettings);
     connect(m_showInstrumentNamesCheckbox, &QCheckBox::toggled,
             this, &NotationSection::applyNotationSettings);
-    connect(m_composerEdit, &QLineEdit::textChanged,
+    connect(m_showComposerCheckbox, &QCheckBox::toggled,
             this, &NotationSection::applyNotationSettings);
     connect(m_pageSizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &NotationSection::applyNotationSettings);
@@ -389,12 +390,14 @@ void NotationSection::refreshSequence()
     // Update track visibility checkboxes
     updateTrackVisibilityCheckboxes();
     
-    // Set sequence title from file path
-    QString filePath = QString::fromStdString(m_sequence->getFilePath());
-    QString title;
-    if (!filePath.isEmpty()) {
-        QFileInfo fileInfo(filePath);
-        title = fileInfo.completeBaseName();  // Get filename without extension
+    // Set title: prefer project name, fallback to MIDI filename
+    QString title = m_projectMetadata.name;
+    if (title.isEmpty()) {
+        QString filePath = QString::fromStdString(m_sequence->getFilePath());
+        if (!filePath.isEmpty()) {
+            QFileInfo fileInfo(filePath);
+            title = fileInfo.completeBaseName();  // Get filename without extension
+        }
     }
     if (title.isEmpty()) {
         title = tr("Untitled");
@@ -511,12 +514,21 @@ void NotationSection::applyNotationSettings()
     settings.showTitle = m_showTitleCheckbox->isChecked();
     settings.showTempo = m_showTempoCheckbox->isChecked();
     settings.showInstrumentNames = m_showInstrumentNamesCheckbox->isChecked();
-    settings.composer = m_composerEdit->text();
+    
+    // Use project author as composer if checkbox is checked
+    if (m_showComposerCheckbox->isChecked()) {
+        settings.composer = m_projectMetadata.author;
+    } else {
+        settings.composer.clear();
+    }
     
     QSize pageSize = m_pageSizeCombo->currentData().toSize();
     settings.pageWidth = pageSize.width();
     settings.pageHeight = pageSize.height();
     settings.landscape = m_landscapeCheckbox->isChecked();
+    
+    // Set title from project name
+    m_notationWidget->setTitle(m_projectMetadata.name);
     
     m_notationWidget->setNotationSettings(settings);
 }

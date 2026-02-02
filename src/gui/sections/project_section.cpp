@@ -408,8 +408,10 @@ void ProjectSection::updateStatistics()
     }
     m_noteCountLabel->setText(QString::number(totalNotes));
 
-    // Tempo
-    m_tempoLabel->setText(QString("%1 BPM").arg(seq->getTempo()));
+    // Tempo - convert from microseconds per quarter note to BPM
+    int tempoMicros = seq->getTempo();
+    double bpm = tempoMicros > 0 ? (60000000.0 / tempoMicros) : 120.0;
+    m_tempoLabel->setText(QString("%1 BPM").arg(bpm, 0, 'f', 1));
 
     // PPQ
     m_ppqLabel->setText(QString::number(seq->getPPQ()));
@@ -420,7 +422,10 @@ void ProjectSection::updateStatistics()
     int tempo = seq->getTempo();
     
     if (ppq > 0 && tempo > 0) {
-        double seconds = (static_cast<double>(maxTick) / ppq) * (60.0 / tempo);
+        // tempo is in microseconds per quarter note
+        double secondsPerBeat = tempo / 1000000.0;
+        double beats = static_cast<double>(maxTick) / ppq;
+        double seconds = beats * secondsPerBeat;
         int minutes = static_cast<int>(seconds) / 60;
         int secs = static_cast<int>(seconds) % 60;
         m_durationLabel->setText(QString("%1:%2").arg(minutes).arg(secs, 2, 10, QChar('0')));

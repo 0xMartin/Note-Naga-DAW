@@ -37,6 +37,16 @@ public:
      * @brief Get control bar widget for signal connections
      */
     MidiControlBarWidget *getControlBar() const { return m_controlBar; }
+    
+    /**
+     * @brief Get DSP engine widget
+     */
+    DSPEngineWidget *getDSPEngineWidget() const { return m_dspWidget; }
+    
+    /**
+     * @brief Refresh DSP widgets after project load
+     */
+    void refreshDSPWidgets();
 
 private:
     NoteNagaEngine *m_engine;

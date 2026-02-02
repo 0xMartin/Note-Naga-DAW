@@ -13,6 +13,7 @@
 #include <QSpinBox>
 
 #include <note_naga_engine/note_naga_engine.h>
+#include <note_naga_engine/core/project_file_types.h>
 #include "section_interface.h"
 
 class AdvancedDockWidget;
@@ -39,6 +40,11 @@ public:
     // ISection interface
     void onSectionActivated() override;
     void onSectionDeactivated() override;
+    
+    /**
+     * @brief Set project metadata for notation (used for composer/title)
+     */
+    void setProjectMetadata(const NoteNagaProjectMetadata &metadata);
 
 private slots:
     void onPlaybackTickChanged(int tick);
@@ -49,6 +55,9 @@ private:
     NoteNagaEngine *m_engine;
     NoteNagaMidiSeq *m_sequence;
     bool m_sectionActive;
+    
+    // Project metadata
+    NoteNagaProjectMetadata m_projectMetadata;
     
     // Dock widgets
     QMap<QString, AdvancedDockWidget*> m_docks;
@@ -76,7 +85,7 @@ private:
     QCheckBox *m_showTitleCheckbox;
     QCheckBox *m_showTempoCheckbox;
     QCheckBox *m_showInstrumentNamesCheckbox;
-    QLineEdit *m_composerEdit;
+    QCheckBox *m_showComposerCheckbox;
     QComboBox *m_pageSizeCombo;
     QCheckBox *m_landscapeCheckbox;
     

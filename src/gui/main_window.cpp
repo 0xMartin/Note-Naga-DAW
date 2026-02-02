@@ -287,6 +287,8 @@ void MainWindow::setup_sections() {
             this, &MainWindow::onProjectExportMidiRequested);
     connect(m_projectSection, &ProjectSection::unsavedChangesChanged, 
             this, &MainWindow::onProjectUnsavedChanged);
+    connect(m_projectSection, &ProjectSection::metadataChanged,
+            this, &MainWindow::onProjectMetadataChanged);
 }
 
 void MainWindow::onSectionChanged(AppSection section) {
@@ -842,6 +844,11 @@ void MainWindow::createNewProject(const NoteNagaProjectMetadata &metadata) {
     m_projectSection->setProjectFilePath(QString());
     m_hasUnsavedChanges = true;
     
+    // Update notation section with project metadata
+    if (m_notationSection) {
+        m_notationSection->setProjectMetadata(m_projectMetadata);
+    }
+    
     updateWindowTitle();
 }
 
@@ -859,6 +866,16 @@ bool MainWindow::openProject(const QString &filePath) {
     m_projectSection->setProjectMetadata(m_projectMetadata);
     m_projectSection->setProjectFilePath(m_currentProjectPath);
     m_projectSection->markAsSaved();
+    
+    // Update notation section with project metadata
+    if (m_notationSection) {
+        m_notationSection->setProjectMetadata(m_projectMetadata);
+    }
+    
+    // Refresh DSP widgets to reflect loaded DSP chain
+    if (m_dspEditorSection) {
+        m_dspEditorSection->refreshDSPWidgets();
+    }
     
     // Add to recent projects
     m_recentProjectsManager->addRecentProject(filePath, m_projectMetadata.name);
@@ -958,6 +975,19 @@ void MainWindow::updateWindowTitle() {
 
 void MainWindow::onProjectUnsavedChanged(bool hasChanges) {
     Q_UNUSED(hasChanges);
+    updateWindowTitle();
+}
+
+void MainWindow::onProjectMetadataChanged() {
+    // Update central metadata from ProjectSection
+    m_projectMetadata = m_projectSection->getProjectMetadata();
+    
+    // Propagate to NotationSection
+    if (m_notationSection) {
+        m_notationSection->setProjectMetadata(m_projectMetadata);
+    }
+    
+    // Update window title (in case project name changed)
     updateWindowTitle();
 }
 
