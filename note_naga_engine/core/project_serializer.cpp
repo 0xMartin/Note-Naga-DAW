@@ -116,6 +116,7 @@ bool NoteNagaProjectSerializer::loadProject(const QString &filePath, NoteNagaPro
             delete seq;
             return false;
         }
+        seq->computeMaxTick();  // Compute maxTick from loaded notes
         project->addSequence(seq);
     }
     
@@ -187,7 +188,7 @@ bool NoteNagaProjectSerializer::createEmptyProject(const NoteNagaProjectMetadata
     // Create new sequence
     NoteNagaMidiSeq *seq = new NoteNagaMidiSeq(1);
     seq->setPPQ(480);
-    seq->setTempo(120);
+    seq->setTempo(600000);  // 100 BPM in microseconds
     
     // Create one default track
     NoteNagaTrack *track = seq->addTrack(0); // Piano
@@ -364,7 +365,7 @@ QJsonArray NoteNagaProjectSerializer::serializeRoutingTable()
 bool NoteNagaProjectSerializer::deserializeSequence(const QJsonObject &seqObj, NoteNagaMidiSeq *seq)
 {
     seq->setPPQ(seqObj["ppq"].toInt(480));
-    seq->setTempo(seqObj["tempo"].toInt(120));
+    seq->setTempo(seqObj["tempo"].toInt(600000));  // Default 100 BPM in microseconds
     
     QJsonArray tracksArray = seqObj["tracks"].toArray();
     for (const QJsonValue &trackVal : tracksArray) {

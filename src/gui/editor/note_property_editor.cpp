@@ -649,6 +649,20 @@ void NotePropertyEditor::mousePressEvent(QMouseEvent *event)
         m_dragStartPos = event->pos();
         m_editingBar = bar;
         m_dragStartValue = bar->value;
+        
+        // Check if Shift is held for proportional editing of selected notes
+        m_proportionalEdit = (event->modifiers() & Qt::ShiftModifier) && bar->selected;
+        m_selectedBarsStartValues.clear();
+        
+        if (m_proportionalEdit) {
+            // Store original values of all selected bars
+            for (size_t i = 0; i < m_noteBars.size(); ++i) {
+                if (m_noteBars[i].selected) {
+                    m_selectedBarsStartValues.push_back({static_cast<int>(i), m_noteBars[i].value});
+                }
+            }
+        }
+        
         setCursor(Qt::SizeVerCursor);
     }
 }
@@ -664,44 +678,90 @@ void NotePropertyEditor::mouseMoveEvent(QMouseEvent *event)
         // Calculate new value from Y position
         int rawValue = valueFromY(event->pos().y());
         
-        // Apply snap-to-neighbors logic
+        // Apply snap-to-neighbors logic (only for single note editing)
         int newValue = rawValue;
         int snapThreshold = 4;  // Snap within 4 units of neighbor value
-        
-        int prevValue = findNeighborValue(m_editingBar, -1);
-        int nextValue = findNeighborValue(m_editingBar, 1);
         
         m_isSnapping = false;
         m_snapValue = -1;
         
-        if (prevValue >= 0 && std::abs(rawValue - prevValue) <= snapThreshold) {
-            newValue = prevValue;
-            m_isSnapping = true;
-            m_snapValue = prevValue;
-        } else if (nextValue >= 0 && std::abs(rawValue - nextValue) <= snapThreshold) {
-            newValue = nextValue;
-            m_isSnapping = true;
-            m_snapValue = nextValue;
-        }
-        
-        // Also snap to common values (0, 64, 127)
-        if (!m_isSnapping) {
-            if (std::abs(rawValue - 64) <= 3) {
-                newValue = 64;
+        // Skip snapping for proportional editing
+        if (!m_proportionalEdit) {
+            int prevValue = findNeighborValue(m_editingBar, -1);
+            int nextValue = findNeighborValue(m_editingBar, 1);
+            
+            if (prevValue >= 0 && std::abs(rawValue - prevValue) <= snapThreshold) {
+                newValue = prevValue;
                 m_isSnapping = true;
-                m_snapValue = 64;
-            } else if (rawValue <= 3) {
-                newValue = 0;
+                m_snapValue = prevValue;
+            } else if (nextValue >= 0 && std::abs(rawValue - nextValue) <= snapThreshold) {
+                newValue = nextValue;
                 m_isSnapping = true;
-                m_snapValue = 0;
-            } else if (rawValue >= 124) {
-                newValue = 127;
-                m_isSnapping = true;
-                m_snapValue = 127;
+                m_snapValue = nextValue;
+            }
+            
+            // Also snap to common values (0, 64, 127)
+            if (!m_isSnapping) {
+                if (std::abs(rawValue - 64) <= 3) {
+                    newValue = 64;
+                    m_isSnapping = true;
+                    m_snapValue = 64;
+                } else if (rawValue <= 3) {
+                    newValue = 0;
+                    m_isSnapping = true;
+                    m_snapValue = 0;
+                } else if (rawValue >= 124) {
+                    newValue = 127;
+                    m_isSnapping = true;
+                    m_snapValue = 127;
+                }
             }
         }
         
-        if (newValue != m_editingBar->value) {
+        // Calculate delta from original value
+        int delta = newValue - m_dragStartValue;
+        
+        if (m_proportionalEdit && !m_selectedBarsStartValues.empty()) {
+            // Proportional editing: apply delta to all selected notes
+            for (const auto& [barIdx, origValue] : m_selectedBarsStartValues) {
+                if (barIdx < 0 || barIdx >= static_cast<int>(m_noteBars.size())) continue;
+                
+                NoteBar &bar = m_noteBars[barIdx];
+                int adjustedValue = std::clamp(origValue + delta, 0, 127);
+                
+                if (adjustedValue != bar.value) {
+                    bar.value = adjustedValue;
+                    
+                    // Update the actual note in the engine
+                    std::vector<NN_Note_t> notes = bar.track->getNotes();
+                    if (bar.noteIndex >= 0 && bar.noteIndex < (int)notes.size()) {
+                        if (m_propertyType == PropertyType::Velocity) {
+                            notes[bar.noteIndex].velocity = adjustedValue;
+                        } else if (m_propertyType == PropertyType::Pan) {
+                            notes[bar.noteIndex].pan = adjustedValue;
+                        }
+                        bar.track->setNotes(notes);
+                    }
+                }
+            }
+            
+            // Show tooltip for multi-edit
+            QString valueText;
+            if (m_propertyType == PropertyType::Velocity) {
+                valueText = QString("Velocity: %1%2 (%3 notes)")
+                    .arg(delta >= 0 ? "+" : "").arg(delta)
+                    .arg(m_selectedBarsStartValues.size());
+            } else {
+                valueText = QString("Pan: %1%2 (%3 notes)")
+                    .arg(delta >= 0 ? "+" : "").arg(delta)
+                    .arg(m_selectedBarsStartValues.size());
+            }
+            QToolTip::showText(event->globalPosition().toPoint(), valueText, this);
+            m_valueLabel->setText(QString("%1%2").arg(delta >= 0 ? "+" : "").arg(delta));
+            
+            update();
+        } else if (newValue != m_editingBar->value) {
+            // Single note editing
             m_editingBar->value = newValue;
             
             // Update the actual note in the engine
@@ -751,10 +811,20 @@ void NotePropertyEditor::mouseReleaseEvent(QMouseEvent *event)
     if (m_isDragging) {
         NoteNagaTrack *editedTrack = m_editingBar ? m_editingBar->track : nullptr;
         
+        // For proportional edit, use the first track from stored values if no editing bar
+        if (!editedTrack && m_proportionalEdit && !m_selectedBarsStartValues.empty()) {
+            int firstIdx = m_selectedBarsStartValues[0].first;
+            if (firstIdx >= 0 && firstIdx < static_cast<int>(m_noteBars.size())) {
+                editedTrack = m_noteBars[firstIdx].track;
+            }
+        }
+        
         m_isDragging = false;
         m_isSnapping = false;
         m_snapValue = -1;
         m_editingBar = nullptr;
+        m_proportionalEdit = false;
+        m_selectedBarsStartValues.clear();
         setCursor(Qt::ArrowCursor);
         m_valueLabel->clear();
         

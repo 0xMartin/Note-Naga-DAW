@@ -248,7 +248,7 @@ void NoteNagaMidiSeq::clear() {
   }
 
   this->ppq = 480;
-  this->tempo = 500000;
+  this->tempo = 600000;  // 100 BPM (microseconds per beat)
   this->max_tick = 0;
   this->active_track = nullptr;
   this->solo_track = nullptr;

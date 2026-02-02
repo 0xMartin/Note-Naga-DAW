@@ -142,6 +142,8 @@ private:
     bool m_hasSelection;  // True if any notes are selected in MIDI editor
     bool m_isSnapping;    // True when value is snapped to neighbor/common value
     int m_snapValue;      // The value being snapped to (-1 if not snapping)
+    bool m_proportionalEdit;  // True when editing multiple selected notes proportionally (Shift held)
+    std::vector<std::pair<int, int>> m_selectedBarsStartValues;  // Index in m_noteBars -> original value
     
     // Note data cache for rendering
     struct NoteBar {

@@ -1,5 +1,6 @@
 #include "midi_editor_note_handler.h"
 #include "midi_editor_widget.h"
+#include <note_naga_engine/note_naga_engine.h>
 
 #include <QGraphicsRectItem>
 #include <QGraphicsEllipseItem>
@@ -266,6 +267,12 @@ void MidiEditorNoteHandler::addNewNote(const QPointF &scenePos) {
 
     activeTrack->addNote(newNote);
     seq->computeMaxTick();
+    
+    // Play the note for audio feedback (same as keyboard ruler)
+    NoteNagaEngine *engine = m_editor->getEngine();
+    if (engine) {
+        engine->playSingleNote(newNote);
+    }
     
     emit notesModified();
 }
