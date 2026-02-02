@@ -1,8 +1,5 @@
 #pragma once
 
-// Project serializer requires Qt - only available when QT_DEACTIVATED is not defined
-#ifndef QT_DEACTIVATED
-
 #include <note_naga_engine/note_naga_api.h>
 #include <note_naga_engine/core/project_file_types.h>
 #include <note_naga_engine/core/runtime_data.h>
@@ -10,22 +7,28 @@
 #include <note_naga_engine/module/mixer.h>
 #include <note_naga_engine/module/dsp_engine.h>
 
-#include <QString>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QFile>
+#include <string>
+#include <fstream>
+#include <cstdint>
 
 class NoteNagaEngine;
 
 /**
+ * @brief Binary file format magic number and version.
+ */
+constexpr uint32_t NNPROJ_MAGIC = 0x4E4E5052;  // "NNPR" in little endian
+constexpr uint32_t NNPROJ_VERSION = 2;
+
+/**
  * @brief Handles serialization and deserialization of Note Naga project files.
  * 
- * Project file format (.nnproj) is JSON-based and contains:
+ * Project file format (.nnproj) is binary and contains:
  * - Project metadata (name, author, timestamps, etc.)
  * - MIDI sequences with all tracks and notes
  * - DSP block chain configuration
  * - Mixer routing table
+ * 
+ * Uses only standard C++ types for Qt-independent compilation.
  */
 class NOTE_NAGA_ENGINE_API NoteNagaProjectSerializer {
 public:
@@ -41,7 +44,7 @@ public:
      * @param metadata Project metadata.
      * @return True on success, false on failure.
      */
-    bool saveProject(const QString &filePath, const NoteNagaProjectMetadata &metadata);
+    bool saveProject(const std::string &filePath, const NoteNagaProjectMetadata &metadata);
     
     /**
      * @brief Load a project from a file.
@@ -49,7 +52,7 @@ public:
      * @param outMetadata Output parameter for loaded metadata.
      * @return True on success, false on failure.
      */
-    bool loadProject(const QString &filePath, NoteNagaProjectMetadata &outMetadata);
+    bool loadProject(const std::string &filePath, NoteNagaProjectMetadata &outMetadata);
     
     /**
      * @brief Import a MIDI file as a new project.
@@ -57,7 +60,7 @@ public:
      * @param metadata Project metadata to use.
      * @return True on success, false on failure.
      */
-    bool importMidiAsProject(const QString &midiFilePath, const NoteNagaProjectMetadata &metadata);
+    bool importMidiAsProject(const std::string &midiFilePath, const NoteNagaProjectMetadata &metadata);
     
     /**
      * @brief Create a new empty project with one sequence and one track.
@@ -70,29 +73,54 @@ public:
      * @brief Get the last error message.
      * @return Error message string.
      */
-    QString lastError() const { return m_lastError; }
+    std::string lastError() const { return m_lastError; }
     
 private:
     NoteNagaEngine *m_engine;
-    QString m_lastError;
+    std::string m_lastError;
+    
+    // Binary serialization helpers
+    void writeString(std::ofstream &out, const std::string &str);
+    std::string readString(std::ifstream &in);
+    
+    void writeInt32(std::ofstream &out, int32_t value);
+    int32_t readInt32(std::ifstream &in);
+    
+    void writeInt64(std::ofstream &out, int64_t value);
+    int64_t readInt64(std::ifstream &in);
+    
+    void writeUInt64(std::ofstream &out, uint64_t value);
+    uint64_t readUInt64(std::ifstream &in);
+    
+    void writeFloat(std::ofstream &out, float value);
+    float readFloat(std::ifstream &in);
+    
+    void writeBool(std::ofstream &out, bool value);
+    bool readBool(std::ifstream &in);
+    
+    void writeUInt8(std::ofstream &out, uint8_t value);
+    uint8_t readUInt8(std::ifstream &in);
     
     // Serialization helpers
-    QJsonObject serializeSequence(NoteNagaMidiSeq *seq);
-    QJsonArray serializeTrack(NoteNagaTrack *track);
-    QJsonArray serializeDSPBlocks();
-    QJsonArray serializeSynthesizers();
-    QJsonArray serializeRoutingTable();
-    QJsonObject serializeDSPBlock(NoteNagaDSPBlockBase *block);
+    void serializeMetadata(std::ofstream &out, const NoteNagaProjectMetadata &metadata);
+    bool deserializeMetadata(std::ifstream &in, NoteNagaProjectMetadata &metadata);
     
-    // Deserialization helpers
-    bool deserializeSequence(const QJsonObject &seqObj, NoteNagaMidiSeq *seq);
-    bool deserializeTrack(const QJsonObject &trackObj, NoteNagaTrack *track);
-    bool deserializeDSPBlocks(const QJsonArray &blocksArray);
-    bool deserializeSynthesizers(const QJsonArray &synthsArray);
-    bool deserializeRoutingTable(const QJsonArray &routingArray);
+    void serializeSequence(std::ofstream &out, NoteNagaMidiSeq *seq);
+    bool deserializeSequence(std::ifstream &in, NoteNagaMidiSeq *seq);
+    
+    void serializeTrack(std::ofstream &out, NoteNagaTrack *track);
+    bool deserializeTrack(std::ifstream &in, NoteNagaTrack *track);
+    
+    void serializeDSPBlock(std::ofstream &out, NoteNagaDSPBlockBase *block);
+    NoteNagaDSPBlockBase *deserializeDSPBlock(std::ifstream &in);
+    
+    void serializeSynthesizers(std::ofstream &out);
+    bool deserializeSynthesizers(std::ifstream &in);
+    
+    void serializeRoutingTable(std::ofstream &out);
+    bool deserializeRoutingTable(std::ifstream &in);
     
     // DSP block factory
-    NoteNagaDSPBlockBase *createDSPBlockByName(const QString &name);
+    NoteNagaDSPBlockBase *createDSPBlockByName(const std::string &name);
 };
 
-#endif // QT_DEACTIVATED

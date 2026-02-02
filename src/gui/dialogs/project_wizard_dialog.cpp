@@ -461,10 +461,10 @@ void ProjectWizardDialog::onCreateProject()
         projectName = "Untitled Project";
     }
     
-    m_metadata.name = projectName;
-    m_metadata.author = m_authorEdit->text().trimmed();
-    m_metadata.createdAt = QDateTime::currentDateTime();
-    m_metadata.modifiedAt = QDateTime::currentDateTime();
+    m_metadata.name = projectName.toStdString();
+    m_metadata.author = m_authorEdit->text().trimmed().toStdString();
+    m_metadata.createdAt = NoteNagaProjectMetadata::currentTimestamp();
+    m_metadata.modifiedAt = NoteNagaProjectMetadata::currentTimestamp();
     
     m_wizardResult = WizardResult::NewProject;
     

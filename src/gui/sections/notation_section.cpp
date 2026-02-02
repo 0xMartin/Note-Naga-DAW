@@ -40,7 +40,7 @@ void NotationSection::setProjectMetadata(const NoteNagaProjectMetadata &metadata
     m_projectMetadata = metadata;
     // Auto-apply if we have a widget
     if (m_notationWidget) {
-        m_notationWidget->setTitle(m_projectMetadata.name);
+        m_notationWidget->setTitle(QString::fromStdString(m_projectMetadata.name));
         applyNotationSettings();
     }
 }
@@ -391,7 +391,7 @@ void NotationSection::refreshSequence()
     updateTrackVisibilityCheckboxes();
     
     // Set title: prefer project name, fallback to MIDI filename
-    QString title = m_projectMetadata.name;
+    QString title = QString::fromStdString(m_projectMetadata.name);
     if (title.isEmpty()) {
         QString filePath = QString::fromStdString(m_sequence->getFilePath());
         if (!filePath.isEmpty()) {
@@ -517,7 +517,7 @@ void NotationSection::applyNotationSettings()
     
     // Use project author as composer if checkbox is checked
     if (m_showComposerCheckbox->isChecked()) {
-        settings.composer = m_projectMetadata.author;
+        settings.composer = QString::fromStdString(m_projectMetadata.author);
     } else {
         settings.composer.clear();
     }
@@ -528,7 +528,7 @@ void NotationSection::applyNotationSettings()
     settings.landscape = m_landscapeCheckbox->isChecked();
     
     // Set title from project name
-    m_notationWidget->setTitle(m_projectMetadata.name);
+    m_notationWidget->setTitle(QString::fromStdString(m_projectMetadata.name));
     
     m_notationWidget->setNotationSettings(settings);
 }

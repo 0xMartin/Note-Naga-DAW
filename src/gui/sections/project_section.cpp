@@ -692,9 +692,9 @@ void ProjectSection::setProjectMetadata(const NoteNagaProjectMetadata &metadata)
 NoteNagaProjectMetadata ProjectSection::getProjectMetadata() const
 {
     NoteNagaProjectMetadata meta = m_metadata;
-    meta.name = m_projectNameEdit->text();
-    meta.author = m_authorEdit->text();
-    meta.description = m_descriptionEdit->toPlainText();
+    meta.name = m_projectNameEdit->text().toStdString();
+    meta.author = m_authorEdit->text().toStdString();
+    meta.description = m_descriptionEdit->toPlainText().toStdString();
     return meta;
 }
 
@@ -707,8 +707,9 @@ void ProjectSection::setProjectFilePath(const QString &filePath)
 void ProjectSection::markAsSaved()
 {
     m_hasUnsavedChanges = false;
-    m_metadata.modifiedAt = QDateTime::currentDateTime();
-    m_modifiedAtLabel->setText(m_metadata.modifiedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    m_metadata.modifiedAt = NoteNagaProjectMetadata::currentTimestamp();
+    QDateTime dt = QDateTime::fromSecsSinceEpoch(m_metadata.modifiedAt);
+    m_modifiedAtLabel->setText(dt.toString("yyyy-MM-dd hh:mm:ss"));
     emit unsavedChangesChanged(false);
 }
 
@@ -743,23 +744,25 @@ void ProjectSection::refreshUI()
     m_authorEdit->blockSignals(true);
     m_descriptionEdit->blockSignals(true);
 
-    m_projectNameEdit->setText(m_metadata.name);
-    m_authorEdit->setText(m_metadata.author);
-    m_descriptionEdit->setPlainText(m_metadata.description);
+    m_projectNameEdit->setText(QString::fromStdString(m_metadata.name));
+    m_authorEdit->setText(QString::fromStdString(m_metadata.author));
+    m_descriptionEdit->setPlainText(QString::fromStdString(m_metadata.description));
 
     m_projectNameEdit->blockSignals(false);
     m_authorEdit->blockSignals(false);
     m_descriptionEdit->blockSignals(false);
 
-    // Update timestamps
-    if (m_metadata.createdAt.isValid()) {
-        m_createdAtLabel->setText(m_metadata.createdAt.toString("yyyy-MM-dd hh:mm:ss"));
+    // Update timestamps (from Unix timestamp)
+    if (m_metadata.createdAt > 0) {
+        QDateTime createdDt = QDateTime::fromSecsSinceEpoch(m_metadata.createdAt);
+        m_createdAtLabel->setText(createdDt.toString("yyyy-MM-dd hh:mm:ss"));
     } else {
         m_createdAtLabel->setText("-");
     }
 
-    if (m_metadata.modifiedAt.isValid()) {
-        m_modifiedAtLabel->setText(m_metadata.modifiedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    if (m_metadata.modifiedAt > 0) {
+        QDateTime modifiedDt = QDateTime::fromSecsSinceEpoch(m_metadata.modifiedAt);
+        m_modifiedAtLabel->setText(modifiedDt.toString("yyyy-MM-dd hh:mm:ss"));
     } else {
         m_modifiedAtLabel->setText("-");
     }

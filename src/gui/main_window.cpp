@@ -802,11 +802,11 @@ bool MainWindow::showProjectWizard() {
         case ProjectWizardDialog::WizardResult::ImportMidi: {
             // Import MIDI and create project metadata
             NoteNagaProjectMetadata meta;
-            meta.name = QFileInfo(wizard.getSelectedFilePath()).baseName();
-            meta.createdAt = QDateTime::currentDateTime();
-            meta.modifiedAt = QDateTime::currentDateTime();
+            meta.name = QFileInfo(wizard.getSelectedFilePath()).baseName().toStdString();
+            meta.createdAt = NoteNagaProjectMetadata::currentTimestamp();
+            meta.modifiedAt = NoteNagaProjectMetadata::currentTimestamp();
             
-            if (!m_projectSerializer->importMidiAsProject(wizard.getSelectedFilePath(), meta)) {
+            if (!m_projectSerializer->importMidiAsProject(wizard.getSelectedFilePath().toStdString(), meta)) {
                 QMessageBox::critical(this, "Error", "Failed to import MIDI file.");
                 return showProjectWizard(); // Try again
             }
@@ -855,7 +855,7 @@ void MainWindow::createNewProject(const NoteNagaProjectMetadata &metadata) {
 bool MainWindow::openProject(const QString &filePath) {
     NoteNagaProjectMetadata loadedMetadata;
     
-    if (!m_projectSerializer->loadProject(filePath, loadedMetadata)) {
+    if (!m_projectSerializer->loadProject(filePath.toStdString(), loadedMetadata)) {
         return false;
     }
     
@@ -878,7 +878,7 @@ bool MainWindow::openProject(const QString &filePath) {
     }
     
     // Add to recent projects
-    m_recentProjectsManager->addRecentProject(filePath, m_projectMetadata.name);
+    m_recentProjectsManager->addRecentProject(filePath, QString::fromStdString(m_projectMetadata.name));
     
     updateWindowTitle();
     
@@ -893,9 +893,9 @@ bool MainWindow::saveProject() {
     // Get latest metadata from section
     m_projectMetadata = m_projectSection->getProjectMetadata();
     
-    if (!m_projectSerializer->saveProject(m_currentProjectPath, m_projectMetadata)) {
+    if (!m_projectSerializer->saveProject(m_currentProjectPath.toStdString(), m_projectMetadata)) {
         QMessageBox::critical(this, "Save Failed", 
-            QString("Failed to save project:\n%1").arg(m_projectSerializer->lastError()));
+            QString("Failed to save project:\n%1").arg(QString::fromStdString(m_projectSerializer->lastError())));
         return false;
     }
     
@@ -903,7 +903,7 @@ bool MainWindow::saveProject() {
     m_projectSection->markAsSaved();
     
     // Update recent projects
-    m_recentProjectsManager->addRecentProject(m_currentProjectPath, m_projectMetadata.name);
+    m_recentProjectsManager->addRecentProject(m_currentProjectPath, QString::fromStdString(m_projectMetadata.name));
     
     updateWindowTitle();
     
@@ -912,7 +912,7 @@ bool MainWindow::saveProject() {
 
 bool MainWindow::saveProjectAs() {
     QString startDir = m_recentProjectsManager->getLastProjectDirectory();
-    QString suggestedName = m_projectMetadata.name.isEmpty() ? "project" : m_projectMetadata.name;
+    QString suggestedName = m_projectMetadata.name.empty() ? "project" : QString::fromStdString(m_projectMetadata.name);
     suggestedName = suggestedName.replace(QRegularExpression("[^a-zA-Z0-9_-]"), "_");
     
     QString filePath = QFileDialog::getSaveFileName(
@@ -952,7 +952,7 @@ void MainWindow::onAutosave() {
     // Get latest metadata from section
     m_projectMetadata = m_projectSection->getProjectMetadata();
     
-    if (m_projectSerializer->saveProject(m_currentProjectPath, m_projectMetadata)) {
+    if (m_projectSerializer->saveProject(m_currentProjectPath.toStdString(), m_projectMetadata)) {
         m_hasUnsavedChanges = false;
         m_projectSection->markAsSaved();
         updateWindowTitle();
@@ -962,8 +962,8 @@ void MainWindow::onAutosave() {
 void MainWindow::updateWindowTitle() {
     QString title = "Note Naga";
     
-    if (!m_projectMetadata.name.isEmpty()) {
-        title += " - " + m_projectMetadata.name;
+    if (!m_projectMetadata.name.empty()) {
+        title += " - " + QString::fromStdString(m_projectMetadata.name);
     }
     
     if (m_hasUnsavedChanges || m_projectSection->hasUnsavedChanges()) {

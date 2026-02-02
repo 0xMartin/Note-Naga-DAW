@@ -1,167 +1,305 @@
-// Project serializer requires Qt - only compiled when QT_DEACTIVATED is not defined
-#ifndef QT_DEACTIVATED
-
 #include <note_naga_engine/core/project_serializer.h>
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/dsp/dsp_factory.h>
 #include <note_naga_engine/synth/synth_fluidsynth.h>
 #include <note_naga_engine/synth/synth_external_midi.h>
+#include <note_naga_engine/logger.h>
 
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QFileInfo>
+#include <fstream>
+#include <cstring>
 
 NoteNagaProjectSerializer::NoteNagaProjectSerializer(NoteNagaEngine *engine)
     : m_engine(engine)
 {
 }
 
-bool NoteNagaProjectSerializer::saveProject(const QString &filePath, const NoteNagaProjectMetadata &metadata)
+/*******************************************************************************************************/
+// Binary I/O helpers
+/*******************************************************************************************************/
+
+void NoteNagaProjectSerializer::writeString(std::ofstream &out, const std::string &str) {
+    uint32_t len = static_cast<uint32_t>(str.size());
+    out.write(reinterpret_cast<const char*>(&len), sizeof(len));
+    if (len > 0) {
+        out.write(str.data(), len);
+    }
+}
+
+std::string NoteNagaProjectSerializer::readString(std::ifstream &in) {
+    uint32_t len = 0;
+    in.read(reinterpret_cast<char*>(&len), sizeof(len));
+    if (len == 0 || len > 1000000) return "";  // Sanity check
+    std::string str(len, '\0');
+    in.read(&str[0], len);
+    return str;
+}
+
+void NoteNagaProjectSerializer::writeInt32(std::ofstream &out, int32_t value) {
+    out.write(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+int32_t NoteNagaProjectSerializer::readInt32(std::ifstream &in) {
+    int32_t value = 0;
+    in.read(reinterpret_cast<char*>(&value), sizeof(value));
+    return value;
+}
+
+void NoteNagaProjectSerializer::writeInt64(std::ofstream &out, int64_t value) {
+    out.write(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+int64_t NoteNagaProjectSerializer::readInt64(std::ifstream &in) {
+    int64_t value = 0;
+    in.read(reinterpret_cast<char*>(&value), sizeof(value));
+    return value;
+}
+
+void NoteNagaProjectSerializer::writeUInt64(std::ofstream &out, uint64_t value) {
+    out.write(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+uint64_t NoteNagaProjectSerializer::readUInt64(std::ifstream &in) {
+    uint64_t value = 0;
+    in.read(reinterpret_cast<char*>(&value), sizeof(value));
+    return value;
+}
+
+void NoteNagaProjectSerializer::writeFloat(std::ofstream &out, float value) {
+    out.write(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+float NoteNagaProjectSerializer::readFloat(std::ifstream &in) {
+    float value = 0.0f;
+    in.read(reinterpret_cast<char*>(&value), sizeof(value));
+    return value;
+}
+
+void NoteNagaProjectSerializer::writeBool(std::ofstream &out, bool value) {
+    uint8_t byte = value ? 1 : 0;
+    out.write(reinterpret_cast<const char*>(&byte), sizeof(byte));
+}
+
+bool NoteNagaProjectSerializer::readBool(std::ifstream &in) {
+    uint8_t byte = 0;
+    in.read(reinterpret_cast<char*>(&byte), sizeof(byte));
+    return byte != 0;
+}
+
+void NoteNagaProjectSerializer::writeUInt8(std::ofstream &out, uint8_t value) {
+    out.write(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+uint8_t NoteNagaProjectSerializer::readUInt8(std::ifstream &in) {
+    uint8_t value = 0;
+    in.read(reinterpret_cast<char*>(&value), sizeof(value));
+    return value;
+}
+
+/*******************************************************************************************************/
+// Metadata serialization
+/*******************************************************************************************************/
+
+void NoteNagaProjectSerializer::serializeMetadata(std::ofstream &out, const NoteNagaProjectMetadata &metadata) {
+    writeString(out, metadata.name);
+    writeString(out, metadata.author);
+    writeString(out, metadata.description);
+    writeString(out, metadata.copyright);
+    writeInt64(out, metadata.createdAt);
+    writeInt64(out, NoteNagaProjectMetadata::currentTimestamp());  // modifiedAt = now
+    writeInt32(out, metadata.projectVersion);
+}
+
+bool NoteNagaProjectSerializer::deserializeMetadata(std::ifstream &in, NoteNagaProjectMetadata &metadata) {
+    metadata.name = readString(in);
+    metadata.author = readString(in);
+    metadata.description = readString(in);
+    metadata.copyright = readString(in);
+    metadata.createdAt = readInt64(in);
+    metadata.modifiedAt = readInt64(in);
+    metadata.projectVersion = readInt32(in);
+    return in.good();
+}
+
+/*******************************************************************************************************/
+// Save Project
+/*******************************************************************************************************/
+
+bool NoteNagaProjectSerializer::saveProject(const std::string &filePath, const NoteNagaProjectMetadata &metadata)
 {
     if (!m_engine) {
         m_lastError = "Engine is null";
         return false;
     }
 
-    QJsonObject root;
-    
-    // Save metadata with updated modification time
-    NoteNagaProjectMetadata metaCopy = metadata;
-    metaCopy.modifiedAt = QDateTime::currentDateTime();
-    root["metadata"] = metaCopy.toJson();
-    
-    // Save MIDI sequences
-    QJsonArray sequencesArray;
-    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
-    if (project) {
-        for (NoteNagaMidiSeq *seq : project->getSequences()) {
-            if (seq) {
-                sequencesArray.append(serializeSequence(seq));
-            }
-        }
-    }
-    root["sequences"] = sequencesArray;
-    
-    // Save synthesizers (with their names and DSP blocks)
-    root["synthesizers"] = serializeSynthesizers();
-    
-    // Save master DSP blocks
-    root["dspBlocks"] = serializeDSPBlocks();
-    
-    // Save DSP enabled state
-    if (m_engine->getDSPEngine()) {
-        root["dspEnabled"] = m_engine->getDSPEngine()->isDSPEnabled();
-    }
-    
-    // Save routing table
-    root["routingTable"] = serializeRoutingTable();
-    
-    // Write to file
-    QJsonDocument doc(root);
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly)) {
-        m_lastError = QString("Cannot open file for writing: %1").arg(file.errorString());
+    std::ofstream file(filePath, std::ios::binary);
+    if (!file.is_open()) {
+        m_lastError = "Cannot open file for writing: " + filePath;
         return false;
     }
+
+    // Write magic number and version
+    writeInt32(file, static_cast<int32_t>(NNPROJ_MAGIC));
+    writeInt32(file, static_cast<int32_t>(NNPROJ_VERSION));
     
-    file.write(doc.toJson(QJsonDocument::Indented));
+    // Write metadata
+    serializeMetadata(file, metadata);
+    
+    // Write MIDI sequences
+    NoteNagaRuntimeData *runtime = m_engine->getRuntimeData();
+    if (runtime) {
+        std::vector<NoteNagaMidiSeq*> sequences = runtime->getSequences();
+        writeInt32(file, static_cast<int32_t>(sequences.size()));
+        for (NoteNagaMidiSeq *seq : sequences) {
+            if (seq) {
+                serializeSequence(file, seq);
+            }
+        }
+    } else {
+        writeInt32(file, 0);  // No sequences
+    }
+    
+    // Write synthesizers
+    serializeSynthesizers(file);
+    
+    // Write master DSP blocks
+    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+    if (dspEngine) {
+        std::vector<NoteNagaDSPBlockBase*> blocks = dspEngine->getDSPBlocks();
+        writeInt32(file, static_cast<int32_t>(blocks.size()));
+        for (NoteNagaDSPBlockBase *block : blocks) {
+            if (block) {
+                serializeDSPBlock(file, block);
+            }
+        }
+        writeBool(file, dspEngine->isDSPEnabled());
+    } else {
+        writeInt32(file, 0);
+        writeBool(file, true);
+    }
+    
+    // Write routing table
+    serializeRoutingTable(file);
+    
     file.close();
-    
+    NOTE_NAGA_LOG_INFO("Project saved: " + filePath);
     return true;
 }
 
-bool NoteNagaProjectSerializer::loadProject(const QString &filePath, NoteNagaProjectMetadata &outMetadata)
+/*******************************************************************************************************/
+// Load Project
+/*******************************************************************************************************/
+
+bool NoteNagaProjectSerializer::loadProject(const std::string &filePath, NoteNagaProjectMetadata &outMetadata)
 {
     if (!m_engine) {
         m_lastError = "Engine is null";
         return false;
     }
 
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        m_lastError = QString("Cannot open file: %1").arg(file.errorString());
+    std::ifstream file(filePath, std::ios::binary);
+    if (!file.is_open()) {
+        m_lastError = "Cannot open file: " + filePath;
         return false;
     }
     
-    QByteArray data = file.readAll();
-    file.close();
-    
-    QJsonParseError parseError;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
-    if (doc.isNull()) {
-        m_lastError = QString("JSON parse error: %1").arg(parseError.errorString());
+    // Read and verify magic number
+    uint32_t magic = static_cast<uint32_t>(readInt32(file));
+    if (magic != NNPROJ_MAGIC) {
+        m_lastError = "Invalid file format (bad magic number)";
         return false;
     }
     
-    QJsonObject root = doc.object();
+    // Read version
+    uint32_t version = static_cast<uint32_t>(readInt32(file));
+    if (version != NNPROJ_VERSION) {
+        m_lastError = "Unsupported project version: " + std::to_string(version);
+        return false;
+    }
     
-    // Load metadata
-    outMetadata = NoteNagaProjectMetadata::fromJson(root["metadata"].toObject());
+    // Read metadata
+    if (!deserializeMetadata(file, outMetadata)) {
+        m_lastError = "Failed to read metadata";
+        return false;
+    }
     
     // Clear existing project data
-    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
-    if (project) {
-        // Clear existing sequences - copy list first to avoid iterator invalidation
-        std::vector<NoteNagaMidiSeq*> seqsCopy = project->getSequences();
+    NoteNagaRuntimeData *runtime = m_engine->getRuntimeData();
+    if (runtime) {
+        std::vector<NoteNagaMidiSeq*> seqsCopy = runtime->getSequences();
         for (NoteNagaMidiSeq *seq : seqsCopy) {
-            project->removeSequence(seq);
+            runtime->removeSequence(seq);
             delete seq;
         }
     }
     
-    // Load MIDI sequences
-    QJsonArray sequencesArray = root["sequences"].toArray();
-    for (const QJsonValue &seqVal : sequencesArray) {
+    // Read MIDI sequences
+    int32_t numSequences = readInt32(file);
+    for (int32_t i = 0; i < numSequences; ++i) {
         NoteNagaMidiSeq *seq = new NoteNagaMidiSeq();
-        if (!deserializeSequence(seqVal.toObject(), seq)) {
+        if (!deserializeSequence(file, seq)) {
             delete seq;
+            m_lastError = "Failed to read sequence " + std::to_string(i);
             return false;
         }
-        seq->computeMaxTick();  // Compute maxTick from loaded notes
-        project->addSequence(seq);
+        seq->computeMaxTick();
+        runtime->addSequence(seq);
     }
     
     // Set first sequence as active
-    if (!project->getSequences().empty()) {
-        project->setActiveSequence(project->getSequences().front());
+    if (!runtime->getSequences().empty()) {
+        runtime->setActiveSequence(runtime->getSequences().front());
     }
     
-    // Load synthesizers (with their names and DSP blocks)
-    if (root.contains("synthesizers")) {
-        deserializeSynthesizers(root["synthesizers"].toArray());
+    // Read synthesizers
+    if (!deserializeSynthesizers(file)) {
+        NOTE_NAGA_LOG_WARNING("Failed to load synthesizers, using defaults");
     }
     
-    // Load master DSP blocks
-    if (!deserializeDSPBlocks(root["dspBlocks"].toArray())) {
-        m_lastError = "Failed to load DSP blocks";
-        // Continue anyway, DSP is not critical
+    // Read master DSP blocks
+    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+    if (dspEngine) {
+        // Clear existing blocks
+        std::vector<NoteNagaDSPBlockBase*> blocksCopy = dspEngine->getDSPBlocks();
+        for (NoteNagaDSPBlockBase *block : blocksCopy) {
+            dspEngine->removeDSPBlock(block);
+            delete block;
+        }
+        
+        // Read new blocks
+        int32_t numBlocks = readInt32(file);
+        for (int32_t i = 0; i < numBlocks; ++i) {
+            NoteNagaDSPBlockBase *block = deserializeDSPBlock(file);
+            if (block) {
+                dspEngine->addDSPBlock(block);
+            }
+        }
+        
+        bool dspEnabled = readBool(file);
+        dspEngine->setEnableDSP(dspEnabled);
     }
     
-    // Load DSP enabled state
-    if (m_engine->getDSPEngine() && root.contains("dspEnabled")) {
-        m_engine->getDSPEngine()->setEnableDSP(root["dspEnabled"].toBool(true));
-    }
-    
-    // Load routing table
-    if (!deserializeRoutingTable(root["routingTable"].toArray())) {
-        // If routing failed, create default routing
+    // Read routing table
+    if (!deserializeRoutingTable(file)) {
         m_engine->getMixer()->createDefaultRouting();
     }
     
+    file.close();
+    NOTE_NAGA_LOG_INFO("Project loaded: " + filePath);
     return true;
 }
 
-bool NoteNagaProjectSerializer::importMidiAsProject(const QString &midiFilePath, const NoteNagaProjectMetadata &metadata)
+/*******************************************************************************************************/
+// Import MIDI and Create Empty Project
+/*******************************************************************************************************/
+
+bool NoteNagaProjectSerializer::importMidiAsProject(const std::string &midiFilePath, const NoteNagaProjectMetadata &metadata)
 {
     if (!m_engine) {
         m_lastError = "Engine is null";
         return false;
     }
     
-    // Load the MIDI file using existing functionality
-    if (!m_engine->loadProject(midiFilePath.toStdString())) {
+    if (!m_engine->loadProject(midiFilePath)) {
         m_lastError = "Failed to load MIDI file";
         return false;
     }
@@ -176,15 +314,16 @@ bool NoteNagaProjectSerializer::createEmptyProject(const NoteNagaProjectMetadata
         return false;
     }
     
-    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
-    if (!project) {
-        m_lastError = "Project is null";
+    NoteNagaRuntimeData *runtime = m_engine->getRuntimeData();
+    if (!runtime) {
+        m_lastError = "Runtime data is null";
         return false;
     }
     
     // Clear existing sequences
-    for (NoteNagaMidiSeq *seq : project->getSequences()) {
-        project->removeSequence(seq);
+    std::vector<NoteNagaMidiSeq*> seqsCopy = runtime->getSequences();
+    for (NoteNagaMidiSeq *seq : seqsCopy) {
+        runtime->removeSequence(seq);
         delete seq;
     }
     
@@ -194,13 +333,13 @@ bool NoteNagaProjectSerializer::createEmptyProject(const NoteNagaProjectMetadata
     seq->setTempo(600000);  // 100 BPM in microseconds
     
     // Create one default track
-    NoteNagaTrack *track = seq->addTrack(0); // Piano
+    NoteNagaTrack *track = seq->addTrack(0);  // Piano
     if (track) {
         track->setName("Track 1");
     }
     
-    project->addSequence(seq);
-    project->setActiveSequence(seq);
+    runtime->addSequence(seq);
+    runtime->setActiveSequence(seq);
     
     // Create default routing
     m_engine->getMixer()->createDefaultRouting();
@@ -208,390 +347,361 @@ bool NoteNagaProjectSerializer::createEmptyProject(const NoteNagaProjectMetadata
     return true;
 }
 
-QJsonObject NoteNagaProjectSerializer::serializeSequence(NoteNagaMidiSeq *seq)
+/*******************************************************************************************************/
+// Sequence Serialization
+/*******************************************************************************************************/
+
+void NoteNagaProjectSerializer::serializeSequence(std::ofstream &out, NoteNagaMidiSeq *seq)
 {
-    QJsonObject obj;
-    obj["id"] = seq->getId();
-    obj["ppq"] = seq->getPPQ();
-    obj["tempo"] = seq->getTempo();
-    obj["maxTick"] = seq->getMaxTick();
+    writeInt32(out, seq->getId());
+    writeInt32(out, seq->getPPQ());
+    writeInt32(out, seq->getTempo());
+    writeInt32(out, seq->getMaxTick());
     
-    QJsonArray tracksArray;
-    for (NoteNagaTrack *track : seq->getTracks()) {
+    const std::vector<NoteNagaTrack*> &tracks = seq->getTracks();
+    writeInt32(out, static_cast<int32_t>(tracks.size()));
+    for (NoteNagaTrack *track : tracks) {
         if (track) {
-            QJsonObject trackObj;
-            trackObj["id"] = track->getId();
-            trackObj["name"] = QString::fromStdString(track->getName());
-            trackObj["instrument"] = track->getInstrument().value_or(0);
-            trackObj["channel"] = track->getChannel().value_or(0);
-            
-            // Serialize color
-            NN_Color_t color = track->getColor();
-            trackObj["color"] = QString("#%1%2%3")
-                .arg(color.red, 2, 16, QChar('0'))
-                .arg(color.green, 2, 16, QChar('0'))
-                .arg(color.blue, 2, 16, QChar('0'));
-            
-            trackObj["visible"] = track->isVisible();
-            trackObj["muted"] = track->isMuted();
-            trackObj["solo"] = track->isSolo();
-            trackObj["volume"] = static_cast<double>(track->getVolume());
-            
-            // Serialize notes
-            trackObj["notes"] = serializeTrack(track);
-            
-            tracksArray.append(trackObj);
+            serializeTrack(out, track);
         }
     }
-    obj["tracks"] = tracksArray;
-    
-    return obj;
 }
 
-QJsonArray NoteNagaProjectSerializer::serializeTrack(NoteNagaTrack *track)
+bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaMidiSeq *seq)
 {
-    QJsonArray notesArray;
-    for (const NN_Note_t &note : track->getNotes()) {
-        QJsonObject noteObj;
-        noteObj["id"] = static_cast<qint64>(note.id);
-        noteObj["note"] = note.note;
-        noteObj["start"] = note.start.value_or(0);
-        noteObj["length"] = note.length.value_or(480);
-        noteObj["velocity"] = note.velocity.value_or(100);
-        noteObj["pan"] = note.pan.value_or(64);
-        notesArray.append(noteObj);
+    int32_t id = readInt32(in);
+    (void)id;  // ID is set by constructor
+    seq->setPPQ(readInt32(in));
+    seq->setTempo(readInt32(in));
+    int32_t maxTick = readInt32(in);
+    (void)maxTick;  // Will be computed from notes
+    
+    int32_t numTracks = readInt32(in);
+    for (int32_t i = 0; i < numTracks; ++i) {
+        // Read track data
+        int32_t trackId = readInt32(in);
+        std::string name = readString(in);
+        int32_t instrument = readInt32(in);
+        int32_t channel = readInt32(in);
+        uint8_t colorR = readUInt8(in);
+        uint8_t colorG = readUInt8(in);
+        uint8_t colorB = readUInt8(in);
+        bool visible = readBool(in);
+        bool muted = readBool(in);
+        bool solo = readBool(in);
+        float volume = readFloat(in);
+        
+        NoteNagaTrack *track = seq->addTrack(instrument);
+        if (!track) continue;
+        
+        track->setName(name);
+        track->setChannel(channel);
+        track->setColor(NN_Color_t(colorR, colorG, colorB));
+        track->setVisible(visible);
+        track->setMuted(muted);
+        track->setSolo(solo);
+        track->setVolume(volume);
+        
+        // Read notes
+        int32_t numNotes = readInt32(in);
+        for (int32_t j = 0; j < numNotes; ++j) {
+            NN_Note_t note;
+            note.id = readUInt64(in);
+            note.note = readInt32(in);
+            note.start = readInt32(in);
+            note.length = readInt32(in);
+            note.velocity = readInt32(in);
+            note.pan = readInt32(in);
+            note.parent = track;
+            track->addNote(note);
+        }
     }
-    return notesArray;
+    
+    return in.good();
 }
 
-QJsonObject NoteNagaProjectSerializer::serializeDSPBlock(NoteNagaDSPBlockBase *block)
+void NoteNagaProjectSerializer::serializeTrack(std::ofstream &out, NoteNagaTrack *track)
 {
-    QJsonObject blockObj;
-    if (!block) return blockObj;
+    writeInt32(out, track->getId());
+    writeString(out, track->getName());
+    writeInt32(out, track->getInstrument().value_or(0));
+    writeInt32(out, track->getChannel().value_or(0));
     
-    blockObj["type"] = QString::fromStdString(block->getBlockName());
-    blockObj["active"] = block->isActive();
+    NN_Color_t color = track->getColor();
+    writeUInt8(out, color.red);
+    writeUInt8(out, color.green);
+    writeUInt8(out, color.blue);
     
-    // Serialize parameters
-    QJsonArray paramsArray;
+    writeBool(out, track->isVisible());
+    writeBool(out, track->isMuted());
+    writeBool(out, track->isSolo());
+    writeFloat(out, track->getVolume());
+    
+    const std::vector<NN_Note_t> &notes = track->getNotes();
+    writeInt32(out, static_cast<int32_t>(notes.size()));
+    for (const NN_Note_t &note : notes) {
+        writeUInt64(out, note.id);
+        writeInt32(out, note.note);
+        writeInt32(out, note.start.value_or(0));
+        writeInt32(out, note.length.value_or(480));
+        writeInt32(out, note.velocity.value_or(100));
+        writeInt32(out, note.pan.value_or(64));
+    }
+}
+
+bool NoteNagaProjectSerializer::deserializeTrack(std::ifstream &in, NoteNagaTrack *track)
+{
+    // This is handled inline in deserializeSequence
+    return true;
+}
+
+/*******************************************************************************************************/
+// DSP Block Serialization
+/*******************************************************************************************************/
+
+void NoteNagaProjectSerializer::serializeDSPBlock(std::ofstream &out, NoteNagaDSPBlockBase *block)
+{
+    if (!block) return;
+    
+    writeString(out, block->getBlockName());
+    writeBool(out, block->isActive());
+    
     std::vector<DSPParamDescriptor> descriptors = block->getParamDescriptors();
+    writeInt32(out, static_cast<int32_t>(descriptors.size()));
     for (size_t i = 0; i < descriptors.size(); ++i) {
-        QJsonObject paramObj;
-        paramObj["name"] = QString::fromStdString(descriptors[i].name);
-        paramObj["value"] = static_cast<double>(block->getParamValue(i));
-        paramsArray.append(paramObj);
+        writeString(out, descriptors[i].name);
+        writeFloat(out, block->getParamValue(i));
     }
-    blockObj["parameters"] = paramsArray;
-    
-    return blockObj;
 }
 
-QJsonArray NoteNagaProjectSerializer::serializeDSPBlocks()
+NoteNagaDSPBlockBase *NoteNagaProjectSerializer::deserializeDSPBlock(std::ifstream &in)
 {
-    QJsonArray blocksArray;
+    std::string blockType = readString(in);
+    bool active = readBool(in);
     
-    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    if (!dspEngine) return blocksArray;
-    
-    for (NoteNagaDSPBlockBase *block : dspEngine->getDSPBlocks()) {
-        if (!block) continue;
-        blocksArray.append(serializeDSPBlock(block));
+    NoteNagaDSPBlockBase *block = createDSPBlockByName(blockType);
+    if (!block) {
+        // Skip parameters if block type unknown
+        int32_t numParams = readInt32(in);
+        for (int32_t i = 0; i < numParams; ++i) {
+            readString(in);
+            readFloat(in);
+        }
+        return nullptr;
     }
     
-    return blocksArray;
+    block->setActive(active);
+    
+    int32_t numParams = readInt32(in);
+    for (int32_t i = 0; i < numParams; ++i) {
+        std::string name = readString(in);
+        float value = readFloat(in);
+        if (i < static_cast<int32_t>(block->getParamDescriptors().size())) {
+            block->setParamValue(i, value);
+        }
+    }
+    
+    return block;
 }
 
-QJsonArray NoteNagaProjectSerializer::serializeSynthesizers()
+/*******************************************************************************************************/
+// Synthesizer Serialization
+/*******************************************************************************************************/
+
+void NoteNagaProjectSerializer::serializeSynthesizers(std::ofstream &out)
 {
-    QJsonArray synthsArray;
-    
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    if (!dspEngine) return synthsArray;
+    std::vector<NoteNagaSynthesizer*> synths = m_engine->getSynthesizers();
     
-    // Serialize each synthesizer
-    for (NoteNagaSynthesizer *synth : m_engine->getSynthesizers()) {
+    writeInt32(out, static_cast<int32_t>(synths.size()));
+    
+    for (NoteNagaSynthesizer *synth : synths) {
         if (!synth) continue;
         
-        QJsonObject synthObj;
-        synthObj["name"] = QString::fromStdString(synth->getName());
+        writeString(out, synth->getName());
         
-        // Determine synth type and save config
         NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
         NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
         
         if (fluidSynth) {
-            synthObj["type"] = "fluidsynth";
-            synthObj["soundFontPath"] = QString::fromStdString(fluidSynth->getSoundFontPath());
+            writeString(out, "fluidsynth");
+            writeString(out, fluidSynth->getSoundFontPath());
+            writeString(out, "");  // No MIDI port
         } else if (externalMidi) {
-            synthObj["type"] = "external_midi";
-            synthObj["midiPort"] = QString::fromStdString(externalMidi->getCurrentPortName());
+            writeString(out, "external_midi");
+            writeString(out, "");  // No soundfont
+            writeString(out, externalMidi->getCurrentPortName());
+        } else {
+            writeString(out, "unknown");
+            writeString(out, "");
+            writeString(out, "");
         }
         
-        // Get DSP blocks for this synth (need to cast to ISoftSynth interface)
+        // Write DSP blocks for this synth
         INoteNagaSoftSynth *softSynth = dynamic_cast<INoteNagaSoftSynth*>(synth);
-        if (softSynth) {
-            QJsonArray synthDspArray;
-            for (NoteNagaDSPBlockBase *block : dspEngine->getSynthDSPBlocks(softSynth)) {
-                if (!block) continue;
-                synthDspArray.append(serializeDSPBlock(block));
+        if (softSynth && dspEngine) {
+            std::vector<NoteNagaDSPBlockBase*> synthBlocks = dspEngine->getSynthDSPBlocks(softSynth);
+            writeInt32(out, static_cast<int32_t>(synthBlocks.size()));
+            for (NoteNagaDSPBlockBase *block : synthBlocks) {
+                if (block) {
+                    serializeDSPBlock(out, block);
+                }
             }
-            synthObj["dspBlocks"] = synthDspArray;
-        }
-        
-        synthsArray.append(synthObj);
-    }
-    
-    return synthsArray;
-}
-
-QJsonArray NoteNagaProjectSerializer::serializeRoutingTable()
-{
-    QJsonArray routingArray;
-    
-    NoteNagaMixer *mixer = m_engine->getMixer();
-    if (!mixer) return routingArray;
-    
-    for (const NoteNagaRoutingEntry &entry : mixer->getRoutingEntries()) {
-        QJsonObject entryObj;
-        entryObj["trackId"] = entry.track ? entry.track->getId() : -1;
-        entryObj["output"] = QString::fromStdString(entry.output);
-        entryObj["channel"] = entry.channel;
-        entryObj["volume"] = static_cast<double>(entry.volume);
-        entryObj["noteOffset"] = entry.note_offset;
-        entryObj["pan"] = static_cast<double>(entry.pan);
-        routingArray.append(entryObj);
-    }
-    
-    return routingArray;
-}
-
-bool NoteNagaProjectSerializer::deserializeSequence(const QJsonObject &seqObj, NoteNagaMidiSeq *seq)
-{
-    seq->setPPQ(seqObj["ppq"].toInt(480));
-    seq->setTempo(seqObj["tempo"].toInt(600000));  // Default 100 BPM in microseconds
-    
-    QJsonArray tracksArray = seqObj["tracks"].toArray();
-    for (const QJsonValue &trackVal : tracksArray) {
-        QJsonObject trackObj = trackVal.toObject();
-        
-        int instrument = trackObj["instrument"].toInt(0);
-        NoteNagaTrack *track = seq->addTrack(instrument);
-        if (!track) continue;
-        
-        track->setName(trackObj["name"].toString("Track").toStdString());
-        track->setChannel(trackObj["channel"].toInt(0));
-        track->setVisible(trackObj["visible"].toBool(true));
-        track->setMuted(trackObj["muted"].toBool(false));
-        track->setSolo(trackObj["solo"].toBool(false));
-        track->setVolume(static_cast<float>(trackObj["volume"].toDouble(1.0)));
-        
-        // Parse color
-        QString colorStr = trackObj["color"].toString("#5080c0");
-        if (colorStr.startsWith("#") && colorStr.length() == 7) {
-            int r = colorStr.mid(1, 2).toInt(nullptr, 16);
-            int g = colorStr.mid(3, 2).toInt(nullptr, 16);
-            int b = colorStr.mid(5, 2).toInt(nullptr, 16);
-            track->setColor(NN_Color_t(r, g, b));
-        }
-        
-        // Deserialize notes
-        if (!deserializeTrack(trackObj, track)) {
-            return false;
+        } else {
+            writeInt32(out, 0);
         }
     }
-    
-    return true;
 }
 
-bool NoteNagaProjectSerializer::deserializeTrack(const QJsonObject &trackObj, NoteNagaTrack *track)
-{
-    QJsonArray notesArray = trackObj["notes"].toArray();
-    for (const QJsonValue &noteVal : notesArray) {
-        QJsonObject noteObj = noteVal.toObject();
-        
-        NN_Note_t note;
-        note.note = noteObj["note"].toInt();
-        note.start = noteObj["start"].toInt();
-        note.length = noteObj["length"].toInt(480);
-        note.velocity = noteObj["velocity"].toInt(100);
-        note.pan = noteObj["pan"].toInt(64);
-        note.parent = track;
-        
-        track->addNote(note);
-    }
-    
-    return true;
-}
-
-bool NoteNagaProjectSerializer::deserializeDSPBlocks(const QJsonArray &blocksArray)
+bool NoteNagaProjectSerializer::deserializeSynthesizers(std::ifstream &in)
 {
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    if (!dspEngine) return false;
-    
-    // Clear existing DSP blocks - copy list first to avoid iterator invalidation
-    std::vector<NoteNagaDSPBlockBase*> blocksCopy = dspEngine->getDSPBlocks();
-    for (NoteNagaDSPBlockBase *block : blocksCopy) {
-        dspEngine->removeDSPBlock(block);
-        delete block;
-    }
-    
-    // Load new blocks
-    for (const QJsonValue &blockVal : blocksArray) {
-        QJsonObject blockObj = blockVal.toObject();
-        
-        QString blockType = blockObj["type"].toString();
-        NoteNagaDSPBlockBase *block = createDSPBlockByName(blockType);
-        if (!block) continue;
-        
-        block->setActive(blockObj["active"].toBool(true));
-        
-        // Load parameters
-        QJsonArray paramsArray = blockObj["parameters"].toArray();
-        for (int i = 0; i < paramsArray.size(); ++i) {
-            QJsonObject paramObj = paramsArray[i].toObject();
-            float value = static_cast<float>(paramObj["value"].toDouble());
-            block->setParamValue(i, value);
-        }
-        
-        dspEngine->addDSPBlock(block);
-    }
-    
-    return true;
-}
-
-bool NoteNagaProjectSerializer::deserializeSynthesizers(const QJsonArray &synthsArray)
-{
-    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    if (!dspEngine) return false;
-    
-    // Get existing synthesizers
     std::vector<NoteNagaSynthesizer*> synths = m_engine->getSynthesizers();
     
-    for (const QJsonValue &synthVal : synthsArray) {
-        QJsonObject synthObj = synthVal.toObject();
-        QString synthName = synthObj["name"].toString();
-        QString synthType = synthObj["type"].toString();
+    int32_t numSynths = readInt32(in);
+    
+    for (int32_t i = 0; i < numSynths; ++i) {
+        std::string synthName = readString(in);
+        std::string synthType = readString(in);
+        std::string soundFontPath = readString(in);
+        std::string midiPort = readString(in);
         
         // Find existing synth by name
         NoteNagaSynthesizer *synth = nullptr;
         for (NoteNagaSynthesizer *s : synths) {
-            if (s && QString::fromStdString(s->getName()) == synthName) {
+            if (s && s->getName() == synthName) {
                 synth = s;
                 break;
             }
         }
         
-        // If synth not found, create it
-        if (!synth && !synthType.isEmpty()) {
-            if (synthType == "fluidsynth") {
-                QString sfPath = synthObj["soundFontPath"].toString();
-                synth = new NoteNagaSynthFluidSynth(synthName.toStdString(), sfPath.toStdString());
+        // Create synth if not found
+        if (!synth && !synthType.empty()) {
+            if (synthType == "fluidsynth" && !soundFontPath.empty()) {
+                synth = new NoteNagaSynthFluidSynth(synthName, soundFontPath);
                 m_engine->addSynthesizer(synth);
-            } else if (synthType == "external_midi") {
-                QString midiPort = synthObj["midiPort"].toString();
-                synth = new NoteNagaSynthExternalMidi(synthName.toStdString(), midiPort.toStdString());
+                synths = m_engine->getSynthesizers();
+            } else if (synthType == "external_midi" && !midiPort.empty()) {
+                synth = new NoteNagaSynthExternalMidi(synthName, midiPort);
                 m_engine->addSynthesizer(synth);
+                synths = m_engine->getSynthesizers();
             }
-            // Update synth list
-            synths = m_engine->getSynthesizers();
         } else if (synth) {
-            // Synth exists, update its configuration
+            // Update existing synth configuration
             NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
             NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
             
-            if (fluidSynth && synthObj.contains("soundFontPath")) {
-                QString sfPath = synthObj["soundFontPath"].toString();
-                if (!sfPath.isEmpty()) {
-                    fluidSynth->setSoundFont(sfPath.toStdString());
-                }
-            } else if (externalMidi && synthObj.contains("midiPort")) {
-                QString midiPort = synthObj["midiPort"].toString();
-                if (!midiPort.isEmpty()) {
-                    externalMidi->setMidiOutputPort(midiPort.toStdString());
-                }
+            if (fluidSynth && !soundFontPath.empty()) {
+                fluidSynth->setSoundFont(soundFontPath);
+            } else if (externalMidi && !midiPort.empty()) {
+                externalMidi->setMidiOutputPort(midiPort);
             }
         }
         
-        if (!synth) continue;  // Could not find or create synth
+        // Read DSP blocks for this synth
+        int32_t numBlocks = readInt32(in);
         
-        // Load DSP blocks for this synth
-        INoteNagaSoftSynth *softSynth = dynamic_cast<INoteNagaSoftSynth*>(synth);
-        if (softSynth && synthObj.contains("dspBlocks")) {
-            // Clear existing DSP blocks for this synth - copy list first to avoid iterator invalidation
-            std::vector<NoteNagaDSPBlockBase*> synthBlocksCopy = dspEngine->getSynthDSPBlocks(softSynth);
-            for (NoteNagaDSPBlockBase *block : synthBlocksCopy) {
-                dspEngine->removeSynthDSPBlock(softSynth, block);
-                delete block;
-            }
-            
-            // Load new blocks
-            QJsonArray dspArray = synthObj["dspBlocks"].toArray();
-            for (const QJsonValue &blockVal : dspArray) {
-                QJsonObject blockObj = blockVal.toObject();
-                
-                QString blockType = blockObj["type"].toString();
-                NoteNagaDSPBlockBase *block = createDSPBlockByName(blockType);
-                if (!block) continue;
-                
-                block->setActive(blockObj["active"].toBool(true));
-                
-                // Load parameters
-                QJsonArray paramsArray = blockObj["parameters"].toArray();
-                for (int i = 0; i < paramsArray.size(); ++i) {
-                    QJsonObject paramObj = paramsArray[i].toObject();
-                    float value = static_cast<float>(paramObj["value"].toDouble());
-                    block->setParamValue(i, value);
+        if (synth && dspEngine) {
+            INoteNagaSoftSynth *softSynth = dynamic_cast<INoteNagaSoftSynth*>(synth);
+            if (softSynth) {
+                // Clear existing DSP blocks
+                std::vector<NoteNagaDSPBlockBase*> blocksCopy = dspEngine->getSynthDSPBlocks(softSynth);
+                for (NoteNagaDSPBlockBase *block : blocksCopy) {
+                    dspEngine->removeSynthDSPBlock(softSynth, block);
+                    delete block;
                 }
                 
-                dspEngine->addSynthDSPBlock(softSynth, block);
+                // Read new blocks
+                for (int32_t j = 0; j < numBlocks; ++j) {
+                    NoteNagaDSPBlockBase *block = deserializeDSPBlock(in);
+                    if (block) {
+                        dspEngine->addSynthDSPBlock(softSynth, block);
+                    }
+                }
+            } else {
+                // Skip blocks if not a soft synth
+                for (int32_t j = 0; j < numBlocks; ++j) {
+                    NoteNagaDSPBlockBase *block = deserializeDSPBlock(in);
+                    delete block;
+                }
+            }
+        } else {
+            // Skip blocks if synth not available
+            for (int32_t j = 0; j < numBlocks; ++j) {
+                NoteNagaDSPBlockBase *block = deserializeDSPBlock(in);
+                delete block;
             }
         }
     }
     
-    return true;
+    return in.good();
 }
 
-bool NoteNagaProjectSerializer::deserializeRoutingTable(const QJsonArray &routingArray)
+/*******************************************************************************************************/
+// Routing Table Serialization
+/*******************************************************************************************************/
+
+void NoteNagaProjectSerializer::serializeRoutingTable(std::ofstream &out)
 {
     NoteNagaMixer *mixer = m_engine->getMixer();
-    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
-    if (!mixer || !project) return false;
+    if (!mixer) {
+        writeInt32(out, 0);
+        return;
+    }
     
-    // Clear existing routing
+    const std::vector<NoteNagaRoutingEntry> &entries = mixer->getRoutingEntries();
+    writeInt32(out, static_cast<int32_t>(entries.size()));
+    
+    for (const NoteNagaRoutingEntry &entry : entries) {
+        writeInt32(out, entry.track ? entry.track->getId() : -1);
+        writeString(out, entry.output);
+        writeInt32(out, entry.channel);
+        writeFloat(out, entry.volume);
+        writeInt32(out, entry.note_offset);
+        writeFloat(out, entry.pan);
+    }
+}
+
+bool NoteNagaProjectSerializer::deserializeRoutingTable(std::ifstream &in)
+{
+    NoteNagaMixer *mixer = m_engine->getMixer();
+    NoteNagaRuntimeData *runtime = m_engine->getRuntimeData();
+    if (!mixer || !runtime) return false;
+    
     mixer->clearRoutingTable();
     
-    NoteNagaMidiSeq *seq = project->getActiveSequence();
+    NoteNagaMidiSeq *seq = runtime->getActiveSequence();
     if (!seq) return false;
     
     const std::vector<NoteNagaTrack*> &tracks = seq->getTracks();
     
-    for (const QJsonValue &entryVal : routingArray) {
-        QJsonObject entryObj = entryVal.toObject();
+    int32_t numEntries = readInt32(in);
+    for (int32_t i = 0; i < numEntries; ++i) {
+        int32_t trackId = readInt32(in);
+        std::string output = readString(in);
+        int32_t channel = readInt32(in);
+        float volume = readFloat(in);
+        int32_t noteOffset = readInt32(in);
+        float pan = readFloat(in);
         
-        int trackId = entryObj["trackId"].toInt(-1);
-        if (trackId < 0 || trackId >= static_cast<int>(tracks.size())) continue;
+        if (trackId < 0 || trackId >= static_cast<int32_t>(tracks.size())) continue;
         
         NoteNagaTrack *track = tracks[trackId];
         if (!track) continue;
         
-        NoteNagaRoutingEntry entry(
-            track,
-            entryObj["output"].toString("any").toStdString(),
-            entryObj["channel"].toInt(0),
-            static_cast<float>(entryObj["volume"].toDouble(1.0)),
-            entryObj["noteOffset"].toInt(0),
-            static_cast<float>(entryObj["pan"].toDouble(0.0))
-        );
-        
+        NoteNagaRoutingEntry entry(track, output, channel, volume, noteOffset, pan);
         mixer->addRoutingEntry(entry);
     }
     
-    return true;
+    return in.good();
 }
 
-NoteNagaDSPBlockBase *NoteNagaProjectSerializer::createDSPBlockByName(const QString &name)
+/*******************************************************************************************************/
+// DSP Block Factory
+/*******************************************************************************************************/
+
+NoteNagaDSPBlockBase *NoteNagaProjectSerializer::createDSPBlockByName(const std::string &name)
 {
-    // Create DSP block based on type name - using factory functions
     if (name == "Gain") {
         return nn_create_audio_gain_block();
     } else if (name == "Pan") {
@@ -633,4 +743,3 @@ NoteNagaDSPBlockBase *NoteNagaProjectSerializer::createDSPBlockByName(const QStr
     return nullptr;
 }
 
-#endif // QT_DEACTIVATED
