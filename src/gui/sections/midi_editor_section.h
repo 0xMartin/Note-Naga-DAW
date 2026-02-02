@@ -71,7 +71,11 @@ private:
     
     // Splitter for MIDI editor / Note property editor
     QSplitter *m_editorSplitter;
+    bool m_layoutInitialized = false;
     
     void setupDockLayout();
     void connectSignals();
+    
+protected:
+    void showEvent(QShowEvent *event) override;
 };

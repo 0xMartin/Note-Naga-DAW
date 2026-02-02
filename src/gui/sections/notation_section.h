@@ -94,10 +94,14 @@ private:
     
     // Flag to track if auto-render has been performed
     bool m_autoRenderDone;
+    bool m_layoutInitialized = false;
     
     void setupUi();
     void setupDockLayout();
     void connectSignals();
     void refreshSequence();
     void updateTrackVisibilityCheckboxes();
+    
+protected:
+    void showEvent(QShowEvent *event) override;
 };

@@ -36,6 +36,11 @@ public:
      * @return Pointer to the title widget.
      */
     QWidget *getTitleWidget() const { return this->title_widget; }
+    
+    /**
+     * @brief Returns preferred size hint for dock layout.
+     */
+    QSize sizeHint() const override { return QSize(280, 300); }
 
 private:
     NoteNagaEngine* engine;

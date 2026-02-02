@@ -11,6 +11,20 @@
 #include <note_naga_engine/nn_utils.h>
 #include <note_naga_engine/core/types.h>
 
+// Helper class that provides a custom sizeHint for dock layout
+class SizedScrollArea : public QScrollArea {
+public:
+    SizedScrollArea(int preferredWidth, QWidget* parent = nullptr) 
+        : QScrollArea(parent), m_preferredWidth(preferredWidth) {
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    }
+    QSize sizeHint() const override {
+        return QSize(m_preferredWidth, 400);
+    }
+private:
+    int m_preferredWidth;
+};
+
 NotationSection::NotationSection(NoteNagaEngine *engine, QWidget *parent)
     : QMainWindow(parent)
     , m_engine(engine)
@@ -112,20 +126,19 @@ void NotationSection::setupDockLayout()
         this
     );
     notationDock->setWidget(notationContainer);
+    notationContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     notationDock->setObjectName("notation");
     notationDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     notationDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
     addDockWidget(Qt::LeftDockWidgetArea, notationDock);
     m_docks["notation"] = notationDock;
     
-    // === RIGHT DOCK: Settings ===
-    m_settingsScrollArea = new QScrollArea;
+    // === LEFT DOCK: Settings ===
+    m_settingsScrollArea = new SizedScrollArea(280, this);
     m_settingsScrollArea->setWidgetResizable(true);
     m_settingsScrollArea->setFrameShape(QFrame::NoFrame);
     m_settingsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
     m_settingsScrollArea->setMinimumWidth(250);
-    m_settingsScrollArea->setMaximumWidth(350);
-    m_settingsScrollArea->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     
     m_settingsWidget = new QWidget;
     m_settingsWidget->setStyleSheet("background: transparent;");
@@ -303,19 +316,11 @@ void NotationSection::setupDockLayout()
     settingsDock->setObjectName("settings");
     settingsDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     settingsDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::RightDockWidgetArea, settingsDock);
+    addDockWidget(Qt::LeftDockWidgetArea, settingsDock);
     m_docks["settings"] = settingsDock;
     
-    // Configure dock layout
-    splitDockWidget(m_docks["notation"], m_docks["settings"], Qt::Horizontal);
-    
-    // Set initial size ratios (larger notation view)
-    // Use QTimer to ensure layout is computed before resizing
-    QTimer::singleShot(0, this, [this]() {
-        QList<QDockWidget*> order = {m_docks["notation"], m_docks["settings"]};
-        QList<int> sizes = {1000, 280};
-        resizeDocks(order, sizes, Qt::Horizontal);
-    });
+    // Configure dock layout: settings on left, notation on right
+    splitDockWidget(m_docks["settings"], m_docks["notation"], Qt::Horizontal);
 }
 
 void NotationSection::connectSignals()
@@ -536,4 +541,23 @@ void NotationSection::applyNotationSettings()
     m_notationWidget->setTitle(QString::fromStdString(m_projectMetadata.name));
     
     m_notationWidget->setNotationSettings(settings);
+}
+
+void NotationSection::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    
+    if (!m_layoutInitialized) {
+        m_layoutInitialized = true;
+        // Resize docks to proper proportions after layout is ready
+        QTimer::singleShot(50, this, [this]() {
+            int totalWidth = width();
+            int settingsWidth = 280;  // Desired width for settings panel
+            int notationWidth = totalWidth - settingsWidth - 10;
+            if (notationWidth < 400) notationWidth = 400;
+            
+            resizeDocks({m_docks["settings"], m_docks["notation"]}, 
+                        {settingsWidth, notationWidth}, Qt::Horizontal);
+        });
+    }
 }

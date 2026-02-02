@@ -12,6 +12,20 @@
 #include "../dock_system/advanced_dock_widget.h"
 #include <note_naga_engine/nn_utils.h>
 
+// Helper class that provides a custom sizeHint for dock layout
+class SizedScrollArea : public QScrollArea {
+public:
+    SizedScrollArea(int preferredWidth, QWidget* parent = nullptr) 
+        : QScrollArea(parent), m_preferredWidth(preferredWidth) {
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    }
+    QSize sizeHint() const override {
+        return QSize(m_preferredWidth, 400);
+    }
+private:
+    int m_preferredWidth;
+};
+
 MediaExportSection::MediaExportSection(NoteNagaEngine* engine, QWidget* parent)
     : QMainWindow(parent), m_engine(engine), m_sequence(nullptr),
       m_previewThread(nullptr), m_previewWorker(nullptr),
@@ -185,21 +199,20 @@ void MediaExportSection::setupDockLayout()
         this
     );
     previewDock->setWidget(previewContainer);
+    previewContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     previewDock->setObjectName("preview");
     previewDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     previewDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
     addDockWidget(Qt::LeftDockWidgetArea, previewDock);
     m_docks["preview"] = previewDock; 
 
-    // === RIGHT DOCK: Settings ===
-    // Settings scroll area directly in dock - no extra container
-    m_settingsScrollArea = new QScrollArea;
+    // === LEFT DOCK: Settings ===
+    // Settings scroll area with preferred width hint for dock layout
+    m_settingsScrollArea = new SizedScrollArea(400, this);
     m_settingsScrollArea->setWidgetResizable(true);
     m_settingsScrollArea->setFrameShape(QFrame::NoFrame);
     m_settingsScrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
-    m_settingsScrollArea->setMinimumWidth(380);
-    m_settingsScrollArea->setMaximumWidth(450);
-    m_settingsScrollArea->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding); 
+    m_settingsScrollArea->setMinimumWidth(350); 
     
     m_settingsWidget = new QWidget;
     m_settingsWidget->setStyleSheet("background: transparent;");
@@ -572,19 +585,11 @@ void MediaExportSection::setupDockLayout()
     settingsDock->setObjectName("settings");
     settingsDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     settingsDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::RightDockWidgetArea, settingsDock);
+    addDockWidget(Qt::LeftDockWidgetArea, settingsDock);
     m_docks["settings"] = settingsDock;
 
-    // === Configure dock layout ===
-    splitDockWidget(previewDock, settingsDock, Qt::Horizontal);
-    
-    // Set horizontal ratio: preview:settings = 70:30 (preview larger)
-    // Use QTimer to ensure layout is computed before resizing
-    QTimer::singleShot(0, this, [this]() {
-        QList<QDockWidget*> horizDocks = {m_docks["preview"], m_docks["settings"]};
-        QList<int> horizSizes = {1000, 350};
-        resizeDocks(horizDocks, horizSizes, Qt::Horizontal);
-    });
+    // === Configure dock layout: settings on left, preview on right ===
+    splitDockWidget(settingsDock, previewDock, Qt::Horizontal);
 
     m_progressWidget->setVisible(false);
     
@@ -775,33 +780,19 @@ void MediaExportSection::showEvent(QShowEvent *event)
     QMainWindow::showEvent(event);
     refreshSequence();
     
-    // Force dock widgets to update their geometry after switching sections
-    // This fixes the preview being small until manual resize
-    // Use multiple delayed updates to ensure layout is fully computed
-    for (int delay : {0, 50, 150}) {
-        QTimer::singleShot(delay, this, [this]() {
-            // Force layout recalculation
-            if (auto* previewDock = m_docks.value("preview")) {
-                if (previewDock->isVisible() && previewDock->widget()) {
-                    // Force the dock widget to resize properly
-                    previewDock->widget()->adjustSize();
-                    
-                    // Force preview stack to fill available space
-                    if (m_previewStack) {
-                        m_previewStack->updateGeometry();
-                    }
-                    
-                    // Force preview label resize
-                    if (m_previewLabel) {
-                        m_previewLabel->updateGeometry();
-                    }
-                }
-            }
-            
-            // Update preview render size with current label dimensions
-            updatePreviewRenderSize();
-        });
-    }
+    // Resize docks to proper proportions after layout is ready
+    QTimer::singleShot(50, this, [this]() {
+        int totalWidth = width();
+        int settingsWidth = 400;  // Desired width for settings panel
+        int previewWidth = totalWidth - settingsWidth - 10;
+        if (previewWidth < 400) previewWidth = 400;
+        
+        resizeDocks({m_docks["settings"], m_docks["preview"]}, 
+                    {settingsWidth, previewWidth}, Qt::Horizontal);
+        
+        // Update preview render size
+        updatePreviewRenderSize();
+    });
 }
 
 void MediaExportSection::hideEvent(QHideEvent *event)

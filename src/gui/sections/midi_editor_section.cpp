@@ -118,6 +118,7 @@ void MidiEditorSection::setupDockLayout()
     editorContainer->setObjectName("EditorContainer");
     editorContainer->setStyleSheet("QFrame#EditorContainer { border: 1px solid #19191f; }");
     editorContainer->setLayout(editorLayout);
+    editorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     auto *editorDock = new AdvancedDockWidget(
         tr("MIDI Editor"), 
@@ -135,7 +136,7 @@ void MidiEditorSection::setupDockLayout()
 
     // === Track list dock (left top) ===
     m_trackListWidget = new TrackListWidget(m_engine, this);
-    m_trackListWidget->setMaximumWidth(350);
+    m_trackListWidget->setMinimumWidth(250);
     m_trackListWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     
     auto *tracklistDock = new AdvancedDockWidget(
@@ -154,7 +155,7 @@ void MidiEditorSection::setupDockLayout()
 
     // === Mixer dock (left bottom) ===
     m_mixerWidget = new TrackMixerWidget(m_engine, this);
-    m_mixerWidget->setMaximumWidth(350);
+    m_mixerWidget->setMinimumWidth(250);
     m_mixerWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     
     auto *mixerDock = new AdvancedDockWidget(
@@ -190,19 +191,25 @@ void MidiEditorSection::setupDockLayout()
     for (auto dock : m_docks) {
         dock->setVisible(true);
     }
+}
 
-    // Adjust initial size ratios - editor takes most horizontal space
-    // Use QTimer to ensure layout is computed before resizing
-    QTimer::singleShot(0, this, [this]() {
-        QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
-        QList<int> hSizes = {280, 1000};
-        resizeDocks(hOrder, hSizes, Qt::Horizontal);
-        
-        // Adjust vertical ratios for left side - tracklist smaller, mixer larger
-        QList<QDockWidget*> vOrder = {m_docks["tracklist"], m_docks["mixer"]};
-        QList<int> vSizes = {300, 400};
-        resizeDocks(vOrder, vSizes, Qt::Vertical);
-    });
+void MidiEditorSection::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    
+    if (!m_layoutInitialized) {
+        m_layoutInitialized = true;
+        // Use a timer to ensure window geometry is fully established
+        QTimer::singleShot(50, this, [this]() {
+            int totalWidth = width();
+            int leftWidth = 280;  // Desired width for left panel
+            int rightWidth = totalWidth - leftWidth - 10;  // Rest for editor
+            if (rightWidth < 400) rightWidth = 400;
+            
+            resizeDocks({m_docks["tracklist"], m_docks["editor"]}, 
+                        {leftWidth, rightWidth}, Qt::Horizontal);
+        });
+    }
 }
 
 void MidiEditorSection::connectSignals()
