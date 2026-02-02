@@ -66,6 +66,7 @@ void TimelineOverviewWidget::onSequenceChanged(NoteNagaMidiSeq *seq)
 
     m_sequence = seq;
     m_activeTrack = nullptr;
+    m_playbackTick = 0;
 
     if (m_sequence) {
         connect(m_sequence, &NoteNagaMidiSeq::activeTrackChanged,
@@ -76,6 +77,13 @@ void TimelineOverviewWidget::onSequenceChanged(NoteNagaMidiSeq *seq)
     }
 
     updateMaxTick();
+    
+    // Initialize viewport to start of timeline
+    // Assume a reasonable default visible range (will be updated when scroll happens)
+    m_viewportStartTick = 0;
+    int defaultVisibleTicks = static_cast<int>(800 / m_timeScale);  // ~800px width equivalent
+    m_viewportEndTick = qMin(defaultVisibleTicks, m_maxTick);
+    
     update();
 }
 
@@ -123,9 +131,6 @@ void TimelineOverviewWidget::updateMaxTick()
     if (m_maxTick < 1920) {  // At least 1 bar at 480 PPQ
         m_maxTick = 1920;
     }
-
-    // Add some padding at the end
-    m_maxTick = static_cast<int>(m_maxTick * 1.1);
 }
 
 int TimelineOverviewWidget::tickToX(int tick) const
@@ -247,6 +252,11 @@ void TimelineOverviewWidget::paintEvent(QPaintEvent *event)
 void TimelineOverviewWidget::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
+        // Don't allow viewport navigation during playback
+        if (m_engine && m_engine->isPlaying()) {
+            return;
+        }
+        
         m_isDragging = true;
 
         int tick = xToTick(event->pos().x());
@@ -265,6 +275,11 @@ void TimelineOverviewWidget::mousePressEvent(QMouseEvent *event)
 
 void TimelineOverviewWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    // Don't allow viewport navigation during playback
+    if (m_engine && m_engine->isPlaying()) {
+        return;
+    }
+    
     if (m_isDragging) {
         int tick = xToTick(event->pos().x());
         emit viewportNavigationRequested(tick);

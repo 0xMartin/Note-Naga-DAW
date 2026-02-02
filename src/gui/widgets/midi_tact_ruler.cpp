@@ -133,7 +133,10 @@ void MidiTactRuler::paintEvent(QPaintEvent* event) {
     
     // Draw hover line indicator - shows where playback position will be set on click
     if (m_isHovered && m_hoverX >= 0) {
-        // Draw vertical line at hover position
+        // Draw semi-transparent hint area first (behind the line)
+        painter.fillRect(QRect(m_hoverX - 1, 0, 3, r.height()), click_hint_color);
+        
+        // Draw vertical line at hover position on top
         painter.setPen(QPen(hover_color, 2));
         painter.drawLine(m_hoverX, 0, m_hoverX, r.height());
         
@@ -145,8 +148,5 @@ void MidiTactRuler::paintEvent(QPaintEvent* event) {
         painter.setBrush(hover_color);
         painter.setPen(Qt::NoPen);
         painter.drawPolygon(triangle);
-        
-        // Draw semi-transparent hint area
-        painter.fillRect(QRect(m_hoverX - 1, 0, 3, r.height()), click_hint_color);
     }
 }

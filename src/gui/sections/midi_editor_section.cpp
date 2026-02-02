@@ -16,6 +16,7 @@
 #include <QDockWidget>
 #include <QScrollBar>
 #include <QSplitter>
+#include <QTimer>
 
 MidiEditorSection::MidiEditorSection(NoteNagaEngine *engine, QWidget *parent)
     : QMainWindow(parent), m_engine(engine)
@@ -247,6 +248,24 @@ void MidiEditorSection::connectSignals()
         int endTick = static_cast<int>((scrollValue + viewportWidth) / timeScale);
         
         m_timelineOverview->setViewportRange(startTick, endTick);
+    });
+    
+    // Update timeline overview when sequence changes (initial load)
+    connect(m_engine->getProject(), &NoteNagaProject::activeSequenceChanged, this, [this](NoteNagaMidiSeq*) {
+        // Delay update to allow MIDI editor to set up first
+        QTimer::singleShot(50, this, [this]() {
+            if (!m_midiEditor || !m_midiEditor->getSequence()) return;
+            
+            double timeScale = m_midiEditor->getConfig()->time_scale;
+            int viewportWidth = m_midiEditor->viewport()->width();
+            int scrollValue = m_midiEditor->horizontalScrollBar()->value();
+            
+            int startTick = static_cast<int>(scrollValue / timeScale);
+            int endTick = static_cast<int>((scrollValue + viewportWidth) / timeScale);
+            
+            m_timelineOverview->setViewportRange(startTick, endTick);
+            m_timelineOverview->refresh();
+        });
     });
     
     // Navigate when clicking on timeline overview
