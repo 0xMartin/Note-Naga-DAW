@@ -45,74 +45,6 @@ void TrackMixerWidget::initUI() {
     QVBoxLayout *main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(5, 5, 5, 5);
     main_layout->setSpacing(0);
-
-    // Controls frame
-    QFrame *controls_frame = new QFrame();
-    controls_frame->setObjectName("MixerControlsFrame");
-    controls_frame->setStyleSheet(
-        "QFrame#MixerControlsFrame { background: #2F3139; border: 1px solid #494d56; "
-        "border-radius: 8px; padding: 2px 0px 0px 0px; }");
-    QHBoxLayout *controls_layout = new QHBoxLayout(controls_frame);
-    controls_layout->setContentsMargins(5, 0, 5, 0);
-
-    dial_min = new AudioDial();
-    dial_min->setLabel("Note Min");
-    dial_min->setRange(0, 127);
-    dial_min->setValue(engine->getMixer()->getMasterMinNote());
-    dial_min->setDefaultValue(0);
-    dial_min->showValue(true);
-    dial_min->setValueDecimals(0);
-    connect(dial_min, &AudioDial::valueChanged, this,
-            &TrackMixerWidget::onMinNoteChanged);
-
-    dial_max = new AudioDial();
-    dial_max->setLabel("Note Max");
-    dial_max->setRange(0, 127);
-    dial_max->setValue(engine->getMixer()->getMasterMaxNote());
-    dial_max->setDefaultValue(127);
-    dial_max->showValue(true);
-    dial_max->setValueDecimals(0);
-    connect(dial_max, &AudioDial::valueChanged, this,
-            &TrackMixerWidget::onMaxNoteChanged);
-
-    dial_offset = new AudioDialCentered();
-    dial_offset->setLabel("Offset");
-    dial_offset->setRange(-24, 24);
-    dial_offset->setValue(engine->getMixer()->getMasterNoteOffset());
-    dial_offset->setDefaultValue(0);
-    dial_offset->showValue(true);
-    dial_offset->setValueDecimals(0);
-    connect(dial_offset, &AudioDialCentered::valueChanged, this,
-            &TrackMixerWidget::onGlobalOffsetChanged);
-
-    dial_vol = new AudioDial();
-    dial_vol->setLabel("Volume");
-    dial_vol->setRange(0, 100);
-    dial_vol->setValueDecimals(1);
-    dial_vol->setValue(engine->getMixer()->getMasterVolume() * 100);
-    dial_vol->setDefaultValue(100);
-    dial_vol->setValuePostfix(" %");
-    dial_vol->showValue(true);
-    connect(dial_vol, &AudioDial::valueChanged, this,
-            &TrackMixerWidget::onGlobalVolumeChanged);
-
-    dial_pan = new AudioDialCentered();
-    dial_pan->setLabel("Pan");
-    dial_pan->setRange(-1.0, 1.0);
-    dial_pan->setValueDecimals(2);
-    dial_pan->setValue(engine->getMixer()->getMasterPan());
-    dial_pan->setDefaultValue(0.0);
-    connect(dial_pan, &AudioDialCentered::valueChanged, this,
-            &TrackMixerWidget::onGlobalPanChanged);
-
-    controls_layout->addWidget(dial_min, 0, Qt::AlignVCenter);
-    controls_layout->addWidget(dial_max, 0, Qt::AlignVCenter);
-    controls_layout->addWidget(dial_offset, 0, Qt::AlignVCenter);
-    controls_layout->addWidget(dial_vol, 0, Qt::AlignVCenter);
-    controls_layout->addWidget(dial_pan, 0, Qt::AlignVCenter);
-
-    main_layout->addWidget(controls_frame);
-    main_layout->addSpacing(5);
     
     // Synthesizer selector frame
     QFrame *synth_selector_frame = new QFrame();
@@ -361,22 +293,6 @@ void TrackMixerWidget::onSynthesizerSelectionChanged(int index) {
     
     // Important: Refresh the routing table to show only entries for this synth
     refresh_routing_table();
-}
-
-void TrackMixerWidget::onMinNoteChanged(float value) {
-    engine->getMixer()->setMasterMinNote(int(value));
-}
-void TrackMixerWidget::onMaxNoteChanged(float value) {
-    engine->getMixer()->setMasterMaxNote(int(value));
-}
-void TrackMixerWidget::onGlobalOffsetChanged(float value) {
-    engine->getMixer()->setMasterNoteOffset(int(value));
-}
-void TrackMixerWidget::onGlobalVolumeChanged(float value) {
-    engine->getMixer()->setMasterVolume(float(value / 100.0f));
-}
-void TrackMixerWidget::onGlobalPanChanged(float value) {
-    engine->getMixer()->setMasterPan(value);
 }
 
 void TrackMixerWidget::setChannelOutputValue(const std::string &device, int channel_idx,

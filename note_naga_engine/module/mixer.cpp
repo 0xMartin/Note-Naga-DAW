@@ -15,9 +15,6 @@ NoteNagaMixer::NoteNagaMixer(NoteNagaRuntimeData *project, std::vector<NoteNagaS
     this->project = project;
     this->synthesizers = synthesizers;
     this->master_volume = 1.0f;
-    this->master_min_note = 0;
-    this->master_max_note = 127;
-    this->master_note_offset = 0;
     this->master_pan = 0.0f;
     
 
@@ -273,9 +270,8 @@ void NoteNagaMixer::playNote(const NN_Note_t &midi_note) {
 
     for (const NoteNagaRoutingEntry &entry : routing_entries) {
         if (entry.track != track) continue;
-        int note_num = midi_note.note + entry.note_offset + master_note_offset;
+        int note_num = midi_note.note + entry.note_offset;
         if (note_num < 0 || note_num > 127) continue;
-        if (note_num < master_min_note || note_num > master_max_note) continue;
         int velocity = int(std::min(127.0f, std::max(0.0f, float(midi_note.velocity.value_or(100)) *
                                                                entry.volume * master_volume)));
         if (velocity <= 0) continue;

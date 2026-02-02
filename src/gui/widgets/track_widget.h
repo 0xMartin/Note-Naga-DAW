@@ -55,6 +55,7 @@ private:
     QPushButton *instrument_btn;
     QLabel *index_lbl;
     QLineEdit *name_edit;
+    QLabel *unsaved_indicator;  ///< Dot indicator showing unsaved track name
     QPushButton *color_btn;
     QPushButton *invisible_btn;
     QPushButton *solo_btn;
@@ -85,6 +86,7 @@ private slots:
     void onToggleSolo();
     void onToggleMute();
     void onNameEdited();
+    void onNameTextChanged(const QString &text);
     void colorSelect();
     void instrumentSelect();
 };

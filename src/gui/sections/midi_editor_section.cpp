@@ -133,7 +133,7 @@ void MidiEditorSection::setupDockLayout()
     addDockWidget(Qt::RightDockWidgetArea, editorDock);
     m_docks["editor"] = editorDock;
 
-    // === Track list dock (left) ===
+    // === Track list dock (left top) ===
     m_trackListWidget = new TrackListWidget(m_engine, this);
     
     auto *tracklistDock = new AdvancedDockWidget(
@@ -150,7 +150,7 @@ void MidiEditorSection::setupDockLayout()
     addDockWidget(Qt::LeftDockWidgetArea, tracklistDock);
     m_docks["tracklist"] = tracklistDock;
 
-    // === Mixer dock (right) ===
+    // === Mixer dock (left bottom) ===
     m_mixerWidget = new TrackMixerWidget(m_engine, this);
     
     auto *mixerDock = new AdvancedDockWidget(
@@ -164,16 +164,21 @@ void MidiEditorSection::setupDockLayout()
     mixerDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     mixerDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable |
                            QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::RightDockWidgetArea, mixerDock);
+    addDockWidget(Qt::LeftDockWidgetArea, mixerDock);
     m_docks["mixer"] = mixerDock;
 
     // === Configure layout ===
+    // Left side: track list on top, mixer on bottom (vertical split)
+    // Right side: MIDI editor (takes most space)
     m_docks["editor"]->setParent(this);
     m_docks["tracklist"]->setParent(this);
     m_docks["mixer"]->setParent(this);
 
-    tabifyDockWidget(m_docks["editor"], m_docks["mixer"]);
+    // First, split horizontally: left area (tracklist) and right area (editor)
     splitDockWidget(m_docks["tracklist"], m_docks["editor"], Qt::Horizontal);
+    // Then split the left area vertically: tracklist on top, mixer below
+    splitDockWidget(m_docks["tracklist"], m_docks["mixer"], Qt::Vertical);
+    
     m_docks["editor"]->raise();
     m_docks["tracklist"]->setFloating(false);
     m_docks["mixer"]->setFloating(false);
@@ -182,10 +187,15 @@ void MidiEditorSection::setupDockLayout()
         dock->setVisible(true);
     }
 
-    // Adjust initial size ratios
-    QList<QDockWidget*> order = {m_docks["tracklist"], m_docks["editor"], m_docks["mixer"]};
-    QList<int> sizes = {200, 1000, 200};
-    resizeDocks(order, sizes, Qt::Horizontal);
+    // Adjust initial size ratios - editor takes most horizontal space
+    QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
+    QList<int> hSizes = {280, 1000};
+    resizeDocks(hOrder, hSizes, Qt::Horizontal);
+    
+    // Adjust vertical ratios for left side - tracklist smaller, mixer larger
+    QList<QDockWidget*> vOrder = {m_docks["tracklist"], m_docks["mixer"]};
+    QList<int> vSizes = {300, 400};
+    resizeDocks(vOrder, vSizes, Qt::Vertical);
 }
 
 void MidiEditorSection::connectSignals()
@@ -298,13 +308,10 @@ void MidiEditorSection::showHideDock(const QString &name, bool checked)
 
     if (checked) {
         if (!dock->parentWidget()) {
-            if (name == "tracklist") {
+            if (name == "tracklist" || name == "mixer") {
                 addDockWidget(Qt::LeftDockWidgetArea, dock);
             } else {
                 addDockWidget(Qt::RightDockWidgetArea, dock);
-                if (m_docks.contains("editor") && m_docks.contains("mixer")) {
-                    tabifyDockWidget(m_docks["editor"], m_docks["mixer"]);
-                }
             }
         }
         dock->show();
@@ -320,11 +327,11 @@ void MidiEditorSection::resetLayout()
     if (!m_docks["tracklist"]->parentWidget()) {
         addDockWidget(Qt::LeftDockWidgetArea, m_docks["tracklist"]);
     }
+    if (!m_docks["mixer"]->parentWidget()) {
+        addDockWidget(Qt::LeftDockWidgetArea, m_docks["mixer"]);
+    }
     if (!m_docks["editor"]->parentWidget()) {
         addDockWidget(Qt::RightDockWidgetArea, m_docks["editor"]);
-    }
-    if (!m_docks["mixer"]->parentWidget()) {
-        addDockWidget(Qt::RightDockWidgetArea, m_docks["mixer"]);
     }
 
     // Show all
@@ -332,15 +339,19 @@ void MidiEditorSection::resetLayout()
     m_docks["editor"]->setVisible(true);
     m_docks["mixer"]->setVisible(true);
 
-    // Tabify editor and mixer
-    tabifyDockWidget(m_docks["editor"], m_docks["mixer"]);
+    // First, split horizontally: left area (tracklist) and right area (editor)
+    splitDockWidget(m_docks["tracklist"], m_docks["editor"], Qt::Horizontal);
+    // Then split the left area vertically: tracklist on top, mixer below
+    splitDockWidget(m_docks["tracklist"], m_docks["mixer"], Qt::Vertical);
     m_docks["editor"]->raise();
 
-    // Split between tracklist and editor
-    splitDockWidget(m_docks["tracklist"], m_docks["editor"], Qt::Horizontal);
-
-    // Set sizes
-    QList<QDockWidget*> order = {m_docks["tracklist"], m_docks["editor"], m_docks["mixer"]};
-    QList<int> sizes = {200, 1000, 200};
-    resizeDocks(order, sizes, Qt::Horizontal);
+    // Set sizes - editor takes most horizontal space
+    QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
+    QList<int> hSizes = {280, 1000};
+    resizeDocks(hOrder, hSizes, Qt::Horizontal);
+    
+    // Adjust vertical ratios for left side
+    QList<QDockWidget*> vOrder = {m_docks["tracklist"], m_docks["mixer"]};
+    QList<int> vSizes = {300, 400};
+    resizeDocks(vOrder, vSizes, Qt::Vertical);
 }

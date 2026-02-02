@@ -14,8 +14,6 @@
 #include <QIcon>
 
 #include <note_naga_engine/note_naga_engine.h>
-#include "../components/audio_dial.h"
-#include "../components/audio_dial_centered.h"
 #include "../components/multi_channel_volume_bar.h"
 #include "routing_entry_widget.h"
 
@@ -47,12 +45,6 @@ private:
     std::vector<RoutingEntryWidget*> entry_widgets;
 
     QWidget *title_widget;
-    
-    AudioDial* dial_min;
-    AudioDial* dial_max;
-    AudioDialCentered* dial_offset;
-    AudioDial* dial_vol;
-    AudioDialCentered* dial_pan;
 
     // Synthesizer selector combobox
     QComboBox* synth_selector;
@@ -102,11 +94,6 @@ public slots:
     void onSynthesizerUpdated(NoteNagaSynthesizer* synth);
 
 private slots:
-    void onMinNoteChanged(float value);
-    void onMaxNoteChanged(float value);
-    void onGlobalOffsetChanged(float value);
-    void onGlobalVolumeChanged(float value);
-    void onGlobalPanChanged(float value);
 
     void onAddEntry();
     void onRemoveSelectedEntry();

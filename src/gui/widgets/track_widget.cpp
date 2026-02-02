@@ -51,7 +51,18 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     name_edit->setFrame(false);
     name_edit->setStyleSheet("background: transparent; color: #fff; border: none; font-weight: bold; font-size: 12px;");
     connect(name_edit, &QLineEdit::editingFinished, this, &TrackWidget::onNameEdited);
+    connect(name_edit, &QLineEdit::textChanged, this, &TrackWidget::onNameTextChanged);
     header_hbox->addWidget(name_edit, 1);
+
+    // Unsaved indicator dot - shows when track name hasn't been applied yet
+    unsaved_indicator = new QLabel();
+    unsaved_indicator->setObjectName("UnsavedIndicator");
+    unsaved_indicator->setFixedSize(8, 8);
+    unsaved_indicator->setStyleSheet(
+        "QLabel#UnsavedIndicator { background-color: #ff9900; border-radius: 4px; }");
+    unsaved_indicator->setToolTip("Track name not yet applied (press Enter to apply)");
+    unsaved_indicator->setVisible(false);
+    header_hbox->addWidget(unsaved_indicator, 0);
 
     color_btn = create_small_button("", "Change Track Color", "ColorButton", 18);
     connect(color_btn, &QPushButton::clicked, this, &TrackWidget::colorSelect);
@@ -89,8 +100,14 @@ void TrackWidget::updateTrackInfo(NoteNagaTrack* track, const std::string &param
     if (this->track != track)
         return;
 
+    // Block signals to prevent triggering onNameTextChanged
+    name_edit->blockSignals(true);
     name_edit->setText(QString::fromStdString(track->getName()));
+    name_edit->blockSignals(false);
     name_edit->setToolTip(QString::fromStdString(track->getName()));
+    
+    // Hide unsaved indicator since the name matches the track
+    unsaved_indicator->setVisible(false);
 
     index_lbl->setText(QString::number(track->getId() + 1));
 
@@ -145,6 +162,15 @@ void TrackWidget::onNameEdited()
 {
     QString new_name = name_edit->text();
     track->setName(new_name.toStdString());
+    // Hide the unsaved indicator since the name has been applied
+    unsaved_indicator->setVisible(false);
+}
+
+void TrackWidget::onNameTextChanged(const QString &text)
+{
+    // Show the unsaved indicator if the text differs from the track's name
+    QString currentTrackName = QString::fromStdString(track->getName());
+    unsaved_indicator->setVisible(text != currentTrackName);
 }
 
 void TrackWidget::instrumentSelect()
