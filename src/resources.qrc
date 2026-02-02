@@ -88,6 +88,7 @@
   </qresource>
   <qresource prefix="/">
     <file>images/sparkle.png</file>
+    <file>images/background.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>note_naga_theme.qss</file>

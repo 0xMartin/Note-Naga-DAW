@@ -143,6 +143,7 @@ private:
     QScrollArea *m_scrollArea;
     QWidget *m_container;
     QVBoxLayout *m_containerLayout;
+    QWidget *m_backgroundWidget;
     
     // Metadata
     NoteNagaProjectMetadata m_metadata;

@@ -17,6 +17,59 @@
 #include <QSvgWidget>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
+#include <QGraphicsOpacityEffect>
+#include <QSvgRenderer>
+#include <QPainter>
+
+// Custom background widget that tiles SVG while preserving aspect ratio
+class TiledSvgBackground : public QWidget {
+public:
+    TiledSvgBackground(const QString &svgPath, QWidget *parent = nullptr)
+        : QWidget(parent), m_renderer(new QSvgRenderer(svgPath, this))
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setStyleSheet("background: transparent;");
+    }
+    
+protected:
+    void paintEvent(QPaintEvent *) override {
+        if (!m_renderer->isValid()) return;
+        
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        
+        // Get original SVG size
+        QSizeF svgSize = m_renderer->defaultSize();
+        if (svgSize.isEmpty()) return;
+        
+        // Tile the SVG across the widget, preserving aspect ratio
+        int tileWidth = static_cast<int>(svgSize.width());
+        int tileHeight = static_cast<int>(svgSize.height());
+        
+        // Calculate how many tiles we need
+        int tilesX = (width() + tileWidth - 1) / tileWidth;
+        int tilesY = (height() + tileHeight - 1) / tileHeight;
+        
+        // Calculate offset to center vertically (and horizontally)
+        int totalTileWidth = tilesX * tileWidth;
+        int totalTileHeight = tilesY * tileHeight;
+        int offsetX = (width() - totalTileWidth) / 2;
+        int offsetY = (height() - totalTileHeight) / 2;
+        
+        for (int row = 0; row < tilesY; ++row) {
+            for (int col = 0; col < tilesX; ++col) {
+                int x = offsetX + col * tileWidth;
+                int y = offsetY + row * tileHeight;
+                QRectF tileRect(x, y, tileWidth, tileHeight);
+                m_renderer->render(&painter, tileRect);
+            }
+        }
+    }
+    
+private:
+    QSvgRenderer *m_renderer;
+};
 
 // Shared styles
 namespace {
@@ -123,12 +176,24 @@ ProjectSection::ProjectSection(NoteNagaEngine *engine,
 
 void ProjectSection::setupUI()
 {
+    // Use a stacked layout: background (fixed) + scroll area (on top)
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
     
+    // Create a wrapper widget to stack background and scroll area
+    QWidget *stackWrapper = new QWidget();
+    stackWrapper->setStyleSheet("background-color: #1a1a1f;");
+    
+    // Fixed background SVG - tiled while preserving aspect ratio
+    m_backgroundWidget = new TiledSvgBackground(":/images/background.svg", stackWrapper);
+    // Apply opacity effect to make it subtle like a texture
+    QGraphicsOpacityEffect *opacityEffect = new QGraphicsOpacityEffect(m_backgroundWidget);
+    opacityEffect->setOpacity(0.04);  // Very subtle, like embossed texture
+    m_backgroundWidget->setGraphicsEffect(opacityEffect);
+    
     // Create scroll area
-    m_scrollArea = new QScrollArea(this);
+    m_scrollArea = new QScrollArea(stackWrapper);
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -139,7 +204,7 @@ void ProjectSection::setupUI()
             border: none;
         }
         QScrollBar:vertical {
-            background: #1a1a1f;
+            background: transparent;
             width: 8px;
             margin: 0;
         }
@@ -192,7 +257,8 @@ void ProjectSection::setupUI()
     centeringLayout->addStretch(1);
     
     m_scrollArea->setWidget(scrollContent);
-    mainLayout->addWidget(m_scrollArea);
+    
+    mainLayout->addWidget(stackWrapper);
     
     // Initial container width
     updateContainerWidth();
@@ -202,6 +268,16 @@ void ProjectSection::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
     updateContainerWidth();
+    
+    // Resize background widget to fill the entire section (fixed position)
+    if (m_backgroundWidget) {
+        m_backgroundWidget->setGeometry(0, 0, width(), height());
+    }
+    
+    // Resize scroll area to fill the entire section (on top of background)
+    if (m_scrollArea) {
+        m_scrollArea->setGeometry(0, 0, width(), height());
+    }
 }
 
 void ProjectSection::updateContainerWidth()
