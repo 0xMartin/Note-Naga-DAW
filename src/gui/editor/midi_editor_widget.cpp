@@ -9,8 +9,10 @@
 #include <QScrollBar>
 #include <QMouseEvent>
 #include <QKeyEvent>
+#include <QTimer>
 #include <algorithm>
 #include <cmath>
+#include <climits>
 #include <QApplication>
 #include <QCursor>
 
@@ -122,14 +124,14 @@ void MidiEditorWidget::setupConnections() {
     auto project = engine->getRuntimeData();
 
     connect(project, &NoteNagaRuntimeData::projectFileLoaded, this, [this]() {
-        this->last_seq = engine->getRuntimeData()->getActiveSequence();
-        refreshAll();
+        // Use refreshSequence to also scroll to first note
+        refreshSequence(engine->getRuntimeData()->getActiveSequence());
     });
 
     connect(project, &NoteNagaRuntimeData::activeSequenceChanged, this,
             [this](NoteNagaMidiSeq *seq) {
-                this->last_seq = seq;
-                refreshAll();
+                // Use refreshSequence to also scroll to first note
+                refreshSequence(seq);
             });
 
     connect(project, &NoteNagaRuntimeData::sequenceMetadataChanged, this,
@@ -330,8 +332,15 @@ void MidiEditorWidget::refreshTrack(NoteNagaTrack *track) {
 }
 
 void MidiEditorWidget::refreshSequence(NoteNagaMidiSeq *seq) {
+    bool isNewSequence = (last_seq != seq);
     this->last_seq = seq;
     refreshAll();
+    
+    // Scroll to first note when opening a new sequence
+    // Defer to next event loop iteration so scrollbars are properly set up
+    if (isNewSequence && seq) {
+        QTimer::singleShot(0, this, &MidiEditorWidget::scrollToFirstNote);
+    }
 }
 
 void MidiEditorWidget::currentTickChanged(int tick) {
@@ -1223,6 +1232,51 @@ int MidiEditorWidget::snapTickToGridNearest(int tick) const {
     int grid_step = getGridStepTicks();
     if (grid_step == 0) return tick;
     return static_cast<int>(round(static_cast<double>(tick) / grid_step)) * grid_step;
+}
+
+void MidiEditorWidget::scrollToFirstNote() {
+    if (!last_seq) return;
+    
+    // Find the first note position (earliest start tick and note value)
+    int firstTick = INT_MAX;
+    int firstNote = -1;
+    
+    for (const auto *track : last_seq->getTracks()) {
+        if (!track || !track->isVisible()) continue;
+        
+        for (const auto &note : track->getNotes()) {
+            if (!note.start.has_value()) continue;
+            
+            int startTick = note.start.value();
+            // Primary: find earliest tick, Secondary: prefer lowest note at same tick
+            if (startTick < firstTick || (startTick == firstTick && note.note > firstNote)) {
+                firstTick = startTick;
+                firstNote = note.note;
+            }
+        }
+    }
+    
+    // No notes found, stay at origin
+    if (firstNote < 0 || firstTick == INT_MAX) {
+        return;
+    }
+    
+    // Calculate scroll positions to center on the first note
+    // Y axis: scroll to center the note vertically
+    qreal noteY = noteToSceneY(firstNote);
+    int viewportHeight = viewport()->height();
+    int scrollY = static_cast<int>(noteY - viewportHeight / 2.0 + config.key_height / 2.0);
+    scrollY = qMax(0, qMin(scrollY, verticalScrollBar()->maximum()));
+    
+    // X axis: scroll so the first note is visible near the left side (with some margin)
+    qreal noteX = tickToSceneX(firstTick);
+    int leftMargin = 50; // pixels from left edge
+    int scrollX = static_cast<int>(noteX - leftMargin);
+    scrollX = qMax(0, qMin(scrollX, horizontalScrollBar()->maximum()));
+    
+    // Apply scroll
+    verticalScrollBar()->setValue(scrollY);
+    horizontalScrollBar()->setValue(scrollX);
 }
 
 void MidiEditorWidget::updateLegendVisibility() {

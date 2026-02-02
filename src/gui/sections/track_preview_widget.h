@@ -39,6 +39,9 @@ public:
     // Viewport info for optimized rendering
     void setViewportRect(const QRect &rect);
     
+    // Recalculate canvas size (public for parent widget to call on resize)
+    void recalculateSize();
+    
 protected:
     void paintEvent(QPaintEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
@@ -65,7 +68,6 @@ private:
     
     void updateNoteRange();
     void updateActiveNotes();
-    void recalculateSize();
     QColor getTrackColor(int trackIndex) const;
     QColor getNoteColor(int trackIndex, int midiNote, int velocity) const;
     void drawPianoKeys(QPainter &p, int pianoKeyWidth, int viewTop, int viewBottom);

@@ -98,6 +98,7 @@ void TrackPreviewCanvas::setNoteHeight(int height)
 void TrackPreviewCanvas::updateNoteRange()
 {
     if (!m_sequence) {
+        // Full piano range when no sequence
         m_lowestNote = 21;
         m_highestNote = 108;
         return;
@@ -105,13 +106,22 @@ void TrackPreviewCanvas::updateNoteRange()
     
     int minNote = 127;
     int maxNote = 0;
+    bool hasNotes = false;
     
     for (const auto *track : m_sequence->getTracks()) {
         for (const auto &note : track->getNotes()) {
             int key = note.note;
             minNote = qMin(minNote, key);
             maxNote = qMax(maxNote, key);
+            hasNotes = true;
         }
+    }
+    
+    // If no notes found, use full piano range (A0 to C8)
+    if (!hasNotes) {
+        m_lowestNote = 21;
+        m_highestNote = 108;
+        return;
     }
     
     // Add some padding
@@ -129,8 +139,18 @@ void TrackPreviewCanvas::updateNoteRange()
 void TrackPreviewCanvas::recalculateSize()
 {
     int noteRange = m_highestNote - m_lowestNote + 1;
-    int totalHeight = noteRange * m_noteHeight;
-    setFixedHeight(totalHeight);
+    int contentHeight = noteRange * m_noteHeight;
+    
+    // Ensure canvas fills at least the entire viewport
+    // Get parent scroll area viewport height
+    int viewportHeight = 200; // default fallback
+    if (QScrollArea *scrollArea = qobject_cast<QScrollArea*>(parentWidget()->parentWidget())) {
+        viewportHeight = scrollArea->viewport()->height();
+    }
+    
+    int totalHeight = qMax(contentHeight, viewportHeight);
+    setMinimumHeight(totalHeight);
+    setMaximumHeight(totalHeight);
     
     if (m_sequence) {
         int ppq = m_sequence->getPPQ();
@@ -684,12 +704,18 @@ void TrackPreviewWidget::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
     // Update viewport rect when widget becomes visible
-    QTimer::singleShot(0, this, &TrackPreviewWidget::updateViewportRect);
+    // Also recalculate canvas size to fill viewport
+    QTimer::singleShot(0, this, [this]() {
+        m_canvas->recalculateSize();
+        updateViewportRect();
+    });
 }
 
 void TrackPreviewWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+    // Recalculate canvas size to fill viewport on resize
+    m_canvas->recalculateSize();
     updateViewportRect();
 }
 

@@ -162,6 +162,9 @@ private:
     // --- Setup ---
     void initTitleUI();
     void setupConnections();
+    
+    // --- Navigation ---
+    void scrollToFirstNote();
 
     // --- Scene update ---
     void recalculateContentSize();
