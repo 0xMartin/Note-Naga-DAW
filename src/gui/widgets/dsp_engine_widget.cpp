@@ -146,6 +146,11 @@ void DSPEngineWidget::refreshDSPWidgets() {
     
     if (!engine) return;
     
+    // Sync DSP enabled button state from engine
+    bool dspEnabled = engine->getDSPEngine()->isDSPEnabled();
+    btn_enable->setChecked(!dspEnabled);  // Checked means disabled
+    btn_enable->setIcon(QIcon(dspEnabled ? ":/icons/active.svg" : ":/icons/inactive.svg"));
+    
     // Get current DSP blocks (for master or synth)
     std::vector<NoteNagaDSPBlockBase*> blocks;
     if (current_synth == nullptr) {

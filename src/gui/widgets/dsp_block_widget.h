@@ -22,6 +22,11 @@ public:
 
     NoteNagaDSPBlockBase* block() const { return block_; }
     QSize minimumSizeHint() const override;
+    
+    /**
+     * @brief Sync widget state from block (e.g. after project load)
+     */
+    void syncFromBlock();
 
 protected:
     void resizeEvent(QResizeEvent* event) override;

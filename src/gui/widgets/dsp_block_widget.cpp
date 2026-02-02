@@ -52,6 +52,12 @@ void DSPBlockWidget::onDeactivateClicked() {
 
 void DSPBlockWidget::onDeleteClicked() { emit deleteRequested(this); }
 
+void DSPBlockWidget::syncFromBlock() {
+    if (!block_ || !deactivateBtn_) return;
+    deactivateBtn_->setChecked(!block_->isActive());
+    updateActivationButton();
+}
+
 QSize DSPBlockWidget::minimumSizeHint() const {
     int minWidth = TITLE_BAR_WIDTH + 30;
 
@@ -143,6 +149,8 @@ void DSPBlockWidget::buildLeftBar() {
                                          block_->isActive() ? "Deactivate block" : "Activate block",
                                          "deactivateBtn", 20, leftBar_);
     deactivateBtn_->setCheckable(true);
+    deactivateBtn_->setChecked(!block_->isActive());  // Checked means inactive
+    updateActivationButton();
     connect(deactivateBtn_, &QPushButton::clicked, this, &DSPBlockWidget::onDeactivateClicked);
     addCenteredButton(deactivateBtn_);
 

@@ -42,6 +42,11 @@ bool NoteNagaProjectSerializer::saveProject(const QString &filePath, const NoteN
     // Save DSP blocks
     root["dspBlocks"] = serializeDSPBlocks();
     
+    // Save DSP enabled state
+    if (m_engine->getDSPEngine()) {
+        root["dspEnabled"] = m_engine->getDSPEngine()->isDSPEnabled();
+    }
+    
     // Save routing table
     root["routingTable"] = serializeRoutingTable();
     
@@ -117,6 +122,11 @@ bool NoteNagaProjectSerializer::loadProject(const QString &filePath, NoteNagaPro
     if (!deserializeDSPBlocks(root["dspBlocks"].toArray())) {
         m_lastError = "Failed to load DSP blocks";
         // Continue anyway, DSP is not critical
+    }
+    
+    // Load DSP enabled state
+    if (m_engine->getDSPEngine() && root.contains("dspEnabled")) {
+        m_engine->getDSPEngine()->setEnableDSP(root["dspEnabled"].toBool(true));
     }
     
     // Load routing table
@@ -429,11 +439,11 @@ NoteNagaDSPBlockBase *NoteNagaProjectSerializer::createDSPBlockByName(const QStr
         return nn_create_audio_gain_block();
     } else if (name == "Pan") {
         return nn_create_audio_pan_block();
-    } else if (name == "Single EQ" || name == "Equalizer") {
+    } else if (name == "Single EQ" || name == "Equalizer" || name == "Single Band EQ") {
         return nn_create_single_band_eq_block();
     } else if (name == "Compressor") {
         return nn_create_compressor_block();
-    } else if (name == "Multi EQ") {
+    } else if (name == "Multi EQ" || name == "Multi Band EQ") {
         return nn_create_multi_band_eq_block();
     } else if (name == "Limiter") {
         return nn_create_limiter_block();
