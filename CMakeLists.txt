@@ -149,7 +149,6 @@ set(SOURCE_FILES
     # gui/undo
     src/gui/undo/undo_manager.cpp
     src/gui/undo/midi_note_commands.cpp
-    src/gui/undo/dsp_commands.cpp
     # gui/widgets
     src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp

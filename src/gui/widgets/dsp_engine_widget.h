@@ -21,8 +21,6 @@
 #include "../components/audio_vertical_slider.h"
 #include "../components/vertical_combo_box.h"
 
-class UndoManager;
-
 /**
  * @brief DSPWidget provides a user interface for managing DSP modules in the application.
  * It includes a title bar with buttons for adding, removing, and clearing DSP modules,
@@ -39,11 +37,6 @@ public:
      * @brief Refresh DSP widgets from engine state
      */
     void refresh() { refreshDSPWidgets(); }
-    
-    /**
-     * @brief Get the undo manager for DSP operations
-     */
-    UndoManager *getUndoManager() const { return m_undoManager; }
 
 private:
     NoteNagaEngine * engine;
@@ -58,23 +51,17 @@ private:
     QPushButton *btn_add;
     QPushButton *btn_clear;
     QPushButton *btn_enable;
-    QPushButton *btn_undo;
-    QPushButton *btn_redo;
     
     // Combobox to select synthesizer
     VerticalComboBox *synth_selector;
 
     // Currently selected synth (nullptr for master)
     INoteNagaSoftSynth *current_synth = nullptr;
-    
-    // Undo manager for DSP operations
-    UndoManager *m_undoManager;
 
     void initTitleUI();
     void initUI();
     void refreshDSPWidgets();
     void clearDSPWidgets();
-    void updateUndoRedoButtons();
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
@@ -88,6 +75,4 @@ private slots:
     void onSynthRemoved(NoteNagaSynthesizer *synth);
     void onSynthUpdated(NoteNagaSynthesizer *synth);
     void updateSynthesizerSelector();
-    void onUndo();
-    void onRedo();
 };
