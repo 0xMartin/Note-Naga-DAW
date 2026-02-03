@@ -510,6 +510,9 @@ void MidiEditorSection::onSoloViewToggled(NoteNagaTrack *track, bool enabled)
     NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
     if (!seq) return;
     
+    // Block signals to prevent multiple refreshes
+    seq->blockSignals(true);
+    
     auto tracks = seq->getTracks();
     for (size_t i = 0; i < tracks.size(); ++i) {
         NoteNagaTrack *t = tracks[i];
@@ -524,6 +527,8 @@ void MidiEditorSection::onSoloViewToggled(NoteNagaTrack *track, bool enabled)
         }
     }
     
-    // Refresh the editor to reflect visibility changes
-    m_midiEditor->update();
+    seq->blockSignals(false);
+    
+    // Emit signal to trigger single refresh after all changes
+    emit seq->trackListChanged();
 }

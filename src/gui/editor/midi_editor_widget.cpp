@@ -1132,7 +1132,11 @@ void MidiEditorWidget::drawNote(const NN_Note_t &note, const NoteNagaTrack *trac
     } else {
         shape = scene->addRect(x, y, w, h, outline, QBrush(t_color.toQColor()));
     }
-    shape->setZValue(is_selected ? 999 : track->getId() + 10);
+    // Active track notes get higher z-value (500+) so they're always on top
+    bool is_active = last_seq && last_seq->getActiveTrack() && 
+                     last_seq->getActiveTrack()->getId() == track->getId();
+    qreal baseZ = is_active ? 500 + track->getId() : track->getId() + 10;
+    shape->setZValue(is_selected ? 999 : baseZ);
 
     QGraphicsSimpleTextItem *txt = nullptr;
     if (!is_drum && w > 20 && h > 9 && config.time_scale > 0.04) {
@@ -1156,6 +1160,9 @@ void MidiEditorWidget::clearScene() {
     m_noteHandler->noteItems().clear();
     auto &selectedNotes = const_cast<QList<NoteGraphics*>&>(m_noteHandler->selectedNotes());
     selectedNotes.clear();
+    
+    // Also clear ghost preview items - scene->clear() will delete them
+    m_noteHandler->ghostItems().clear();
     
     // Now safe to clear the scene - all tracking structures are already cleared
     scene->clear();

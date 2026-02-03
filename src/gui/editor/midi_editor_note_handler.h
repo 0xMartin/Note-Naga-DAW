@@ -86,6 +86,7 @@ public:
     // --- Ghost preview ---
     void updateGhostPreview(const QPointF &currentPos);
     void clearGhostPreview();
+    QList<QGraphicsItem*>& ghostItems() { return m_ghostItems; }
     
     // --- Note items management ---
     QMap<int, std::list<NoteGraphics>>& noteItems() { return m_noteItems; }

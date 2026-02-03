@@ -5,6 +5,7 @@
 #include <QGraphicsRectItem>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsScene>
+#include <QTimer>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -29,7 +30,8 @@ void MidiEditorNoteHandler::selectNote(NoteGraphics *noteGraphics, bool clearPre
                 bool is_active_track = seq->getActiveTrack() &&
                                  seq->getActiveTrack()->getId() == ng->track->getId();
                 shapeItem->setPen(m_editor->getNotePen(ng->track, is_active_track, false));
-                shapeItem->setZValue(ng->track->getId() + 10);
+                // Active track notes get higher z-value (500+) so they're always on top
+                shapeItem->setZValue(is_active_track ? 500 + ng->track->getId() : ng->track->getId() + 10);
             }
         }
         m_selectedNotes.clear();
@@ -67,7 +69,8 @@ void MidiEditorNoteHandler::deselectNote(NoteGraphics *noteGraphics) {
         bool is_active_track = seq->getActiveTrack() &&
                          seq->getActiveTrack()->getId() == noteGraphics->track->getId();
         shapeItem->setPen(m_editor->getNotePen(noteGraphics->track, is_active_track, false));
-        shapeItem->setZValue(noteGraphics->track->getId() + 10);
+        // Active track notes get higher z-value (500+) so they're always on top
+        shapeItem->setZValue(is_active_track ? 500 + noteGraphics->track->getId() : noteGraphics->track->getId() + 10);
     }
     
     emit selectionChanged();
@@ -84,7 +87,8 @@ void MidiEditorNoteHandler::clearSelection() {
             bool is_active_track = seq->getActiveTrack() &&
                              seq->getActiveTrack()->getId() == ng->track->getId();
             shapeItem->setPen(m_editor->getNotePen(ng->track, is_active_track, false));
-            shapeItem->setZValue(ng->track->getId() + 10);
+            // Active track notes get higher z-value (500+) so they're always on top
+            shapeItem->setZValue(is_active_track ? 500 + ng->track->getId() : ng->track->getId() + 10);
         }
     }
     m_selectedNotes.clear();
@@ -181,7 +185,8 @@ NoteGraphics* MidiEditorNoteHandler::findNoteUnderCursor(const QPointF &scenePos
     auto *seq = m_editor->getSequence();
     NoteNagaTrack *activeTrack = seq ? seq->getActiveTrack() : nullptr;
     
-    NoteGraphics *fallbackNote = nullptr;  // Note from non-active track
+    NoteGraphics *bestNote = nullptr;
+    qreal bestZValue = -9999;
     
     for (auto &trackPair : m_noteItems) {
         for (auto &ng : trackPair) {
@@ -189,21 +194,18 @@ NoteGraphics* MidiEditorNoteHandler::findNoteUnderCursor(const QPointF &scenePos
             if (shapeItem) {
                 QRectF noteRect = getRealNoteRect(&ng);
                 if (noteRect.contains(scenePos)) {
-                    // If this note is from the active track, return it immediately
-                    if (activeTrack && ng.track == activeTrack) {
-                        return &ng;
-                    }
-                    // Otherwise, save as fallback (first non-active track note found)
-                    if (!fallbackNote) {
-                        fallbackNote = &ng;
+                    // Always prefer note with highest z-value (active track notes have z >= 500)
+                    qreal zValue = shapeItem->zValue();
+                    if (zValue > bestZValue) {
+                        bestZValue = zValue;
+                        bestNote = &ng;
                     }
                 }
             }
         }
     }
     
-    // Return fallback only if no note from active track was found
-    return fallbackNote;
+    return bestNote;
 }
 
 bool MidiEditorNoteHandler::isNoteEdge(NoteGraphics *ng, const QPointF &scenePos) {
@@ -283,6 +285,19 @@ void MidiEditorNoteHandler::addNewNote(const QPointF &scenePos) {
     NoteNagaEngine *engine = m_editor->getEngine();
     if (engine) {
         engine->playSingleNote(newNote);
+        
+        // Stop the note after a short preview duration
+        // Use 500ms or note length in ms, whichever is shorter
+        int ppq = seq->getPPQ();
+        double tempo = m_editor->getEngine()->getRuntimeData()->getTempo();
+        double msPerTick = 60000.0 / (tempo * ppq);
+        int noteDurationMs = static_cast<int>(newNote.length.value_or(ppq) * msPerTick);
+        int previewDuration = std::min(500, noteDurationMs);
+        
+        NN_Note_t noteToStop = newNote;
+        QTimer::singleShot(previewDuration, this, [engine, noteToStop]() {
+            engine->stopSingleNote(noteToStop);
+        });
     }
     
     emit notesModified();
@@ -1113,15 +1128,13 @@ void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
         }
     }
     
+    // Clear ghost preview BEFORE any refresh that could clear the scene
+    // to prevent double-delete of ghost items
     clearGhostPreview();
+    
     m_pasteMode = false;
     emit pasteModeChanged(false);
     
     seq->computeMaxTick();
     emit notesModified();
-    
-    // Refresh all affected tracks
-    for (NoteNagaTrack *track : affectedTracks) {
-        m_editor->refreshTrack(track);
-    }
 }

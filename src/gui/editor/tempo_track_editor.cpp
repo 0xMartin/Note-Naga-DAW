@@ -10,6 +10,14 @@
 #include <QToolTip>
 #include <QScrollBar>
 #include <QCoreApplication>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QSlider>
+#include <QSpinBox>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QLabel>
 #include <cmath>
 
 TempoTrackEditor::TempoTrackEditor(NoteNagaEngine *engine, MidiEditorWidget *midiEditor, QWidget *parent)
@@ -249,9 +257,9 @@ double TempoTrackEditor::bpmFromY(int y) const
     // Clamp Y to valid range
     y = std::max(topPadding, std::min(y, topPadding + drawHeight));
     
-    // Y is inverted: top = MAX_BPM, bottom = MIN_BPM
+    // Y is inverted: top = m_maxBPM, bottom = m_minBPM
     double ratio = 1.0 - (double)(y - topPadding) / drawHeight;
-    return MIN_BPM + ratio * (MAX_BPM - MIN_BPM);
+    return m_minBPM + ratio * (m_maxBPM - m_minBPM);
 }
 
 int TempoTrackEditor::yFromBPM(double bpm) const
@@ -261,10 +269,48 @@ int TempoTrackEditor::yFromBPM(double bpm) const
     int topPadding = 28;
     
     // Clamp BPM
-    bpm = std::max(MIN_BPM, std::min(bpm, MAX_BPM));
+    bpm = std::max(m_minBPM, std::min(bpm, m_maxBPM));
     
-    double ratio = (bpm - MIN_BPM) / (MAX_BPM - MIN_BPM);
+    double ratio = (bpm - m_minBPM) / (m_maxBPM - m_minBPM);
     return topPadding + static_cast<int>((1.0 - ratio) * drawHeight);
+}
+
+double TempoTrackEditor::getBPMAtTick(int tick) const
+{
+    if (!m_tempoTrack) return 120.0;
+    
+    const auto &events = m_tempoTrack->getTempoEvents();
+    if (events.empty()) return 120.0;
+    
+    // Find the tempo event at or before this tick
+    double bpm = events[0].bpm;
+    TempoInterpolation interp = TempoInterpolation::Step;
+    int prevTick = 0;
+    double prevBPM = bpm;
+    
+    for (size_t i = 0; i < events.size(); ++i) {
+        if (events[i].tick <= tick) {
+            prevTick = events[i].tick;
+            prevBPM = events[i].bpm;
+            interp = events[i].interpolation;
+            
+            // Check if there's a next event for interpolation
+            if (i + 1 < events.size() && events[i + 1].tick > tick) {
+                if (interp == TempoInterpolation::Linear) {
+                    // Linear interpolation to next point
+                    int nextTick = events[i + 1].tick;
+                    double nextBPM = events[i + 1].bpm;
+                    double ratio = (double)(tick - prevTick) / (nextTick - prevTick);
+                    return prevBPM + ratio * (nextBPM - prevBPM);
+                }
+            }
+            bpm = prevBPM;
+        } else {
+            break;
+        }
+    }
+    
+    return bpm;
 }
 
 TempoTrackEditor::TempoPoint* TempoTrackEditor::hitTest(const QPoint &pos)
@@ -328,7 +374,7 @@ void TempoTrackEditor::paintEvent(QPaintEvent *)
     int drawHeight = h - 40;
     
     for (int bpm : {300, 200, 120, 60, 20}) {
-        if (bpm < MIN_BPM || bpm > MAX_BPM) continue;
+        if (bpm < m_minBPM || bpm > m_maxBPM) continue;
         int y = yFromBPM(bpm);
         p.drawText(QRect(2, y - 7, m_leftMargin - 6, 15), Qt::AlignRight, QString::number(bpm));
         
@@ -349,14 +395,23 @@ void TempoTrackEditor::paintEvent(QPaintEvent *)
         p.drawLine(playbackX, 0, playbackX, h);
     }
     
-    // Show current hovered value (top-left, same height as "Tempo" label)
+    // Show info label (top-left, same height as "Tempo" label)
     if (m_hoveredPoint) {
+        // Show hovered point info
         QString info = QString("%1 BPM @ tick %2")
             .arg(m_hoveredPoint->bpm, 0, 'f', 1)
             .arg(m_hoveredPoint->tick);
         m_valueLabel->setText(info);
-        m_valueLabel->adjustSize();  // Auto-size to fit content
-        m_valueLabel->move(m_leftMargin + 10, 6);  // Top-left position
+        m_valueLabel->adjustSize();
+        m_valueLabel->move(m_leftMargin + 10, 6);
+        m_valueLabel->setVisible(true);
+    } else {
+        // Show current playback BPM
+        double currentBPM = getBPMAtTick(m_currentTick);
+        QString info = QString("%1 BPM").arg(currentBPM, 0, 'f', 1);
+        m_valueLabel->setText(info);
+        m_valueLabel->adjustSize();
+        m_valueLabel->move(m_leftMargin + 10, 6);
         m_valueLabel->setVisible(true);
     }
 }
@@ -525,7 +580,7 @@ void TempoTrackEditor::mouseMoveEvent(QMouseEvent *event)
         // Update tempo event position
         double newBPM = bpmFromY(event->pos().y());
         newBPM = std::round(newBPM * 10) / 10;  // Round to 0.1 BPM
-        newBPM = std::max(MIN_BPM, std::min(newBPM, MAX_BPM));
+        newBPM = std::max(m_minBPM, std::min(newBPM, m_maxBPM));
         
         // Horizontal movement - tick position
         int newTick = tickFromX(event->pos().x());
@@ -674,6 +729,8 @@ void TempoTrackEditor::contextMenuEvent(QContextMenuEvent *event)
         connect(deleteAction, &QAction::triggered, this, [this]() {
             deleteTempoPoint(m_contextMenuPoint);
         });
+        
+        menu.addSeparator();
     } else if (event->pos().x() > m_leftMargin) {
         // Context menu for empty area - add new point
         int tick = tickFromX(event->pos().x());
@@ -682,11 +739,30 @@ void TempoTrackEditor::contextMenuEvent(QContextMenuEvent *event)
         connect(addAction, &QAction::triggered, this, [this, tick]() {
             showAddTempoDialog(tick);
         });
+        
+        menu.addSeparator();
     }
     
-    if (!menu.isEmpty()) {
-        menu.exec(event->globalPos());
-    }
+    // Global tempo track options (always shown)
+    QMenu *interpMenu = menu.addMenu("Set All Interpolation");
+    QAction *allStepAction = interpMenu->addAction("All Step");
+    connect(allStepAction, &QAction::triggered, this, [this]() {
+        setAllInterpolation(TempoInterpolation::Step);
+    });
+    QAction *allLinearAction = interpMenu->addAction("All Linear");
+    connect(allLinearAction, &QAction::triggered, this, [this]() {
+        setAllInterpolation(TempoInterpolation::Linear);
+    });
+    
+    QAction *rangeAction = menu.addAction(QIcon(":/icons/settings.svg"), "Tempo Range Settings...");
+    connect(rangeAction, &QAction::triggered, this, &TempoTrackEditor::showTempoRangeDialog);
+    
+    menu.addSeparator();
+    
+    QAction *resetAction = menu.addAction(QIcon(":/icons/reload.svg"), "Reset to Default (120 BPM)");
+    connect(resetAction, &QAction::triggered, this, &TempoTrackEditor::resetTempoPoints);
+    
+    menu.exec(event->globalPos());
 }
 
 void TempoTrackEditor::showAddTempoDialog(int tick)
@@ -694,7 +770,7 @@ void TempoTrackEditor::showAddTempoDialog(int tick)
     bool ok;
     double bpm = QInputDialog::getDouble(this, "Add Tempo Point",
                                           QString("BPM at tick %1:").arg(tick),
-                                          120.0, MIN_BPM, MAX_BPM, 1, &ok);
+                                          120.0, m_minBPM, m_maxBPM, 1, &ok);
     
     if (ok) {
         NN_TempoEvent_t event;
@@ -713,7 +789,7 @@ void TempoTrackEditor::showEditTempoDialog(TempoPoint *point)
     bool ok;
     double bpm = QInputDialog::getDouble(this, "Edit Tempo Point",
                                           QString("BPM at tick %1:").arg(point->tick),
-                                          point->bpm, MIN_BPM, MAX_BPM, 1, &ok);
+                                          point->bpm, m_minBPM, m_maxBPM, 1, &ok);
     
     if (ok) {
         auto events = m_tempoTrack->getTempoEvents();
@@ -747,6 +823,124 @@ void TempoTrackEditor::toggleInterpolation(TempoPoint *point)
         events[point->eventIndex].interpolation = 
             (events[point->eventIndex].interpolation == TempoInterpolation::Step) ?
                 TempoInterpolation::Linear : TempoInterpolation::Step;
+        m_tempoTrack->setTempoEvents(events);
+    }
+}
+
+void TempoTrackEditor::showTempoRangeDialog()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle("Tempo Range Settings");
+    dialog.setMinimumWidth(350);
+    
+    auto *layout = new QVBoxLayout(&dialog);
+    
+    // Min BPM row
+    auto *minLayout = new QHBoxLayout();
+    auto *minLabel = new QLabel("Min BPM:", &dialog);
+    auto *minSpinBox = new QSpinBox(&dialog);
+    minSpinBox->setRange(10, 200);
+    minSpinBox->setValue(static_cast<int>(m_minBPM));
+    auto *minSlider = new QSlider(Qt::Horizontal, &dialog);
+    minSlider->setRange(10, 200);
+    minSlider->setValue(static_cast<int>(m_minBPM));
+    
+    connect(minSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), minSlider, &QSlider::setValue);
+    connect(minSlider, &QSlider::valueChanged, minSpinBox, &QSpinBox::setValue);
+    
+    minLayout->addWidget(minLabel);
+    minLayout->addWidget(minSlider, 1);
+    minLayout->addWidget(minSpinBox);
+    layout->addLayout(minLayout);
+    
+    // Max BPM row
+    auto *maxLayout = new QHBoxLayout();
+    auto *maxLabel = new QLabel("Max BPM:", &dialog);
+    auto *maxSpinBox = new QSpinBox(&dialog);
+    maxSpinBox->setRange(60, 500);
+    maxSpinBox->setValue(static_cast<int>(m_maxBPM));
+    auto *maxSlider = new QSlider(Qt::Horizontal, &dialog);
+    maxSlider->setRange(60, 500);
+    maxSlider->setValue(static_cast<int>(m_maxBPM));
+    
+    connect(maxSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), maxSlider, &QSlider::setValue);
+    connect(maxSlider, &QSlider::valueChanged, maxSpinBox, &QSpinBox::setValue);
+    
+    maxLayout->addWidget(maxLabel);
+    maxLayout->addWidget(maxSlider, 1);
+    maxLayout->addWidget(maxSpinBox);
+    layout->addLayout(maxLayout);
+    
+    // Validation: ensure min < max
+    connect(minSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [maxSpinBox](int val) {
+        if (val >= maxSpinBox->value()) {
+            maxSpinBox->setValue(val + 10);
+        }
+    });
+    connect(maxSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [minSpinBox](int val) {
+        if (val <= minSpinBox->value()) {
+            minSpinBox->setValue(val - 10);
+        }
+    });
+    
+    // Buttons
+    auto *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttonBox);
+    
+    if (dialog.exec() == QDialog::Accepted) {
+        m_minBPM = minSpinBox->value();
+        m_maxBPM = maxSpinBox->value();
+        
+        // Clamp existing tempo points to new range
+        if (m_tempoTrack) {
+            auto events = m_tempoTrack->getTempoEvents();
+            bool modified = false;
+            for (auto &ev : events) {
+                if (ev.bpm < m_minBPM) {
+                    ev.bpm = m_minBPM;
+                    modified = true;
+                } else if (ev.bpm > m_maxBPM) {
+                    ev.bpm = m_maxBPM;
+                    modified = true;
+                }
+            }
+            if (modified) {
+                m_tempoTrack->setTempoEvents(events);
+            }
+        }
+        
+        update();
+    }
+}
+
+void TempoTrackEditor::setAllInterpolation(TempoInterpolation interp)
+{
+    if (!m_tempoTrack) return;
+    
+    auto events = m_tempoTrack->getTempoEvents();
+    for (auto &ev : events) {
+        ev.interpolation = interp;
+    }
+    m_tempoTrack->setTempoEvents(events);
+}
+
+void TempoTrackEditor::resetTempoPoints()
+{
+    if (!m_tempoTrack) return;
+    
+    auto reply = QMessageBox::question(this, "Reset Tempo",
+        "Reset all tempo points to default 120 BPM?",
+        QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        std::vector<NN_TempoEvent_t> events;
+        NN_TempoEvent_t defaultEvent;
+        defaultEvent.tick = 0;
+        defaultEvent.bpm = 120.0;
+        defaultEvent.interpolation = TempoInterpolation::Step;
+        events.push_back(defaultEvent);
         m_tempoTrack->setTempoEvents(events);
     }
 }

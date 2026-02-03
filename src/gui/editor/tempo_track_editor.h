@@ -113,9 +113,9 @@ private:
     int m_currentTick;  ///< Current playback position in ticks
     double m_currentDisplayBPM;  ///< Current BPM for realtime display
     
-    // Tempo range
-    static constexpr double MIN_BPM = 20.0;
-    static constexpr double MAX_BPM = 300.0;
+    // Tempo range (configurable)
+    double m_minBPM = 20.0;
+    double m_maxBPM = 300.0;
     
     // Editing state
     bool m_isDragging;
@@ -159,10 +159,14 @@ private:
     int xFromTick(int tick) const;
     double bpmFromY(int y) const;
     int yFromBPM(double bpm) const;
+    double getBPMAtTick(int tick) const;
     
     // Context menu handlers
     void showAddTempoDialog(int tick);
     void showEditTempoDialog(TempoPoint *point);
     void deleteTempoPoint(TempoPoint *point);
     void toggleInterpolation(TempoPoint *point);
+    void showTempoRangeDialog();
+    void setAllInterpolation(TempoInterpolation interpolation);
+    void resetTempoPoints();
 };
