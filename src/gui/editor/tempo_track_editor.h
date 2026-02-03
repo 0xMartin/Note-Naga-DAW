@@ -52,6 +52,11 @@ public:
      */
     void setTimeScale(double scale);
 
+    /**
+     * @brief Update current playback position
+     */
+    void setCurrentTick(int tick);
+
 public slots:
     /**
      * @brief Refresh the tempo display
@@ -104,6 +109,7 @@ private:
     double m_timeScale;
     int m_horizontalScroll;
     int m_leftMargin;
+    int m_currentTick;  ///< Current playback position in ticks
     double m_currentDisplayBPM;  ///< Current BPM for realtime display
     
     // Tempo range

@@ -23,6 +23,7 @@ NotePropertyEditor::NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget 
       m_timeScale(1.0),
       m_horizontalScroll(0),
       m_leftMargin(60),  // Match MidiKeyboardRuler width for alignment
+      m_currentTick(0),
       m_isDragging(false),
       m_hasSelection(false),
       m_isSnapping(false),
@@ -66,6 +67,10 @@ NotePropertyEditor::NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget 
         // Also listen for sequence changes to reconnect
         connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged,
                 this, &NotePropertyEditor::onSequenceChanged);
+        
+        // Connect to playback position changes for red line
+        connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::currentTickChanged,
+                this, &NotePropertyEditor::setCurrentTick);
     }
 }
 
@@ -207,8 +212,16 @@ void NotePropertyEditor::setExpanded(bool expanded)
         if (expanded) {
             setMinimumHeight(80);
             setMaximumHeight(16777215);
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         } else {
-            setFixedHeight(28);
+            setMinimumHeight(28);
+            setMaximumHeight(28);
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        }
+        
+        // Trigger parent layout update for proper collapse
+        if (parentWidget()) {
+            parentWidget()->updateGeometry();
         }
         
         emit expandedChanged(expanded);
@@ -229,6 +242,14 @@ void NotePropertyEditor::setTimeScale(double scale)
     if (m_timeScale != scale) {
         m_timeScale = scale;
         rebuildNoteBars();
+        update();
+    }
+}
+
+void NotePropertyEditor::setCurrentTick(int tick)
+{
+    if (m_currentTick != tick) {
+        m_currentTick = tick;
         update();
     }
 }
@@ -404,6 +425,13 @@ void NotePropertyEditor::paintEvent(QPaintEvent *)
         // Draw small value indicator
         p.setPen(QColor(255, 200, 50));
         p.drawText(QRect(2, snapY - 7, m_leftMargin - 6, 15), Qt::AlignRight, QString::number(m_snapValue));
+    }
+    
+    // Draw playback position indicator (red line)
+    int playbackX = m_leftMargin + static_cast<int>(m_currentTick * m_timeScale) - m_horizontalScroll;
+    if (playbackX >= m_leftMargin && playbackX <= w) {
+        p.setPen(QPen(QColor(192, 74, 74), 2));  // #c04a4a - same as MIDI editor
+        p.drawLine(playbackX, 0, playbackX, h);
     }
     
     // Draw separator line at bottom

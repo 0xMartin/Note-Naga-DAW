@@ -235,11 +235,7 @@ void PlaybackThreadWorker::recalculateTempo() {
     // Calculate and emit current BPM
     double currentBPM = 60'000'000.0 / effectiveTempo;
     NN_QT_EMIT(project->currentTempoChanged(currentBPM));
-
-    NOTE_NAGA_LOG_INFO(
-        "Recalculated tempo: " + std::to_string(currentBPM) +
-        " BPM, PPQ: " + std::to_string(this->project->getPPQ()) +
-        ", ms per tick: " + std::to_string(ms_per_tick));
+    // Log only on significant changes (tempo log spam removed)
 }
 
 void PlaybackThreadWorker::enableLooping(bool enabled) { this->looping = enabled; }

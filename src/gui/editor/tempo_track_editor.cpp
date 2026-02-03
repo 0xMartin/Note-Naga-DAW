@@ -20,6 +20,7 @@ TempoTrackEditor::TempoTrackEditor(NoteNagaEngine *engine, MidiEditorWidget *mid
       m_timeScale(1.0),
       m_horizontalScroll(0),
       m_leftMargin(60),
+      m_currentTick(0),
       m_currentDisplayBPM(120.0),
       m_isDragging(false),
       m_draggedEventIndex(-1),
@@ -51,6 +52,8 @@ TempoTrackEditor::TempoTrackEditor(NoteNagaEngine *engine, MidiEditorWidget *mid
     if (m_engine && m_engine->getRuntimeData()) {
         connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::currentTempoChanged,
                 this, &TempoTrackEditor::onCurrentTempoChanged);
+        connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::currentTickChanged,
+                this, &TempoTrackEditor::setCurrentTick);
     }
 }
 
@@ -73,10 +76,15 @@ void TempoTrackEditor::setupUI()
             font-size: 10px;
             font-weight: bold;
             padding: 0;
+            min-width: 20px;
+            max-width: 20px;
+            min-height: 20px;
+            max-height: 20px;
         }
         QPushButton:hover { 
             background: #353945; 
             color: #e0e6ef;
+            border-color: #4a5160;
         }
         QPushButton:pressed { background: #404550; }
     )");
@@ -126,8 +134,16 @@ void TempoTrackEditor::setExpanded(bool expanded)
         if (expanded) {
             setMinimumHeight(100);
             setMaximumHeight(16777215);
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         } else {
-            setFixedHeight(28);
+            setMinimumHeight(28);
+            setMaximumHeight(28);
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        }
+        
+        // Trigger parent layout update for proper collapse
+        if (parentWidget()) {
+            parentWidget()->updateGeometry();
         }
         
         emit expandedChanged(expanded);
@@ -149,6 +165,14 @@ void TempoTrackEditor::setTimeScale(double scale)
     if (m_timeScale != scale) {
         m_timeScale = scale;
         rebuildTempoPoints();
+        update();
+    }
+}
+
+void TempoTrackEditor::setCurrentTick(int tick)
+{
+    if (m_currentTick != tick) {
+        m_currentTick = tick;
         update();
     }
 }
@@ -309,6 +333,13 @@ void TempoTrackEditor::paintEvent(QPaintEvent *)
     p.setPen(QPen(QColor(0x23, 0x27, 0x31), 1));
     p.drawLine(0, h - 1, w, h - 1);
     
+    // Draw playback position indicator (red line)
+    int playbackX = m_leftMargin + static_cast<int>(m_currentTick * m_timeScale) - m_horizontalScroll;
+    if (playbackX >= m_leftMargin && playbackX <= w) {
+        p.setPen(QPen(QColor(192, 74, 74), 2));  // #c04a4a - same as MIDI editor
+        p.drawLine(playbackX, 0, playbackX, h);
+    }
+    
     // Show current hovered value
     if (m_hoveredPoint) {
         QString info = QString("%1 BPM @ tick %2")
@@ -462,13 +493,26 @@ void TempoTrackEditor::mouseMoveEvent(QMouseEvent *event)
         newBPM = std::round(newBPM * 10) / 10;  // Round to 0.1 BPM
         newBPM = std::max(MIN_BPM, std::min(newBPM, MAX_BPM));
         
-        // Optionally allow horizontal movement (change tick)
+        // Horizontal movement - tick position
         int newTick = tickFromX(event->pos().x());
         newTick = std::max(0, newTick);
         
-        // Snap to grid (quantize to beat)
+        // Smart snapping: only snap if close to grid line
+        // Use smaller grid (16th notes = PPQ/4) for finer control
         int ppq = 480;
-        newTick = (newTick / ppq) * ppq;
+        if (m_midiEditor) {
+            auto *seq = m_midiEditor->getSequence();
+            if (seq) ppq = seq->getPPQ();
+        }
+        
+        // Snap to 16th notes (ppq/4) if within snap threshold (8 pixels)
+        int gridStep = ppq / 4;  // 16th note grid
+        int nearestGrid = ((newTick + gridStep/2) / gridStep) * gridStep;
+        int snapThresholdTicks = static_cast<int>(8.0 / m_timeScale);  // ~8 pixels worth of ticks
+        
+        if (std::abs(newTick - nearestGrid) < snapThresholdTicks) {
+            newTick = nearestGrid;
+        }
         
         // Update the event
         auto events = m_tempoTrack->getTempoEvents();

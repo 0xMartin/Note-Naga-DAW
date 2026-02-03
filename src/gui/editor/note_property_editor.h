@@ -62,6 +62,11 @@ public:
      */
     void setTimeScale(double scale);
 
+    /**
+     * @brief Update current playback position
+     */
+    void setCurrentTick(int tick);
+
 public slots:
     /**
      * @brief Called when selection changes in MIDI editor
@@ -134,6 +139,7 @@ private:
     double m_timeScale;
     int m_horizontalScroll;
     int m_leftMargin;  // Space for property selector buttons
+    int m_currentTick;  // Current playback position in ticks
     
     // Editing state
     bool m_isDragging;

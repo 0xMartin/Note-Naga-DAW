@@ -75,6 +75,7 @@ private:
     
     // Splitter for MIDI editor / Note property editor
     QSplitter *m_editorSplitter;
+    QWidget *m_propertyEditorContainer;
     bool m_layoutInitialized = false;
     
     void setupDockLayout();

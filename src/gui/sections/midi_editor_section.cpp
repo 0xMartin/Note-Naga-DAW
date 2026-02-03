@@ -91,13 +91,29 @@ void MidiEditorSection::setupDockLayout()
     m_tempoTrackEditor->hide();  // Hidden by default
     
     // Container for property editors (stacked-like behavior using visibility)
-    QWidget *propertyEditorContainer = new QWidget(this);
-    propertyEditorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
-    QVBoxLayout *propertyLayout = new QVBoxLayout(propertyEditorContainer);
+    m_propertyEditorContainer = new QWidget(this);
+    m_propertyEditorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    QVBoxLayout *propertyLayout = new QVBoxLayout(m_propertyEditorContainer);
     propertyLayout->setContentsMargins(0, 0, 0, 0);
     propertyLayout->setSpacing(0);
     propertyLayout->addWidget(m_notePropertyEditor);
     propertyLayout->addWidget(m_tempoTrackEditor);
+    
+    // Connect expandedChanged signals to update splitter sizes
+    connect(m_notePropertyEditor, &NotePropertyEditor::expandedChanged, this, [this](bool expanded) {
+        if (!expanded) {
+            // When collapsed, adjust splitter to give minimal space to container
+            int totalHeight = m_editorSplitter->height();
+            m_editorSplitter->setSizes({totalHeight - 32, 32});
+        }
+    });
+    connect(m_tempoTrackEditor, &TempoTrackEditor::expandedChanged, this, [this](bool expanded) {
+        if (!expanded) {
+            // When collapsed, adjust splitter to give minimal space to container
+            int totalHeight = m_editorSplitter->height();
+            m_editorSplitter->setSizes({totalHeight - 32, 32});
+        }
+    });
     
     // Splitter between MIDI editor and Property Editor
     m_editorSplitter = new QSplitter(Qt::Vertical);
@@ -113,7 +129,7 @@ void MidiEditorSection::setupDockLayout()
     )");
     
     m_editorSplitter->addWidget(editorMain);
-    m_editorSplitter->addWidget(propertyEditorContainer);
+    m_editorSplitter->addWidget(m_propertyEditorContainer);
     
     // Set initial sizes (80% for editor, 20% for note property)
     m_editorSplitter->setSizes({600, 150});

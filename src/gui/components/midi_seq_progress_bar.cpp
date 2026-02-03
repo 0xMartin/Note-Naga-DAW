@@ -36,18 +36,27 @@ MidiSequenceProgressBar::MidiSequenceProgressBar(QWidget *parent)
 void MidiSequenceProgressBar::setMidiSequence(NoteNagaMidiSeq *seq) {
     this->midi_seq = seq;
     if (!this->midi_seq) return;
-    double us_per_tick =
-        double(this->midi_seq->getTempo()) / double(this->midi_seq->getPPQ());
+    // Use initial/base tempo for total time calculation (not dynamic tempo)
+    // This ensures waveform stability during playback with tempo changes
+    double base_tempo_us = double(this->midi_seq->getTempo());  // Base tempo in microseconds per quarter
+    double us_per_tick = base_tempo_us / double(this->midi_seq->getPPQ());
     this->total_time = midi_seq->getMaxTick() * us_per_tick / 1'000'000.0;
     refreshWaveform();
     update();
 }
 
 void MidiSequenceProgressBar::updateMaxTime() {
-    double us_per_tick =
-        double(this->midi_seq->getTempo()) / double(this->midi_seq->getPPQ());
-    this->total_time = midi_seq->getMaxTick() * us_per_tick / 1'000'000.0;
-    refreshWaveform();
+    if (!midi_seq) return;
+    // Use same base tempo calculation - don't recalculate waveform on every update
+    double base_tempo_us = double(this->midi_seq->getTempo());
+    double us_per_tick = base_tempo_us / double(this->midi_seq->getPPQ());
+    double new_total_time = midi_seq->getMaxTick() * us_per_tick / 1'000'000.0;
+    
+    // Only refresh waveform if total time changed significantly (sequence modified)
+    if (std::abs(new_total_time - this->total_time) > 0.1) {
+        this->total_time = new_total_time;
+        refreshWaveform();
+    }
     update();
 }
 
@@ -237,7 +246,7 @@ void MidiSequenceProgressBar::refreshWaveform() {
     std::vector<NoteNagaTrack *> tracks = midi_seq->getTracks();
     std::vector<const NN_Note_t *> notes;
     for (auto *t : tracks) {
-        if (!t->isVisible() || t->isMuted()) continue;
+        if (!t->isVisible() || t->isMuted() || t->isTempoTrack()) continue;
         for (const auto &n : t->getNotes()) {
             notes.push_back(&n);
         }
@@ -247,16 +256,17 @@ void MidiSequenceProgressBar::refreshWaveform() {
     std::vector<float> buckets(N, 0.0f);
 
     int ppq = midi_seq->getPPQ();
-    int tempo = midi_seq->getTempo();
+    // Use base/initial tempo for consistent waveform (not affected by tempo changes)
+    int base_tempo = midi_seq->getTempo();  // Microseconds per quarter note
+    float bpm = 60000000.0f / base_tempo;   // Convert to BPM
     float scale = 1.0f / 127.0f;
 
     for (const NN_Note_t *note : notes) {
         if (!note->start.has_value()) continue;
-        float start_sec =
-            float(note->start.value()) / ppq * (60.0f / (60000000.0f / tempo));
-        float dur_sec =
-            note->length.has_value()
-                ? (float(note->length.value()) / ppq * (60.0f / (60000000.0f / tempo)))
+        // Calculate time in seconds using base tempo
+        float start_sec = float(note->start.value()) / ppq * (60.0f / bpm);
+        float dur_sec = note->length.has_value()
+                ? (float(note->length.value()) / ppq * (60.0f / bpm))
                 : 0.1f;
         float velocity =
             note->velocity.has_value() ? float(note->velocity.value()) : 90.f;
@@ -280,5 +290,5 @@ void MidiSequenceProgressBar::refreshWaveform() {
     for (int i = 0; i < N; ++i) {
         waveform[i] = std::clamp(buckets[i] / norm_value, 0.f, 1.f);
         waveform[i] = std::pow(waveform[i], 0.7f);
-}
+    }
 }

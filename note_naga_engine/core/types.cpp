@@ -292,8 +292,14 @@ double NoteNagaTrack::getTempoAtTick(int tick) const {
       prevEvent = &tempo_events[i];
       if (i + 1 < tempo_events.size()) {
         nextEvent = &tempo_events[i + 1];
+      } else {
+        nextEvent = nullptr;
       }
     } else {
+      if (!prevEvent) {
+        // tick is before first event - use that next event info
+        nextEvent = &tempo_events[i];
+      }
       break;
     }
   }
@@ -304,13 +310,12 @@ double NoteNagaTrack::getTempoAtTick(int tick) const {
   }
   
   // Check interpolation mode
-  if (prevEvent->interpolation == TempoInterpolation::Linear && nextEvent) {
+  if (prevEvent->interpolation == TempoInterpolation::Linear && nextEvent && nextEvent->tick > prevEvent->tick) {
     // Linear interpolation between prevEvent and nextEvent
     int tickRange = nextEvent->tick - prevEvent->tick;
-    if (tickRange > 0) {
-      double t = static_cast<double>(tick - prevEvent->tick) / tickRange;
-      return prevEvent->bpm + t * (nextEvent->bpm - prevEvent->bpm);
-    }
+    double t = static_cast<double>(tick - prevEvent->tick) / tickRange;
+    t = std::clamp(t, 0.0, 1.0);
+    return prevEvent->bpm + t * (nextEvent->bpm - prevEvent->bpm);
   }
   
   // Step interpolation or no next event
