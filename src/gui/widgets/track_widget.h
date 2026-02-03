@@ -60,7 +60,13 @@ private:
     QPushButton *invisible_btn;
     QPushButton *solo_btn;
     QPushButton *mute_btn;
+    QPushButton *tempo_active_btn;  ///< Toggle for tempo track activation
     VolumeBar *volume_bar;
+    
+    // For tempo track special layout
+    QWidget *m_normalContent;  ///< Container for normal track controls
+    QWidget *m_tempoContent;   ///< Container for tempo track controls
+    bool m_isTempoTrackLayout; ///< Track if currently showing tempo layout
 
 /*******************************************************************************************************/
 // Signal and Slots
@@ -85,8 +91,13 @@ private slots:
     void onToggleVisibility();
     void onToggleSolo();
     void onToggleMute();
+    void onToggleTempoActive();
     void onNameEdited();
     void onNameTextChanged(const QString &text);
     void colorSelect();
     void instrumentSelect();
+    
+private:
+    void setupTempoTrackLayout();
+    void setupNormalTrackLayout();
 };

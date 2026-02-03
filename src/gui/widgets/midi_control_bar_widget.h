@@ -86,6 +86,8 @@ private:
     int tempo;
     int max_tick;
     bool was_playing;
+    double m_currentDisplayBPM;  ///< Current BPM for display (realtime during playback)
+    bool m_isPlaying;            ///< Track playing state for tempo display
 
     QLabel* tempo_label;
     QLabel* tempo_icon;
@@ -95,6 +97,7 @@ private:
 
     void initUI();
     void editTempo(QMouseEvent* event);
+    void updateCurrentTempo(double bpm);
     static QString format_time(double sec);
 
 /*******************************************************************************************************/

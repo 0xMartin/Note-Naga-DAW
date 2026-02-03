@@ -8,7 +8,7 @@
 #include <cmath>
 
 MidiControlBarWidget::MidiControlBarWidget(NoteNagaEngine *engine_, QWidget *parent)
-    : QFrame(parent), engine(engine_) {
+    : QFrame(parent), engine(engine_), m_currentDisplayBPM(120.0), m_isPlaying(false) {
 
     this->ppq = 0;
     this->tempo = 0;
@@ -40,11 +40,21 @@ MidiControlBarWidget::MidiControlBarWidget(NoteNagaEngine *engine_, QWidget *par
     // current tick changed signal
     connect(this->engine->getRuntimeData(), &NoteNagaRuntimeData::currentTickChanged, this,
             [this]() { this->updateProgressBar(); });
+    // Current tempo changed signal (for dynamic tempo display)
+    connect(this->engine->getRuntimeData(), &NoteNagaRuntimeData::currentTempoChanged, this,
+            [this](double bpm) { this->updateCurrentTempo(bpm); });
     // Playback worker start/stop signals
     connect(this->engine, &NoteNagaEngine::playbackStarted, this,
-            [this]() { this->setPlaying(true); });
+            [this]() { 
+                this->setPlaying(true);
+                this->m_isPlaying = true;
+            });
     connect(this->engine, &NoteNagaEngine::playbackStopped, this,
-            [this]() { this->setPlaying(false); });
+            [this]() { 
+                this->setPlaying(false);
+                this->m_isPlaying = false;
+                this->updateBPM();  // Reset to fixed tempo display when stopped
+            });
 }
 
 void MidiControlBarWidget::initUI() {
@@ -166,11 +176,59 @@ void MidiControlBarWidget::initUI() {
     )");
 }
 
+void MidiControlBarWidget::updateCurrentTempo(double bpm) {
+    // Called during playback when tempo changes (for dynamic tempo display)
+    if (!m_isPlaying) return;
+    
+    m_currentDisplayBPM = bpm;
+    
+    NoteNagaMidiSeq *seq = this->engine->getRuntimeData()->getActiveSequence();
+    bool hasTempoTrack = seq && seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive();
+    
+    if (hasTempoTrack) {
+        tempo_label->setText(QString("♪ %1 BPM").arg(bpm, 0, 'f', 1));
+    } else {
+        tempo_label->setText(QString("%1 BPM").arg(bpm, 0, 'f', 1));
+    }
+}
+
 void MidiControlBarWidget::updateBPM() {
     NoteNagaRuntimeData *project = this->engine->getRuntimeData();
-    // update bmp label
-    double bpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 0.0;
-    tempo_label->setText(QString("%1 BPM").arg(bpm, 0, 'f', 2));
+    NoteNagaMidiSeq *seq = project->getActiveSequence();
+    
+    // Check if we have an active tempo track
+    bool hasActiveTempoTrack = seq && seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive();
+    
+    // Get current BPM - either from tempo track at current position or fixed tempo
+    double bpm;
+    if (hasActiveTempoTrack && m_isPlaying) {
+        // During playback with tempo track, use the last received tempo
+        bpm = m_currentDisplayBPM;
+    } else if (hasActiveTempoTrack) {
+        // Not playing but tempo track active - show tempo at current tick
+        bpm = seq->getEffectiveBPMAtTick(project->getCurrentTick());
+    } else {
+        // Fixed tempo
+        bpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 120.0;
+    }
+    
+    m_currentDisplayBPM = bpm;
+    
+    // Update label with tempo track indicator
+    if (hasActiveTempoTrack) {
+        tempo_label->setText(QString("♪ %1 BPM").arg(bpm, 0, 'f', 1));
+        tempo_label->setToolTip("Tempo Track Active - Dynamic tempo control enabled");
+        tempo_label->setCursor(Qt::ArrowCursor);  // Can't edit when tempo track active
+    } else if (seq && seq->hasTempoTrack()) {
+        // Has tempo track but inactive - show fixed tempo
+        tempo_label->setText(QString("%1 BPM").arg(bpm, 0, 'f', 1));
+        tempo_label->setToolTip("Tempo Track Inactive - Click to change fixed tempo");
+        tempo_label->setCursor(Qt::PointingHandCursor);
+    } else {
+        tempo_label->setText(QString("%1 BPM").arg(bpm, 0, 'f', 1));
+        tempo_label->setToolTip("Click to change tempo");
+        tempo_label->setCursor(Qt::PointingHandCursor);
+    }
 
     // update progress bar total time
     progress_bar->updateMaxTime();
@@ -200,12 +258,27 @@ void MidiControlBarWidget::editTempo(QMouseEvent *event) {
     NoteNagaMidiSeq *seq = this->engine->getRuntimeData()->getActiveSequence();
     if (!seq) return;
 
+    // Don't allow editing if tempo track is active
+    if (seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive()) {
+        return;  // Tempo track controls tempo, no dialog
+    }
+
     double cur_bpm = seq->getTempo() ? (60'000'000.0 / double(seq->getTempo())) : 120.0;
+    
+    QString dialogTitle = "Change Tempo";
+    QString dialogLabel = "New Tempo (BPM):";
+    if (seq->hasTempoTrack()) {
+        // Has tempo track but it's inactive
+        dialogTitle = "Change Fixed Tempo";
+        dialogLabel = "Fixed Tempo (BPM) - Tempo track is inactive:";
+    }
+    
     bool ok = false;
-    double bpm = QInputDialog::getDouble(this, "Change Tempo",
-                                         "New Tempo (BPM):", cur_bpm, 5, 500, 2, &ok);
+    double bpm = QInputDialog::getDouble(this, dialogTitle,
+                                         dialogLabel, cur_bpm, 5, 500, 2, &ok);
     if (ok) {
         seq->setTempo(60'000'000.0 / bpm);
+        updateBPM();
         updateProgressBar();
         engine->changeTempo(seq->getTempo());
         emit tempoChanged(seq->getTempo());

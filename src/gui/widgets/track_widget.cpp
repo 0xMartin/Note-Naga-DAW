@@ -9,7 +9,8 @@
 #include "../dialogs/instrument_selector_dialog.h"
 
 TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget *parent)
-    : QFrame(parent), engine(engine_), track(track_)
+    : QFrame(parent), engine(engine_), track(track_), m_isTempoTrackLayout(false),
+      m_normalContent(nullptr), m_tempoContent(nullptr), tempo_active_btn(nullptr)
 {
     connect(track, &NoteNagaTrack::metadataChanged, this, &TrackWidget::updateTrackInfo);
     setObjectName("TrackWidget");
@@ -26,12 +27,12 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     connect(instrument_btn, &QPushButton::clicked, this, &TrackWidget::instrumentSelect);
     main_hbox->addWidget(instrument_btn, 0, Qt::AlignVCenter);
 
-    QFrame *right_frame = new QFrame();
-    right_frame->setObjectName("TrackWidgetContent");
-    QVBoxLayout *right_layout = new QVBoxLayout(right_frame);
+    // Normal track content
+    m_normalContent = new QWidget();
+    QVBoxLayout *right_layout = new QVBoxLayout(m_normalContent);
     right_layout->setContentsMargins(0, 0, 0, 0);
     right_layout->setSpacing(3);
-    main_hbox->addWidget(right_frame, 1);
+    main_hbox->addWidget(m_normalContent, 1);
 
     QFrame *header = new QFrame();
     header->setObjectName("TrackWidgetHeader");
@@ -89,6 +90,49 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     volume_bar->setRange(0, 127);
     volume_bar->setObjectName("VolumeBar");
     right_layout->addWidget(volume_bar);
+    
+    // Tempo track special content (initially hidden)
+    m_tempoContent = new QWidget();
+    m_tempoContent->setVisible(false);
+    QHBoxLayout *tempo_layout = new QHBoxLayout(m_tempoContent);
+    tempo_layout->setContentsMargins(4, 4, 4, 4);
+    tempo_layout->setSpacing(8);
+    
+    QLabel *tempo_label = new QLabel("Tempo Track");
+    tempo_label->setStyleSheet("color: #ff8c3c; font-weight: bold; font-size: 13px;");
+    tempo_layout->addWidget(tempo_label, 1);
+    
+    tempo_active_btn = new QPushButton("Active");
+    tempo_active_btn->setObjectName("TempoActiveBtn");
+    tempo_active_btn->setCheckable(true);
+    tempo_active_btn->setChecked(true);
+    tempo_active_btn->setToolTip("Toggle tempo track - when inactive, fixed BPM is used");
+    tempo_active_btn->setStyleSheet(R"(
+        QPushButton#TempoActiveBtn {
+            background: #304060;
+            border: 1px solid #3477c0;
+            border-radius: 4px;
+            color: #8ab4d8;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 4px 12px;
+        }
+        QPushButton#TempoActiveBtn:hover {
+            background: #3a5070;
+        }
+        QPushButton#TempoActiveBtn:checked {
+            background: #2a6030;
+            border-color: #40a050;
+            color: #90d090;
+        }
+        QPushButton#TempoActiveBtn:checked:hover {
+            background: #306838;
+        }
+    )");
+    connect(tempo_active_btn, &QPushButton::clicked, this, &TrackWidget::onToggleTempoActive);
+    tempo_layout->addWidget(tempo_active_btn, 0);
+    
+    main_hbox->addWidget(m_tempoContent, 1);
 
     setLayout(main_hbox);
     updateTrackInfo(this->track, "");
@@ -99,6 +143,30 @@ void TrackWidget::updateTrackInfo(NoteNagaTrack* track, const std::string &param
 {
     if (this->track != track)
         return;
+
+    // Handle tempo track specially - switch to simplified layout
+    bool isTempoTrack = track->isTempoTrack();
+    if (isTempoTrack != m_isTempoTrackLayout) {
+        m_isTempoTrackLayout = isTempoTrack;
+        m_normalContent->setVisible(!isTempoTrack);
+        m_tempoContent->setVisible(isTempoTrack);
+    }
+    
+    if (isTempoTrack) {
+        instrument_btn->setIcon(QIcon(":/icons/tempo.svg"));
+        instrument_btn->setToolTip("Tempo Track - Controls dynamic tempo changes");
+        instrument_btn->setEnabled(false);
+        
+        // Update tempo active button state
+        if (tempo_active_btn) {
+            tempo_active_btn->setChecked(track->isTempoTrackActive());
+            tempo_active_btn->setText(track->isTempoTrackActive() ? "Active" : "Inactive");
+        }
+        return;
+    }
+    
+    // Normal track handling below
+    instrument_btn->setEnabled(true);
 
     // Block signals to prevent triggering onNameTextChanged
     name_edit->blockSignals(true);
@@ -147,6 +215,15 @@ void TrackWidget::onToggleSolo()
 void TrackWidget::onToggleMute()
 {
     engine->muteTrack(track, mute_btn->isChecked());
+}
+
+void TrackWidget::onToggleTempoActive()
+{
+    if (!track->isTempoTrack() || !tempo_active_btn) return;
+    
+    bool active = tempo_active_btn->isChecked();
+    track->setTempoTrackActive(active);
+    tempo_active_btn->setText(active ? "Active" : "Inactive");
 }
 
 void TrackWidget::colorSelect()

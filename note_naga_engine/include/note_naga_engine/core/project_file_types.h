@@ -110,6 +110,25 @@ struct NOTE_NAGA_ENGINE_API NoteConfig {
 };
 
 /*******************************************************************************************************/
+// Tempo Event Configuration
+/*******************************************************************************************************/
+
+/**
+ * @brief Tempo event configuration for serialization.
+ */
+struct NOTE_NAGA_ENGINE_API TempoEventConfig {
+    int tick;           ///< Tick position
+    double bpm;         ///< Tempo in BPM
+    int interpolation;  ///< 0 = Step, 1 = Linear
+    
+    TempoEventConfig()
+        : tick(0), bpm(120.0), interpolation(0) {}
+    
+    TempoEventConfig(int t, double b, int i = 0)
+        : tick(t), bpm(b), interpolation(i) {}
+};
+
+/*******************************************************************************************************/
 // Track Configuration
 /*******************************************************************************************************/
 
@@ -126,12 +145,15 @@ struct NOTE_NAGA_ENGINE_API TrackConfig {
     bool muted;
     bool solo;
     float volume;
-    std::vector<NoteConfig> notes;   ///< Notes in this track
+    bool isTempoTrack;                        ///< True if this is a tempo track
+    std::vector<NoteConfig> notes;            ///< Notes in this track
+    std::vector<TempoEventConfig> tempoEvents; ///< Tempo events (only for tempo tracks)
     
     TrackConfig()
         : id(0), name("Track"), instrument(0), channel(0),
           colorR(0x50), colorG(0x80), colorB(0xc0),
-          visible(true), muted(false), solo(false), volume(1.0f) {}
+          visible(true), muted(false), solo(false), volume(1.0f),
+          isTempoTrack(false) {}
 };
 
 /*******************************************************************************************************/

@@ -210,6 +210,49 @@ struct NOTE_NAGA_ENGINE_API NN_Note_t {
 NOTE_NAGA_ENGINE_API double note_time_ms(const NN_Note_t &note, int ppq, int tempo);
 
 /*******************************************************************************************************/
+// Note Naga Tempo Event
+/*******************************************************************************************************/
+
+/**
+ * @brief Interpolation mode for tempo changes.
+ */
+enum class TempoInterpolation {
+    Step,   ///< Instant tempo change (step function)
+    Linear  ///< Linear interpolation to next tempo point
+};
+
+/**
+ * @brief Structure representing a tempo change event at a specific tick.
+ */
+struct NOTE_NAGA_ENGINE_API NN_TempoEvent_t {
+    int tick;                            ///< Tick position of the tempo event
+    double bpm;                          ///< Tempo in beats per minute (20-300)
+    TempoInterpolation interpolation;    ///< How to transition to next tempo point
+
+    /**
+     * @brief Default constructor. 120 BPM at tick 0 with step interpolation.
+     */
+    NN_TempoEvent_t()
+        : tick(0), bpm(120.0), interpolation(TempoInterpolation::Step) {}
+
+    /**
+     * @brief Parameterized constructor.
+     * @param tick_ Tick position.
+     * @param bpm_ Tempo in BPM.
+     * @param interp_ Interpolation mode.
+     */
+    NN_TempoEvent_t(int tick_, double bpm_, TempoInterpolation interp_ = TempoInterpolation::Step)
+        : tick(tick_), bpm(bpm_), interpolation(interp_) {}
+    
+    /**
+     * @brief Comparison operator for sorting by tick.
+     */
+    bool operator<(const NN_TempoEvent_t &other) const {
+        return tick < other.tick;
+    }
+};
+
+/*******************************************************************************************************/
 // Note Naga Track
 /*******************************************************************************************************/
 
@@ -411,6 +454,77 @@ protected:
     float volume;                      ///< Track volume (0.0 - 1.0)
     std::vector<NN_Note_t> midi_notes; ///< MIDI notes in this track
     NoteNagaMidiSeq *parent;           ///< Pointer to parent MIDI sequence
+    
+    // Tempo track support
+    bool is_tempo_track;                         ///< True if this is a tempo track
+    bool tempo_track_active;                     ///< True if tempo track is active (overrides fixed BPM)
+    std::vector<NN_TempoEvent_t> tempo_events;   ///< Tempo events (only used if is_tempo_track)
+
+public:
+    // TEMPO TRACK METHODS
+    // ///////////////////////////////////////////////////////////////////////////////
+    
+    /**
+     * @brief Returns whether this track is a tempo track.
+     * @return True if tempo track.
+     */
+    bool isTempoTrack() const { return is_tempo_track; }
+    
+    /**
+     * @brief Returns whether tempo track is active (overrides fixed BPM).
+     * @return True if tempo track is active.
+     */
+    bool isTempoTrackActive() const { return is_tempo_track && tempo_track_active; }
+    
+    /**
+     * @brief Sets whether tempo track is active.
+     * @param active True to activate tempo track.
+     */
+    void setTempoTrackActive(bool active);
+    
+    /**
+     * @brief Sets whether this track is a tempo track.
+     * @param is_tempo True to make this a tempo track.
+     */
+    void setTempoTrack(bool is_tempo);
+    
+    /**
+     * @brief Gets the tempo events for this track.
+     * @return Vector of tempo events.
+     */
+    const std::vector<NN_TempoEvent_t>& getTempoEvents() const { return tempo_events; }
+    
+    /**
+     * @brief Sets the tempo events for this track.
+     * @param events Vector of tempo events.
+     */
+    void setTempoEvents(const std::vector<NN_TempoEvent_t>& events);
+    
+    /**
+     * @brief Adds a tempo event to this track.
+     * @param event Tempo event to add.
+     */
+    void addTempoEvent(const NN_TempoEvent_t& event);
+    
+    /**
+     * @brief Removes a tempo event at the specified tick.
+     * @param tick Tick position of the event to remove.
+     * @return True if event was removed.
+     */
+    bool removeTempoEventAtTick(int tick);
+    
+    /**
+     * @brief Gets the BPM at a specific tick, with interpolation if applicable.
+     * @param tick The tick position.
+     * @return BPM at that tick.
+     */
+    double getTempoAtTick(int tick) const;
+    
+    /**
+     * @brief Clears all tempo events and adds a single event at tick 0.
+     * @param bpm Initial tempo in BPM.
+     */
+    void resetTempoEvents(double bpm = 120.0);
 
     // SIGNALS
     // ////////////////////////////////////////////////////////////////////////////////
@@ -424,6 +538,12 @@ Q_SIGNALS:
      * @param param Name of the changed parameter.
      */
     void metadataChanged(NoteNagaTrack *track, const std::string &param);
+    
+    /**
+     * @brief Signal emitted when tempo events change.
+     * @param track Pointer to the track.
+     */
+    void tempoEventsChanged(NoteNagaTrack *track);
 #endif
 };
 
@@ -625,6 +745,72 @@ public:
      * @param track Pointer to the soloed track.
      */
     void setSoloTrack(NoteNagaTrack *track);
+    
+    // TEMPO TRACK METHODS
+    // ///////////////////////////////////////////////////////////////////////////////
+    
+    /**
+     * @brief Checks if the sequence has a tempo track.
+     * @return True if a tempo track exists.
+     */
+    bool hasTempoTrack() const;
+    
+    /**
+     * @brief Gets the tempo track if it exists.
+     * @return Pointer to the tempo track, or nullptr if none.
+     */
+    NoteNagaTrack* getTempoTrack() const;
+    
+    /**
+     * @brief Creates a new tempo track with the current fixed tempo.
+     *        Only one tempo track can exist per sequence.
+     * @return Pointer to the new tempo track, or existing tempo track.
+     */
+    NoteNagaTrack* createTempoTrack();
+    
+    /**
+     * @brief Sets a track as the tempo track.
+     *        The previous tempo track (if any) will be converted to a normal track.
+     * @param track Pointer to the track to set as tempo track.
+     * @return True if successful.
+     */
+    bool setTempoTrack(NoteNagaTrack* track);
+    
+    /**
+     * @brief Removes the tempo track designation (converts it to a normal track).
+     * @return True if a tempo track was removed.
+     */
+    bool removeTempoTrack();
+    
+    /**
+     * @brief Gets the effective tempo at a specific tick.
+     *        If a tempo track exists, uses it; otherwise uses the fixed tempo.
+     * @param tick The tick position.
+     * @return Tempo in microseconds per quarter note.
+     */
+    int getEffectiveTempoAtTick(int tick) const;
+    
+    /**
+     * @brief Gets the effective BPM at a specific tick.
+     *        If a tempo track exists, uses it; otherwise uses the fixed tempo.
+     * @param tick The tick position.
+     * @return Tempo in BPM.
+     */
+    double getEffectiveBPMAtTick(int tick) const;
+    
+    /**
+     * @brief Converts ticks to seconds using tempo track if available.
+     * @param tick The tick position.
+     * @return Time in seconds from the start.
+     */
+    double ticksToSeconds(int tick) const;
+    
+    /**
+     * @brief Converts seconds to ticks using tempo track if available.
+     * @param seconds Time in seconds from the start.
+     * @return Tick position.
+     */
+    int secondsToTicks(double seconds) const;
 
 protected:
     int sequence_id;                     ///< Unique sequence ID
@@ -667,6 +853,11 @@ Q_SIGNALS:
      * @param track Pointer to the track.
      */
     void trackListChanged();
+    
+    /**
+     * @brief Signal emitted when the tempo track changes or tempo events are modified.
+     */
+    void tempoTrackChanged();
 #endif
 };
 

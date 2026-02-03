@@ -319,8 +319,65 @@ void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoin
   
   menu.addSeparator();
   
+  // Tempo track options
+  bool hasTempoTrack = seq->hasTempoTrack();
+  if (!hasTempoTrack) {
+    QAction *createTempoTrackAction = menu.addAction(QIcon(":/icons/tempo.svg"), "Create Tempo Track");
+    connect(createTempoTrackAction, &QAction::triggered, this, [this, seq]() {
+      seq->createTempoTrack();
+      QMessageBox::information(this, "Tempo Track Created", 
+                               "Tempo track has been created. You can now edit tempo changes in the Note Property Editor.");
+    });
+    
+    // Option to set current track as tempo track (for empty tracks)
+    if (track->getNotes().empty()) {
+      QAction *setAsTempoTrackAction = menu.addAction(QIcon(":/icons/tempo.svg"), "Set as Tempo Track");
+      connect(setAsTempoTrackAction, &QAction::triggered, this, [this, seq, track]() {
+        seq->setTempoTrack(track);
+        QMessageBox::information(this, "Tempo Track Set", 
+                                 "This track is now the tempo track. You can edit tempo changes in the Note Property Editor.");
+      });
+    }
+  } else {
+    // If this is the tempo track, show tempo-specific options
+    if (track->isTempoTrack()) {
+      // Toggle active state
+      QAction *toggleActiveAction = menu.addAction(
+        track->isTempoTrackActive() ? "Deactivate Tempo Track" : "Activate Tempo Track"
+      );
+      connect(toggleActiveAction, &QAction::triggered, this, [track]() {
+        track->setTempoTrackActive(!track->isTempoTrackActive());
+      });
+      
+      // Clear all tempo events
+      QAction *clearEventsAction = menu.addAction(QIcon(":/icons/delete.svg"), "Clear Tempo Events...");
+      connect(clearEventsAction, &QAction::triggered, this, [this, track]() {
+        if (QMessageBox::question(this, "Clear Tempo Events", 
+                                  "This will remove all tempo events and reset to default 120 BPM. Continue?",
+                                  QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes) {
+          track->resetTempoEvents();
+        }
+      });
+      
+      menu.addSeparator();
+      
+      // Remove tempo track designation
+      QAction *removeTempoTrackAction = menu.addAction(QIcon(":/icons/tempo.svg"), "Remove Tempo Track");
+      connect(removeTempoTrackAction, &QAction::triggered, this, [this, seq]() {
+        if (QMessageBox::question(this, "Remove Tempo Track", 
+                                  "This will remove the tempo track designation and use fixed tempo. Continue?",
+                                  QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes) {
+          seq->removeTempoTrack();
+        }
+      });
+    }
+  }
+  
+  menu.addSeparator();
+  
   // Duplicate track
   QAction *duplicateAction = menu.addAction(QIcon(":/icons/copy.svg"), "Duplicate Track");
+  duplicateAction->setEnabled(!track->isTempoTrack());  // Can't duplicate tempo track
   connect(duplicateAction, &QAction::triggered, this, &TrackListWidget::onDuplicateTrack);
   
   menu.addSeparator();

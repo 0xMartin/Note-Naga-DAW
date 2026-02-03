@@ -145,6 +145,7 @@ set(SOURCE_FILES
     src/gui/editor/midi_editor_context_menu.cpp
     src/gui/editor/midi_editor_note_handler.cpp
     src/gui/editor/note_property_editor.cpp
+    src/gui/editor/tempo_track_editor.cpp
     # gui/widgets
     src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp

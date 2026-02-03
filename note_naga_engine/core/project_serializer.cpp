@@ -391,6 +391,21 @@ bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaM
         bool solo = readBool(in);
         float volume = readFloat(in);
         
+        // Read tempo track flag and events
+        bool isTempoTrack = readBool(in);
+        std::vector<NN_TempoEvent_t> tempoEvents;
+        if (isTempoTrack) {
+            int32_t numTempoEvents = readInt32(in);
+            for (int32_t j = 0; j < numTempoEvents; ++j) {
+                int32_t tick = readInt32(in);
+                float bpm = readFloat(in);
+                int32_t interp = readInt32(in);
+                tempoEvents.push_back(NN_TempoEvent_t(
+                    tick, static_cast<double>(bpm),
+                    interp == 1 ? TempoInterpolation::Linear : TempoInterpolation::Step));
+            }
+        }
+        
         NoteNagaTrack *track = seq->addTrack(instrument);
         if (!track) continue;
         
@@ -401,6 +416,12 @@ bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaM
         track->setMuted(muted);
         track->setSolo(solo);
         track->setVolume(volume);
+        
+        // Set tempo track state
+        if (isTempoTrack) {
+            track->setTempoTrack(true);
+            track->setTempoEvents(tempoEvents);
+        }
         
         // Read notes
         int32_t numNotes = readInt32(in);
@@ -436,6 +457,18 @@ void NoteNagaProjectSerializer::serializeTrack(std::ofstream &out, NoteNagaTrack
     writeBool(out, track->isMuted());
     writeBool(out, track->isSolo());
     writeFloat(out, track->getVolume());
+    
+    // Tempo track flag and events
+    writeBool(out, track->isTempoTrack());
+    if (track->isTempoTrack()) {
+        const std::vector<NN_TempoEvent_t>& tempoEvents = track->getTempoEvents();
+        writeInt32(out, static_cast<int32_t>(tempoEvents.size()));
+        for (const NN_TempoEvent_t& te : tempoEvents) {
+            writeInt32(out, te.tick);
+            writeFloat(out, static_cast<float>(te.bpm));
+            writeInt32(out, static_cast<int32_t>(te.interpolation));
+        }
+    }
     
     const std::vector<NN_Note_t> &notes = track->getNotes();
     writeInt32(out, static_cast<int32_t>(notes.size()));

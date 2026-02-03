@@ -222,13 +222,22 @@ void PlaybackThreadWorker::removePositionChangedCallback(CallbackId id) {
 
 void PlaybackThreadWorker::recalculateTempo() {
     int current_tick = this->project->getCurrentTick();
-    double us_per_tick = static_cast<double>(this->project->getTempo()) / this->project->getPPQ();
+    NoteNagaMidiSeq* seq = this->project->getActiveSequence();
+    
+    // Use effective tempo at current tick (supports tempo track)
+    int effectiveTempo = seq ? seq->getEffectiveTempoAtTick(current_tick) : this->project->getTempo();
+    double us_per_tick = static_cast<double>(effectiveTempo) / this->project->getPPQ();
     ms_per_tick = us_per_tick / 1000.0;
     start_time_point = std::chrono::high_resolution_clock::now();
     start_tick_at_start = current_tick;
+    last_tempo_check_tick = current_tick;
+    
+    // Calculate and emit current BPM
+    double currentBPM = 60'000'000.0 / effectiveTempo;
+    NN_QT_EMIT(project->currentTempoChanged(currentBPM));
 
     NOTE_NAGA_LOG_INFO(
-        "Recalculated tempo: " + std::to_string(60'000'000.0 / this->project->getTempo()) +
+        "Recalculated tempo: " + std::to_string(currentBPM) +
         " BPM, PPQ: " + std::to_string(this->project->getPPQ()) +
         ", ms per tick: " + std::to_string(ms_per_tick));
 }
@@ -275,6 +284,17 @@ void PlaybackThreadWorker::run() {
 
     using clock = std::chrono::high_resolution_clock;
     while (!should_stop) {
+        // Check if tempo needs to be recalculated (dynamic tempo support)
+        if (active_sequence->hasTempoTrack()) {
+            int currentEffectiveTempo = active_sequence->getEffectiveTempoAtTick(current_tick);
+            int lastEffectiveTempo = active_sequence->getEffectiveTempoAtTick(last_tempo_check_tick);
+            
+            // If tempo changed significantly (more than 0.1 BPM difference), recalculate
+            if (currentEffectiveTempo != lastEffectiveTempo) {
+                recalculateTempo();
+            }
+        }
+        
         // Time management
         auto now = clock::now();
         double elapsed_ms =
@@ -325,6 +345,7 @@ void PlaybackThreadWorker::run() {
             // play all tracks
             for (auto* track : active_sequence->getTracks()) {
                 if (track->isMuted()) continue;
+                if (track->isTempoTrack()) continue;  // Skip tempo track - no notes to play
                 size_t& index = trackNoteStartIndex[track];
                 index = (index > 10) ? index - 10 : 0; // Start 10 before the last processed note
 

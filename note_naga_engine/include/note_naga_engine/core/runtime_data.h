@@ -149,6 +149,12 @@ Q_SIGNALS:
     void currentTickChanged(int tick);
 
     /**
+     * @brief Signal emitted when the effective tempo changes during playback.
+     * @param bpm The current BPM value.
+     */
+    void currentTempoChanged(double bpm);
+
+    /**
      * @brief Signal emitted when sequence metadata is changed.
      * @param seq Pointer to the sequence.
      * @param param Name of the parameter.

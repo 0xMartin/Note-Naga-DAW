@@ -79,6 +79,8 @@ NoteNagaTrack::NoteNagaTrack()
   this->muted = false;
   this->solo = false;
   this->volume = 1.0f;
+  this->is_tempo_track = false;
+  this->tempo_track_active = false;
   NOTE_NAGA_LOG_INFO("Created default Track with ID: " +
                      std::to_string(track_id));
 }
@@ -98,6 +100,8 @@ NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent,
   this->channel = channel;
   this->color =
       DEFAULT_CHANNEL_COLORS[track_id % DEFAULT_CHANNEL_COLORS.size()];
+  this->is_tempo_track = false;
+  this->tempo_track_active = false;
   this->visible = true;
   this->muted = false;
   this->solo = false;
@@ -200,6 +204,125 @@ void NoteNagaTrack::setVolume(float new_volume) {
     return;
   this->volume = new_volume;
   NN_QT_EMIT(metadataChanged(this, "volume"));
+}
+
+/*******************************************************************************************************/
+// Note Naga Track - Tempo Track Methods
+/*******************************************************************************************************/
+
+void NoteNagaTrack::setTempoTrackActive(bool active) {
+  if (this->tempo_track_active == active)
+    return;
+  this->tempo_track_active = active;
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " tempo_track_active set to: " + (active ? "true" : "false"));
+  NN_QT_EMIT(metadataChanged(this, "tempo_track_active"));
+}
+
+void NoteNagaTrack::setTempoTrack(bool is_tempo) {
+  if (this->is_tempo_track == is_tempo)
+    return;
+  this->is_tempo_track = is_tempo;
+  this->tempo_track_active = is_tempo;  // Activate by default when setting as tempo track
+  if (is_tempo && tempo_events.empty()) {
+    // Initialize with default tempo at tick 0
+    tempo_events.push_back(NN_TempoEvent_t(0, 120.0, TempoInterpolation::Step));
+  }
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " is_tempo_track set to: " + (is_tempo ? "true" : "false"));
+  NN_QT_EMIT(metadataChanged(this, "is_tempo_track"));
+}
+
+void NoteNagaTrack::setTempoEvents(const std::vector<NN_TempoEvent_t>& events) {
+  tempo_events = events;
+  // Sort by tick
+  std::sort(tempo_events.begin(), tempo_events.end());
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " tempo events set, count: " + std::to_string(events.size()));
+  NN_QT_EMIT(tempoEventsChanged(this));
+}
+
+void NoteNagaTrack::addTempoEvent(const NN_TempoEvent_t& event) {
+  // Remove any existing event at the same tick
+  tempo_events.erase(
+    std::remove_if(tempo_events.begin(), tempo_events.end(),
+                   [&event](const NN_TempoEvent_t& e) { return e.tick == event.tick; }),
+    tempo_events.end());
+  
+  // Insert and sort
+  tempo_events.push_back(event);
+  std::sort(tempo_events.begin(), tempo_events.end());
+  
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " tempo event added at tick: " + std::to_string(event.tick) +
+                     " BPM: " + std::to_string(event.bpm));
+  NN_QT_EMIT(tempoEventsChanged(this));
+}
+
+bool NoteNagaTrack::removeTempoEventAtTick(int tick) {
+  // Don't allow removing the event at tick 0 if it's the only one
+  if (tempo_events.size() <= 1 && !tempo_events.empty() && tempo_events[0].tick == tick) {
+    NOTE_NAGA_LOG_WARNING("Cannot remove the only tempo event");
+    return false;
+  }
+  
+  auto it = std::find_if(tempo_events.begin(), tempo_events.end(),
+                         [tick](const NN_TempoEvent_t& e) { return e.tick == tick; });
+  if (it != tempo_events.end()) {
+    tempo_events.erase(it);
+    NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                       " tempo event removed at tick: " + std::to_string(tick));
+    NN_QT_EMIT(tempoEventsChanged(this));
+    return true;
+  }
+  return false;
+}
+
+double NoteNagaTrack::getTempoAtTick(int tick) const {
+  if (tempo_events.empty()) {
+    return 120.0;  // Default tempo
+  }
+  
+  // Find the tempo event at or before this tick
+  const NN_TempoEvent_t* prevEvent = nullptr;
+  const NN_TempoEvent_t* nextEvent = nullptr;
+  
+  for (size_t i = 0; i < tempo_events.size(); ++i) {
+    if (tempo_events[i].tick <= tick) {
+      prevEvent = &tempo_events[i];
+      if (i + 1 < tempo_events.size()) {
+        nextEvent = &tempo_events[i + 1];
+      }
+    } else {
+      break;
+    }
+  }
+  
+  if (!prevEvent) {
+    // Before first tempo event, use first event's tempo
+    return tempo_events[0].bpm;
+  }
+  
+  // Check interpolation mode
+  if (prevEvent->interpolation == TempoInterpolation::Linear && nextEvent) {
+    // Linear interpolation between prevEvent and nextEvent
+    int tickRange = nextEvent->tick - prevEvent->tick;
+    if (tickRange > 0) {
+      double t = static_cast<double>(tick - prevEvent->tick) / tickRange;
+      return prevEvent->bpm + t * (nextEvent->bpm - prevEvent->bpm);
+    }
+  }
+  
+  // Step interpolation or no next event
+  return prevEvent->bpm;
+}
+
+void NoteNagaTrack::resetTempoEvents(double bpm) {
+  tempo_events.clear();
+  tempo_events.push_back(NN_TempoEvent_t(0, bpm, TempoInterpolation::Step));
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " tempo events reset to: " + std::to_string(bpm) + " BPM");
+  NN_QT_EMIT(tempoEventsChanged(this));
 }
 
 /*******************************************************************************************************/
@@ -333,6 +456,247 @@ void NoteNagaMidiSeq::setActiveTrack(NoteNagaTrack *track) {
     NN_QT_EMIT(metadataChanged(this, "active_track"));
     NN_QT_EMIT(activeTrackChanged(this->active_track));
   }
+}
+
+/*******************************************************************************************************/
+// Note Naga MIDI Sequence - Tempo Track Methods
+/*******************************************************************************************************/
+
+bool NoteNagaMidiSeq::hasTempoTrack() const {
+  for (const auto* track : tracks) {
+    if (track && track->isTempoTrack()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+NoteNagaTrack* NoteNagaMidiSeq::getTempoTrack() const {
+  for (auto* track : tracks) {
+    if (track && track->isTempoTrack()) {
+      return track;
+    }
+  }
+  return nullptr;
+}
+
+NoteNagaTrack* NoteNagaMidiSeq::createTempoTrack() {
+  // Check if tempo track already exists
+  if (hasTempoTrack()) {
+    NOTE_NAGA_LOG_WARNING("Tempo track already exists");
+    return getTempoTrack();
+  }
+  
+  // Create new tempo track at position 0
+  int track_id = this->tracks.size();
+  NoteNagaTrack* tempoTrack = new NoteNagaTrack(track_id, this, "Tempo Track");
+  tempoTrack->setTempoTrack(true);
+  
+  // Initialize with current fixed tempo
+  double currentBpm = 60'000'000.0 / this->tempo;
+  tempoTrack->resetTempoEvents(currentBpm);
+  
+  // Insert at beginning of track list
+  this->tracks.insert(this->tracks.begin(), tempoTrack);
+  
+  // Update track IDs
+  for (size_t i = 0; i < this->tracks.size(); ++i) {
+    this->tracks[i]->setId(static_cast<int>(i));
+  }
+  
+#ifndef QT_DEACTIVATED
+  connect(tempoTrack, &NoteNagaTrack::metadataChanged, this,
+          &NoteNagaMidiSeq::trackMetadataChanged);
+  connect(tempoTrack, &NoteNagaTrack::tempoEventsChanged, this,
+          [this](NoteNagaTrack*) { NN_QT_EMIT(tempoTrackChanged()); });
+#endif
+  
+  NOTE_NAGA_LOG_INFO("Created tempo track for MIDI sequence ID: " + 
+                     std::to_string(sequence_id));
+  NN_QT_EMIT(trackListChanged());
+  NN_QT_EMIT(tempoTrackChanged());
+  return tempoTrack;
+}
+
+bool NoteNagaMidiSeq::setTempoTrack(NoteNagaTrack* track) {
+  if (!track) return false;
+  
+  // Check if track belongs to this sequence
+  bool found = false;
+  for (auto* t : tracks) {
+    if (t == track) {
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    NOTE_NAGA_LOG_ERROR("Track does not belong to this sequence");
+    return false;
+  }
+  
+  // Remove existing tempo track designation
+  for (auto* t : tracks) {
+    if (t && t->isTempoTrack() && t != track) {
+      t->setTempoTrack(false);
+    }
+  }
+  
+  // Set new tempo track
+  track->setTempoTrack(true);
+  
+  // Initialize with current fixed tempo if no events
+  if (track->getTempoEvents().empty()) {
+    double currentBpm = 60'000'000.0 / this->tempo;
+    track->resetTempoEvents(currentBpm);
+  }
+  
+#ifndef QT_DEACTIVATED
+  connect(track, &NoteNagaTrack::tempoEventsChanged, this,
+          [this](NoteNagaTrack*) { NN_QT_EMIT(tempoTrackChanged()); });
+#endif
+  
+  NOTE_NAGA_LOG_INFO("Set track ID: " + std::to_string(track->getId()) + 
+                     " as tempo track for MIDI sequence ID: " + std::to_string(sequence_id));
+  NN_QT_EMIT(tempoTrackChanged());
+  return true;
+}
+
+bool NoteNagaMidiSeq::removeTempoTrack() {
+  NoteNagaTrack* tempoTrack = getTempoTrack();
+  if (!tempoTrack) {
+    return false;
+  }
+  
+  tempoTrack->setTempoTrack(false);
+  NOTE_NAGA_LOG_INFO("Removed tempo track designation for MIDI sequence ID: " + 
+                     std::to_string(sequence_id));
+  NN_QT_EMIT(tempoTrackChanged());
+  return true;
+}
+
+int NoteNagaMidiSeq::getEffectiveTempoAtTick(int tick) const {
+  NoteNagaTrack* tempoTrack = getTempoTrack();
+  if (tempoTrack && tempoTrack->isTempoTrackActive()) {
+    double bpm = tempoTrack->getTempoAtTick(tick);
+    return static_cast<int>(60'000'000.0 / bpm);
+  }
+  return tempo;  // Fixed tempo
+}
+
+double NoteNagaMidiSeq::getEffectiveBPMAtTick(int tick) const {
+  NoteNagaTrack* tempoTrack = getTempoTrack();
+  if (tempoTrack && tempoTrack->isTempoTrackActive()) {
+    return tempoTrack->getTempoAtTick(tick);
+  }
+  return 60'000'000.0 / tempo;  // Fixed tempo to BPM
+}
+
+double NoteNagaMidiSeq::ticksToSeconds(int tick) const {
+  NoteNagaTrack* tempoTrack = getTempoTrack();
+  
+  if (!tempoTrack || !tempoTrack->isTempoTrackActive() || tempoTrack->getTempoEvents().empty()) {
+    // Use fixed tempo
+    double us_per_tick = static_cast<double>(tempo) / ppq;
+    return tick * us_per_tick / 1'000'000.0;
+  }
+  
+  // Integrate over tempo changes
+  const auto& events = tempoTrack->getTempoEvents();
+  double totalSeconds = 0.0;
+  int currentTick = 0;
+  
+  for (size_t i = 0; i < events.size(); ++i) {
+    const auto& event = events[i];
+    int nextEventTick = (i + 1 < events.size()) ? events[i + 1].tick : tick + 1;
+    
+    if (event.tick >= tick) break;
+    
+    int startTick = std::max(currentTick, event.tick);
+    int endTick = std::min(tick, nextEventTick);
+    
+    if (startTick < endTick) {
+      if (event.interpolation == TempoInterpolation::Linear && i + 1 < events.size() && events[i + 1].tick <= tick) {
+        // Linear interpolation - need to integrate
+        double startBpm = event.bpm;
+        double endBpm = events[i + 1].bpm;
+        int segmentTicks = events[i + 1].tick - event.tick;
+        
+        // For linear tempo change, use average tempo
+        int ticksInSegment = endTick - startTick;
+        double t1 = static_cast<double>(startTick - event.tick) / segmentTicks;
+        double t2 = static_cast<double>(endTick - event.tick) / segmentTicks;
+        double avgBpm = (startBpm + t1 * (endBpm - startBpm) + startBpm + t2 * (endBpm - startBpm)) / 2.0;
+        double us_per_beat = 60'000'000.0 / avgBpm;
+        double us_per_tick_avg = us_per_beat / ppq;
+        totalSeconds += ticksInSegment * us_per_tick_avg / 1'000'000.0;
+      } else {
+        // Step interpolation
+        double us_per_beat = 60'000'000.0 / event.bpm;
+        double us_per_tick_step = us_per_beat / ppq;
+        totalSeconds += (endTick - startTick) * us_per_tick_step / 1'000'000.0;
+      }
+    }
+    currentTick = endTick;
+  }
+  
+  // Handle remaining ticks after last event
+  if (currentTick < tick && !events.empty()) {
+    double lastBpm = events.back().bpm;
+    double us_per_beat = 60'000'000.0 / lastBpm;
+    double us_per_tick_last = us_per_beat / ppq;
+    totalSeconds += (tick - currentTick) * us_per_tick_last / 1'000'000.0;
+  }
+  
+  return totalSeconds;
+}
+
+int NoteNagaMidiSeq::secondsToTicks(double seconds) const {
+  NoteNagaTrack* tempoTrack = getTempoTrack();
+  
+  if (!tempoTrack || !tempoTrack->isTempoTrackActive() || tempoTrack->getTempoEvents().empty()) {
+    // Use fixed tempo
+    double us_per_tick = static_cast<double>(tempo) / ppq;
+    return static_cast<int>(seconds * 1'000'000.0 / us_per_tick);
+  }
+  
+  // Binary search approach - find tick that gives us the target seconds
+  // This is an approximation for efficiency
+  const auto& events = tempoTrack->getTempoEvents();
+  double totalSeconds = 0.0;
+  int currentTick = 0;
+  
+  for (size_t i = 0; i < events.size(); ++i) {
+    const auto& event = events[i];
+    int nextEventTick = (i + 1 < events.size()) ? events[i + 1].tick : max_tick;
+    
+    double us_per_beat = 60'000'000.0 / event.bpm;
+    double us_per_tick_step = us_per_beat / ppq;
+    double segmentMaxSeconds = (nextEventTick - event.tick) * us_per_tick_step / 1'000'000.0;
+    
+    if (totalSeconds + segmentMaxSeconds >= seconds) {
+      // Target is in this segment
+      double remainingSeconds = seconds - totalSeconds;
+      int ticksInSegment = static_cast<int>(remainingSeconds * 1'000'000.0 / us_per_tick_step);
+      return event.tick + ticksInSegment;
+    }
+    
+    totalSeconds += segmentMaxSeconds;
+    currentTick = nextEventTick;
+  }
+  
+  // Past last event
+  if (!events.empty()) {
+    double lastBpm = events.back().bpm;
+    double us_per_beat = 60'000'000.0 / lastBpm;
+    double us_per_tick_last = us_per_beat / ppq;
+    double remainingSeconds = seconds - totalSeconds;
+    int additionalTicks = static_cast<int>(remainingSeconds * 1'000'000.0 / us_per_tick_last);
+    return currentTick + additionalTicks;
+  }
+  
+  // Fallback to fixed tempo
+  double us_per_tick = static_cast<double>(tempo) / ppq;
+  return static_cast<int>(seconds * 1'000'000.0 / us_per_tick);
 }
 
 NoteNagaTrack *NoteNagaMidiSeq::getTrackById(int track_id) {
@@ -570,6 +934,7 @@ NoteNagaMidiSeq::loadType1Tracks(const MidiFile *midiFile) {
   std::vector<NoteNagaTrack *> tracks_tmp;
 
   int tempo = 500000;
+  std::vector<NN_TempoEvent_t> tempoEvents;  // Collect all tempo events
 
   for (int track_idx = 0; track_idx < midiFile->getNumTracks(); ++track_idx) {
     const MidiTrack &track = midiFile->getTrack(track_idx);
@@ -606,12 +971,19 @@ NoteNagaMidiSeq::loadType1Tracks(const MidiFile *midiFile) {
             channel_used = evt.channel;
         }
       }
-      // Tempo change: only from first track
+      // Tempo change: collect from first track (track 0 is usually tempo/conductor track)
       if (evt.type == MidiEventType::Meta &&
           evt.meta_type == MIDI_META_SET_TEMPO && track_idx == 0) {
         if (evt.meta_data.size() == 3) {
-          tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) |
-                  evt.meta_data[2];
+          int tempoUs = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) |
+                        evt.meta_data[2];
+          double bpm = 60'000'000.0 / tempoUs;
+          tempoEvents.push_back(NN_TempoEvent_t(abs_time, bpm, TempoInterpolation::Step));
+          
+          // Use first tempo as the fixed tempo
+          if (tempo == 500000 || tempoEvents.size() == 1) {
+            tempo = tempoUs;
+          }
         }
       }
       // Note on
@@ -657,6 +1029,25 @@ NoteNagaMidiSeq::loadType1Tracks(const MidiFile *midiFile) {
     tracks_tmp.push_back(nn_track);
   }
   this->tempo = tempo;
+  
+  // If we collected multiple tempo events, create a tempo track
+  if (tempoEvents.size() > 1) {
+    // Create tempo track and insert at beginning
+    NoteNagaTrack* tempoTrack = new NoteNagaTrack(0, this, "Tempo Track");
+    tempoTrack->setTempoTrack(true);
+    tempoTrack->setTempoEvents(tempoEvents);
+    
+    // Update track IDs
+    for (size_t i = 0; i < tracks_tmp.size(); ++i) {
+      tracks_tmp[i]->setId(static_cast<int>(i + 1));
+    }
+    
+    // Insert tempo track at beginning
+    tracks_tmp.insert(tracks_tmp.begin(), tempoTrack);
+    
+    NOTE_NAGA_LOG_INFO("Created tempo track with " + std::to_string(tempoEvents.size()) + " tempo events");
+  }
+  
   return tracks_tmp;
 }
 
@@ -677,21 +1068,47 @@ bool NoteNagaMidiSeq::exportToMidi(const std::string &midi_file_path,
   midiFile.header.format = 1;  // Type 1: multiple tracks
   midiFile.header.division = ppq;
 
-  // Create tempo track (track 0) with tempo meta event
+  // Create tempo track (track 0) with tempo meta events
   MidiTrack tempoTrack;
   
-  // Set tempo meta event
-  MidiEvent tempoEvent;
-  tempoEvent.delta_time = 0;
-  tempoEvent.type = MidiEventType::Meta;
-  tempoEvent.meta_type = MIDI_META_SET_TEMPO;
-  // Tempo is stored as 3 bytes (microseconds per quarter note)
-  tempoEvent.meta_data = {
-    static_cast<uint8_t>((tempo >> 16) & 0xFF),
-    static_cast<uint8_t>((tempo >> 8) & 0xFF),
-    static_cast<uint8_t>(tempo & 0xFF)
-  };
-  tempoTrack.events.push_back(tempoEvent);
+  // Check if we have a tempo track with events
+  NoteNagaTrack* tempoTrackPtr = getTempoTrack();
+  if (tempoTrackPtr && !tempoTrackPtr->getTempoEvents().empty()) {
+    // Export all tempo events from tempo track
+    const auto& tempoEvents = tempoTrackPtr->getTempoEvents();
+    int lastTick = 0;
+    
+    for (const auto& te : tempoEvents) {
+      MidiEvent tempoEvent;
+      tempoEvent.delta_time = te.tick - lastTick;
+      tempoEvent.type = MidiEventType::Meta;
+      tempoEvent.meta_type = MIDI_META_SET_TEMPO;
+      
+      // Convert BPM to microseconds per quarter note
+      int tempoUs = static_cast<int>(60'000'000.0 / te.bpm);
+      tempoEvent.meta_data = {
+        static_cast<uint8_t>((tempoUs >> 16) & 0xFF),
+        static_cast<uint8_t>((tempoUs >> 8) & 0xFF),
+        static_cast<uint8_t>(tempoUs & 0xFF)
+      };
+      tempoTrack.events.push_back(tempoEvent);
+      lastTick = te.tick;
+    }
+    NOTE_NAGA_LOG_INFO("Exported " + std::to_string(tempoEvents.size()) + " tempo events");
+  } else {
+    // Use fixed tempo
+    MidiEvent tempoEvent;
+    tempoEvent.delta_time = 0;
+    tempoEvent.type = MidiEventType::Meta;
+    tempoEvent.meta_type = MIDI_META_SET_TEMPO;
+    // Tempo is stored as 3 bytes (microseconds per quarter note)
+    tempoEvent.meta_data = {
+      static_cast<uint8_t>((tempo >> 16) & 0xFF),
+      static_cast<uint8_t>((tempo >> 8) & 0xFF),
+      static_cast<uint8_t>(tempo & 0xFF)
+    };
+    tempoTrack.events.push_back(tempoEvent);
+  }
 
   // End of track
   MidiEvent eotTempo;
@@ -705,6 +1122,9 @@ bool NoteNagaMidiSeq::exportToMidi(const std::string &midi_file_path,
   // Export each track (filter by trackIds if provided)
   for (const NoteNagaTrack *track : tracks) {
     if (!track) continue;
+    
+    // Skip tempo track - already exported as MIDI tempo track 0
+    if (track->isTempoTrack()) continue;
     
     // Skip tracks not in the filter set (if filter is provided)
     if (!trackIds.empty() && trackIds.find(track->getId()) == trackIds.end()) {

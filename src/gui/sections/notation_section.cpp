@@ -450,6 +450,11 @@ void NotationSection::updateTrackVisibilityCheckboxes()
     
     auto tracks = m_sequence->getTracks();
     for (int i = 0; i < tracks.size(); ++i) {
+        // Skip tempo tracks - they are not rendered as notation
+        if (tracks[i]->isTempoTrack()) {
+            continue;
+        }
+        
         QString name = QString::fromStdString(tracks[i]->getName());
         if (name.isEmpty()) {
             name = tr("Track %1").arg(i + 1);

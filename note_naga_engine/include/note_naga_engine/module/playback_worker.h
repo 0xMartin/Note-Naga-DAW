@@ -272,6 +272,7 @@ private:
     std::chrono::high_resolution_clock::time_point
         start_time_point;    ///< Start time of playback
     int start_tick_at_start; ///< Tick at which playback started
+    int last_tempo_check_tick{0}; ///< Last tick where tempo was checked (for dynamic tempo)
     bool looping; ///< Looping is enabled
 
     // Callbacks

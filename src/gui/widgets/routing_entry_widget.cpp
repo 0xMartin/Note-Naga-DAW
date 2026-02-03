@@ -222,6 +222,10 @@ void RoutingEntryWidget::populateTrackComboBox(NoteNagaMidiSeq *seq)
     for (size_t idx = 0; idx < tracks.size(); ++idx)
     {
         auto &tr = tracks[idx];
+        // Skip tempo tracks - they don't produce MIDI notes
+        if (tr->isTempoTrack()) {
+            continue;
+        }
         QString name = QString("%1: %2").arg(tr->getId() + 1).arg(tr->getName());
         track_combo->addItem(name, tr->getId());
     }

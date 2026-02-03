@@ -16,6 +16,7 @@ class MidiKeyboardRuler;
 class TrackListWidget;
 class TrackMixerWidget;
 class NotePropertyEditor;
+class TempoTrackEditor;
 class TimelineOverviewWidget;
 
 /**
@@ -43,6 +44,7 @@ public:
     TrackListWidget* getTrackList() const { return m_trackListWidget; }
     TrackMixerWidget* getTrackMixer() const { return m_mixerWidget; }
     NotePropertyEditor* getNotePropertyEditor() const { return m_notePropertyEditor; }
+    TempoTrackEditor* getTempoTrackEditor() const { return m_tempoTrackEditor; }
 
     /**
      * @brief Resets the dock layout to default
@@ -52,6 +54,7 @@ public:
 public slots:
     void showHideDock(const QString &name, bool checked);
     void toggleNotePropertyEditor();
+    void onActiveTrackChanged(NoteNagaTrack *track);
 
 private:
     NoteNagaEngine *m_engine;
@@ -67,6 +70,7 @@ private:
     TrackListWidget *m_trackListWidget;
     TrackMixerWidget *m_mixerWidget;
     NotePropertyEditor *m_notePropertyEditor;
+    TempoTrackEditor *m_tempoTrackEditor;
     TimelineOverviewWidget *m_timelineOverview;
     
     // Splitter for MIDI editor / Note property editor

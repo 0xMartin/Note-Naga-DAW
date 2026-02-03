@@ -3,6 +3,7 @@
 #include "../dock_system/advanced_dock_widget.h"
 #include "../editor/midi_editor_widget.h"
 #include "../editor/note_property_editor.h"
+#include "../editor/tempo_track_editor.h"
 #include "../widgets/midi_control_bar_widget.h"
 #include "../widgets/midi_keyboard_ruler.h"
 #include "../widgets/midi_tact_ruler.h"
@@ -84,7 +85,21 @@ void MidiEditorSection::setupDockLayout()
     m_notePropertyEditor = new NotePropertyEditor(m_engine, m_midiEditor, this);
     m_notePropertyEditor->setMinimumHeight(80);
     
-    // Splitter between MIDI editor and Note Property Editor
+    // Tempo Track Editor (shown when tempo track is active)
+    m_tempoTrackEditor = new TempoTrackEditor(m_engine, m_midiEditor, this);
+    m_tempoTrackEditor->setMinimumHeight(100);
+    m_tempoTrackEditor->hide();  // Hidden by default
+    
+    // Container for property editors (stacked-like behavior using visibility)
+    QWidget *propertyEditorContainer = new QWidget(this);
+    propertyEditorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    QVBoxLayout *propertyLayout = new QVBoxLayout(propertyEditorContainer);
+    propertyLayout->setContentsMargins(0, 0, 0, 0);
+    propertyLayout->setSpacing(0);
+    propertyLayout->addWidget(m_notePropertyEditor);
+    propertyLayout->addWidget(m_tempoTrackEditor);
+    
+    // Splitter between MIDI editor and Property Editor
     m_editorSplitter = new QSplitter(Qt::Vertical);
     m_editorSplitter->setChildrenCollapsible(true);
     m_editorSplitter->setHandleWidth(5);
@@ -98,7 +113,7 @@ void MidiEditorSection::setupDockLayout()
     )");
     
     m_editorSplitter->addWidget(editorMain);
-    m_editorSplitter->addWidget(m_notePropertyEditor);
+    m_editorSplitter->addWidget(propertyEditorContainer);
     
     // Set initial sizes (80% for editor, 20% for note property)
     m_editorSplitter->setSizes({600, 150});
@@ -243,6 +258,27 @@ void MidiEditorSection::connectSignals()
     connect(m_midiEditor, &MidiEditorWidget::timeScaleChanged, 
             m_notePropertyEditor, &NotePropertyEditor::setTimeScale);
     
+    // Tempo track editor signals
+    connect(m_midiEditor, &MidiEditorWidget::horizontalScrollChanged, 
+            m_tempoTrackEditor, &TempoTrackEditor::setHorizontalScroll);
+    connect(m_midiEditor, &MidiEditorWidget::timeScaleChanged, 
+            m_tempoTrackEditor, &TempoTrackEditor::setTimeScale);
+    
+    // Connect active track changes to switch between editors
+    NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
+    if (seq) {
+        connect(seq, &NoteNagaMidiSeq::activeTrackChanged, 
+                this, &MidiEditorSection::onActiveTrackChanged);
+    }
+    connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged, this, [this](NoteNagaMidiSeq *newSeq) {
+        if (newSeq) {
+            connect(newSeq, &NoteNagaMidiSeq::activeTrackChanged, 
+                    this, &MidiEditorSection::onActiveTrackChanged, Qt::UniqueConnection);
+            // Update visibility for new sequence
+            onActiveTrackChanged(newSeq->getActiveTrack());
+        }
+    });
+    
     // Note selection and modification signals
     connect(m_midiEditor, &MidiEditorWidget::notesModified,
             m_notePropertyEditor, &NotePropertyEditor::onNotesChanged);
@@ -371,4 +407,21 @@ void MidiEditorSection::resetLayout()
         QList<int> vSizes = {300, 400};
         resizeDocks(vOrder, vSizes, Qt::Vertical);
     });
+}
+
+void MidiEditorSection::onActiveTrackChanged(NoteNagaTrack *track)
+{
+    bool isTempoTrack = track && track->isTempoTrack();
+    
+    if (isTempoTrack) {
+        // Show tempo track editor, hide note property editor
+        m_notePropertyEditor->hide();
+        m_tempoTrackEditor->setTempoTrack(track);
+        m_tempoTrackEditor->show();
+    } else {
+        // Show note property editor, hide tempo track editor
+        m_tempoTrackEditor->hide();
+        m_tempoTrackEditor->setTempoTrack(nullptr);
+        m_notePropertyEditor->show();
+    }
 }

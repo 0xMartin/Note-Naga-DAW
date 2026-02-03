@@ -227,6 +227,9 @@ void MidiEditorNoteHandler::addNewNote(const QPointF &scenePos) {
     NoteNagaTrack *activeTrack = seq->getActiveTrack();
     if (!activeTrack) return;
     
+    // Cannot insert notes into tempo track
+    if (activeTrack->isTempoTrack()) return;
+    
     int tick = m_editor->sceneXToTick(scenePos.x());
     int noteValue = m_editor->sceneYToNote(scenePos.y());
     noteValue = std::max(0, std::min(127, noteValue));

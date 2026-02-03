@@ -227,7 +227,8 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - [x] 💾 **MIDI Export**: Save projects as standard MIDI files
 - [x] 💾 **Project Save/Load**: Complete project persistence
 - [x] 📁 **Project Explorer**: Dialog for new/open/recent projects
-
+- [ ] **Dynamic BPM**: Support for dynamic BMP, tempo track
+  
 ### 🟡 UI/UX Improvements
 - [x] 🎨 **Section-based Layout**: Split app into dedicated sections
   - MIDI Editor: Track list + Piano roll + Mixer
