@@ -355,11 +355,17 @@ void MixerSettingsDialog::applyFluidSynthChanges() {
     // Update the display name to show the current state
     item->setText(QString::fromStdString(synth->getName()) + " (FluidSynth)");
   } else {
+    QString errorMsg = QString::fromStdString(fluidSynth->getLastError());
+    if (errorMsg.isEmpty()) {
+      errorMsg = "Unknown error occurred while loading the SoundFont.";
+    }
+    
     QMessageBox::warning(
-        this, "SoundFont Change Failed",
-        "Failed to load SoundFont: " + soundFontPath +
-            "\n\n"
-            "Please check if the file exists and is a valid SoundFont file.");
+        this, "SoundFont Load Failed",
+        "Failed to load SoundFont:\n" + soundFontPath +
+            "\n\nError: " + errorMsg +
+            "\n\nThe SoundFont file may be corrupted, incompatible, "
+            "or in an unsupported format.");
   }
 }
 

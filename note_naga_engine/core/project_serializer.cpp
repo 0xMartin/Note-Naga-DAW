@@ -611,7 +611,12 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(std::ifstream &in)
         // Create synth if not found
         if (!synth && !synthType.empty()) {
             if (synthType == "fluidsynth" && !soundFontPath.empty()) {
-                synth = new NoteNagaSynthFluidSynth(synthName, soundFontPath);
+                NoteNagaSynthFluidSynth *fluidSynth = new NoteNagaSynthFluidSynth(synthName, soundFontPath);
+                if (!fluidSynth->isValid()) {
+                    NOTE_NAGA_LOG_WARNING("Failed to load SoundFont during project load: " + soundFontPath + 
+                                          " - Error: " + fluidSynth->getLastError());
+                }
+                synth = fluidSynth;
                 m_engine->addSynthesizer(synth);
                 synths = m_engine->getSynthesizers();
             } else if (synthType == "external_midi" && !midiPort.empty()) {
@@ -625,7 +630,10 @@ bool NoteNagaProjectSerializer::deserializeSynthesizers(std::ifstream &in)
             NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
             
             if (fluidSynth && !soundFontPath.empty()) {
-                fluidSynth->setSoundFont(soundFontPath);
+                if (!fluidSynth->setSoundFont(soundFontPath)) {
+                    NOTE_NAGA_LOG_WARNING("Failed to reload SoundFont: " + soundFontPath + 
+                                          " - Error: " + fluidSynth->getLastError());
+                }
             } else if (externalMidi && !midiPort.empty()) {
                 externalMidi->setMidiOutputPort(midiPort);
             }

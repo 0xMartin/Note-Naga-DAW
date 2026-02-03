@@ -11,11 +11,23 @@ NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
       sf2_path_(sf2_path) {
   // Initialize FluidSynth settings and synth
   synth_settings_ = new_fluid_settings();
+  if (!synth_settings_) {
+    last_error_ = "Failed to create FluidSynth settings";
+    NOTE_NAGA_LOG_ERROR(last_error_);
+    soundfont_loaded_.store(false, std::memory_order_release);
+    return;
+  }
+  
   fluidsynth_ = new_fluid_synth(synth_settings_);
-  int sfid = fluid_synth_sfload(fluidsynth_, sf2_path.c_str(), 1);
-  // fluid_synth_set_reverb_on(fluidsynth_, 1);
-  // fluid_synth_set_reverb(fluidsynth_, 0.8f, 0.5f, 0.9f, 0.3f);
-
+  if (!fluidsynth_) {
+    last_error_ = "Failed to create FluidSynth instance";
+    NOTE_NAGA_LOG_ERROR(last_error_);
+    delete_fluid_settings(synth_settings_);
+    synth_settings_ = nullptr;
+    soundfont_loaded_.store(false, std::memory_order_release);
+    return;
+  }
+  
   // Initialize all channels with no program set
   for (int i = 0; i < 16; ++i) {
     channel_programs_[i] = -1;
@@ -24,8 +36,24 @@ NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
   for (int i = 0; i < 16; ++i) {
     channel_pan_[i] = 0.0f;
   }
-
-  NOTE_NAGA_LOG_INFO("FluidSynth loaded sfid=" + std::to_string(sfid));
+  
+  // Load SoundFont if path is provided
+  if (!sf2_path.empty()) {
+    int sfid = fluid_synth_sfload(fluidsynth_, sf2_path.c_str(), 1);
+    if (sfid < 0) {
+      last_error_ = "Failed to load SoundFont: " + sf2_path;
+      NOTE_NAGA_LOG_ERROR(last_error_);
+      soundfont_loaded_.store(false, std::memory_order_release);
+    } else {
+      last_error_.clear();
+      soundfont_loaded_.store(true, std::memory_order_release);
+      NOTE_NAGA_LOG_INFO("FluidSynth loaded sfid=" + std::to_string(sfid));
+    }
+  } else {
+    // No SoundFont path provided - synth is valid but no sound
+    soundfont_loaded_.store(false, std::memory_order_release);
+    NOTE_NAGA_LOG_INFO("FluidSynth created without SoundFont");
+  }
 }
 
 NoteNagaSynthFluidSynth::~NoteNagaSynthFluidSynth() {
@@ -43,8 +71,10 @@ NoteNagaSynthFluidSynth::~NoteNagaSynthFluidSynth() {
 
 void NoteNagaSynthFluidSynth::renderAudio(float *left, float *right,
                                           size_t num_frames) {
-  // Check if synth is ready - if not, output silence
-  if (!synth_ready_.load(std::memory_order_acquire)) {
+  // Check if synth is ready and SoundFont is loaded - if not, output silence
+  if (!synth_ready_.load(std::memory_order_acquire) || 
+      !soundfont_loaded_.load(std::memory_order_acquire) ||
+      !fluidsynth_) {
     std::memset(left, 0, sizeof(float) * num_frames);
     std::memset(right, 0, sizeof(float) * num_frames);
     return;
@@ -58,6 +88,10 @@ void NoteNagaSynthFluidSynth::renderAudio(float *left, float *right,
 void NoteNagaSynthFluidSynth::playNote(const NN_Note_t &note, int channel,
                                        float pan) {
   if (!note.velocity.has_value() || note.velocity.value() <= 0)
+    return;
+
+  // Check if synth is operational
+  if (!fluidsynth_ || !soundfont_loaded_.load(std::memory_order_acquire))
     return;
 
   NoteNagaTrack *track = note.parent;
@@ -106,7 +140,9 @@ void NoteNagaSynthFluidSynth::stopNote(const NN_Note_t &note) {
   // retrieve note parameters and stop it
   if (it != playingTrackNotes.end()) {
     const PlayedNote_t &pn = it->second;
-    fluid_synth_noteoff(fluidsynth_, pn.channel, pn.note.note);
+    if (fluidsynth_) {
+      fluid_synth_noteoff(fluidsynth_, pn.channel, pn.note.note);
+    }
     playingTrackNotes.erase(it);
   }
 }
@@ -115,7 +151,9 @@ void NoteNagaSynthFluidSynth::stopAllNotes(NoteNagaMidiSeq *seq,
                                            NoteNagaTrack *track) {
   if (track) {
     for (const auto &[id, pn] : playing_notes_[track]) {
-      fluid_synth_noteoff(fluidsynth_, pn.channel, pn.note.note);
+      if (fluidsynth_) {
+        fluid_synth_noteoff(fluidsynth_, pn.channel, pn.note.note);
+      }
     }
     playing_notes_[track].clear();
   } else if (seq) {
@@ -126,7 +164,9 @@ void NoteNagaSynthFluidSynth::stopAllNotes(NoteNagaMidiSeq *seq,
   } else {
     for (auto &[track, notes] : playing_notes_) {
       for (const auto &[id, pn] : notes) {
-        fluid_synth_noteoff(fluidsynth_, pn.channel, pn.note.note);
+        if (fluidsynth_) {
+          fluid_synth_noteoff(fluidsynth_, pn.channel, pn.note.note);
+        }
       }
       notes.clear();
     }
@@ -145,9 +185,11 @@ void NoteNagaSynthFluidSynth::setMasterPan(float pan) {
   midiPan = std::clamp(midiPan, 0, 127);
   
   // Apply pan to all 16 MIDI channels immediately
-  for (int channel = 0; channel < 16; ++channel) {
-    fluid_synth_cc(fluidsynth_, channel, 10, midiPan);
-    channel_pan_[channel] = pan;  // Update cache
+  if (fluidsynth_) {
+    for (int channel = 0; channel < 16; ++channel) {
+      fluid_synth_cc(fluidsynth_, channel, 10, midiPan);
+      channel_pan_[channel] = pan;  // Update cache
+    }
   }
 }
 
@@ -177,6 +219,7 @@ NoteNagaSynthFluidSynth::getSupportedConfigKeys() const {
 bool NoteNagaSynthFluidSynth::setSoundFont(const std::string &sf2_path) {
   // Mark synth as not ready to stop audio rendering
   synth_ready_.store(false, std::memory_order_release);
+  soundfont_loaded_.store(false, std::memory_order_release);
   
   // Stop all notes first
   stopAllNotes();
@@ -186,6 +229,7 @@ bool NoteNagaSynthFluidSynth::setSoundFont(const std::string &sf2_path) {
 
   // Save the new path
   sf2_path_ = sf2_path;
+  last_error_.clear();
 
   // Reload FluidSynth with new SoundFont
   if (fluidsynth_) {
@@ -198,11 +242,24 @@ bool NoteNagaSynthFluidSynth::setSoundFont(const std::string &sf2_path) {
     synth_settings_ = nullptr;
   }
 
-  // Reinitialize with new SoundFont
+  // Reinitialize FluidSynth
   synth_settings_ = new_fluid_settings();
+  if (!synth_settings_) {
+    last_error_ = "Failed to create FluidSynth settings";
+    NOTE_NAGA_LOG_ERROR(last_error_);
+    synth_ready_.store(true, std::memory_order_release);
+    return false;
+  }
+  
   fluidsynth_ = new_fluid_synth(synth_settings_);
-
-  int sfid = fluid_synth_sfload(fluidsynth_, sf2_path.c_str(), 1);
+  if (!fluidsynth_) {
+    last_error_ = "Failed to create FluidSynth instance";
+    NOTE_NAGA_LOG_ERROR(last_error_);
+    delete_fluid_settings(synth_settings_);
+    synth_settings_ = nullptr;
+    synth_ready_.store(true, std::memory_order_release);
+    return false;
+  }
 
   // Reset channel programs and pans
   for (int i = 0; i < 16; ++i) {
@@ -210,11 +267,25 @@ bool NoteNagaSynthFluidSynth::setSoundFont(const std::string &sf2_path) {
     channel_pan_[i] = 0.0f;
   }
 
-  NOTE_NAGA_LOG_INFO("FluidSynth reloaded with soundfont: " + sf2_path +
-                     ", sfid=" + std::to_string(sfid));
+  // Load SoundFont if path is provided
+  if (!sf2_path.empty()) {
+    int sfid = fluid_synth_sfload(fluidsynth_, sf2_path.c_str(), 1);
+    if (sfid < 0) {
+      last_error_ = "Failed to load SoundFont: " + sf2_path;
+      NOTE_NAGA_LOG_ERROR(last_error_);
+      synth_ready_.store(true, std::memory_order_release);
+      return false;
+    }
+    
+    soundfont_loaded_.store(true, std::memory_order_release);
+    NOTE_NAGA_LOG_INFO("FluidSynth reloaded with soundfont: " + sf2_path +
+                       ", sfid=" + std::to_string(sfid));
+  } else {
+    NOTE_NAGA_LOG_INFO("FluidSynth reloaded without SoundFont");
+  }
 
   // Mark synth as ready again
   synth_ready_.store(true, std::memory_order_release);
 
-  return sfid >= 0; // Return true if loading was successful
+  return soundfont_loaded_.load(std::memory_order_acquire);
 }

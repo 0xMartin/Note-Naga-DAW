@@ -172,6 +172,11 @@ ProjectSection::ProjectSection(NoteNagaEngine *engine,
 {
     setStyleSheet("background-color: #1a1a1f;");
     setupUI();
+    
+    // Connect engine signals
+    if (m_engine) {
+        connect(m_engine, &NoteNagaEngine::synthUpdated, this, &ProjectSection::refreshSynthesizerList);
+    }
 }
 
 void ProjectSection::setupUI()
@@ -709,10 +714,18 @@ void ProjectSection::refreshSynthesizerList()
                 name = tr("Unnamed Synth");
             }
             
-            // Add type indicator
+            // Add type indicator and SoundFont info for FluidSynth
             QString typeStr;
-            if (dynamic_cast<NoteNagaSynthFluidSynth*>(synth)) {
-                typeStr = " [FluidSynth]";
+            if (NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth)) {
+                QString sfPath = QString::fromStdString(fluidSynth->getSoundFontPath());
+                if (!sfPath.isEmpty()) {
+                    // Extract just the filename from the path
+                    QFileInfo fileInfo(sfPath);
+                    QString sfName = fileInfo.fileName();
+                    typeStr = " [" + sfName + "]";
+                } else {
+                    typeStr = " [No SoundFont]";
+                }
             } else if (dynamic_cast<NoteNagaSynthExternalMidi*>(synth)) {
                 typeStr = " [External MIDI]";
             }
@@ -877,7 +890,24 @@ void ProjectSection::onConfigureSynthClicked()
         );
         
         if (!sfPath.isEmpty()) {
-            fluidSynth->setSoundFont(sfPath.toStdString());
+            bool success = fluidSynth->setSoundFont(sfPath.toStdString());
+            
+            if (success) {
+                QMessageBox::information(this, tr("SoundFont Loaded"),
+                    tr("SoundFont successfully loaded:\n%1").arg(QFileInfo(sfPath).fileName()));
+            } else {
+                QString errorMsg = QString::fromStdString(fluidSynth->getLastError());
+                if (errorMsg.isEmpty()) {
+                    errorMsg = tr("Unknown error");
+                }
+                QMessageBox::warning(this, tr("SoundFont Load Failed"),
+                    tr("Failed to load SoundFont:\n%1\n\nError: %2\n\n"
+                       "The file may be corrupted or in an unsupported format.")
+                    .arg(QFileInfo(sfPath).fileName())
+                    .arg(errorMsg));
+            }
+            
+            refreshSynthesizerList();
             onMetadataEdited();
         }
     } else if (externalMidi) {

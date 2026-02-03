@@ -45,19 +45,37 @@ public:
      */
     bool setSoundFont(const std::string &sf2_path);
 
+    /**
+     * @brief Check if the synthesizer is valid and ready to use
+     * @return True if a SoundFont is loaded and the synth is operational
+     */
+    bool isValid() const { return soundfont_loaded_.load(std::memory_order_acquire); }
+
+    /**
+     * @brief Get the last error message
+     * @return Error message string, empty if no error
+     */
+    std::string getLastError() const { return last_error_; }
+
 protected:
     // Mutex for thread-safe access to the synthesizer
     std::mutex synth_mutex_;
     
     // Atomic flag to indicate synth is ready for rendering
     std::atomic<bool> synth_ready_{true};
+    
+    // Atomic flag to indicate if SoundFont is successfully loaded
+    std::atomic<bool> soundfont_loaded_{false};
 
     // FluidSynth interní struktury
     fluid_settings_t *synth_settings_;
     fluid_synth_t *fluidsynth_;
 
     // Store the current SoundFont path
-    std::string sf2_path_;  
+    std::string sf2_path_;
+    
+    // Last error message
+    std::string last_error_;
 
     void ensureFluidsynth();
 };
