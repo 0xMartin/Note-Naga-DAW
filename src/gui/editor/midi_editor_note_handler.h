@@ -11,6 +11,7 @@
 class MidiEditorWidget;
 class QGraphicsScene;
 class QAbstractGraphicsShapeItem;
+class UndoManager;
 
 /**
  * @brief Data for a copied note (includes track info)

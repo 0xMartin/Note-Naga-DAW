@@ -146,6 +146,10 @@ set(SOURCE_FILES
     src/gui/editor/midi_editor_note_handler.cpp
     src/gui/editor/note_property_editor.cpp
     src/gui/editor/tempo_track_editor.cpp
+    # gui/undo
+    src/gui/undo/undo_manager.cpp
+    src/gui/undo/midi_note_commands.cpp
+    src/gui/undo/dsp_commands.cpp
     # gui/widgets
     src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp

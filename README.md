@@ -243,7 +243,7 @@ Access advanced MIDI editing tools from the `Edit` menu:
 
 ### 🟢 Advanced Features
 - [ ] 🎹 **MIDI Input**: Record notes from external MIDI devices
-- [ ] ↩️ **Undo/Redo**: History system for all edit operations
+- [x] ↩️ **Undo/Redo**: History system for MIDI editor and DSP
 - [ ] 🔌 **Plugin Support**: VST/AU plugin integration
 - [ ] 🎛️ **Automation**: Automate mixer and effect parameters over time
 - [x] 📝 **Notation View**: Traditional music notation display

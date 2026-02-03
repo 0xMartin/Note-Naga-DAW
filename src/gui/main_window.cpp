@@ -25,6 +25,7 @@
 #include "widgets/track_list_widget.h"
 #include "widgets/track_mixer_widget.h"
 #include "dialogs/project_wizard_dialog.h"
+#include "undo/undo_manager.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true), m_currentSection(AppSection::Project) {
     setWindowTitle("Note Naga");
@@ -94,6 +95,17 @@ void MainWindow::setup_actions() {
     connect(action_export_video, &QAction::triggered, this, &MainWindow::export_video);
     action_quit = new QAction("Quit", this);
     connect(action_quit, &QAction::triggered, this, &MainWindow::close);
+
+    // Undo/Redo actions
+    action_undo = new QAction(QIcon(":/icons/undo.svg"), tr("Undo"), this);
+    action_undo->setShortcut(QKeySequence::Undo);
+    action_undo->setEnabled(false);
+    connect(action_undo, &QAction::triggered, this, &MainWindow::onUndo);
+    
+    action_redo = new QAction(QIcon(":/icons/redo.svg"), tr("Redo"), this);
+    action_redo->setShortcut(QKeySequence::Redo);
+    action_redo->setEnabled(false);
+    connect(action_redo, &QAction::triggered, this, &MainWindow::onRedo);
 
     action_auto_follow = new QAction("Auto-Follow Playback", this);
     action_auto_follow->setCheckable(true);
@@ -292,6 +304,13 @@ void MainWindow::setup_sections() {
             this, &MainWindow::onProjectUnsavedChanged);
     connect(m_projectSection, &ProjectSection::metadataChanged,
             this, &MainWindow::onProjectMetadataChanged);
+    
+    // Connect MIDI editor undo manager to update global keyboard shortcut state
+    MidiEditorWidget *midiEditor = m_midiEditorSection->getMidiEditor();
+    if (midiEditor && midiEditor->getUndoManager()) {
+        connect(midiEditor->getUndoManager(), &UndoManager::undoStateChanged,
+                this, &MainWindow::updateUndoRedoState);
+    }
 }
 
 void MainWindow::onSectionChanged(AppSection section) {
@@ -1026,4 +1045,71 @@ void MainWindow::onProjectExportMidiRequested() {
     } else {
         m_projectSection->showExportError(tr("Failed to export MIDI file. Check the log for details."));
     }
+}
+
+void MainWindow::onUndo() {
+    // Get active undo manager based on current section
+    UndoManager *mgr = nullptr;
+    
+    switch (m_currentSection) {
+        case AppSection::MidiEditor:
+            if (m_midiEditorSection) {
+                MidiEditorWidget *editor = m_midiEditorSection->getMidiEditor();
+                if (editor) mgr = editor->getUndoManager();
+            }
+            break;
+        // Other sections can add their undo managers here in the future
+        default:
+            break;
+    }
+    
+    if (mgr) {
+        mgr->undo();
+    }
+}
+
+void MainWindow::onRedo() {
+    // Get active undo manager based on current section
+    UndoManager *mgr = nullptr;
+    
+    switch (m_currentSection) {
+        case AppSection::MidiEditor:
+            if (m_midiEditorSection) {
+                MidiEditorWidget *editor = m_midiEditorSection->getMidiEditor();
+                if (editor) mgr = editor->getUndoManager();
+            }
+            break;
+        // Other sections can add their undo managers here in the future
+        default:
+            break;
+    }
+    
+    if (mgr) {
+        mgr->redo();
+    }
+}
+
+void MainWindow::updateUndoRedoState() {
+    // This function updates the global undo/redo actions for keyboard shortcuts
+    // The actions are not visible in menu/toolbar, but shortcuts still work
+    bool canUndo = false;
+    bool canRedo = false;
+    
+    // Get undo manager based on current active section
+    switch (m_currentSection) {
+        case AppSection::MidiEditor:
+            if (m_midiEditorSection) {
+                MidiEditorWidget *editor = m_midiEditorSection->getMidiEditor();
+                if (editor && editor->getUndoManager()) {
+                    canUndo = editor->getUndoManager()->canUndo();
+                    canRedo = editor->getUndoManager()->canRedo();
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    
+    action_undo->setEnabled(canUndo);
+    action_redo->setEnabled(canRedo);
 }

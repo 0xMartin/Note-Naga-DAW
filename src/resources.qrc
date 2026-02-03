@@ -11,6 +11,7 @@
     <file>icons/media-forward-end.svg</file>
     <file>icons/open.svg</file>
     <file>icons/play.svg</file>
+    <file>icons/redo.svg</file>
     <file>icons/reload.svg</file>
     <file>icons/remove.svg</file>
     <file>icons/route.svg</file>
@@ -22,6 +23,7 @@
     <file>icons/stop.svg</file>
     <file>icons/tempo.svg</file>
     <file>icons/track.svg</file>
+    <file>icons/undo.svg</file>
     <file>icons/zoom-in.svg</file>
     <file>icons/zoom-out.svg</file>
     <file>icons/mixer.svg</file>

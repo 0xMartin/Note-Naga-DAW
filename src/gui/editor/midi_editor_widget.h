@@ -18,6 +18,7 @@ class NoteNagaMidiSeq;
 class NoteNagaTrack;
 class MidiEditorContextMenu;
 class MidiEditorNoteHandler;
+class UndoManager;
 
 /**
  * @brief The MidiEditorWidget class provides a graphical interface for editing MIDI
@@ -36,6 +37,8 @@ public:
     QGraphicsScene* getScene() const { return scene; }
     MidiEditorConfig* getConfig() { return &config; }
     const MidiEditorColors& colors() const { return m_colors; }
+    UndoManager* getUndoManager() const { return m_undoManager; }
+    MidiEditorNoteHandler* getNoteHandler() const { return m_noteHandler; }
     
     // --- Public interface ---
     QWidget* getTitleWidget() const { return title_widget; }
@@ -82,6 +85,7 @@ signals:
     void keyHeightChanged(int height);
     void loopingChanged(bool enabled);
     void notesModified();
+    void dataRefreshed();  ///< Emitted when refreshAll() is called (for undo/redo updates)
     void selectionChanged();
     void contentSizeChanged(int maxTick);
     void noteTrackSelected(NoteNagaTrack *track);  ///< Emitted when clicking on a note to select its track
@@ -98,6 +102,9 @@ private slots:
     void selectFollowMode(MidiEditorFollowMode mode);
     void enableLooping(bool enabled);
     void onPlaybackStopped();
+    void onUndo();
+    void onRedo();
+    void updateUndoRedoButtons();
     
     // Context menu actions
     void onColorModeChanged(NoteColorMode mode);
@@ -126,6 +133,7 @@ private:
     // --- Helper classes ---
     MidiEditorContextMenu *m_contextMenu;
     MidiEditorNoteHandler *m_noteHandler;
+    UndoManager *m_undoManager;
     
     // --- Mouse state ---
     QRubberBand *rubberBand = nullptr;
@@ -145,6 +153,8 @@ private:
     QPushButton *btn_follow_step;
     QPushButton *btn_follow_none;
     QPushButton *btn_looping;
+    QPushButton *btn_undo;
+    QPushButton *btn_redo;
     QComboBox *combo_note_duration;
     QComboBox *combo_grid_resolution;
 

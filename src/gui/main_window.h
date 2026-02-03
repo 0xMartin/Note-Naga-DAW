@@ -46,6 +46,11 @@ private slots:
     
     // Section switching
     void onSectionChanged(AppSection section);
+    
+    // Undo/Redo
+    void onUndo();
+    void onRedo();
+    void updateUndoRedoState();
 
     //Midi utility slots
     void util_quantize();
@@ -94,6 +99,8 @@ private:
     QAction *action_export;
     QAction *action_export_video;
     QAction *action_quit;
+    QAction *action_undo;
+    QAction *action_redo;
     QAction *action_auto_follow;
     QAction *action_reset_colors;
     QAction *action_randomize_colors;

@@ -75,13 +75,13 @@ void DSPEditorSection::setupDockLayout()
     addDockWidget(Qt::TopDockWidgetArea, panDock);
     m_docks["pan"] = panDock;
 
-    // === DSP Engine dock (bottom - full width) ===
+    // === DSP dock (bottom - full width) ===
     m_dspWidget = new DSPEngineWidget(m_engine, this);
     m_dspWidget->setMinimumHeight(60);
     m_dspWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
     auto *dspDock = new AdvancedDockWidget(
-        tr("DSP Engine"), 
+        tr("DSP"), 
         QIcon(":/icons/audio-signal.svg"),
         m_dspWidget->getTitleWidget(), 
         this,

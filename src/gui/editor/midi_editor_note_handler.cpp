@@ -1,5 +1,7 @@
 #include "midi_editor_note_handler.h"
 #include "midi_editor_widget.h"
+#include "../undo/undo_manager.h"
+#include "../undo/midi_note_commands.h"
 #include <note_naga_engine/note_naga_engine.h>
 
 #include <QGraphicsRectItem>
@@ -247,7 +249,7 @@ void MidiEditorNoteHandler::addNewNote(const QPointF &scenePos) {
     NN_Note_t newNote;
     newNote.note = noteValue;
     newNote.start = m_editor->snapTickToGrid(tick);
-    newNote.velocity = 64;
+    newNote.velocity = 100;
     newNote.parent = activeTrack;
     
     int ppq = seq->getPPQ();
@@ -278,27 +280,30 @@ void MidiEditorNoteHandler::addNewNote(const QPointF &scenePos) {
         }
     }
 
-    activeTrack->addNote(newNote);
-    seq->computeMaxTick();
-    
-    // Play the note for audio feedback (same as keyboard ruler)
+    // Play the note for audio feedback BEFORE adding to track
+    // This ensures the note ID matches what synth expects
     NoteNagaEngine *engine = m_editor->getEngine();
+    NN_Note_t noteToPlay = newNote;  // Copy for playback
     if (engine) {
-        engine->playSingleNote(newNote);
+        engine->playSingleNote(noteToPlay);
         
-        // Stop the note after a short preview duration
-        // Use 500ms or note length in ms, whichever is shorter
-        int ppq = seq->getPPQ();
-        double tempo = m_editor->getEngine()->getRuntimeData()->getTempo();
-        double msPerTick = 60000.0 / (tempo * ppq);
-        int noteDurationMs = static_cast<int>(newNote.length.value_or(ppq) * msPerTick);
-        int previewDuration = std::min(500, noteDurationMs);
+        // Stop the note after its actual duration (minimum 150ms for audibility)
+        // getTempo() returns microseconds per beat, so:
+        // us_per_tick = tempo / ppq, then total_us = note_length * us_per_tick
+        // time_ms = total_us / 1000
+        int tempo = seq->getTempo();  // microseconds per beat
+        double usPerTick = static_cast<double>(tempo) / ppq;
+        double totalUs = noteToPlay.length.value_or(ppq) * usPerTick;
+        int previewDuration = std::max(150, static_cast<int>(totalUs / 1000.0));
         
-        NN_Note_t noteToStop = newNote;
-        QTimer::singleShot(previewDuration, this, [engine, noteToStop]() {
-            engine->stopSingleNote(noteToStop);
+        QTimer::singleShot(previewDuration, this, [engine, noteToPlay]() {
+            engine->stopSingleNote(noteToPlay);
         });
     }
+
+    // Use undo command to add the note to track
+    auto cmd = std::make_unique<AddNoteCommand>(m_editor, activeTrack, newNote);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
     
     emit notesModified();
 }
@@ -344,8 +349,7 @@ void MidiEditorNoteHandler::applyNoteChanges() {
     int minNoteLength = std::max(1, gridStep); // Minimum note length = grid step
 
     QPointF totalDelta = m_lastDragPos - m_dragStartPos;
-    QSet<NoteNagaTrack*> affectedTracks;
-    QList<QPair<NoteGraphics*, NN_Note_t>> changesToApply;
+    QList<std::tuple<NoteNagaTrack*, NN_Note_t, NN_Note_t>> noteChanges;
 
     // For group operations, calculate common delta in ticks and semitones ONCE
     // This ensures all notes move by the same amount
@@ -397,14 +401,14 @@ void MidiEditorNoteHandler::applyNoteChanges() {
                 newNote.length = std::max(minNoteLength, newLength);
             }
         }
-        changesToApply.append({ng, newNote});
+        noteChanges.append({ng->track, originalNote, newNote});
     }
 
     // Check for overlaps - if ANY overlap, cancel the ENTIRE operation
     // Group changes by track for overlap checking
-    QMap<NoteNagaTrack*, QList<QPair<NoteGraphics*, NN_Note_t>>> changesByTrack;
-    for (const auto& change : changesToApply) {
-        changesByTrack[change.first->track].append(change);
+    QMap<NoteNagaTrack*, QList<std::tuple<NoteNagaTrack*, NN_Note_t, NN_Note_t>>> changesByTrack;
+    for (const auto& change : noteChanges) {
+        changesByTrack[std::get<0>(change)].append(change);
     }
     
     bool anyOverlap = false;
@@ -412,18 +416,18 @@ void MidiEditorNoteHandler::applyNoteChanges() {
     // Validate each track's changes for overlaps
     for (auto trackIt = changesByTrack.begin(); trackIt != changesByTrack.end() && !anyOverlap; ++trackIt) {
         NoteNagaTrack *track = trackIt.key();
-        QList<QPair<NoteGraphics*, NN_Note_t>> &trackChanges = trackIt.value();
+        auto &trackChanges = trackIt.value();
         
         // Get existing notes that are NOT being moved
         std::vector<NN_Note_t> existingNotes = track->getNotes();
         QSet<unsigned long> movingNoteIds;
         for (const auto& change : trackChanges) {
-            movingNoteIds.insert(change.first->note.id);
+            movingNoteIds.insert(std::get<1>(change).id);
         }
         
         // Check each new note position for overlaps
         for (const auto& change : trackChanges) {
-            const NN_Note_t& newNote = change.second;
+            const NN_Note_t& newNote = std::get<2>(change);
             
             // Check against existing notes (not being moved)
             for (const auto& existing : existingNotes) {
@@ -445,7 +449,7 @@ void MidiEditorNoteHandler::applyNoteChanges() {
             // Check against other moving notes (in case they overlap each other after move)
             for (const auto& otherChange : trackChanges) {
                 if (&otherChange == &change) continue;
-                const NN_Note_t& otherNote = otherChange.second;
+                const NN_Note_t& otherNote = std::get<2>(otherChange);
                 if (otherNote.note != newNote.note) continue;
                 
                 int newStart = newNote.start.value_or(0);
@@ -473,27 +477,6 @@ void MidiEditorNoteHandler::applyNoteChanges() {
         m_dragStartNoteStates.clear();
         return;
     }
-
-    auto project = m_editor->getEngine()->getRuntimeData();
-    bool signalsWereBlocked = project->signalsBlocked();
-    project->blockSignals(true);
-
-    for (const auto& change : changesToApply) {
-        NoteGraphics* ng = change.first;
-        NN_Note_t newNote = change.second;
-        NN_Note_t originalNote = m_dragStartNoteStates.value(ng);
-        
-        ng->track->removeNote(originalNote);
-        ng->track->addNote(newNote);
-        
-        affectedTracks.insert(ng->track);
-    }
-    
-    for (const auto& change : changesToApply) {
-        change.first->note = change.second;
-    }
-
-    project->blockSignals(signalsWereBlocked);
     
     // Reset visual positions before refresh (they were moved via setPos during drag)
     for (NoteGraphics *ng : m_selectedNotes) {
@@ -504,14 +487,18 @@ void MidiEditorNoteHandler::applyNoteChanges() {
     // Clear ghost preview
     clearGhostPreview();
     
+    // Use undo command based on drag mode
+    if (m_dragMode == NoteDragMode::Move) {
+        auto cmd = std::make_unique<MoveNotesCommand>(m_editor, noteChanges);
+        m_editor->getUndoManager()->executeCommand(std::move(cmd));
+    } else if (m_dragMode == NoteDragMode::Resize) {
+        auto cmd = std::make_unique<ResizeNotesCommand>(m_editor, noteChanges);
+        m_editor->getUndoManager()->executeCommand(std::move(cmd));
+    }
+    
     m_dragStartNoteStates.clear();
-    seq->computeMaxTick();
 
     emit notesModified();
-
-    for (NoteNagaTrack* track : affectedTracks) {
-        m_editor->refreshTrack(track);
-    }
 
     clearSelection();
 }
@@ -522,27 +509,19 @@ void MidiEditorNoteHandler::deleteSelectedNotes() {
     auto *seq = m_editor->getSequence();
     if (!seq) return;
     
-    QSet<NoteNagaTrack*> affectedTracks;
-    
-    auto project = m_editor->getEngine()->getRuntimeData();
-    bool signalsWereBlocked = project->signalsBlocked();
-    project->blockSignals(true);
-    
+    // Collect notes to delete
+    QList<QPair<NoteNagaTrack*, NN_Note_t>> notesToDelete;
     for (NoteGraphics *ng : m_selectedNotes) {
-        ng->track->removeNote(ng->note);
-        affectedTracks.insert(ng->track);
+        notesToDelete.append({ng->track, ng->note});
     }
-    
-    project->blockSignals(signalsWereBlocked);
     
     clearSelection();
     
-    seq->computeMaxTick();
-    emit notesModified();
+    // Use undo command
+    auto cmd = std::make_unique<DeleteNotesCommand>(m_editor, notesToDelete);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
     
-    for (NoteNagaTrack *track : affectedTracks) {
-        m_editor->refreshTrack(track);
-    }
+    emit notesModified();
 }
 
 void MidiEditorNoteHandler::duplicateSelectedNotes() {
@@ -554,11 +533,8 @@ void MidiEditorNoteHandler::duplicateSelectedNotes() {
     int ppq = seq->getPPQ();
     int offset = ppq; // Offset by one quarter note
     
-    QSet<NoteNagaTrack*> affectedTracks;
-    
-    auto project = m_editor->getEngine()->getRuntimeData();
-    bool signalsWereBlocked = project->signalsBlocked();
-    project->blockSignals(true);
+    // Collect duplicated notes
+    QList<QPair<NoteNagaTrack*, NN_Note_t>> duplicatedNotes;
     
     for (NoteGraphics *ng : m_selectedNotes) {
         NN_Note_t newNote;
@@ -572,21 +548,17 @@ void MidiEditorNoteHandler::duplicateSelectedNotes() {
         if (ng->note.start.has_value()) {
             newNote.start = ng->note.start.value() + offset;
         }
-        ng->track->addNote(newNote);
-        affectedTracks.insert(ng->track);
+        duplicatedNotes.append({ng->track, newNote});
     }
-    
-    project->blockSignals(signalsWereBlocked);
     
     // Clear selection after duplicate
     clearSelection();
     
-    seq->computeMaxTick();
-    emit notesModified();
+    // Use undo command
+    auto cmd = std::make_unique<DuplicateNotesCommand>(m_editor, duplicatedNotes);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
     
-    for (NoteNagaTrack *track : affectedTracks) {
-        m_editor->refreshTrack(track);
-    }
+    emit notesModified();
 }
 
 void MidiEditorNoteHandler::moveSelectedNotesToTrack(NoteNagaTrack *targetTrack) {
@@ -595,18 +567,13 @@ void MidiEditorNoteHandler::moveSelectedNotesToTrack(NoteNagaTrack *targetTrack)
     auto *seq = m_editor->getSequence();
     if (!seq) return;
     
-    QSet<NoteNagaTrack*> affectedTracks;
-    affectedTracks.insert(targetTrack);
-    
     // Get existing notes on target track for overlap check
     std::vector<NN_Note_t> targetExisting = targetTrack->getNotes();
     
-    auto project = m_editor->getEngine()->getRuntimeData();
-    bool signalsWereBlocked = project->signalsBlocked();
-    project->blockSignals(true);
-    
-    // First, collect notes that can be moved (no overlap)
-    QList<QPair<NoteNagaTrack*, NN_Note_t>> notesToMove;
+    // Collect notes that can be moved (no overlap)
+    // Format: sourceTrack, targetTrack, originalNote, newNote
+    QList<std::tuple<NoteNagaTrack*, NoteNagaTrack*, NN_Note_t, NN_Note_t>> moves;
+    QList<QPair<NoteNagaTrack*, NN_Note_t>> notesToMoveTemp;
     
     for (NoteGraphics *ng : m_selectedNotes) {
         // Skip if already on target track
@@ -632,7 +599,7 @@ void MidiEditorNoteHandler::moveSelectedNotesToTrack(NoteNagaTrack *targetTrack)
         
         // Also check against notes we're about to move
         if (!hasOverlap) {
-            for (const auto &other : notesToMove) {
+            for (const auto &other : notesToMoveTemp) {
                 if (other.second.note != note.note) continue;
                 
                 int noteStart = note.start.value_or(0);
@@ -648,40 +615,31 @@ void MidiEditorNoteHandler::moveSelectedNotesToTrack(NoteNagaTrack *targetTrack)
         }
         
         if (!hasOverlap) {
-            notesToMove.append({ng->track, note});
-            affectedTracks.insert(ng->track);
+            notesToMoveTemp.append({ng->track, note});
+            
+            // Create new note for target track
+            NN_Note_t newNote;
+            newNote.id = nn_generate_unique_note_id();
+            newNote.parent = targetTrack;
+            newNote.note = note.note;
+            newNote.velocity = note.velocity;
+            newNote.length = note.length;
+            newNote.start = note.start;
+            newNote.pan = note.pan;
+            
+            moves.append({ng->track, targetTrack, note, newNote});
         }
-        // Notes with overlap are simply not moved (removed from selection only)
     }
     
-    // Perform the move
-    for (const auto &pair : notesToMove) {
-        NoteNagaTrack *sourceTrack = pair.first;
-        NN_Note_t note = pair.second;
-        
-        // Remove from source track
-        sourceTrack->removeNote(note);
-        
-        // Add to target track with new ID and parent
-        NN_Note_t newNote;
-        newNote.id = nn_generate_unique_note_id();
-        newNote.parent = targetTrack;  // IMPORTANT: Set parent to target track
-        newNote.note = note.note;
-        newNote.velocity = note.velocity;
-        newNote.length = note.length;
-        newNote.start = note.start;
-        newNote.pan = note.pan;
-        targetTrack->addNote(newNote);
-    }
-    
-    project->blockSignals(signalsWereBlocked);
+    if (moves.isEmpty()) return;
     
     clearSelection();
-    emit notesModified();
     
-    for (NoteNagaTrack *track : affectedTracks) {
-        m_editor->refreshTrack(track);
-    }
+    // Use undo command
+    auto cmd = std::make_unique<MoveNotesToTrackCommand>(m_editor, moves);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
+    
+    emit notesModified();
 }
 
 void MidiEditorNoteHandler::quantizeSelectedNotes() {
@@ -690,11 +648,8 @@ void MidiEditorNoteHandler::quantizeSelectedNotes() {
     auto *seq = m_editor->getSequence();
     if (!seq) return;
     
-    QSet<NoteNagaTrack*> affectedTracks;
-    
-    auto project = m_editor->getEngine()->getRuntimeData();
-    bool signalsWereBlocked = project->signalsBlocked();
-    project->blockSignals(true);
+    // Collect note changes
+    QList<std::tuple<NoteNagaTrack*, NN_Note_t, NN_Note_t>> noteChanges;
     
     for (NoteGraphics *ng : m_selectedNotes) {
         NN_Note_t originalNote = ng->note;
@@ -704,18 +659,14 @@ void MidiEditorNoteHandler::quantizeSelectedNotes() {
             newNote.start = m_editor->snapTickToGridNearest(newNote.start.value());
         }
         
-        ng->track->removeNote(originalNote);
-        ng->track->addNote(newNote);
-        affectedTracks.insert(ng->track);
+        noteChanges.append({ng->track, originalNote, newNote});
     }
     
-    project->blockSignals(signalsWereBlocked);
+    // Use undo command
+    auto cmd = std::make_unique<QuantizeNotesCommand>(m_editor, noteChanges);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
     
     emit notesModified();
-    
-    for (NoteNagaTrack *track : affectedTracks) {
-        m_editor->refreshTrack(track);
-    }
 }
 
 void MidiEditorNoteHandler::transposeSelectedNotes(int semitones) {
@@ -724,11 +675,8 @@ void MidiEditorNoteHandler::transposeSelectedNotes(int semitones) {
     auto *seq = m_editor->getSequence();
     if (!seq) return;
     
-    QSet<NoteNagaTrack*> affectedTracks;
-    
-    auto project = m_editor->getEngine()->getRuntimeData();
-    bool signalsWereBlocked = project->signalsBlocked();
-    project->blockSignals(true);
+    // Collect note changes
+    QList<std::tuple<NoteNagaTrack*, NN_Note_t, NN_Note_t>> noteChanges;
     
     for (NoteGraphics *ng : m_selectedNotes) {
         NN_Note_t originalNote = ng->note;
@@ -737,18 +685,14 @@ void MidiEditorNoteHandler::transposeSelectedNotes(int semitones) {
         int newNoteValue = newNote.note + semitones;
         newNote.note = std::max(0, std::min(127, newNoteValue));
         
-        ng->track->removeNote(originalNote);
-        ng->track->addNote(newNote);
-        affectedTracks.insert(ng->track);
+        noteChanges.append({ng->track, originalNote, newNote});
     }
     
-    project->blockSignals(signalsWereBlocked);
+    // Use undo command
+    auto cmd = std::make_unique<TransposeNotesCommand>(m_editor, noteChanges, semitones);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
     
     emit notesModified();
-    
-    for (NoteNagaTrack *track : affectedTracks) {
-        m_editor->refreshTrack(track);
-    }
 }
 
 void MidiEditorNoteHandler::setSelectedNotesVelocity(int velocity) {
@@ -758,30 +702,23 @@ void MidiEditorNoteHandler::setSelectedNotesVelocity(int velocity) {
     if (!seq) return;
     
     velocity = std::max(1, std::min(127, velocity));
-    QSet<NoteNagaTrack*> affectedTracks;
     
-    auto project = m_editor->getEngine()->getRuntimeData();
-    bool signalsWereBlocked = project->signalsBlocked();
-    project->blockSignals(true);
+    // Collect note changes
+    QList<std::tuple<NoteNagaTrack*, NN_Note_t, NN_Note_t>> noteChanges;
     
     for (NoteGraphics *ng : m_selectedNotes) {
         NN_Note_t originalNote = ng->note;
         NN_Note_t newNote = originalNote;
         newNote.velocity = velocity;
         
-        ng->track->removeNote(originalNote);
-        ng->track->addNote(newNote);
-        ng->note = newNote;
-        affectedTracks.insert(ng->track);
+        noteChanges.append({ng->track, originalNote, newNote});
     }
     
-    project->blockSignals(signalsWereBlocked);
+    // Use undo command
+    auto cmd = std::make_unique<ChangeVelocityCommand>(m_editor, noteChanges, velocity);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
     
     emit notesModified();
-    
-    for (NoteNagaTrack *track : affectedTracks) {
-        m_editor->refreshTrack(track);
-    }
 }
 
 // --- Drag state ---
@@ -1043,7 +980,6 @@ void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
         return;
     }
     
-    auto *config = m_editor->getConfig();
     int baseTick = m_editor->snapTickToGridNearest(m_editor->sceneXToTick(scenePos.x()));
     int baseNote = m_editor->sceneYToNote(scenePos.y());
     int noteDelta = baseNote - m_clipboardBaseNote;
@@ -1066,13 +1002,11 @@ void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
     
     // Check for overlaps on each track
     bool anyOverlap = false;
-    QSet<NoteNagaTrack*> affectedTracks;
     
     for (auto it = notesByTrack.begin(); it != notesByTrack.end() && !anyOverlap; ++it) {
         NoteNagaTrack *track = seq->getTrackById(it.key());
         if (!track) continue;
         
-        affectedTracks.insert(track);
         std::vector<NN_Note_t> existingNotes = track->getNotes();
         const QList<NN_Note_t> &notesToAdd = it.value();
         
@@ -1117,14 +1051,15 @@ void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
         return;
     }
     
-    // Add all notes to their respective tracks
+    // Collect notes for undo command
+    QList<QPair<NoteNagaTrack*, NN_Note_t>> pastedNotes;
     for (auto it = notesByTrack.begin(); it != notesByTrack.end(); ++it) {
         NoteNagaTrack *track = seq->getTrackById(it.key());
         if (!track) continue;
         
         for (NN_Note_t &newNote : it.value()) {
-            newNote.parent = track;  // Set parent before adding
-            track->addNote(newNote);
+            newNote.parent = track;
+            pastedNotes.append({track, newNote});
         }
     }
     
@@ -1135,6 +1070,9 @@ void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
     m_pasteMode = false;
     emit pasteModeChanged(false);
     
-    seq->computeMaxTick();
+    // Use undo command
+    auto cmd = std::make_unique<PasteNotesCommand>(m_editor, pastedNotes);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
+    
     emit notesModified();
 }

@@ -235,7 +235,7 @@ void MidiKeyboardRuler::mousePressEvent(QMouseEvent *event) {
         pressed_note.id = nn_generate_unique_note_id();
         pressed_note.parent = track;
         pressed_note.note = nval;
-        pressed_note.velocity = 44 + rand() % 41; // random velocity 44 - 84
+        pressed_note.velocity = 80 + rand() % 31; // random velocity 80 - 110
         this->engine->playSingleNote(pressed_note);
         emit notePressed(pressed_note);
         update();

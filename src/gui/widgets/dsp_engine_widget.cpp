@@ -3,6 +3,8 @@
 #include <note_naga_engine/dsp/dsp_factory.h>
 #include "../nn_gui_utils.h"
 #include "../dialogs/dsp_block_chooser_dialog.h"
+#include "../undo/undo_manager.h"
+#include "../undo/dsp_commands.h"
 #include <QContextMenuEvent>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -21,6 +23,9 @@ DSPEngineWidget::DSPEngineWidget(NoteNagaEngine *engine, QWidget *parent)
     
     // Ensure widget fills available space
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
+    // Initialize undo manager for DSP operations
+    m_undoManager = new UndoManager(this);
     
     // Connect to synthesizer signals
 #ifndef QT_DEACTIVATED
@@ -59,14 +64,26 @@ void DSPEngineWidget::initTitleUI() {
     btn_clear = create_small_button(":/icons/clear.svg", "Remove all DSP modules", "btn_clear");
     btn_enable = create_small_button(":/icons/active.svg", "Enable / Disable DSP", "btn_enable");
     btn_enable->setCheckable(true);
+    
+    // Undo/Redo buttons
+    btn_undo = create_small_button(":/icons/undo.svg", "Undo (Cmd+Z)", "btn_undo");
+    btn_undo->setEnabled(false);
+    btn_redo = create_small_button(":/icons/redo.svg", "Redo (Cmd+Shift+Z)", "btn_redo");
+    btn_redo->setEnabled(false);
 
     layout->addWidget(btn_add, 0, Qt::AlignBottom | Qt::AlignHCenter);
     layout->addWidget(btn_clear, 0, Qt::AlignBottom | Qt::AlignHCenter);
     layout->addWidget(btn_enable, 0, Qt::AlignBottom | Qt::AlignHCenter);
+    layout->addSpacing(8);
+    layout->addWidget(btn_undo, 0, Qt::AlignBottom | Qt::AlignHCenter);
+    layout->addWidget(btn_redo, 0, Qt::AlignBottom | Qt::AlignHCenter);
 
     connect(btn_add, &QPushButton::clicked, this, &DSPEngineWidget::addDSPClicked);
     connect(btn_clear, &QPushButton::clicked, this, &DSPEngineWidget::removeAllDSPClicked);
     connect(btn_enable, &QPushButton::clicked, this, &DSPEngineWidget::toggleDSPEnabled);
+    connect(btn_undo, &QPushButton::clicked, this, &DSPEngineWidget::onUndo);
+    connect(btn_redo, &QPushButton::clicked, this, &DSPEngineWidget::onRedo);
+    connect(m_undoManager, &UndoManager::undoStateChanged, this, &DSPEngineWidget::updateUndoRedoButtons);
 }
 
 void DSPEngineWidget::updateSynthesizerSelector() {
@@ -167,19 +184,11 @@ void DSPEngineWidget::refreshDSPWidgets() {
         dsp_widgets.push_back(dsp_widget);
         dsp_layout->insertWidget(dsp_layout->count() - 1, dsp_widget);
         
-        // Delete handler
-        connect(dsp_widget, &DSPBlockWidget::deleteRequested, this, [this, dsp_widget, block]() {
-            if (current_synth == nullptr) {
-                // Remove from master
-                engine->getDSPEngine()->removeDSPBlock(block);
-            } else {
-                // Remove from synth
-                engine->getDSPEngine()->removeSynthDSPBlock(current_synth, block);
-            }
-            dsp_layout->removeWidget(dsp_widget);
-            dsp_widgets.erase(std::remove(dsp_widgets.begin(), dsp_widgets.end(), dsp_widget), dsp_widgets.end());
-            dsp_widget->deleteLater();
-            delete block;
+        // Delete handler - use undo command
+        connect(dsp_widget, &DSPBlockWidget::deleteRequested, this, [this, block]() {
+            auto cmd = std::make_unique<RemoveDSPBlockCommand>(this, engine, block, current_synth);
+            m_undoManager->executeCommand(std::move(cmd));
+            updateUndoRedoButtons();
         });
 
         // Move left/right handlers
@@ -314,35 +323,25 @@ void DSPEngineWidget::addDSPClicked() {
     NoteNagaDSPBlockBase *new_block = selected->create();
     if (!new_block) return;
 
-    if (current_synth == nullptr) {
-        // Add to master
-        engine->getDSPEngine()->addDSPBlock(new_block);
-    } else {
-        // Add to synth
-        engine->getDSPEngine()->addSynthDSPBlock(current_synth, new_block);
-    }
-    
-    // Refresh UI
-    refreshDSPWidgets();
+    // Use undo command
+    auto cmd = std::make_unique<AddDSPBlockCommand>(this, engine, new_block, current_synth);
+    m_undoManager->executeCommand(std::move(cmd));
+    updateUndoRedoButtons();  // Force update after command
 }
 
 void DSPEngineWidget::removeAllDSPClicked() {
-    if (current_synth == nullptr) {
-        // Remove all master DSP blocks
-        for (auto *dsp_widget : dsp_widgets) {
-            engine->getDSPEngine()->removeDSPBlock(dsp_widget->block());
-            delete dsp_widget->block();
-        }
-    } else {
-        // Remove all synth DSP blocks
-        for (auto *dsp_widget : dsp_widgets) {
-            engine->getDSPEngine()->removeSynthDSPBlock(current_synth, dsp_widget->block());
-            delete dsp_widget->block();
-        }
+    if (dsp_widgets.empty()) return;
+    
+    // Collect all blocks
+    std::vector<NoteNagaDSPBlockBase*> blocks;
+    for (auto *dsp_widget : dsp_widgets) {
+        blocks.push_back(dsp_widget->block());
     }
     
-    // Clear UI
-    clearDSPWidgets();
+    // Use undo command
+    auto cmd = std::make_unique<RemoveAllDSPBlocksCommand>(this, engine, blocks, current_synth);
+    m_undoManager->executeCommand(std::move(cmd));
+    updateUndoRedoButtons();  // Force update after command
 }
 
 void DSPEngineWidget::toggleDSPEnabled() {
@@ -369,12 +368,10 @@ void DSPEngineWidget::contextMenuEvent(QContextMenuEvent *event)
             NoteNagaDSPBlockBase *new_block = factory.create();
             if (!new_block) return;
             
-            if (current_synth == nullptr) {
-                engine->getDSPEngine()->addDSPBlock(new_block);
-            } else {
-                engine->getDSPEngine()->addSynthDSPBlock(current_synth, new_block);
-            }
-            refreshDSPWidgets();
+            // Use undo command
+            auto cmd = std::make_unique<AddDSPBlockCommand>(this, engine, new_block, current_synth);
+            m_undoManager->executeCommand(std::move(cmd));
+            updateUndoRedoButtons();  // Force update after command
         });
     }
     
@@ -449,4 +446,31 @@ void DSPEngineWidget::contextMenuEvent(QContextMenuEvent *event)
     }
     
     menu.exec(event->globalPos());
+}
+
+void DSPEngineWidget::onUndo() {
+    if (m_undoManager) {
+        m_undoManager->undo();
+        updateUndoRedoButtons();  // Force update after undo
+    }
+}
+
+void DSPEngineWidget::onRedo() {
+    if (m_undoManager) {
+        m_undoManager->redo();
+        updateUndoRedoButtons();  // Force update after redo
+    }
+}
+
+void DSPEngineWidget::updateUndoRedoButtons() {
+    if (m_undoManager) {
+        btn_undo->setEnabled(m_undoManager->canUndo());
+        btn_redo->setEnabled(m_undoManager->canRedo());
+        btn_undo->setToolTip(m_undoManager->canUndo() 
+            ? tr("Undo %1 (Cmd+Z)").arg(m_undoManager->undoDescription()) 
+            : tr("Undo (Cmd+Z)"));
+        btn_redo->setToolTip(m_undoManager->canRedo() 
+            ? tr("Redo %1 (Cmd+Shift+Z)").arg(m_undoManager->redoDescription()) 
+            : tr("Redo (Cmd+Shift+Z)"));
+    }
 }

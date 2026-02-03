@@ -302,6 +302,8 @@ void MidiEditorSection::connectSignals()
     // Note selection and modification signals
     connect(m_midiEditor, &MidiEditorWidget::notesModified,
             m_notePropertyEditor, &NotePropertyEditor::onNotesChanged);
+    connect(m_midiEditor, &MidiEditorWidget::dataRefreshed,
+            m_notePropertyEditor, &NotePropertyEditor::onNotesChanged);
     connect(m_midiEditor, &MidiEditorWidget::selectionChanged,
             m_notePropertyEditor, &NotePropertyEditor::onSelectionChanged);
     

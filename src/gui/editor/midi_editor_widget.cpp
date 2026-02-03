@@ -1,6 +1,7 @@
 #include "midi_editor_widget.h"
 #include "midi_editor_context_menu.h"
 #include "midi_editor_note_handler.h"
+#include "../undo/undo_manager.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -43,6 +44,9 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     // Initialize rubber band
     rubberBand = new QRubberBand(QRubberBand::Rectangle, this);
 
+    // Initialize undo manager
+    m_undoManager = new UndoManager(this);
+    
     // Initialize helper classes
     m_noteHandler = new MidiEditorNoteHandler(this, this);
     m_contextMenu = new MidiEditorContextMenu(this, this);
@@ -256,10 +260,25 @@ void MidiEditorWidget::initTitleUI() {
     connect(btn_looping, &QPushButton::clicked, this, &MidiEditorWidget::enableLooping);
     enableLooping(btn_looping->isChecked());
     
+    // Undo/Redo buttons
+    btn_undo = create_small_button(":/icons/undo.svg", "Undo (Cmd+Z)", "Undo");
+    btn_undo->setEnabled(false);
+    connect(btn_undo, &QPushButton::clicked, this, &MidiEditorWidget::onUndo);
+    
+    btn_redo = create_small_button(":/icons/redo.svg", "Redo (Cmd+Shift+Z)", "Redo");
+    btn_redo->setEnabled(false);
+    connect(btn_redo, &QPushButton::clicked, this, &MidiEditorWidget::onRedo);
+    
+    // Connect undo manager state changes to button updates
+    connect(m_undoManager, &UndoManager::undoStateChanged, this, &MidiEditorWidget::updateUndoRedoButtons);
+    
     QPushButton *btn_step = create_small_button(":/icons/step-forward.svg",
                                                 "Step Forward", "StepForward");
 
     // Add widgets to layout
+    layout->addWidget(btn_undo, 0, Qt::AlignRight);
+    layout->addWidget(btn_redo, 0, Qt::AlignRight);
+    layout->addWidget(create_separator());
     layout->addWidget(lblNoteDur, 0, Qt::AlignRight);
     layout->addWidget(combo_note_duration, 0, Qt::AlignRight);
     layout->addWidget(lblGridRes, 0, Qt::AlignRight);
@@ -302,6 +321,7 @@ NoteDuration MidiEditorWidget::getNoteDuration() const {
 void MidiEditorWidget::refreshAll() {
     recalculateContentSize();
     updateScene();
+    emit dataRefreshed();
 }
 
 void MidiEditorWidget::refreshMarker() {
@@ -1380,5 +1400,30 @@ void MidiEditorWidget::updateLegendVisibility() {
         m_legendWidget->raise();
     } else {
         m_legendWidget->hide();
+    }
+}
+
+void MidiEditorWidget::onUndo() {
+    if (m_undoManager) {
+        m_undoManager->undo();
+    }
+}
+
+void MidiEditorWidget::onRedo() {
+    if (m_undoManager) {
+        m_undoManager->redo();
+    }
+}
+
+void MidiEditorWidget::updateUndoRedoButtons() {
+    if (m_undoManager) {
+        btn_undo->setEnabled(m_undoManager->canUndo());
+        btn_redo->setEnabled(m_undoManager->canRedo());
+        btn_undo->setToolTip(m_undoManager->canUndo() 
+            ? tr("Undo %1 (Cmd+Z)").arg(m_undoManager->undoDescription()) 
+            : tr("Undo (Cmd+Z)"));
+        btn_redo->setToolTip(m_undoManager->canRedo() 
+            ? tr("Redo %1 (Cmd+Shift+Z)").arg(m_undoManager->redoDescription()) 
+            : tr("Redo (Cmd+Shift+Z)"));
     }
 }

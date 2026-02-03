@@ -1,5 +1,7 @@
 #include "note_property_editor.h"
 #include "midi_editor_widget.h"
+#include "../undo/undo_manager.h"
+#include "../undo/midi_note_commands.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -696,14 +698,19 @@ void NotePropertyEditor::mousePressEvent(QMouseEvent *event)
         // Check if Shift is held for proportional editing of selected notes
         m_proportionalEdit = (event->modifiers() & Qt::ShiftModifier) && bar->selected;
         m_selectedBarsStartValues.clear();
+        m_originalNotes.clear();
         
         if (m_proportionalEdit) {
-            // Store original values of all selected bars
+            // Store original values and notes of all selected bars for undo
             for (size_t i = 0; i < m_noteBars.size(); ++i) {
                 if (m_noteBars[i].selected) {
                     m_selectedBarsStartValues.push_back({static_cast<int>(i), m_noteBars[i].value});
+                    m_originalNotes.append({m_noteBars[i].track, m_noteBars[i].note, static_cast<int>(i)});
                 }
             }
+        } else {
+            // Store single bar's original note for undo
+            m_originalNotes.append({bar->track, bar->note, static_cast<int>(bar - m_noteBars.data())});
         }
         
         setCursor(Qt::SizeVerCursor);
@@ -862,12 +869,52 @@ void NotePropertyEditor::mouseReleaseEvent(QMouseEvent *event)
             }
         }
         
+        // Create undo command for the property changes
+        if (m_midiEditor && m_midiEditor->getUndoManager() && !m_originalNotes.empty()) {
+            QList<std::tuple<NoteNagaTrack*, NN_Note_t, NN_Note_t>> noteChanges;
+            
+            for (const auto &orig : m_originalNotes) {
+                NoteNagaTrack *track = std::get<0>(orig);
+                const NN_Note_t &oldNote = std::get<1>(orig);
+                int barIdx = std::get<2>(orig);
+                
+                if (barIdx >= 0 && barIdx < static_cast<int>(m_noteBars.size())) {
+                    // Get the current note state from the bar
+                    NN_Note_t newNote = m_noteBars[barIdx].note;
+                    if (m_propertyType == PropertyType::Velocity) {
+                        newNote.velocity = m_noteBars[barIdx].value;
+                    } else {
+                        newNote.pan = m_noteBars[barIdx].value;
+                    }
+                    
+                    // Only add if there was actually a change
+                    bool hasChange = (m_propertyType == PropertyType::Velocity) 
+                        ? (oldNote.velocity.value_or(100) != m_noteBars[barIdx].value)
+                        : (oldNote.pan.value_or(64) != m_noteBars[barIdx].value);
+                    
+                    if (hasChange) {
+                        noteChanges.append({track, oldNote, newNote});
+                    }
+                }
+            }
+            
+            if (!noteChanges.empty()) {
+                auto cmdType = (m_propertyType == PropertyType::Velocity) 
+                    ? ChangeNotePropertyCommand::PropertyType::Velocity
+                    : ChangeNotePropertyCommand::PropertyType::Pan;
+                auto cmd = std::make_unique<ChangeNotePropertyCommand>(m_midiEditor, cmdType, noteChanges);
+                // Don't execute - already applied during drag, just add to history
+                m_midiEditor->getUndoManager()->addCommandWithoutExecute(std::move(cmd));
+            }
+        }
+        
         m_isDragging = false;
         m_isSnapping = false;
         m_snapValue = -1;
         m_editingBar = nullptr;
         m_proportionalEdit = false;
         m_selectedBarsStartValues.clear();
+        m_originalNotes.clear();
         setCursor(Qt::ArrowCursor);
         m_valueLabel->clear();
         
@@ -1051,20 +1098,42 @@ void NotePropertyEditor::applyValueToContextBar(int value)
     if (!m_contextMenuBar) return;
     
     value = qBound(0, value, 127);
-    m_contextMenuBar->value = value;
     
-    // Update the actual note in the engine
+    // Get the original note for undo
     std::vector<NN_Note_t> notes = m_contextMenuBar->track->getNotes();
     if (m_contextMenuBar->noteIndex >= 0 && m_contextMenuBar->noteIndex < (int)notes.size()) {
+        NN_Note_t oldNote = notes[m_contextMenuBar->noteIndex];
+        NN_Note_t newNote = oldNote;
+        
         if (m_propertyType == PropertyType::Velocity) {
-            notes[m_contextMenuBar->noteIndex].velocity = value;
+            newNote.velocity = value;
         } else if (m_propertyType == PropertyType::Pan) {
-            notes[m_contextMenuBar->noteIndex].pan = value;
+            newNote.pan = value;
         }
-        m_contextMenuBar->track->setNotes(notes);
-        emit notePropertyChanged(m_contextMenuBar->track, m_contextMenuBar->noteIndex, value);
-        // Also emit edit finished for context menu actions (they are immediate)
-        emit notePropertyEditFinished(m_contextMenuBar->track);
+        
+        // Only create command if value actually changed
+        if (oldNote.velocity != newNote.velocity || oldNote.pan != newNote.pan) {
+            // Update visual state
+            m_contextMenuBar->value = value;
+            
+            // Create and execute undo command
+            ChangeNotePropertyCommand::PropertyType cmdPropType = 
+                (m_propertyType == PropertyType::Velocity) 
+                    ? ChangeNotePropertyCommand::PropertyType::Velocity 
+                    : ChangeNotePropertyCommand::PropertyType::Pan;
+            
+            // Create a single-item list with the change
+            QList<std::tuple<NoteNagaTrack*, NN_Note_t, NN_Note_t>> noteChanges;
+            noteChanges.append(std::make_tuple(m_contextMenuBar->track, oldNote, newNote));
+            
+            auto command = std::make_unique<ChangeNotePropertyCommand>(
+                m_midiEditor, cmdPropType, noteChanges);
+            
+            m_midiEditor->getUndoManager()->executeCommand(std::move(command));
+            
+            emit notePropertyChanged(m_contextMenuBar->track, m_contextMenuBar->noteIndex, value);
+            emit notePropertyEditFinished(m_contextMenuBar->track);
+        }
     }
     
     update();

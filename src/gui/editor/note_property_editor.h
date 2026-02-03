@@ -151,6 +151,9 @@ private:
     bool m_proportionalEdit;  // True when editing multiple selected notes proportionally (Shift held)
     std::vector<std::pair<int, int>> m_selectedBarsStartValues;  // Index in m_noteBars -> original value
     
+    // Original notes for undo support - stored on mouse press
+    QList<std::tuple<NoteNagaTrack*, NN_Note_t, int>> m_originalNotes;  // track, originalNote, barIndex
+    
     // Note data cache for rendering
     struct NoteBar {
         int x;
