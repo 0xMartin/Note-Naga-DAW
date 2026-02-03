@@ -121,6 +121,9 @@ void TrackListWidget::reloadTracks(NoteNagaMidiSeq *seq) {
     connect(widget, &TrackWidget::clicked, this, [this, seq, idx]() {
       updateSelection(seq, static_cast<int>(idx));
     });
+    
+    // Forward solo view signal
+    connect(widget, &TrackWidget::soloViewToggled, this, &TrackListWidget::soloViewToggled);
 
     track_widgets.push_back(widget);
     vbox->addWidget(widget);

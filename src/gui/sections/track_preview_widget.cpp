@@ -521,9 +521,12 @@ void TrackPreviewCanvas::paintEvent(QPaintEvent *event)
         }
     }
     
-    // Sort by start time
+    // Sort by start time, then by track index for stable z-order
     std::sort(visibleNotes.begin(), visibleNotes.end(), 
-              [](const NoteData &a, const NoteData &b) { return a.noteStart < b.noteStart; });
+              [](const NoteData &a, const NoteData &b) { 
+                  if (a.noteStart != b.noteStart) return a.noteStart < b.noteStart;
+                  return a.trackIdx < b.trackIdx;  // Stable ordering for overlapping notes
+              });
     
     // Draw notes with optimized rendering
     p.setRenderHint(QPainter::Antialiasing, true);

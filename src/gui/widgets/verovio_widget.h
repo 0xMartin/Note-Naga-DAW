@@ -138,6 +138,7 @@ private:
     
     // MEI generation helpers
     QString midiPitchToMEI(int midiPitch, int durationTicks, int ppq);
+    QString midiPitchToMEISimple(int midiPitch);  // For chord notes (no duration)
     QString ticksToDuration(int ticks, int ppq);
 
     NoteNagaEngine *m_engine;

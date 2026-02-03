@@ -348,13 +348,14 @@ void TempoTrackEditor::paintEvent(QPaintEvent *)
         p.drawLine(playbackX, 0, playbackX, h);
     }
     
-    // Show current hovered value
+    // Show current hovered value (top-left, same height as "Tempo" label)
     if (m_hoveredPoint) {
         QString info = QString("%1 BPM @ tick %2")
             .arg(m_hoveredPoint->bpm, 0, 'f', 1)
             .arg(m_hoveredPoint->tick);
         m_valueLabel->setText(info);
-        m_valueLabel->move(m_leftMargin + 10, h - 20);
+        m_valueLabel->adjustSize();  // Auto-size to fit content
+        m_valueLabel->move(m_leftMargin + 10, 6);  // Top-left position
         m_valueLabel->setVisible(true);
     }
 }
@@ -450,17 +451,41 @@ void TempoTrackEditor::drawTempoPoints(QPainter &p)
         p.setBrush(color);
         p.drawEllipse(QPoint(pt.x, pt.y), pointRadius, pointRadius);
         
-        // Draw interpolation indicator (small icon below)
-        if (pt.interpolation == TempoInterpolation::Linear) {
-            // Small diagonal line indicating linear
-            p.setPen(QPen(color, 1));
-            p.drawLine(pt.x - 3, pt.y + pointRadius + 4, pt.x + 3, pt.y + pointRadius + 8);
-        } else {
-            // Small step indicator
-            p.setPen(QPen(color, 1));
-            p.drawLine(pt.x - 3, pt.y + pointRadius + 6, pt.x, pt.y + pointRadius + 6);
-            p.drawLine(pt.x, pt.y + pointRadius + 6, pt.x, pt.y + pointRadius + 4);
-            p.drawLine(pt.x, pt.y + pointRadius + 4, pt.x + 3, pt.y + pointRadius + 4);
+        // Draw interpolation indicator (icon below point)
+        // Check if there's enough space (skip if next point is too close)
+        bool hasSpace = true;
+        for (const auto &otherPt : m_tempoPoints) {
+            if (&otherPt != &pt) {
+                int dist = std::abs(otherPt.x - pt.x);
+                if (dist < 30 && dist > 0) {
+                    hasSpace = false;
+                    break;
+                }
+            }
+        }
+        
+        if (hasSpace) {
+            int iconY = pt.y + pointRadius + 8;
+            int iconSize = 12;  // 2x bigger
+            
+            // Draw frame background
+            QRect iconRect(pt.x - iconSize/2 - 2, iconY - 2, iconSize + 4, iconSize + 4);
+            p.setPen(QPen(QColor(60, 60, 70), 1));
+            p.setBrush(QColor(40, 43, 50, 200));
+            p.drawRoundedRect(iconRect, 2, 2);
+            
+            // Draw symbol
+            p.setPen(QPen(color, 2));
+            if (pt.interpolation == TempoInterpolation::Linear) {
+                // Diagonal line indicating linear interpolation
+                p.drawLine(pt.x - iconSize/2, iconY + iconSize/2, 
+                          pt.x + iconSize/2, iconY - iconSize/2 + 4);
+            } else {
+                // Step indicator
+                p.drawLine(pt.x - iconSize/2, iconY + iconSize/2, pt.x, iconY + iconSize/2);
+                p.drawLine(pt.x, iconY + iconSize/2, pt.x, iconY);
+                p.drawLine(pt.x, iconY, pt.x + iconSize/2, iconY);
+            }
         }
     }
 }

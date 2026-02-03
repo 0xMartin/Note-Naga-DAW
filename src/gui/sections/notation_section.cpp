@@ -457,7 +457,7 @@ void NotationSection::updateTrackVisibilityCheckboxes()
         
         QString name = QString::fromStdString(tracks[i]->getName());
         if (name.isEmpty()) {
-            name = tr("Track %1").arg(i + 1);
+            name = tr("Track");
         }
         
         // Add instrument name if available
@@ -472,9 +472,13 @@ void NotationSection::updateTrackVisibilityCheckboxes()
             }
         }
         
-        QCheckBox *cb = new QCheckBox(name);
-        // Only first track visible by default (for cleaner notation view)
-        cb->setChecked(i == 0);
+        // Prepend track number for clarity
+        QString labelText = QString("%1: %2").arg(i + 1).arg(name);
+        
+        QCheckBox *cb = new QCheckBox(labelText);
+        // First non-tempo track visible by default, others hidden
+        bool isFirstNonTempoTrack = (m_trackVisibilityCheckboxes.isEmpty());
+        cb->setChecked(isFirstNonTempoTrack);
         
         // Get track color for icon
         NN_Color_t trackColor = tracks[i]->getColor();
@@ -498,7 +502,7 @@ void NotationSection::updateTrackVisibilityCheckboxes()
         m_trackVisibilityCheckboxes.append(cb);
     }
     
-    // Apply initial visibility (only first track)
+    // Apply initial visibility (only first non-tempo track visible)
     QList<bool> initialVisibility;
     for (int i = 0; i < m_trackVisibilityCheckboxes.size(); ++i) {
         initialVisibility.append(i == 0);

@@ -64,4 +64,12 @@ private slots:
     void onDuplicateTrack();
     void onMoveTrackUp();
     void onMoveTrackDown();
+    
+signals:
+    /**
+     * @brief Signal emitted when solo view is toggled for a track.
+     * @param track Pointer to the track.
+     * @param enabled True to show only this track, false to show all.
+     */
+    void soloViewToggled(NoteNagaTrack *track, bool enabled);
 };

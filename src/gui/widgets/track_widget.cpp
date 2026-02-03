@@ -74,6 +74,12 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     connect(invisible_btn, &QPushButton::clicked, this, &TrackWidget::onToggleVisibility);
     header_hbox->addWidget(invisible_btn, 0);
 
+    solo_view_btn = create_small_button(":/icons/solo-view.svg", "Solo View - Show only this track", "SoloViewButton", 18);
+    solo_view_btn->setCheckable(true);
+    solo_view_btn->setToolTip("Solo View: Show only this track in editor");
+    connect(solo_view_btn, &QPushButton::clicked, this, &TrackWidget::onToggleSoloView);
+    header_hbox->addWidget(solo_view_btn, 0);
+
     solo_btn = create_small_button(":/icons/solo.svg", "Toggle Solo Mode", "SoloButton", 18);
     solo_btn->setCheckable(true);
     connect(solo_btn, &QPushButton::clicked, this, &TrackWidget::onToggleSolo);
@@ -205,6 +211,11 @@ void TrackWidget::updateTrackInfo(NoteNagaTrack* track, const std::string &param
 void TrackWidget::onToggleVisibility()
 {
     track->setVisible(!invisible_btn->isChecked());
+}
+
+void TrackWidget::onToggleSoloView()
+{
+    emit soloViewToggled(track, solo_view_btn->isChecked());
 }
 
 void TrackWidget::onToggleSolo()

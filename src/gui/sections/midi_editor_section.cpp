@@ -359,6 +359,10 @@ void MidiEditorSection::connectSignals()
         
         m_midiEditor->horizontalScrollBar()->setValue(scrollValue);
     });
+    
+    // Solo view: when toggled, hide all other tracks except the selected one
+    connect(m_trackListWidget, &TrackListWidget::soloViewToggled, 
+            this, &MidiEditorSection::onSoloViewToggled);
 }
 
 void MidiEditorSection::toggleNotePropertyEditor()
@@ -440,4 +444,28 @@ void MidiEditorSection::onActiveTrackChanged(NoteNagaTrack *track)
         m_tempoTrackEditor->setTempoTrack(nullptr);
         m_notePropertyEditor->show();
     }
+}
+
+void MidiEditorSection::onSoloViewToggled(NoteNagaTrack *track, bool enabled)
+{
+    // Solo view: show only the selected track, hide all others
+    NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
+    if (!seq) return;
+    
+    auto tracks = seq->getTracks();
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        NoteNagaTrack *t = tracks[i];
+        if (!t) continue;
+        
+        if (enabled) {
+            // Solo mode: show only the target track
+            t->setVisible(t == track);
+        } else {
+            // Exit solo mode: show all tracks
+            t->setVisible(true);
+        }
+    }
+    
+    // Refresh the editor to reflect visibility changes
+    m_midiEditor->update();
 }

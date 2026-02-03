@@ -369,8 +369,10 @@ QString VerovioWidget::generateMEI()
     auto tracks = m_sequence->getTracks();
     if (tracks.empty()) return QString();
     
-    // Calculate ticks per measure
-    int ppq = 480;
+    // Calculate ticks per measure using actual PPQ from sequence
+    int ppq = m_sequence->getPPQ();
+    if (ppq <= 0) ppq = 480;  // Fallback
+    
     QStringList timeParts = m_settings.timeSignature.split('/');
     int numerator = 4, denominator = 4;
     if (timeParts.size() == 2) {
@@ -504,6 +506,9 @@ QString VerovioWidget::generateMEI()
         // Add each visible staff
         staffN = 1;
         for (size_t trackIdx = 0; trackIdx < tracks.size(); ++trackIdx) {
+            // Skip tempo tracks - they have no notes
+            if (tracks[trackIdx]->isTempoTrack()) continue;
+            
             bool isVisible = (trackIdx >= static_cast<size_t>(m_trackVisibility.size())) || m_trackVisibility[trackIdx];
             if (!isVisible) continue;
             
@@ -512,6 +517,7 @@ QString VerovioWidget::generateMEI()
             
             // Get notes in this measure for this track
             auto notes = tracks[trackIdx]->getNotes();
+            
             struct MeasureNote {
                 int pitch;
                 int relStart;  // relative to measure start
@@ -537,61 +543,43 @@ QString VerovioWidget::generateMEI()
                 std::sort(measureNotes.begin(), measureNotes.end(),
                          [](const MeasureNote &a, const MeasureNote &b) { return a.relStart < b.relStart; });
                 
-                // Calculate rhythmic duration based on gaps between notes
-                // This gives better results for legato/arpeggiated passages
-                for (int i = 0; i < measureNotes.size(); ++i) {
-                    int rhythmicDuration;
-                    if (i < measureNotes.size() - 1) {
-                        // Duration = gap to next note
-                        rhythmicDuration = measureNotes[i + 1].relStart - measureNotes[i].relStart;
+                // Use actual MIDI note duration for notation
+                // This is more accurate than gap-based calculation
+                // The actual duration is already stored in measureNotes[i].duration
+                
+                // Group notes by start time to form chords
+                // Notes with the same relStart should be in a <chord> element
+                int i = 0;
+                while (i < measureNotes.size()) {
+                    int currentStart = measureNotes[i].relStart;
+                    
+                    // Count how many notes have the same start time (chord)
+                    int chordEnd = i + 1;
+                    while (chordEnd < measureNotes.size() && 
+                           measureNotes[chordEnd].relStart == currentStart) {
+                        chordEnd++;
+                    }
+                    int chordSize = chordEnd - i;
+                    
+                    // Get duration of first note in chord for beam logic
+                    QString dur = ticksToDuration(measureNotes[i].duration, ppq);
+                    
+                    if (chordSize == 1) {
+                        // Single note - add directly
+                        QString meiNote = midiPitchToMEI(measureNotes[i].pitch, measureNotes[i].duration, ppq);
+                        mei += QString("                  %1\n").arg(meiNote);
                     } else {
-                        // Last note: use remaining time in measure or actual duration
-                        int remaining = m_ticksPerMeasure - measureNotes[i].relStart;
-                        rhythmicDuration = qMin(measureNotes[i].duration, remaining);
-                    }
-                    // Use the smaller of rhythmic gap and actual MIDI duration
-                    measureNotes[i].duration = qMin(measureNotes[i].duration, qMax(rhythmicDuration, ppq / 8));
-                }
-                
-                // Group notes into beams (for eighth notes and shorter)
-                bool inBeam = false;
-                int beamCount = 0;
-                
-                for (int i = 0; i < measureNotes.size(); ++i) {
-                    const auto &mn = measureNotes[i];
-                    QString dur = ticksToDuration(mn.duration, ppq);
-                    bool needsBeam = (dur == "8" || dur == "16" || dur == "32" || dur == "64");
-                    
-                    // Check if next note also needs beam
-                    bool nextNeedsBeam = false;
-                    if (i < measureNotes.size() - 1) {
-                        QString nextDur = ticksToDuration(measureNotes[i + 1].duration, ppq);
-                        nextNeedsBeam = (nextDur == "8" || nextDur == "16" || nextDur == "32" || nextDur == "64");
+                        // Multiple notes at same time - create chord
+                        mei += QString("                  <chord dur=\"%1\">\n").arg(dur);
+                        for (int j = i; j < chordEnd; ++j) {
+                            // For chord notes, we use a simplified note without dur attribute
+                            QString noteName = midiPitchToMEISimple(measureNotes[j].pitch);
+                            mei += QString("                    %1\n").arg(noteName);
+                        }
+                        mei += "                  </chord>\n";
                     }
                     
-                    // Start beam if this note needs it and we're not in one
-                    if (needsBeam && !inBeam && nextNeedsBeam) {
-                        mei += "                  <beam>\n";
-                        inBeam = true;
-                        beamCount = 0;
-                    }
-                    
-                    // Add the note
-                    QString meiNote = midiPitchToMEI(mn.pitch, mn.duration, ppq);
-                    QString indent = inBeam ? "                    " : "                  ";
-                    mei += QString("%1%2\n").arg(indent).arg(meiNote);
-                    beamCount++;
-                    
-                    // End beam if we've collected enough notes or next doesn't need beam
-                    if (inBeam && (!nextNeedsBeam || beamCount >= 4)) {
-                        mei += "                  </beam>\n";
-                        inBeam = false;
-                    }
-                }
-                
-                // Close any open beam
-                if (inBeam) {
-                    mei += "                  </beam>\n";
+                    i = chordEnd;
                 }
             }
             
@@ -627,6 +615,13 @@ QString VerovioWidget::ticksToDuration(int ticks, int ppq)
     // ppq = pulses (ticks) per quarter note
     // MEI dur values: 1=whole, 2=half, 4=quarter, 8=eighth, 16=sixteenth, 32=32nd
     
+    // Enforce minimum duration for readability (no 64th notes or shorter)
+    // Minimum = 32nd note = ppq / 8
+    int minTicks = ppq / 8;
+    if (ticks < minTicks) {
+        ticks = minTicks;
+    }
+    
     // Calculate ratio relative to quarter note
     double ratio = static_cast<double>(ticks) / ppq;
     
@@ -636,8 +631,7 @@ QString VerovioWidget::ticksToDuration(int ticks, int ppq)
     if (ratio >= 0.875) return "4";         // quarter note (1 beat)
     if (ratio >= 0.4375) return "8";        // eighth note (0.5 beat)
     if (ratio >= 0.21875) return "16";      // sixteenth note (0.25 beat)
-    if (ratio >= 0.109375) return "32";     // 32nd note
-    return "64";                             // 64th note (very short)
+    return "32";                             // 32nd note (minimum for readability)
 }
 
 QString VerovioWidget::midiPitchToMEI(int midiPitch, int durationTicks, int ppq)
@@ -653,6 +647,26 @@ QString VerovioWidget::midiPitchToMEI(int midiPitch, int durationTicks, int ppq)
     
     QString note = QString("<note pname=\"%1\" oct=\"%2\" dur=\"%3\"")
                    .arg(noteNames[noteIdx]).arg(octave).arg(dur);
+    
+    if (QString(accidentals[noteIdx]) == "s") {
+        note += " accid=\"s\"";
+    }
+    
+    note += "/>";
+    return note;
+}
+
+QString VerovioWidget::midiPitchToMEISimple(int midiPitch)
+{
+    // Convert MIDI pitch to MEI note element without duration (for chord notes)
+    static const char* noteNames[] = {"c", "c", "d", "d", "e", "f", "f", "g", "g", "a", "a", "b"};
+    static const char* accidentals[] = {"", "s", "", "s", "", "", "s", "", "s", "", "s", ""};  // s = sharp
+    
+    int octave = (midiPitch / 12) - 1;
+    int noteIdx = midiPitch % 12;
+    
+    QString note = QString("<note pname=\"%1\" oct=\"%2\"")
+                   .arg(noteNames[noteIdx]).arg(octave);
     
     if (QString(accidentals[noteIdx]) == "s") {
         note += " accid=\"s\"";

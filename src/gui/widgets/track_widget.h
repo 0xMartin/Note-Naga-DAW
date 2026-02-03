@@ -58,6 +58,7 @@ private:
     QLabel *unsaved_indicator;  ///< Dot indicator showing unsaved track name
     QPushButton *color_btn;
     QPushButton *invisible_btn;
+    QPushButton *solo_view_btn; ///< Toggle solo view (show only this track)
     QPushButton *solo_btn;
     QPushButton *mute_btn;
     QPushButton *tempo_active_btn;  ///< Toggle for tempo track activation
@@ -86,9 +87,17 @@ signals:
      */
     void clicked(int track_id);
     
+    /**
+     * @brief Signal emitted when solo view is toggled for this track.
+     * @param track Pointer to the track.
+     * @param enabled True to show only this track, false to show all.
+     */
+    void soloViewToggled(NoteNagaTrack *track, bool enabled);
+    
 private slots:
     void updateTrackInfo(NoteNagaTrack *track, const std::string &param);
     void onToggleVisibility();
+    void onToggleSoloView();
     void onToggleSolo();
     void onToggleMute();
     void onToggleTempoActive();

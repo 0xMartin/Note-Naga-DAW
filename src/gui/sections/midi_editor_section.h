@@ -55,6 +55,7 @@ public slots:
     void showHideDock(const QString &name, bool checked);
     void toggleNotePropertyEditor();
     void onActiveTrackChanged(NoteNagaTrack *track);
+    void onSoloViewToggled(NoteNagaTrack *track, bool enabled);
 
 private:
     NoteNagaEngine *m_engine;
