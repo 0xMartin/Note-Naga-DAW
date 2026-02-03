@@ -781,6 +781,7 @@ void MediaExportSection::showEvent(QShowEvent *event)
     refreshSequence();
     
     // Resize docks to proper proportions after layout is ready
+    // Do this every time section is shown to ensure proper sizing
     QTimer::singleShot(50, this, [this]() {
         int totalWidth = width();
         int settingsWidth = 400;  // Desired width for settings panel
@@ -790,9 +791,23 @@ void MediaExportSection::showEvent(QShowEvent *event)
         resizeDocks({m_docks["settings"], m_docks["preview"]}, 
                     {settingsWidth, previewWidth}, Qt::Horizontal);
         
-        // Update preview render size
-        updatePreviewRenderSize();
+        // Force layout update on preview widgets
+        if (m_previewStack) {
+            m_previewStack->updateGeometry();
+        }
+        if (m_previewLabel) {
+            m_previewLabel->updateGeometry();
+        }
     });
+    
+    // Update preview size after layout has settled (multiple times to ensure it works)
+    for (int delay : {100, 200, 400}) {
+        QTimer::singleShot(delay, this, [this]() {
+            // Reset last render size to force update
+            m_lastRenderSize = QSize();
+            updatePreviewRenderSize();
+        });
+    }
 }
 
 void MediaExportSection::hideEvent(QHideEvent *event)
@@ -818,15 +833,25 @@ QSize MediaExportSection::getTargetResolution()
 void MediaExportSection::updatePreviewRenderSize()
 {
     if (!m_previewWorker) return;
+    if (!m_previewLabel) return;
+    
+    // Force the label to have correct geometry
+    m_previewLabel->updateGeometry();
     
     QSize targetRes = getTargetResolution();
     QSize labelSize = m_previewLabel->size();
+    
+    // If label is still empty, try to get size from parent
+    if (labelSize.isEmpty() && m_previewStack) {
+        labelSize = m_previewStack->size();
+    }
     if (labelSize.isEmpty()) return;
 
     QSize renderSize = targetRes;
     renderSize.scale(labelSize, Qt::KeepAspectRatio);
     
-    if (renderSize != m_lastRenderSize) {
+    // Always update on section activation to ensure correct size
+    if (renderSize != m_lastRenderSize || renderSize.isValid()) {
         m_lastRenderSize = renderSize;
         QMetaObject::invokeMethod(m_previewWorker, "updateSize", Qt::QueuedConnection,
                                   Q_ARG(QSize, m_lastRenderSize));
