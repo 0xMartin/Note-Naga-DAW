@@ -73,6 +73,9 @@ private slots:
     void onCreateProject();
     void onBackToMain();
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     void setupMainPage();
     void setupNewProjectPage();
@@ -106,4 +109,7 @@ private:
     WizardResult m_wizardResult = WizardResult::None;
     NoteNagaProjectMetadata m_metadata;
     QString m_selectedFilePath;
+    
+    // Background
+    QWidget *m_backgroundWidget = nullptr;
 };

@@ -9,6 +9,56 @@
 #include <QSpacerItem>
 #include <QDateTime>
 #include <QFileInfo>
+#include <QSvgRenderer>
+#include <QGraphicsOpacityEffect>
+#include <QPainter>
+#include <QResizeEvent>
+
+// Custom background widget that tiles SVG while preserving aspect ratio
+class TiledSvgBackgroundWizard : public QWidget {
+public:
+    TiledSvgBackgroundWizard(const QString &svgPath, QWidget *parent = nullptr)
+        : QWidget(parent), m_renderer(new QSvgRenderer(svgPath, this))
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setStyleSheet("background: transparent;");
+    }
+    
+protected:
+    void paintEvent(QPaintEvent *) override {
+        if (!m_renderer->isValid()) return;
+        
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        
+        QSizeF svgSize = m_renderer->defaultSize();
+        if (svgSize.isEmpty()) return;
+        
+        int tileWidth = static_cast<int>(svgSize.width());
+        int tileHeight = static_cast<int>(svgSize.height());
+        
+        int tilesX = (width() + tileWidth - 1) / tileWidth;
+        int tilesY = (height() + tileHeight - 1) / tileHeight;
+        
+        int totalTileWidth = tilesX * tileWidth;
+        int totalTileHeight = tilesY * tileHeight;
+        int offsetX = (width() - totalTileWidth) / 2;
+        int offsetY = (height() - totalTileHeight) / 2;
+        
+        for (int row = 0; row < tilesY; ++row) {
+            for (int col = 0; col < tilesX; ++col) {
+                int x = offsetX + col * tileWidth;
+                int y = offsetY + row * tileHeight;
+                QRectF tileRect(x, y, tileWidth, tileHeight);
+                m_renderer->render(&painter, tileRect);
+            }
+        }
+    }
+    
+private:
+    QSvgRenderer *m_renderer;
+};
 
 ProjectWizardDialog::ProjectWizardDialog(NoteNagaEngine *engine,
                                          RecentProjectsManager *recentManager,
@@ -22,13 +72,32 @@ ProjectWizardDialog::ProjectWizardDialog(NoteNagaEngine *engine,
     setModal(true);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
     
-    // Main layout
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    // Create a wrapper to hold background and content
+    QWidget *wrapper = new QWidget(this);
+    wrapper->setStyleSheet("background-color: #1a1a1f;");
+    
+    // Background SVG - tiled
+    m_backgroundWidget = new TiledSvgBackgroundWizard(":/images/background.svg", wrapper);
+    QGraphicsOpacityEffect *opacityEffect = new QGraphicsOpacityEffect(m_backgroundWidget);
+    opacityEffect->setOpacity(0.08);  // Subtle but visible texture
+    m_backgroundWidget->setGraphicsEffect(opacityEffect);
+    
+    // Main layout for the dialog
+    QVBoxLayout *dialogLayout = new QVBoxLayout(this);
+    dialogLayout->setContentsMargins(0, 0, 0, 0);
+    dialogLayout->setSpacing(0);
+    dialogLayout->addWidget(wrapper);
+    
+    // Main layout for wrapper content
+    QVBoxLayout *mainLayout = new QVBoxLayout(wrapper);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
     
+    m_backgroundWidget->lower();
+    
     // Stacked widget for pages
     m_stackedWidget = new QStackedWidget();
+    m_stackedWidget->setStyleSheet("background: transparent;");
     mainLayout->addWidget(m_stackedWidget);
     
     // Setup pages
@@ -45,12 +114,14 @@ ProjectWizardDialog::ProjectWizardDialog(NoteNagaEngine *engine,
 void ProjectWizardDialog::setupMainPage()
 {
     m_mainPage = new QWidget();
+    m_mainPage->setStyleSheet("background: transparent;");
     QVBoxLayout *layout = new QVBoxLayout(m_mainPage);
     layout->setContentsMargins(30, 30, 30, 30);
     layout->setSpacing(20);
     
     // Logo
     QLabel *logoLabel = new QLabel();
+    logoLabel->setStyleSheet("background: transparent;");
     QPixmap logoPixmap(":/icons/logo.svg");
     logoLabel->setPixmap(logoPixmap.scaled(80, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     logoLabel->setAlignment(Qt::AlignCenter);
@@ -59,13 +130,13 @@ void ProjectWizardDialog::setupMainPage()
     // Title
     QLabel *titleLabel = new QLabel("NoteNaga");
     titleLabel->setFont(QFont("Segoe UI", 24, QFont::Bold));
-    titleLabel->setStyleSheet("color: #7eb8f9; letter-spacing: 2px;");
+    titleLabel->setStyleSheet("color: #7eb8f9; letter-spacing: 2px; background: transparent;");
     titleLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(titleLabel);
     
     QLabel *subtitleLabel = new QLabel("Professional MIDI Editor & Synthesizer");
     subtitleLabel->setFont(QFont("Segoe UI", 11));
-    subtitleLabel->setStyleSheet("color: #8899a6; margin-bottom: 15px;");
+    subtitleLabel->setStyleSheet("color: #8899a6; margin-bottom: 15px; background: transparent;");
     subtitleLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(subtitleLabel);
     
@@ -86,7 +157,7 @@ void ProjectWizardDialog::setupMainPage()
     
     QLabel *actionsLabel = new QLabel("Get Started");
     actionsLabel->setFont(QFont("Segoe UI", 12, QFont::Bold));
-    actionsLabel->setStyleSheet("color: #d4d8de; margin-bottom: 5px;");
+    actionsLabel->setStyleSheet("color: #d4d8de; margin-bottom: 5px; background: transparent;");
     actionsLayout->addWidget(actionsLabel);
     
     QString buttonStyle = R"(
@@ -145,7 +216,7 @@ void ProjectWizardDialog::setupMainPage()
     QHBoxLayout *recentHeaderLayout = new QHBoxLayout();
     QLabel *recentLabel = new QLabel("Recent Projects");
     recentLabel->setFont(QFont("Segoe UI", 12, QFont::Bold));
-    recentLabel->setStyleSheet("color: #d4d8de;");
+    recentLabel->setStyleSheet("color: #d4d8de; background: transparent;");
     recentHeaderLayout->addWidget(recentLabel);
     
     m_removeRecentBtn = new QPushButton("✕");
@@ -206,6 +277,7 @@ void ProjectWizardDialog::setupMainPage()
 void ProjectWizardDialog::setupNewProjectPage()
 {
     m_newProjectPage = new QWidget();
+    m_newProjectPage->setStyleSheet("background: transparent;");
     QVBoxLayout *layout = new QVBoxLayout(m_newProjectPage);
     layout->setContentsMargins(40, 40, 40, 40);
     layout->setSpacing(20);
@@ -213,7 +285,7 @@ void ProjectWizardDialog::setupNewProjectPage()
     // Title
     QLabel *titleLabel = new QLabel("📄 Create New Project");
     titleLabel->setFont(QFont("Segoe UI", 18, QFont::Bold));
-    titleLabel->setStyleSheet("color: #7eb8f9; letter-spacing: 1px;");
+    titleLabel->setStyleSheet("color: #7eb8f9; letter-spacing: 1px; background: transparent;");
     layout->addWidget(titleLabel);
     
     // Separator
@@ -474,4 +546,15 @@ void ProjectWizardDialog::onCreateProject()
 void ProjectWizardDialog::onBackToMain()
 {
     showMainPage();
+}
+
+void ProjectWizardDialog::resizeEvent(QResizeEvent *event)
+{
+    QDialog::resizeEvent(event);
+    
+    if (m_backgroundWidget && m_backgroundWidget->parentWidget()) {
+        m_backgroundWidget->setGeometry(0, 0, 
+            m_backgroundWidget->parentWidget()->width(),
+            m_backgroundWidget->parentWidget()->height());
+    }
 }
