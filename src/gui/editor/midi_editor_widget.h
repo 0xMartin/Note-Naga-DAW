@@ -84,6 +84,7 @@ signals:
     void notesModified();
     void selectionChanged();
     void contentSizeChanged(int maxTick);
+    void noteTrackSelected(NoteNagaTrack *track);  ///< Emitted when clicking on a note to select its track
 
 public slots:
     void setTimeScale(double scale);

@@ -101,8 +101,16 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     m_tempoContent = new QWidget();
     m_tempoContent->setVisible(false);
     QHBoxLayout *tempo_layout = new QHBoxLayout(m_tempoContent);
-    tempo_layout->setContentsMargins(4, 4, 4, 4);
+    tempo_layout->setContentsMargins(0, 4, 4, 4);
     tempo_layout->setSpacing(8);
+    
+    // Track number label for tempo track
+    m_tempoIndexLabel = new QLabel(QString::number(this->track->getId() + 1));
+    m_tempoIndexLabel->setObjectName("TrackWidgetIndex");
+    m_tempoIndexLabel->setAlignment(Qt::AlignCenter);
+    m_tempoIndexLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+    m_tempoIndexLabel->setMinimumWidth(24);
+    tempo_layout->addWidget(m_tempoIndexLabel, 0);
     
     QLabel *tempo_label = new QLabel("Tempo Track");
     tempo_label->setStyleSheet("color: #ff8c3c; font-weight: bold; font-size: 13px;");
@@ -162,6 +170,11 @@ void TrackWidget::updateTrackInfo(NoteNagaTrack* track, const std::string &param
         instrument_btn->setIcon(QIcon(":/icons/tempo.svg"));
         instrument_btn->setToolTip("Tempo Track - Controls dynamic tempo changes");
         instrument_btn->setEnabled(false);
+        
+        // Update track number for tempo track
+        if (m_tempoIndexLabel) {
+            m_tempoIndexLabel->setText(QString::number(track->getId() + 1));
+        }
         
         // Update tempo active button state
         if (tempo_active_btn) {

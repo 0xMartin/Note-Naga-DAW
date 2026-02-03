@@ -96,6 +96,7 @@ signals:
     void selectionChanged();
     void notesModified();
     void pasteModeChanged(bool active);
+    void noteTrackSelected(NoteNagaTrack *track);  ///< Emitted when a note is clicked to select its track
 
 private:
     MidiEditorWidget *m_editor;

@@ -166,11 +166,37 @@ void TrackListWidget::handlePlayingNote(const NN_Note_t &note) {
   }
 }
 
+void TrackListWidget::selectAndScrollToTrack(NoteNagaTrack *track) {
+  if (!track) return;
+  
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
+  if (!seq) return;
+  
+  // Find the widget index for this track
+  for (int i = 0; i < (int)track_widgets.size(); ++i) {
+    if (track_widgets[i]->getTrack() == track) {
+      // Update selection
+      updateSelection(seq, i);
+      
+      // Scroll to make the widget visible
+      scroll_area->ensureWidgetVisible(track_widgets[i], 0, 50);
+      break;
+    }
+  }
+}
+
 void TrackListWidget::onAddTrack() {
   NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
   if (!seq) {
     QMessageBox::warning(this, "No Active Sequence",
                          "Please load a MIDI file first to add tracks.");
+    return;
+  }
+  
+  // Prevent adding tracks during playback
+  if (engine->isPlaying()) {
+    QMessageBox::warning(this, "Playback Active",
+                         "Cannot add tracks during playback. Please stop playback first.");
     return;
   }
 
@@ -188,6 +214,13 @@ void TrackListWidget::onAddTempoTrack() {
   if (!seq) {
     QMessageBox::warning(this, "No Active Sequence",
                          "Please load a MIDI file first to add tracks.");
+    return;
+  }
+  
+  // Prevent adding tracks during playback
+  if (engine->isPlaying()) {
+    QMessageBox::warning(this, "Playback Active",
+                         "Cannot add tracks during playback. Please stop playback first.");
     return;
   }
   
@@ -227,6 +260,13 @@ void TrackListWidget::onRemoveTrack() {
                          "Please load a MIDI file first to add tracks.");
     return;
   }
+  
+  // Prevent removing tracks during playback
+  if (engine->isPlaying()) {
+    QMessageBox::warning(this, "Playback Active",
+                         "Cannot remove tracks during playback. Please stop playback first.");
+    return;
+  }
 
   if (selected_row < 0 || selected_row >= (int)track_widgets.size())
     return;
@@ -258,6 +298,13 @@ void TrackListWidget::onClearTracks() {
   if (!seq) {
     QMessageBox::warning(this, "No Active Sequence",
                          "Please load a MIDI file first to clear tracks.");
+    return;
+  }
+  
+  // Prevent clearing tracks during playback
+  if (engine->isPlaying()) {
+    QMessageBox::warning(this, "Playback Active",
+                         "Cannot clear tracks during playback. Please stop playback first.");
     return;
   }
 

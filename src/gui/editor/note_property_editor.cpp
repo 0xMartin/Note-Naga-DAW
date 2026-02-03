@@ -413,13 +413,22 @@ void NotePropertyEditor::paintEvent(QPaintEvent *)
     p.setFont(font);
     
     if (m_propertyType == PropertyType::Velocity) {
-        p.drawText(QRect(2, 28, m_leftMargin - 6, 15), Qt::AlignRight, "127");
-        p.drawText(QRect(2, h / 2 - 7, m_leftMargin - 6, 15), Qt::AlignRight, "64");
-        p.drawText(QRect(2, h - 20, m_leftMargin - 6, 15), Qt::AlignRight, "0");
+        // Position labels at actual value positions
+        int y127 = yFromValue(127);  // Should be near top (around 5)
+        int y64 = yFromValue(64);    // Middle
+        int y0 = yFromValue(0);      // Near bottom
+        
+        p.drawText(QRect(2, y127, m_leftMargin - 6, 15), Qt::AlignRight, "127");
+        p.drawText(QRect(2, y64 - 7, m_leftMargin - 6, 15), Qt::AlignRight, "64");
+        p.drawText(QRect(2, y0 - 7, m_leftMargin - 6, 15), Qt::AlignRight, "0");
     } else if (m_propertyType == PropertyType::Pan) {
-        p.drawText(QRect(2, 28, m_leftMargin - 6, 15), Qt::AlignRight, "R");
-        p.drawText(QRect(2, h / 2 - 7, m_leftMargin - 6, 15), Qt::AlignRight, "C");
-        p.drawText(QRect(2, h - 20, m_leftMargin - 6, 15), Qt::AlignRight, "L");
+        int yR = yFromValue(127);  // Right (top)
+        int yC = yFromValue(64);   // Center
+        int yL = yFromValue(0);    // Left (bottom)
+        
+        p.drawText(QRect(2, yR, m_leftMargin - 6, 15), Qt::AlignRight, "R");
+        p.drawText(QRect(2, yC - 7, m_leftMargin - 6, 15), Qt::AlignRight, "C");
+        p.drawText(QRect(2, yL - 7, m_leftMargin - 6, 15), Qt::AlignRight, "L");
     }
     
     // Draw snap line indicator when snapping

@@ -115,15 +115,16 @@ void TempoTrackEditor::setupUI()
 
 void TempoTrackEditor::setTempoTrack(NoteNagaTrack *track)
 {
-    if (m_tempoTrack) {
-        disconnect(m_tempoTrack, &NoteNagaTrack::tempoEventsChanged,
+    // Safely disconnect from old track (QPointer will be null if track was deleted)
+    if (m_tempoTrack && !m_tempoTrack.isNull()) {
+        disconnect(m_tempoTrack.data(), &NoteNagaTrack::tempoEventsChanged,
                    this, &TempoTrackEditor::onTempoEventsChanged);
     }
     
     m_tempoTrack = track;
     
-    if (m_tempoTrack) {
-        connect(m_tempoTrack, &NoteNagaTrack::tempoEventsChanged,
+    if (m_tempoTrack && !m_tempoTrack.isNull()) {
+        connect(m_tempoTrack.data(), &NoteNagaTrack::tempoEventsChanged,
                 this, &TempoTrackEditor::onTempoEventsChanged);
     }
     

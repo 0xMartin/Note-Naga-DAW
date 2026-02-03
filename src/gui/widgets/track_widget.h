@@ -67,6 +67,7 @@ private:
     // For tempo track special layout
     QWidget *m_normalContent;  ///< Container for normal track controls
     QWidget *m_tempoContent;   ///< Container for tempo track controls
+    QLabel *m_tempoIndexLabel; ///< Track number label for tempo track
     bool m_isTempoTrackLayout; ///< Track if currently showing tempo layout
 
 /*******************************************************************************************************/

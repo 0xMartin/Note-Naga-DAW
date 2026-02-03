@@ -6,6 +6,7 @@
 #include <QSpinBox>
 #include <QComboBox>
 #include <QMenu>
+#include <QPointer>
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -29,7 +30,7 @@ public:
      * @brief Set the tempo track to edit
      */
     void setTempoTrack(NoteNagaTrack *track);
-    NoteNagaTrack* tempoTrack() const { return m_tempoTrack; }
+    NoteNagaTrack* tempoTrack() const { return m_tempoTrack.data(); }
 
     /**
      * @brief Toggle visibility with animation
@@ -97,7 +98,7 @@ protected:
 private:
     NoteNagaEngine *m_engine;
     MidiEditorWidget *m_midiEditor;
-    NoteNagaTrack *m_tempoTrack;
+    QPointer<NoteNagaTrack> m_tempoTrack;
     
     // UI Components
     QPushButton *m_toggleButton;

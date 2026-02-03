@@ -50,6 +50,7 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     // Connect helper signals
     connect(m_noteHandler, &MidiEditorNoteHandler::selectionChanged, this, &MidiEditorWidget::selectionChanged);
     connect(m_noteHandler, &MidiEditorNoteHandler::notesModified, this, &MidiEditorWidget::notesModified);
+    connect(m_noteHandler, &MidiEditorNoteHandler::noteTrackSelected, this, &MidiEditorWidget::noteTrackSelected);
     
     // Refresh editor when notes are modified (added, deleted, moved, etc.)
     connect(m_noteHandler, &MidiEditorNoteHandler::notesModified, this, &MidiEditorWidget::refreshAll);

@@ -285,11 +285,15 @@ void MidiEditorSection::connectSignals()
     if (seq) {
         connect(seq, &NoteNagaMidiSeq::activeTrackChanged, 
                 this, &MidiEditorSection::onActiveTrackChanged);
+        connect(seq, &NoteNagaMidiSeq::trackListChanged, 
+                this, &MidiEditorSection::onTrackListChanged, Qt::UniqueConnection);
     }
     connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged, this, [this](NoteNagaMidiSeq *newSeq) {
         if (newSeq) {
             connect(newSeq, &NoteNagaMidiSeq::activeTrackChanged, 
                     this, &MidiEditorSection::onActiveTrackChanged, Qt::UniqueConnection);
+            connect(newSeq, &NoteNagaMidiSeq::trackListChanged, 
+                    this, &MidiEditorSection::onTrackListChanged, Qt::UniqueConnection);
             // Update visibility for new sequence
             onActiveTrackChanged(newSeq->getActiveTrack());
         }
@@ -300,6 +304,10 @@ void MidiEditorSection::connectSignals()
             m_notePropertyEditor, &NotePropertyEditor::onNotesChanged);
     connect(m_midiEditor, &MidiEditorWidget::selectionChanged,
             m_notePropertyEditor, &NotePropertyEditor::onSelectionChanged);
+    
+    // When clicking on a note, select and scroll to its track in the track list
+    connect(m_midiEditor, &MidiEditorWidget::noteTrackSelected,
+            m_trackListWidget, &TrackListWidget::selectAndScrollToTrack);
     
     // When note property editing is finished, refresh the MIDI editor
     // Using notePropertyEditFinished (emitted on mouse release) instead of
@@ -363,6 +371,36 @@ void MidiEditorSection::connectSignals()
     // Solo view: when toggled, hide all other tracks except the selected one
     connect(m_trackListWidget, &TrackListWidget::soloViewToggled, 
             this, &MidiEditorSection::onSoloViewToggled);
+    
+    // When track list changes (track added/removed), check if tempo track still exists
+    if (seq) {
+        connect(seq, &NoteNagaMidiSeq::trackListChanged, this, [this]() {
+            NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
+            if (!seq) return;
+            
+            // Check if current tempo track still exists
+            NoteNagaTrack *currentActive = seq->getActiveTrack();
+            if (currentActive && currentActive->isTempoTrack()) {
+                // Tempo track is active, update display
+                m_tempoTrackEditor->setTempoTrack(currentActive);
+            } else {
+                // Check if any tempo track exists
+                bool hasTempoTrack = false;
+                for (auto *track : seq->getTracks()) {
+                    if (track && track->isTempoTrack()) {
+                        hasTempoTrack = true;
+                        break;
+                    }
+                }
+                if (!hasTempoTrack) {
+                    // No tempo track - hide tempo editor
+                    m_tempoTrackEditor->setTempoTrack(nullptr);
+                    m_tempoTrackEditor->hide();
+                    m_notePropertyEditor->show();
+                }
+            }
+        });
+    }
 }
 
 void MidiEditorSection::toggleNotePropertyEditor()
@@ -442,6 +480,26 @@ void MidiEditorSection::onActiveTrackChanged(NoteNagaTrack *track)
         // Show note property editor, hide tempo track editor
         m_tempoTrackEditor->hide();
         m_tempoTrackEditor->setTempoTrack(nullptr);
+        m_notePropertyEditor->show();
+    }
+}
+
+void MidiEditorSection::onTrackListChanged()
+{
+    // Check if tempo track still exists
+    NoteNagaMidiSeq *seq = m_engine->getRuntimeData()->getActiveSequence();
+    if (!seq) {
+        m_tempoTrackEditor->setTempoTrack(nullptr);
+        m_tempoTrackEditor->hide();
+        m_notePropertyEditor->show();
+        return;
+    }
+    
+    NoteNagaTrack *tempoTrack = seq->getTempoTrack();
+    if (!tempoTrack) {
+        // Tempo track was removed - hide tempo editor
+        m_tempoTrackEditor->setTempoTrack(nullptr);
+        m_tempoTrackEditor->hide();
         m_notePropertyEditor->show();
     }
 }

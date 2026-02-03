@@ -54,6 +54,13 @@ private:
 /*******************************************************************************************************/
 // Signal and Slots
 /*******************************************************************************************************/
+public slots:
+    /**
+     * @brief Select and scroll to a specific track
+     * @param track The track to select
+     */
+    void selectAndScrollToTrack(NoteNagaTrack *track);
+
 private slots:
     void reloadTracks(NoteNagaMidiSeq *seq);
     void handlePlayingNote(const NN_Note_t& note);

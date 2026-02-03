@@ -44,6 +44,11 @@ void MidiEditorNoteHandler::selectNote(NoteGraphics *noteGraphics, bool clearPre
             shapeItem->setZValue(999);
         }
         
+        // If single note selection (clearPrevious=true), emit track selection signal
+        if (clearPrevious && noteGraphics->track) {
+            emit noteTrackSelected(noteGraphics->track);
+        }
+        
         emit selectionChanged();
     }
 }
@@ -202,7 +207,7 @@ NoteGraphics* MidiEditorNoteHandler::findNoteUnderCursor(const QPointF &scenePos
 }
 
 bool MidiEditorNoteHandler::isNoteEdge(NoteGraphics *ng, const QPointF &scenePos) {
-    if (!ng) return false;
+    if (!ng || !ng->item) return false;
     QRectF rect = getRealNoteRect(ng);
     return (scenePos.x() >= rect.right() - RESIZE_EDGE_MARGIN && 
             scenePos.x() <= rect.right() + RESIZE_EDGE_MARGIN);
@@ -210,6 +215,9 @@ bool MidiEditorNoteHandler::isNoteEdge(NoteGraphics *ng, const QPointF &scenePos
 
 QRectF MidiEditorNoteHandler::getRealNoteRect(const NoteGraphics *ng) const {
     QRectF rect;
+    if (!ng || !ng->item) return rect;
+    // Check if item is still valid (has scene)
+    if (!ng->item->scene()) return rect;
     if (QGraphicsRectItem *rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(ng->item)) {
         rect = rectItem->sceneBoundingRect();
     } else if (QGraphicsEllipseItem *ellipseItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(ng->item)) {

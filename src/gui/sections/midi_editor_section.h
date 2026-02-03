@@ -56,6 +56,7 @@ public slots:
     void toggleNotePropertyEditor();
     void onActiveTrackChanged(NoteNagaTrack *track);
     void onSoloViewToggled(NoteNagaTrack *track, bool enabled);
+    void onTrackListChanged();
 
 private:
     NoteNagaEngine *m_engine;

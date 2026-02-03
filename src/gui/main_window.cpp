@@ -14,6 +14,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QTimer>
+#include <QShortcut>
 
 #include <note_naga_engine/nn_utils.h>
 
@@ -114,7 +115,8 @@ void MainWindow::setup_actions() {
         new QAction(QIcon(":/icons/media-backward-end.svg"), "Go to Start", this);
     connect(action_toolbar_to_start, &QAction::triggered, this, &MainWindow::goto_start);
     action_toolbar_play = new QAction(QIcon(":/icons/play.svg"), "Play/Pause", this);
-    // TODO: SpaceAction
+    action_toolbar_play->setShortcut(Qt::Key_Space);
+    action_toolbar_play->setShortcutContext(Qt::ApplicationShortcut);
     connect(action_toolbar_play, &QAction::triggered, this, &MainWindow::toggle_play);
     action_toolbar_to_end = new QAction(QIcon(":/icons/media-forward-end.svg"), "Go to End", this);
     connect(action_toolbar_to_end, &QAction::triggered, this, &MainWindow::goto_end);
