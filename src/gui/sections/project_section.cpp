@@ -1016,6 +1016,11 @@ void ProjectSection::markAsSaved()
 
 void ProjectSection::onMetadataEdited()
 {
+    // Update internal metadata from UI fields
+    m_metadata.name = m_projectNameEdit->text().toStdString();
+    m_metadata.author = m_authorEdit->text().toStdString();
+    m_metadata.description = m_descriptionEdit->toPlainText().toStdString();
+    
     if (!m_hasUnsavedChanges) {
         m_hasUnsavedChanges = true;
         emit unsavedChangesChanged(true);
