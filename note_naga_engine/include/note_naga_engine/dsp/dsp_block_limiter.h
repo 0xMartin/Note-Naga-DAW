@@ -23,6 +23,7 @@ public:
         : threshold_db_(threshold), release_ms_(release), makeup_db_(makeup) {}
 
     void process(float* left, float* right, size_t numFrames) override;
+    void resetState() override { gainSmooth_ = 1.0f; }
 
     std::vector<DSPParamDescriptor> getParamDescriptors() override;
     float getParamValue(size_t idx) const override;

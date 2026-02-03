@@ -45,6 +45,12 @@ public:
      */
     VolumeBar *getVolumeBar() const { return volume_bar; }
 
+    /**
+     * @brief Set the checked state of the solo view button.
+     * @param checked True to check, false to uncheck.
+     */
+    void setSoloViewChecked(bool checked) { solo_view_btn->setChecked(checked); }
+
 protected:
     void mousePressEvent(QMouseEvent *event) override;
 

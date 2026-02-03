@@ -844,6 +844,7 @@ NoteNagaMidiSeq::loadType0Tracks(const MidiFile *midiFile) {
   std::map<int, std::string> channel_names;
 
   int tempo = 500000;
+  std::vector<NN_TempoEvent_t> tempoEvents;  // Collect all tempo events
 
   // Parse all events and group notes per channel
   for (const auto &evt : track.events) {
@@ -863,12 +864,19 @@ NoteNagaMidiSeq::loadType0Tracks(const MidiFile *midiFile) {
     if (evt.type == MidiEventType::ProgramChange && !evt.data.empty()) {
       channel_instruments[evt.channel] = evt.data[0];
     }
-    // Tempo change: only once
+    // Tempo change: collect all tempo events
     if (evt.type == MidiEventType::Meta &&
         evt.meta_type == MIDI_META_SET_TEMPO) {
       if (evt.meta_data.size() == 3) {
-        tempo = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) |
+        int tempoUs = (evt.meta_data[0] << 16) | (evt.meta_data[1] << 8) |
                 evt.meta_data[2];
+        double bpm = 60'000'000.0 / tempoUs;
+        tempoEvents.push_back(NN_TempoEvent_t(abs_time, bpm, TempoInterpolation::Step));
+        
+        // Use first tempo as the fixed tempo
+        if (tempo == 500000 || tempoEvents.size() == 1) {
+          tempo = tempoUs;
+        }
       }
     }
     // Note on: register note start per channel
@@ -898,8 +906,17 @@ NoteNagaMidiSeq::loadType0Tracks(const MidiFile *midiFile) {
     }
   }
 
+  // Create tempo track first (at position 0)
+  if (!tempoEvents.empty()) {
+    NoteNagaTrack* tempoTrack = new NoteNagaTrack(0, this, "Tempo Track");
+    tempoTrack->setTempoTrack(true);
+    tempoTrack->setTempoEvents(tempoEvents);
+    tracks_tmp.push_back(tempoTrack);
+    NOTE_NAGA_LOG_INFO("Created tempo track with " + std::to_string(tempoEvents.size()) + " tempo events from Type 0 MIDI");
+  }
+
   // Create Track for each used channel
-  int t_id = 0;
+  int t_id = tracks_tmp.size();  // Start after tempo track
   for (auto &pair : channel_note_buffers) {
     int channel = pair.first;
     std::vector<NN_Note_t> &note_buffer = pair.second;

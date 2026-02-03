@@ -158,6 +158,11 @@ void NoteNagaEngine::changeTempo(int new_tempo) {
 
 bool NoteNagaEngine::startPlayback() {
     if (playback_worker) {
+        // Reset DSP blocks to prevent state bleed from previous playback
+        if (dsp_engine) {
+            dsp_engine->resetAllBlocks();
+        }
+        
         if (playback_worker->play()) {
             NN_QT_EMIT(this->playbackStarted());
             return true;

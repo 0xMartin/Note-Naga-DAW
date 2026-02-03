@@ -40,6 +40,7 @@ private:
 
     int selected_row;
     std::vector<TrackWidget*> track_widgets;
+    NoteNagaTrack* solo_view_track_ = nullptr; // Track currently in solo view mode
 
     QWidget *title_widget;
     QScrollArea* scroll_area;

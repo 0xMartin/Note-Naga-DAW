@@ -81,6 +81,12 @@ public:
      */
     virtual std::string getBlockName() const = 0;
 
+    /**
+     * @brief Reset internal state (e.g., envelope followers, delay lines).
+     * Called when playback restarts to prevent state bleed.
+     */
+    virtual void resetState() {}
+
 private:
     bool active_ = true;
 };

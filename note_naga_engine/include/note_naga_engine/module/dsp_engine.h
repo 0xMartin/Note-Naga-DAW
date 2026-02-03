@@ -157,6 +157,12 @@ public:
      */
     std::pair<float, float> getCurrentVolumeDb() const;
 
+    /**
+     * @brief Reset internal state of all DSP blocks.
+     * Call this when playback restarts to prevent state bleed.
+     */
+    void resetAllBlocks();
+
 private:
     std::mutex dsp_engine_mutex_;
     std::vector<INoteNagaSoftSynth*> synths_;

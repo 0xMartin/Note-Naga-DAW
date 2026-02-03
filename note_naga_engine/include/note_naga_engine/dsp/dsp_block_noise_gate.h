@@ -16,6 +16,7 @@ public:
     DSPBlockNoiseGate(float threshold = -40.0f, float attack = 5.0f, float release = 80.0f);
 
     void process(float* left, float* right, size_t numFrames) override;
+    void resetState() override { gain_ = 0.0f; }
 
     std::vector<DSPParamDescriptor> getParamDescriptors() override;
     float getParamValue(size_t idx) const override;

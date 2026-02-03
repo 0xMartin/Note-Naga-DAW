@@ -127,8 +127,17 @@ void TrackListWidget::reloadTracks(NoteNagaMidiSeq *seq) {
       updateSelection(seq, static_cast<int>(idx));
     });
     
-    // Forward solo view signal
-    connect(widget, &TrackWidget::soloViewToggled, this, &TrackListWidget::soloViewToggled);
+    // Forward solo view signal and track the solo view state
+    connect(widget, &TrackWidget::soloViewToggled, this, [this, track](NoteNagaTrack *t, bool enabled) {
+      // Track which track has solo view active
+      solo_view_track_ = enabled ? t : nullptr;
+      emit soloViewToggled(t, enabled);
+    });
+    
+    // Restore solo view button state if this track was in solo view
+    if (solo_view_track_ == track) {
+      widget->setSoloViewChecked(true);
+    }
 
     track_widgets.push_back(widget);
     vbox->addWidget(widget);

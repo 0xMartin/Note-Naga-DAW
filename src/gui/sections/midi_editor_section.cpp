@@ -531,4 +531,7 @@ void MidiEditorSection::onSoloViewToggled(NoteNagaTrack *track, bool enabled)
     
     // Emit signal to trigger single refresh after all changes
     emit seq->trackListChanged();
+    
+    // Refresh the MIDI editor to show/hide notes based on track visibility
+    m_midiEditor->refreshAll();
 }

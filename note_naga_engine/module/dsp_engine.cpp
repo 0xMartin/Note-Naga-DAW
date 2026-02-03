@@ -224,3 +224,19 @@ void NoteNagaDSPEngine::calculateRMS(float *left, float *right, size_t numFrames
     this->last_rms_left_ = (rms_left > 0.000001f) ? 20.0f * log10(rms_left) : -100.0f;
     this->last_rms_right_ = (rms_right > 0.000001f) ? 20.0f * log10(rms_right) : -100.0f;
 }
+
+void NoteNagaDSPEngine::resetAllBlocks() {
+    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
+    
+    // Reset master DSP blocks
+    for (NoteNagaDSPBlockBase *block : dsp_blocks_) {
+        if (block) block->resetState();
+    }
+    
+    // Reset synth-specific DSP blocks
+    for (auto &pair : synth_dsp_blocks_) {
+        for (NoteNagaDSPBlockBase *block : pair.second) {
+            if (block) block->resetState();
+        }
+    }
+}

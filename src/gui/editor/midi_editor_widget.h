@@ -89,9 +89,9 @@ signals:
 public slots:
     void setTimeScale(double scale);
     void setKeyHeight(int h);
+    void refreshAll();
 
 private slots:
-    void refreshAll();
     void refreshMarker();
     void refreshSequence(NoteNagaMidiSeq *seq);
     void currentTickChanged(int tick);

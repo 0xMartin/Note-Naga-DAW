@@ -68,6 +68,7 @@ private:
     NoteNagaDSPEngine* dsp_engine = nullptr;
     unsigned int sample_rate = 44100;
     unsigned int block_size = 512;
+    unsigned int output_channels = 2;
     bool stream_open = false;
     std::atomic<bool> is_muted{false};
 
