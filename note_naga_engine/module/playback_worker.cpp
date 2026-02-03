@@ -279,24 +279,45 @@ void PlaybackThreadWorker::run() {
     for (auto* track : active_sequence->getTracks()) trackNoteStartIndex[track] = 0;
 
     using clock = std::chrono::high_resolution_clock;
+    auto last_iteration_time = clock::now();
+    double fractional_ticks = 0.0;  // Accumulate fractional tick advances
+    
     while (!should_stop) {
-        // Check if tempo needs to be recalculated (dynamic tempo support)
+        // Calculate time since last iteration
+        auto now = clock::now();
+        double elapsed_ms = std::chrono::duration<double, std::milli>(now - last_iteration_time).count();
+        last_iteration_time = now;
+        
+        // Get current tempo (supports dynamic tempo from tempo track)
+        int effectiveTempo;
         if (active_sequence->hasTempoTrack()) {
-            int currentEffectiveTempo = active_sequence->getEffectiveTempoAtTick(current_tick);
-            int lastEffectiveTempo = active_sequence->getEffectiveTempoAtTick(last_tempo_check_tick);
+            effectiveTempo = active_sequence->getEffectiveTempoAtTick(current_tick);
             
-            // If tempo changed significantly (more than 0.1 BPM difference), recalculate
-            if (currentEffectiveTempo != lastEffectiveTempo) {
-                recalculateTempo();
+            // Emit BPM change for UI update (throttled to avoid spam)
+            static int bpmEmitCounter = 0;
+            if (++bpmEmitCounter % 10 == 0) {
+                double currentBPM = 60'000'000.0 / effectiveTempo;
+                NN_QT_EMIT(project->currentTempoChanged(currentBPM));
             }
+        } else {
+            effectiveTempo = this->project->getTempo();
         }
         
-        // Time management
-        auto now = clock::now();
-        double elapsed_ms =
-            std::chrono::duration<double, std::milli>(now - start_time_point).count();
-        int target_tick = start_tick_at_start + static_cast<int>(elapsed_ms / ms_per_tick);
-        int tick_advance = std::max(1, target_tick - current_tick);
+        // Calculate ticks to advance based on current tempo
+        double us_per_tick = static_cast<double>(effectiveTempo) / this->project->getPPQ();
+        double current_ms_per_tick = us_per_tick / 1000.0;
+        
+        // Accumulate ticks (including fractional part for precision)
+        fractional_ticks += elapsed_ms / current_ms_per_tick;
+        int tick_advance = static_cast<int>(fractional_ticks);
+        fractional_ticks -= tick_advance;  // Keep fractional remainder
+        
+        if (tick_advance < 1) {
+            // Not enough time passed for a tick, sleep briefly and continue
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+            continue;
+        }
+        
         int last_tick = current_tick;
         current_tick += tick_advance;
         this->project->setCurrentTick(current_tick);

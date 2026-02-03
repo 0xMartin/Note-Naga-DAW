@@ -228,14 +228,15 @@ void TempoTrackEditor::rebuildTempoPoints()
 int TempoTrackEditor::tickFromX(int x) const
 {
     // Convert screen X to tick, accounting for left margin and scroll
-    double pixelsPerTick = m_timeScale * 0.1;  // Same as MidiEditorWidget
-    return static_cast<int>((x - m_leftMargin + m_horizontalScroll) / pixelsPerTick);
+    // Uses same formula as MidiEditorWidget: x = tick * time_scale
+    if (m_timeScale <= 0) return 0;
+    return static_cast<int>((x - m_leftMargin + m_horizontalScroll) / m_timeScale);
 }
 
 int TempoTrackEditor::xFromTick(int tick) const
 {
-    double pixelsPerTick = m_timeScale * 0.1;
-    return m_leftMargin + static_cast<int>(tick * pixelsPerTick) - m_horizontalScroll;
+    // Same formula as MidiEditorWidget: x = tick * time_scale
+    return m_leftMargin + static_cast<int>(tick * m_timeScale) - m_horizontalScroll;
 }
 
 double TempoTrackEditor::bpmFromY(int y) const
@@ -341,7 +342,7 @@ void TempoTrackEditor::paintEvent(QPaintEvent *)
     p.drawLine(0, h - 1, w, h - 1);
     
     // Draw playback position indicator (red line)
-    int playbackX = m_leftMargin + static_cast<int>(m_currentTick * m_timeScale) - m_horizontalScroll;
+    int playbackX = xFromTick(m_currentTick);
     if (playbackX >= m_leftMargin && playbackX <= w) {
         p.setPen(QPen(QColor(192, 74, 74), 2));  // #c04a4a - same as MIDI editor
         p.drawLine(playbackX, 0, playbackX, h);

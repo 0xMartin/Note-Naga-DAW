@@ -237,18 +237,6 @@ void NoteNagaTrack::setTempoEvents(const std::vector<NN_TempoEvent_t>& events) {
   tempo_events = events;
   // Sort by tick
   std::sort(tempo_events.begin(), tempo_events.end());
-  
-  // Log all events for debugging
-  std::string eventsStr = "Track ID: " + std::to_string(track_id) + 
-                          " tempo events set, count: " + std::to_string(events.size()) + " [";
-  for (size_t i = 0; i < tempo_events.size(); ++i) {
-    if (i > 0) eventsStr += ", ";
-    eventsStr += "tick=" + std::to_string(tempo_events[i].tick) + 
-                 ":bpm=" + std::to_string(tempo_events[i].bpm);
-  }
-  eventsStr += "]";
-  NOTE_NAGA_LOG_INFO(eventsStr);
-  
   NN_QT_EMIT(tempoEventsChanged(this));
 }
 
@@ -291,15 +279,6 @@ bool NoteNagaTrack::removeTempoEventAtTick(int tick) {
 double NoteNagaTrack::getTempoAtTick(int tick) const {
   if (tempo_events.empty()) {
     return 120.0;  // Default tempo
-  }
-  
-  // Debug: Log tempo events count for diagnostics
-  static int debugCounter = 0;
-  if (debugCounter++ % 1000 == 0) {
-    NOTE_NAGA_LOG_INFO("getTempoAtTick(" + std::to_string(tick) + 
-                       ") - tempo_events count: " + std::to_string(tempo_events.size()) +
-                       ", first event: tick=" + std::to_string(tempo_events[0].tick) + 
-                       " bpm=" + std::to_string(tempo_events[0].bpm));
   }
   
   // Find the tempo event at or before this tick
