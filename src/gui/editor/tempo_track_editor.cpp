@@ -8,6 +8,7 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QToolTip>
+#include <QScrollBar>
 #include <QCoreApplication>
 #include <cmath>
 
@@ -46,6 +47,12 @@ TempoTrackEditor::TempoTrackEditor(NoteNagaEngine *engine, MidiEditorWidget *mid
                 this, &TempoTrackEditor::setHorizontalScroll);
         connect(m_midiEditor, &MidiEditorWidget::timeScaleChanged, 
                 this, &TempoTrackEditor::setTimeScale);
+        
+        // Sync initial values from the MIDI editor
+        if (m_midiEditor->getConfig()) {
+            m_timeScale = m_midiEditor->getConfig()->time_scale;
+        }
+        m_horizontalScroll = m_midiEditor->horizontalScrollBar()->value();
     }
     
     // Connect to runtime data for realtime tempo display

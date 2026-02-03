@@ -52,6 +52,12 @@ NotePropertyEditor::NotePropertyEditor(NoteNagaEngine *engine, MidiEditorWidget 
                 this, &NotePropertyEditor::setHorizontalScroll);
         connect(m_midiEditor, &MidiEditorWidget::timeScaleChanged, 
                 this, &NotePropertyEditor::setTimeScale);
+        
+        // Sync initial values from the MIDI editor
+        if (m_midiEditor->getConfig()) {
+            m_timeScale = m_midiEditor->getConfig()->time_scale;
+        }
+        m_horizontalScroll = m_midiEditor->horizontalScrollBar()->value();
     }
     
     // Connect to project signals for track changes
