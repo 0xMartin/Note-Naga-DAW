@@ -445,6 +445,7 @@ void NotationSection::updateTrackVisibilityCheckboxes()
         delete cb;
     }
     m_trackVisibilityCheckboxes.clear();
+    m_checkboxToTrackIndex.clear();
     
     if (!m_sequence) return;
     
@@ -490,22 +491,38 @@ void NotationSection::updateTrackVisibilityCheckboxes()
         cb->setIcon(QIcon(colorPixmap));
         
         connect(cb, &QCheckBox::toggled, this, [this](bool) {
-            // Collect visibility state from all checkboxes
+            // Build visibility list for ALL tracks (including hidden tempo tracks)
+            auto allTracks = m_sequence->getTracks();
             QList<bool> visibility;
-            for (auto *checkbox : m_trackVisibilityCheckboxes) {
-                visibility.append(checkbox->isChecked());
+            for (int t = 0; t < allTracks.size(); ++t) {
+                // Find if this track has a checkbox
+                int checkboxIdx = m_checkboxToTrackIndex.indexOf(t);
+                if (checkboxIdx >= 0) {
+                    visibility.append(m_trackVisibilityCheckboxes[checkboxIdx]->isChecked());
+                } else {
+                    // Tempo track or other - not visible in notation
+                    visibility.append(false);
+                }
             }
             m_notationWidget->setTrackVisibility(visibility);
         });
         
         m_trackVisibilityLayout->addWidget(cb);
         m_trackVisibilityCheckboxes.append(cb);
+        m_checkboxToTrackIndex.append(i);  // Store actual track index
     }
     
-    // Apply initial visibility (only first non-tempo track visible)
+    // Apply initial visibility - build for ALL tracks
     QList<bool> initialVisibility;
-    for (int i = 0; i < m_trackVisibilityCheckboxes.size(); ++i) {
-        initialVisibility.append(i == 0);
+    for (int t = 0; t < tracks.size(); ++t) {
+        int checkboxIdx = m_checkboxToTrackIndex.indexOf(t);
+        if (checkboxIdx >= 0) {
+            // First checkbox (first non-tempo track) is visible
+            initialVisibility.append(checkboxIdx == 0);
+        } else {
+            // Tempo track - not visible
+            initialVisibility.append(false);
+        }
     }
     m_notationWidget->setTrackVisibility(initialVisibility);
 }

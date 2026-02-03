@@ -58,6 +58,7 @@ private slots:
     void reloadTracks(NoteNagaMidiSeq *seq);
     void handlePlayingNote(const NN_Note_t& note);
     void onAddTrack();
+    void onAddTempoTrack();
     void onRemoveTrack();
     void onClearTracks();
     void onReloadTracks();

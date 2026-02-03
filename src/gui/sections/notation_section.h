@@ -76,6 +76,7 @@ private:
     QGroupBox *m_trackVisibilityGroup;
     QVBoxLayout *m_trackVisibilityLayout;
     QList<QCheckBox*> m_trackVisibilityCheckboxes;
+    QList<int> m_checkboxToTrackIndex;  // Maps checkbox index to actual track index
     
     // Notation settings widgets
     QGroupBox *m_notationSettingsGroup;

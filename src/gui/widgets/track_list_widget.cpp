@@ -37,6 +37,9 @@ void TrackListWidget::initTitleUI() {
   QPushButton *btn_add =
       create_small_button(":/icons/add.svg", "Add new Track", "AddButton");
 
+  QPushButton *btn_add_tempo =
+      create_small_button(":/icons/tempo.svg", "Add Tempo Track", "AddTempoButton");
+
   QPushButton *btn_remove = create_small_button(
       ":/icons/remove.svg", "Remove selected Track", "RemoveButton");
 
@@ -47,11 +50,13 @@ void TrackListWidget::initTitleUI() {
       ":/icons/reload.svg", "Reload Tracks from MIDI", "ReloadButton");
 
   layout->addWidget(btn_add, 0, Qt::AlignRight);
+  layout->addWidget(btn_add_tempo, 0, Qt::AlignRight);
   layout->addWidget(btn_remove, 0, Qt::AlignRight);
   layout->addWidget(btn_clear, 0, Qt::AlignRight);
   layout->addWidget(btn_reload, 0, Qt::AlignRight);
 
   connect(btn_add, &QPushButton::clicked, this, &TrackListWidget::onAddTrack);
+  connect(btn_add_tempo, &QPushButton::clicked, this, &TrackListWidget::onAddTempoTrack);
   connect(btn_remove, &QPushButton::clicked, this,
           &TrackListWidget::onRemoveTrack);
   connect(btn_clear, &QPushButton::clicked, this,
@@ -174,6 +179,43 @@ void TrackListWidget::onAddTrack() {
     int selected_gm_index = dlg.getSelectedGMIndex();
     if (selected_gm_index >= 0) {
       seq->addTrack(selected_gm_index);
+    }
+  }
+}
+
+void TrackListWidget::onAddTempoTrack() {
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
+  if (!seq) {
+    QMessageBox::warning(this, "No Active Sequence",
+                         "Please load a MIDI file first to add tracks.");
+    return;
+  }
+  
+  // Check if tempo track already exists
+  for (auto *track : seq->getTracks()) {
+    if (track && track->isTempoTrack()) {
+      QMessageBox::information(this, "Tempo Track Exists",
+                               "A tempo track already exists in this sequence.");
+      return;
+    }
+  }
+  
+  // Add a new track with instrument 0 (Acoustic Grand Piano - won't be used)
+  NoteNagaTrack *track = seq->addTrack(0);
+  if (track) {
+    track->setTempoTrack(true);
+    track->setName("Tempo Track");
+    // Move to beginning
+    int trackIdx = -1;
+    auto tracks = seq->getTracks();
+    for (int i = 0; i < tracks.size(); ++i) {
+      if (tracks[i] == track) {
+        trackIdx = i;
+        break;
+      }
+    }
+    if (trackIdx > 0) {
+      seq->moveTrack(trackIdx, 0);
     }
   }
 }
