@@ -738,6 +738,26 @@ NoteNagaDSPBlockBase *NoteNagaProjectSerializer::createDSPBlockByName(const std:
         return nn_create_exciter_block();
     } else if (name == "Stereo Imager") {
         return nn_create_stereo_imager_block();
+    } else if (name == "Distortion") {
+        return nn_create_distortion_block();
+    } else if (name == "Ring Modulator") {
+        return nn_create_ring_mod_block();
+    } else if (name == "Vibrato") {
+        return nn_create_vibrato_block();
+    } else if (name == "Pitch Shifter") {
+        return nn_create_pitch_shifter_block();
+    } else if (name == "Auto Wah") {
+        return nn_create_auto_wah_block();
+    } else if (name == "De-Esser") {
+        return nn_create_deesser_block();
+    } else if (name == "Transient Shaper") {
+        return nn_create_transient_shaper_block();
+    } else if (name == "Sub Bass") {
+        return nn_create_sub_bass_block();
+    } else if (name == "Tape Saturation") {
+        return nn_create_tape_saturation_block();
+    } else if (name == "Ducker") {
+        return nn_create_ducker_block();
     }
     
     return nullptr;

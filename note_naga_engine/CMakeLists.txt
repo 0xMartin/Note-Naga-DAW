@@ -77,6 +77,16 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/dsp/dsp_block_saturator.h
     ./include/note_naga_engine/dsp/dsp_block_exciter.h
     ./include/note_naga_engine/dsp/dsp_block_stereo_imager.h
+    ./include/note_naga_engine/dsp/dsp_block_distortion.h
+    ./include/note_naga_engine/dsp/dsp_block_ring_mod.h
+    ./include/note_naga_engine/dsp/dsp_block_vibrato.h
+    ./include/note_naga_engine/dsp/dsp_block_pitch_shifter.h
+    ./include/note_naga_engine/dsp/dsp_block_auto_wah.h
+    ./include/note_naga_engine/dsp/dsp_block_deesser.h
+    ./include/note_naga_engine/dsp/dsp_block_transient_shaper.h
+    ./include/note_naga_engine/dsp/dsp_block_sub_bass.h
+    ./include/note_naga_engine/dsp/dsp_block_tape_saturation.h
+    ./include/note_naga_engine/dsp/dsp_block_ducker.h
 )
 
 set(SOURCE_FILES
@@ -122,6 +132,16 @@ set(SOURCE_FILES
     ./dsp/dsp_block_saturator.cpp
     ./dsp/dsp_block_exciter.cpp
     ./dsp/dsp_block_stereo_imager.cpp
+    ./dsp/dsp_block_distortion.cpp
+    ./dsp/dsp_block_ring_mod.cpp
+    ./dsp/dsp_block_vibrato.cpp
+    ./dsp/dsp_block_pitch_shifter.cpp
+    ./dsp/dsp_block_auto_wah.cpp
+    ./dsp/dsp_block_deesser.cpp
+    ./dsp/dsp_block_transient_shaper.cpp
+    ./dsp/dsp_block_sub_bass.cpp
+    ./dsp/dsp_block_tape_saturation.cpp
+    ./dsp/dsp_block_ducker.cpp
 )
 
 # GLIB2, FluidSynth, and RtMidi dependencies (REQUIRED)

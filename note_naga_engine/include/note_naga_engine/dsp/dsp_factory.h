@@ -25,6 +25,16 @@
 #include <note_naga_engine/dsp/dsp_block_single_eq.h>
 #include <note_naga_engine/dsp/dsp_block_tremolo.h>
 #include <note_naga_engine/dsp/dsp_block_stereo_imager.h>
+#include <note_naga_engine/dsp/dsp_block_distortion.h>
+#include <note_naga_engine/dsp/dsp_block_ring_mod.h>
+#include <note_naga_engine/dsp/dsp_block_vibrato.h>
+#include <note_naga_engine/dsp/dsp_block_pitch_shifter.h>
+#include <note_naga_engine/dsp/dsp_block_auto_wah.h>
+#include <note_naga_engine/dsp/dsp_block_deesser.h>
+#include <note_naga_engine/dsp/dsp_block_transient_shaper.h>
+#include <note_naga_engine/dsp/dsp_block_sub_bass.h>
+#include <note_naga_engine/dsp/dsp_block_tape_saturation.h>
+#include <note_naga_engine/dsp/dsp_block_ducker.h>
 
 /**
  * @brief Factory function to create a simple audio gain block.
@@ -292,6 +302,116 @@ NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_stereo_imager_block(
     return new DSPBlockStereoImager(width);
 }
 
+/**
+ * @brief Factory function to create a distortion audio block.
+ * @param type Distortion type (0: Soft Clip, 1: Hard Clip, 2: Tube, 3: Fuzz).
+ * @param drive Drive amount (1.0 .. 20.0, default 4.0).
+ * @param tone Tone control (0.0 .. 1.0, default 0.5).
+ * @param mix Dry/Wet mix (0.0 .. 1.0, default 0.8).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_distortion_block(int type = 0, float drive = 4.0f,
+                                                        float tone = 0.5f, float mix = 0.8f) {
+    return new DSPBlockDistortion(type, drive, tone, mix);
+}
+
+/**
+ * @brief Factory function to create a ring modulator audio block.
+ * @param freq Carrier frequency in Hz (20 .. 2000, default 440).
+ * @param mix Dry/Wet mix (0.0 .. 1.0, default 0.5).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_ring_mod_block(float freq = 440.0f, float mix = 0.5f) {
+    return new DSPBlockRingMod(freq, mix);
+}
+
+/**
+ * @brief Factory function to create a vibrato audio block.
+ * @param speed LFO speed in Hz (0.1 .. 20.0, default 5.0).
+ * @param depth Depth in cents (0 .. 100, default 30).
+ * @param mix Dry/Wet mix (0.0 .. 1.0, default 1.0).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_vibrato_block(float speed = 5.0f, float depth = 30.0f,
+                                                     float mix = 1.0f) {
+    return new DSPBlockVibrato(speed, depth, mix);
+}
+
+/**
+ * @brief Factory function to create a pitch shifter audio block.
+ * @param semitones Pitch shift in semitones (-12 .. +12, default 0).
+ * @param mix Dry/Wet mix (0.0 .. 1.0, default 1.0).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_pitch_shifter_block(float semitones = 0.0f, float mix = 1.0f) {
+    return new DSPBlockPitchShifter(semitones, mix);
+}
+
+/**
+ * @brief Factory function to create an auto-wah audio block.
+ * @param sensitivity Envelope sensitivity (0.1 .. 10.0, default 2.0).
+ * @param minFreq Minimum filter frequency (100 .. 500 Hz, default 200).
+ * @param maxFreq Maximum filter frequency (1000 .. 5000 Hz, default 2000).
+ * @param resonance Filter resonance (0.5 .. 10.0, default 3.0).
+ * @param mix Dry/Wet mix (0.0 .. 1.0, default 0.8).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_auto_wah_block(float sensitivity = 2.0f, float minFreq = 200.0f,
+                                                      float maxFreq = 2000.0f, float resonance = 3.0f, float mix = 0.8f) {
+    return new DSPBlockAutoWah(sensitivity, minFreq, maxFreq, resonance, mix);
+}
+
+/**
+ * @brief Factory function to create a de-esser audio block.
+ * @param freq Center frequency for detection (4000 .. 10000 Hz, default 6000).
+ * @param threshold Threshold in dB (-40 .. 0, default -20).
+ * @param reduction Maximum reduction in dB (0 .. 12, default 6).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_deesser_block(float freq = 6000.0f, float threshold = -20.0f,
+                                                     float reduction = 6.0f) {
+    return new DSPBlockDeEsser(freq, threshold, reduction);
+}
+
+/**
+ * @brief Factory function to create a transient shaper audio block.
+ * @param attack Attack amount (-100 .. +100 %, default 0).
+ * @param sustain Sustain amount (-100 .. +100 %, default 0).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_transient_shaper_block(float attack = 0.0f, float sustain = 0.0f) {
+    return new DSPBlockTransientShaper(attack, sustain);
+}
+
+/**
+ * @brief Factory function to create a sub-bass enhancer audio block.
+ * @param freq Cutoff frequency (40 .. 120 Hz, default 80).
+ * @param amount Amount of sub-bass (0.0 .. 1.0, default 0.5).
+ * @param mix Dry/Wet mix (0.0 .. 1.0, default 0.5).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_sub_bass_block(float freq = 80.0f, float amount = 0.5f,
+                                                      float mix = 0.5f) {
+    return new DSPBlockSubBass(freq, amount, mix);
+}
+
+/**
+ * @brief Factory function to create a tape saturation audio block.
+ * @param drive Input drive (0.0 .. 10.0, default 2.0).
+ * @param saturation Saturation amount (0.0 .. 1.0, default 0.5).
+ * @param warmth High frequency rolloff (0.0 .. 1.0, default 0.5).
+ * @param mix Dry/Wet mix (0.0 .. 1.0, default 0.8).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_tape_saturation_block(float drive = 2.0f, float saturation = 0.5f,
+                                                             float warmth = 0.5f, float mix = 0.8f) {
+    return new DSPBlockTapeSaturation(drive, saturation, warmth, mix);
+}
+
+/**
+ * @brief Factory function to create a ducker/sidechain compressor audio block.
+ * @param threshold Threshold in dB (-40 .. 0, default -20).
+ * @param ratio Compression ratio (1.0 .. 20.0, default 8.0).
+ * @param attack Attack time in ms (0.1 .. 100, default 5.0).
+ * @param release Release time in ms (50 .. 1000, default 200).
+ * @param depth Maximum ducking depth in dB (0 .. 40, default 20).
+ */
+NOTE_NAGA_ENGINE_API inline NoteNagaDSPBlockBase *nn_create_ducker_block(float threshold = -20.0f, float ratio = 8.0f,
+                                                    float attack = 5.0f, float release = 200.0f, float depth = 20.0f) {
+    return new DSPBlockDucker(threshold, ratio, attack, release, depth);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // List of all factory functions for DSP blocks
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -328,7 +448,17 @@ public:
             {"Noise Gate", []() { return nn_create_noise_gate_block(); }},
             {"Saturator", []() { return nn_create_saturator_block(); }},
             {"Exciter", []() { return nn_create_exciter_block(); }},
-            {"Stereo Imager", []() { return nn_create_stereo_imager_block(); }}
+            {"Stereo Imager", []() { return nn_create_stereo_imager_block(); }},
+            {"Distortion", []() { return nn_create_distortion_block(); }},
+            {"Ring Modulator", []() { return nn_create_ring_mod_block(); }},
+            {"Vibrato", []() { return nn_create_vibrato_block(); }},
+            {"Pitch Shifter", []() { return nn_create_pitch_shifter_block(); }},
+            {"Auto Wah", []() { return nn_create_auto_wah_block(); }},
+            {"De-Esser", []() { return nn_create_deesser_block(); }},
+            {"Transient Shaper", []() { return nn_create_transient_shaper_block(); }},
+            {"Sub Bass", []() { return nn_create_sub_bass_block(); }},
+            {"Tape Saturation", []() { return nn_create_tape_saturation_block(); }},
+            {"Ducker", []() { return nn_create_ducker_block(); }}
         };
         return blocks;
     }
