@@ -29,6 +29,8 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
 
     // Normal track content
     m_normalContent = new QWidget();
+    m_normalContent->setAttribute(Qt::WA_TranslucentBackground);
+    m_normalContent->setStyleSheet("background: transparent;");
     QVBoxLayout *right_layout = new QVBoxLayout(m_normalContent);
     right_layout->setContentsMargins(0, 0, 0, 0);
     right_layout->setSpacing(3);
@@ -100,6 +102,8 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     // Tempo track special content (initially hidden)
     m_tempoContent = new QWidget();
     m_tempoContent->setVisible(false);
+    m_tempoContent->setAttribute(Qt::WA_TranslucentBackground);
+    m_tempoContent->setStyleSheet("background: transparent;");
     QHBoxLayout *tempo_layout = new QHBoxLayout(m_tempoContent);
     tempo_layout->setContentsMargins(0, 4, 4, 4);
     tempo_layout->setSpacing(8);

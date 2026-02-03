@@ -342,7 +342,7 @@ void RoutingEntryWidget::contextMenuEvent(QContextMenuEvent *event)
     QMenu menu(this);
     
     // Duplicate entry
-    QAction *duplicateAction = menu.addAction(QIcon(":/icons/copy.svg"), "Duplicate Entry");
+    QAction *duplicateAction = menu.addAction("Duplicate Entry");
     connect(duplicateAction, &QAction::triggered, this, [this]() {
         NoteNagaRoutingEntry newEntry = *entry;  // Copy the entry
         engine->getMixer()->addRoutingEntry(newEntry);

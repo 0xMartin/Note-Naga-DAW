@@ -361,7 +361,7 @@ void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoin
   QMenu menu(this);
   
   // Rename track
-  QAction *renameAction = menu.addAction(QIcon(":/icons/edit.svg"), "Rename Track");
+  QAction *renameAction = menu.addAction(QIcon(":/icons/settings.svg"), "Rename Track");
   connect(renameAction, &QAction::triggered, this, [this, track]() {
     bool ok;
     QString newName = QInputDialog::getText(this, "Rename Track", "Track name:",
@@ -373,7 +373,7 @@ void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoin
   });
   
   // Change instrument
-  QAction *instrumentAction = menu.addAction(QIcon(":/icons/instrument.svg"), "Change Instrument...");
+  QAction *instrumentAction = menu.addAction(QIcon(":/icons/midi.svg"), "Change Instrument...");
   connect(instrumentAction, &QAction::triggered, this, [this, track]() {
     InstrumentSelectorDialog dlg(this, GM_INSTRUMENTS, instrument_icon, track->getInstrument());
     if (dlg.exec() == QDialog::Accepted) {
@@ -442,7 +442,7 @@ void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoin
       });
       
       // Clear all tempo events
-      QAction *clearEventsAction = menu.addAction(QIcon(":/icons/delete.svg"), "Clear Tempo Events...");
+      QAction *clearEventsAction = menu.addAction(QIcon(":/icons/remove.svg"), "Clear Tempo Events...");
       connect(clearEventsAction, &QAction::triggered, this, [this, track]() {
         if (QMessageBox::question(this, "Clear Tempo Events", 
                                   "This will remove all tempo events and reset to default 120 BPM. Continue?",
@@ -468,14 +468,14 @@ void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoin
   menu.addSeparator();
   
   // Duplicate track
-  QAction *duplicateAction = menu.addAction(QIcon(":/icons/copy.svg"), "Duplicate Track");
+  QAction *duplicateAction = menu.addAction("Duplicate Track");
   duplicateAction->setEnabled(!track->isTempoTrack());  // Can't duplicate tempo track
   connect(duplicateAction, &QAction::triggered, this, &TrackListWidget::onDuplicateTrack);
   
   menu.addSeparator();
   
   // Move up/down
-  QAction *moveUpAction = menu.addAction(QIcon(":/icons/arrow-up.svg"), "Move Up");
+  QAction *moveUpAction = menu.addAction("Move Up");
   moveUpAction->setEnabled(trackIdx > 0);
   connect(moveUpAction, &QAction::triggered, this, &TrackListWidget::onMoveTrackUp);
   

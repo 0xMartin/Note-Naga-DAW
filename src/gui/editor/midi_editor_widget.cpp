@@ -565,13 +565,17 @@ void MidiEditorWidget::mousePressEvent(QMouseEvent *event) {
         if (noteUnderCursor) {
             bool isSelected = m_noteHandler->selectedNotes().contains(noteUnderCursor);
             
+            // Determine drag mode BEFORE selectNote, because selectNote may emit 
+            // noteTrackSelected which triggers setActiveTrack and may invalidate noteUnderCursor
+            bool isEdge = m_noteHandler->isNoteEdge(noteUnderCursor, scenePos);
+            
             if (!isSelected) {
-                // Select the note
+                // Select the note (this may trigger track change which invalidates noteUnderCursor)
                 m_noteHandler->selectNote(noteUnderCursor, !(event->modifiers() & Qt::ControlModifier));
             }
             
-            // Start drag for move/resize
-            if (m_noteHandler->isNoteEdge(noteUnderCursor, scenePos)) {
+            // Start drag for move/resize - use pre-computed isEdge value
+            if (isEdge) {
                 m_noteHandler->startDrag(scenePos, NoteDragMode::Resize);
                 QApplication::setOverrideCursor(Qt::SizeHorCursor);
             } else {

@@ -656,7 +656,7 @@ void TempoTrackEditor::contextMenuEvent(QContextMenuEvent *event)
     
     if (m_contextMenuPoint) {
         // Context menu for existing tempo point
-        QAction *editAction = menu.addAction(QIcon(":/icons/edit.svg"), "Edit Tempo...");
+        QAction *editAction = menu.addAction(QIcon(":/icons/settings.svg"), "Edit Tempo...");
         connect(editAction, &QAction::triggered, this, [this]() {
             showEditTempoDialog(m_contextMenuPoint);
         });
@@ -670,7 +670,7 @@ void TempoTrackEditor::contextMenuEvent(QContextMenuEvent *event)
         
         menu.addSeparator();
         
-        QAction *deleteAction = menu.addAction(QIcon(":/icons/delete.svg"), "Delete Tempo Point");
+        QAction *deleteAction = menu.addAction(QIcon(":/icons/remove.svg"), "Delete Tempo Point");
         connect(deleteAction, &QAction::triggered, this, [this]() {
             deleteTempoPoint(m_contextMenuPoint);
         });
