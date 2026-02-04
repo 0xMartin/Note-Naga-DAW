@@ -12,6 +12,7 @@
 
 #include "../nn_gui_utils.h"
 #include "../dialogs/instrument_selector_dialog.h"
+#include "../dialogs/track_settings_dialog.h"
 #include <note_naga_engine/synth/synth_fluidsynth.h>
 
 TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget *parent)
@@ -22,7 +23,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
 {
     connect(track, &NoteNagaTrack::metadataChanged, this, &TrackWidget::updateTrackInfo);
     setObjectName("TrackWidget");
-    setFixedHeight(60);  // Height to fit larger dials with value text
+    setFixedHeight(50);  // Compact height for track widget
 
     QHBoxLayout *main_hbox = new QHBoxLayout(this);
     main_hbox->setContentsMargins(0, 0, 4, 0);
@@ -96,8 +97,8 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     QWidget *info_right = new QWidget();
     info_right->setAttribute(Qt::WA_TranslucentBackground);
     QVBoxLayout *info_layout = new QVBoxLayout(info_right);
-    info_layout->setContentsMargins(8, 6, 6, 6);
-    info_layout->setSpacing(4);
+    info_layout->setContentsMargins(8, 3, 6, 3);
+    info_layout->setSpacing(2);
 
     // Top row: [Name] [Unsaved indicator]
     QHBoxLayout *top_row = new QHBoxLayout();
@@ -107,7 +108,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     name_edit = new QLineEdit("Track Name");
     name_edit->setObjectName("TrackWidgetName");
     name_edit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    name_edit->setFixedHeight(22);
+    name_edit->setFixedHeight(18);
     name_edit->setFrame(false);
     name_edit->setStyleSheet("background: transparent; color: #fff; border: none; font-weight: bold; font-size: 12px; padding-left: 0px;");
     connect(name_edit, &QLineEdit::editingFinished, this, &TrackWidget::onNameEdited);
@@ -131,31 +132,31 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
 
     mute_btn = create_small_button(":/icons/sound-on.svg", "Toggle Track Mute/Play", "MuteButton", 16);
     mute_btn->setCheckable(true);
-    mute_btn->setFixedSize(24, 24);
+    mute_btn->setFixedSize(22, 22);
     connect(mute_btn, &QPushButton::clicked, this, &TrackWidget::onToggleMute);
     btn_row->addWidget(mute_btn);
 
     solo_btn = create_small_button(":/icons/solo.svg", "Toggle Solo Mode", "SoloButton", 16);
     solo_btn->setCheckable(true);
-    solo_btn->setFixedSize(24, 24);
+    solo_btn->setFixedSize(22, 22);
     connect(solo_btn, &QPushButton::clicked, this, &TrackWidget::onToggleSolo);
     btn_row->addWidget(solo_btn);
 
     invisible_btn = create_small_button(":/icons/eye-visible.svg", "Toggle Track Visibility", "InvisibleButton", 16);
     invisible_btn->setCheckable(true);
-    invisible_btn->setFixedSize(24, 24);
+    invisible_btn->setFixedSize(22, 22);
     connect(invisible_btn, &QPushButton::clicked, this, &TrackWidget::onToggleVisibility);
     btn_row->addWidget(invisible_btn);
 
     solo_view_btn = create_small_button(":/icons/solo-view.svg", "Solo View - Show only this track", "SoloViewButton", 16);
     solo_view_btn->setCheckable(true);
-    solo_view_btn->setFixedSize(24, 24);
+    solo_view_btn->setFixedSize(22, 22);
     solo_view_btn->setToolTip("Solo View: Show only this track in editor");
     connect(solo_view_btn, &QPushButton::clicked, this, &TrackWidget::onToggleSoloView);
     btn_row->addWidget(solo_view_btn);
 
     synth_btn = create_small_button(":/icons/settings.svg", "Configure Track Synthesizer (SoundFont)", "SynthButton", 16);
-    synth_btn->setFixedSize(24, 24);
+    synth_btn->setFixedSize(22, 22);
     synth_btn->setToolTip("Configure SoundFont for this track");
     connect(synth_btn, &QPushButton::clicked, this, &TrackWidget::onSynthClicked);
     btn_row->addWidget(synth_btn);
@@ -178,7 +179,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     dials_layout->setSpacing(0);
 
     m_volumeDial = new AudioDialCentered();
-    m_volumeDial->setFixedSize(46, 54);
+    m_volumeDial->setFixedSize(46, 50);
     m_volumeDial->setRange(-24.0f, 6.0f);
     m_volumeDial->setDefaultValue(0.0f);
     m_volumeDial->setValue(track->getAudioVolumeDb());
@@ -191,7 +192,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     dials_layout->addWidget(m_volumeDial);
 
     m_panDial = new AudioDialCentered();
-    m_panDial->setFixedSize(46, 54);
+    m_panDial->setFixedSize(46, 50);
     m_panDial->setRange(-64.0f, 64.0f);
     m_panDial->setDefaultValue(0.0f);
     m_panDial->setValue(static_cast<float>(track->getMidiPanOffset()));
@@ -209,7 +210,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     // =========================================================================
     m_stereoMeter = new TrackStereoMeter();
     m_stereoMeter->setMinimumWidth(60);
-    m_stereoMeter->setFixedHeight(56);
+    m_stereoMeter->setFixedHeight(46);
     main_hbox->addWidget(m_stereoMeter, 1);  // stretch factor 1 = expands
 
     // =========================================================================
@@ -220,7 +221,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     m_tempoContent->setAttribute(Qt::WA_TranslucentBackground);
     m_tempoContent->setStyleSheet("background: transparent;");
     QHBoxLayout *tempo_layout = new QHBoxLayout(m_tempoContent);
-    tempo_layout->setContentsMargins(4, 6, 0, 6);
+    tempo_layout->setContentsMargins(4, 3, 0, 3);
     tempo_layout->setSpacing(8);
     
     QLabel *tempo_label = new QLabel("Tempo Track");
@@ -261,7 +262,67 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
 
     setLayout(main_hbox);
     updateTrackInfo(this->track, "");
+    updateSynthButtonIcon();  // Set initial synth button icon
     setFocusPolicy(Qt::StrongFocus);
+}
+
+void TrackWidget::updateSynthButtonIcon()
+{
+    if (!synth_btn) return;
+    
+    // Base style for the synth button (same as create_small_button)
+    QString baseStyle = R"(
+        QPushButton#SynthButton { 
+            background: transparent; 
+            border: none; 
+            border-radius: 4px; 
+            min-width: 22px; 
+            max-width: 22px; 
+            min-height: 22px; 
+            max-height: 22px; 
+            padding: 0px; 
+        }
+        QPushButton#SynthButton:hover { background: #3477c0; color: #fff; }
+        QPushButton#SynthButton:checked { background: #3477c0; border: 1px solid #79b8ff; }
+    )";
+    
+    QString errorStyle = R"(
+        QPushButton#SynthButton {
+            background: rgba(200, 60, 60, 80);
+            border: 1px solid #c04040;
+            border-radius: 4px;
+            min-width: 22px; 
+            max-width: 22px; 
+            min-height: 22px; 
+            max-height: 22px; 
+            padding: 0px;
+        }
+        QPushButton#SynthButton:hover {
+            background: rgba(200, 60, 60, 120);
+        }
+    )";
+    
+    NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(track->getSynth());
+    if (!fluidSynth) {
+        synth_btn->setIcon(QIcon(":/icons/settings.svg"));
+        synth_btn->setToolTip(tr("No synthesizer available"));
+        synth_btn->setStyleSheet(baseStyle);
+        return;
+    }
+    
+    if (fluidSynth->isLoading()) {
+        synth_btn->setIcon(QIcon(":/icons/settings.svg"));
+        synth_btn->setToolTip(tr("Loading SoundFont..."));
+        synth_btn->setStyleSheet(baseStyle);
+    } else if (fluidSynth->isValid()) {
+        synth_btn->setIcon(QIcon(":/icons/settings.svg"));
+        synth_btn->setToolTip(tr("Track Settings (SoundFont loaded)"));
+        synth_btn->setStyleSheet(baseStyle);
+    } else {
+        synth_btn->setIcon(QIcon(":/icons/settings.svg"));
+        synth_btn->setToolTip(tr("Track Settings - SoundFont NOT loaded!"));
+        synth_btn->setStyleSheet(errorStyle);
+    }
 }
 
 void TrackWidget::updateIndexButtonStyle()
@@ -317,8 +378,8 @@ void TrackWidget::updateLeftPanelStyle()
                 border: 1px solid %2;
                 border-top-left-radius: 0px;
                 border-bottom-left-radius: 0px;
-                border-top-right-radius: 27px;
-                border-bottom-right-radius: 27px;
+                border-top-right-radius: 22px;
+                border-bottom-right-radius: 22px;
                 padding: 0px;
                 margin: 0px;
             }
@@ -364,18 +425,20 @@ void TrackWidget::updateLeftPanelStyle()
             borderColor = "#3a5070";
         }
         
+        // Apply 70% opacity to track color for less prominent appearance
+        QString bgRgba = QString("rgba(%1, %2, %3, 0.7)").arg(bgColor.red()).arg(bgColor.green()).arg(bgColor.blue());
         QString style = QString(R"(
             QWidget#TrackLeftPanel {
                 background: %1;
                 border: 1px solid %2;
                 border-top-left-radius: 0px;
                 border-bottom-left-radius: 0px;
-                border-top-right-radius: 27px;
-                border-bottom-right-radius: 27px;
+                border-top-right-radius: 22px;
+                border-bottom-right-radius: 22px;
                 padding: 0px;
                 margin: 0px;
             }
-        )").arg(bgColor.name(), borderColor);
+        )").arg(bgRgba, borderColor);
         
         if (m_leftPanel) {
             m_leftPanel->setStyleSheet(style);
@@ -432,16 +495,26 @@ void TrackWidget::updateTrackInfo(NoteNagaTrack* track, const std::string &param
     index_btn->setText(QString::number(track->getId() + 1));
     updateIndexButtonStyle();
 
-    auto instrument = nn_find_instrument_by_index(track->getInstrument().value_or(0));
-    if (instrument)
-    {
-        instrument_btn->setIcon(instrument_icon(QString::fromStdString(instrument->icon)));
-        instrument_btn->setToolTip(QString::fromStdString(instrument->name));
-    }
-    else
-    {
-        instrument_btn->setIcon(instrument_icon("vinyl"));
-        instrument_btn->setToolTip("Unknown instrument");
+    // Check if this is a drums track (channel 9)
+    std::optional<int> channel = track->getChannel();
+    bool isDrums = channel.has_value() && *channel == 9;
+    
+    if (isDrums) {
+        // Always show drums icon for drums channel
+        instrument_btn->setIcon(instrument_icon("drum"));
+        instrument_btn->setToolTip("Drums / Percussion");
+    } else {
+        auto instrument = nn_find_instrument_by_index(track->getInstrument().value_or(0));
+        if (instrument)
+        {
+            instrument_btn->setIcon(instrument_icon(QString::fromStdString(instrument->icon)));
+            instrument_btn->setToolTip(QString::fromStdString(instrument->name));
+        }
+        else
+        {
+            instrument_btn->setIcon(instrument_icon("vinyl"));
+            instrument_btn->setToolTip("Unknown instrument");
+        }
     }
 
     solo_btn->setChecked(track->isSolo());
@@ -486,41 +559,19 @@ void TrackWidget::onToggleMute()
 
 void TrackWidget::onSynthClicked()
 {
-    // Get the FluidSynth instance from the track
-    NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(track->getSynth());
-    if (!fluidSynth) {
-        QMessageBox::warning(this, tr("No Synthesizer"),
-            tr("This track does not have a FluidSynth synthesizer.\n"
-               "Only FluidSynth synthesizers can load SoundFonts."));
-        return;
-    }
-
-    QString currentSF = QString::fromStdString(fluidSynth->getSoundFontPath());
-    QString sfPath = QFileDialog::getOpenFileName(
-        this,
-        tr("Select SoundFont for %1").arg(QString::fromStdString(track->getName())),
-        currentSF.isEmpty() ? QDir::homePath() : QFileInfo(currentSF).absolutePath(),
-        tr("SoundFont Files (*.sf2 *.sf3 *.dls);;All Files (*)")
-    );
+    TrackSettingsDialog dlg(this, track, instrument_icon);
     
-    if (!sfPath.isEmpty()) {
-        bool success = fluidSynth->setSoundFont(sfPath.toStdString());
-        
-        if (success) {
-            QMessageBox::information(this, tr("SoundFont Loaded"),
-                tr("SoundFont successfully loaded:\n%1").arg(QFileInfo(sfPath).fileName()));
-        } else {
-            QString errorMsg = QString::fromStdString(fluidSynth->getLastError());
-            if (errorMsg.isEmpty()) {
-                errorMsg = tr("Unknown error");
-            }
-            QMessageBox::warning(this, tr("SoundFont Load Failed"),
-                tr("Failed to load SoundFont:\n%1\n\nError: %2\n\n"
-                   "The file may be corrupted or in an unsupported format.")
-                .arg(QFileInfo(sfPath).fileName())
-                .arg(errorMsg));
-        }
-    }
+    // Connect signal to refresh widget when settings change
+    connect(&dlg, &TrackSettingsDialog::trackSettingsChanged, this, [this]() {
+        updateTrackInfo(track, "");
+        updateSynthButtonIcon();
+    });
+    
+    dlg.exec();
+    
+    // Final update after dialog closes
+    updateTrackInfo(track, "");
+    updateSynthButtonIcon();
 }
 
 void TrackWidget::onToggleTempoActive()
@@ -597,10 +648,10 @@ void TrackWidget::refreshStyle(bool selected, bool darker_bg)
     QString bg = darker_bg ? "#282930" : "#2F3139";
     QString selectedBg = "#273a51";
     QString actualBg = selected ? selectedBg : bg;
-    QString borderColor = selected ? "#3477c0" : "#232731";
+    QString borderColor = selected ? "#3477c0" : "#191c22";
     
     // Darker background for info panel (track name + buttons area)
-    QString infoPanelBg = selected ? "#222a38" : "#252830";
+    QString infoPanelBg = selected ? "#222a38" : "#2a2d38";
     QString infoPanelBorder = selected ? "#3a5070" : "#3a3d45";
     
     QString base_style = QString(R"(

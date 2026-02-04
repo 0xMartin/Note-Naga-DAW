@@ -43,7 +43,7 @@ void AudioDialCentered::updateGeometryCache() {
 
     // Reserve margins for text above/below and a small padding
     int margin_top = 2;
-    int margin_bottom = 6;
+    int margin_bottom = 3;
     int reserved_height = label_height + margin_top + margin_bottom + 5;
     int dial_size = std::min(w - 2 * margin_top, h - reserved_height);
     // Prevent dial from being too small

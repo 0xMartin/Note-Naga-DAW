@@ -31,9 +31,15 @@ DSPEngineWidget::DSPEngineWidget(NoteNagaEngine *engine, QWidget *parent)
     // Connect to runtime data for sequence/track changes
     if (auto* runtimeData = engine->getRuntimeData()) {
         connect(runtimeData, &NoteNagaRuntimeData::activeSequenceChanged, 
-                this, [this](NoteNagaMidiSeq*) { updateSynthesizerSelector(); });
+                this, [this](NoteNagaMidiSeq*) { 
+                    updateSynthesizerSelector(); 
+                    refreshDSPWidgets();  // Refresh DSP blocks after project load
+                });
         connect(runtimeData, &NoteNagaRuntimeData::activeSequenceTrackListChanged,
-                this, [this](NoteNagaMidiSeq*) { updateSynthesizerSelector(); });
+                this, [this](NoteNagaMidiSeq*) { 
+                    updateSynthesizerSelector(); 
+                    refreshDSPWidgets();  // Refresh DSP blocks when tracks change
+                });
     }
 #endif
 

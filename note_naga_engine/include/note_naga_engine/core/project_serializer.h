@@ -16,7 +16,7 @@ class NoteNagaEngine;
  * @brief Binary file format magic number and version.
  */
 constexpr uint32_t NNPROJ_MAGIC = 0x4E4E5052;  // "NNPR" in little endian
-constexpr uint32_t NNPROJ_VERSION = 3;  // Version 3: Per-track synth architecture
+constexpr uint32_t NNPROJ_VERSION = 5;  // Version 5: Added per-synth DSP blocks
 
 /**
  * @brief Handles serialization and deserialization of Note Naga project files.
@@ -77,6 +77,7 @@ public:
 private:
     NoteNagaEngine *m_engine;
     std::string m_lastError;
+    uint32_t m_loadingVersion = 0;  // Version of file being loaded (for backward compatibility)
     
     // Binary serialization helpers
     void writeString(std::ofstream &out, const std::string &str);

@@ -91,6 +91,7 @@ private:
 
     void updateIndexButtonStyle();  ///< Update track number button style based on track color
     void updateLeftPanelStyle();    ///< Update left panel style based on track color
+    void updateSynthButtonIcon();   ///< Update synth button icon based on SoundFont status
 
 /*******************************************************************************************************/
 // Signal and Slots

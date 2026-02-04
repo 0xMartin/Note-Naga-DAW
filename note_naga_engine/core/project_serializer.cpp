@@ -203,12 +203,17 @@ bool NoteNagaProjectSerializer::loadProject(const std::string &filePath, NoteNag
         return false;
     }
     
-    // Read version
+    // Read version - support loading older versions
     uint32_t version = static_cast<uint32_t>(readInt32(file));
-    if (version != NNPROJ_VERSION) {
-        m_lastError = "Unsupported project version: " + std::to_string(version);
+    if (version > NNPROJ_VERSION) {
+        m_lastError = "Project was created with a newer version (" + std::to_string(version) + "). Please update the application.";
         return false;
     }
+    if (version < 3) {
+        m_lastError = "Project version too old (" + std::to_string(version) + "). Versions before 3 are not supported.";
+        return false;
+    }
+    m_loadingVersion = version;  // Store for use in deserialize methods
     
     // Read metadata
     if (!deserializeMetadata(file, outMetadata)) {
@@ -386,8 +391,12 @@ bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaM
         
         // Read tempo track flag and events
         bool isTempoTrack = readBool(in);
+        bool tempoTrackActive = true;  // Default to active
         std::vector<NN_TempoEvent_t> tempoEvents;
         if (isTempoTrack) {
+            if (m_loadingVersion >= 4) {
+                tempoTrackActive = readBool(in);  // Version 4+
+            }
             int32_t numTempoEvents = readInt32(in);
             for (int32_t j = 0; j < numTempoEvents; ++j) {
                 int32_t tick = readInt32(in);
@@ -424,6 +433,7 @@ bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaM
         // Set tempo track state
         if (isTempoTrack) {
             track->setTempoTrack(true);
+            track->setTempoTrackActive(tempoTrackActive);
             track->setTempoEvents(tempoEvents);
         }
         
@@ -439,6 +449,19 @@ bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaM
             note.pan = readInt32(in);
             note.parent = track;
             track->addNote(note);
+        }
+        
+        // Read per-synth DSP blocks (Version 5+)
+        if (m_loadingVersion >= 5) {
+            NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+            INoteNagaSoftSynth* softSynth = track->getSoftSynth();
+            int32_t numSynthBlocks = readInt32(in);
+            for (int32_t j = 0; j < numSynthBlocks; ++j) {
+                NoteNagaDSPBlockBase *block = deserializeDSPBlock(in);
+                if (block && dspEngine && softSynth) {
+                    dspEngine->addSynthDSPBlock(softSynth, block);
+                }
+            }
         }
     }
     
@@ -481,6 +504,7 @@ void NoteNagaProjectSerializer::serializeTrack(std::ofstream &out, NoteNagaTrack
     // Tempo track flag and events
     writeBool(out, track->isTempoTrack());
     if (track->isTempoTrack()) {
+        writeBool(out, track->isTempoTrackActive());  // Version 4+
         const std::vector<NN_TempoEvent_t>& tempoEvents = track->getTempoEvents();
         writeInt32(out, static_cast<int32_t>(tempoEvents.size()));
         for (const NN_TempoEvent_t& te : tempoEvents) {
@@ -499,6 +523,21 @@ void NoteNagaProjectSerializer::serializeTrack(std::ofstream &out, NoteNagaTrack
         writeInt32(out, note.length.value_or(480));
         writeInt32(out, note.velocity.value_or(100));
         writeInt32(out, note.pan.value_or(64));
+    }
+    
+    // Per-synth DSP blocks (Version 5+)
+    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+    INoteNagaSoftSynth* softSynth = track->getSoftSynth();
+    if (dspEngine && softSynth) {
+        std::vector<NoteNagaDSPBlockBase*> synthBlocks = dspEngine->getSynthDSPBlocks(softSynth);
+        writeInt32(out, static_cast<int32_t>(synthBlocks.size()));
+        for (NoteNagaDSPBlockBase *block : synthBlocks) {
+            if (block) {
+                serializeDSPBlock(out, block);
+            }
+        }
+    } else {
+        writeInt32(out, 0);  // No synth DSP blocks
     }
 }
 

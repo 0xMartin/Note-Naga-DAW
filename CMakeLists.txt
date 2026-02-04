@@ -72,6 +72,7 @@ set(HEADER_FILES
     src/gui/dialogs/dsp_block_chooser_dialog.h
     src/gui/dialogs/instrument_selector_dialog.h
     src/gui/dialogs/project_wizard_dialog.h
+    src/gui/dialogs/track_settings_dialog.h
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.h
     src/gui/dock_system/dock_indicator_overlay.h
@@ -130,6 +131,7 @@ set(SOURCE_FILES
     src/gui/dialogs/dsp_block_chooser_dialog.cpp
     src/gui/dialogs/instrument_selector_dialog.cpp
     src/gui/dialogs/project_wizard_dialog.cpp
+    src/gui/dialogs/track_settings_dialog.cpp
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.cpp
     src/gui/dock_system/dock_indicator_overlay.cpp
