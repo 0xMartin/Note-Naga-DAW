@@ -33,7 +33,12 @@ void MidiEditorNoteHandler::selectNote(NoteGraphics *noteGraphics, bool clearPre
                                  seq->getActiveTrack()->getId() == ng->track->getId();
                 shapeItem->setPen(m_editor->getNotePen(ng->track, is_active_track, false));
                 // Active track notes get higher z-value (500+) so they're always on top
-                shapeItem->setZValue(is_active_track ? 500 + ng->track->getId() : ng->track->getId() + 10);
+                qreal zVal = is_active_track ? 500 + ng->track->getId() : ng->track->getId() + 10;
+                shapeItem->setZValue(zVal);
+                // Also update label z-value
+                if (ng->label) {
+                    ng->label->setZValue(zVal + 1);
+                }
             }
         }
         m_selectedNotes.clear();
@@ -46,6 +51,10 @@ void MidiEditorNoteHandler::selectNote(NoteGraphics *noteGraphics, bool clearPre
         if (shapeItem) {
             shapeItem->setPen(m_editor->getNotePen(noteGraphics->track, false, true));
             shapeItem->setZValue(999);
+            // Also update label z-value
+            if (noteGraphics->label) {
+                noteGraphics->label->setZValue(1000);
+            }
         }
         
         // If single note selection (clearPrevious=true), emit track selection signal
@@ -72,7 +81,12 @@ void MidiEditorNoteHandler::deselectNote(NoteGraphics *noteGraphics) {
                          seq->getActiveTrack()->getId() == noteGraphics->track->getId();
         shapeItem->setPen(m_editor->getNotePen(noteGraphics->track, is_active_track, false));
         // Active track notes get higher z-value (500+) so they're always on top
-        shapeItem->setZValue(is_active_track ? 500 + noteGraphics->track->getId() : noteGraphics->track->getId() + 10);
+        qreal zVal = is_active_track ? 500 + noteGraphics->track->getId() : noteGraphics->track->getId() + 10;
+        shapeItem->setZValue(zVal);
+        // Also update label z-value
+        if (noteGraphics->label) {
+            noteGraphics->label->setZValue(zVal + 1);
+        }
     }
     
     emit selectionChanged();
@@ -90,7 +104,12 @@ void MidiEditorNoteHandler::clearSelection() {
                              seq->getActiveTrack()->getId() == ng->track->getId();
             shapeItem->setPen(m_editor->getNotePen(ng->track, is_active_track, false));
             // Active track notes get higher z-value (500+) so they're always on top
-            shapeItem->setZValue(is_active_track ? 500 + ng->track->getId() : ng->track->getId() + 10);
+            qreal zVal = is_active_track ? 500 + ng->track->getId() : ng->track->getId() + 10;
+            shapeItem->setZValue(zVal);
+            // Also update label z-value
+            if (ng->label) {
+                ng->label->setZValue(zVal + 1);
+            }
         }
     }
     m_selectedNotes.clear();
@@ -111,6 +130,10 @@ void MidiEditorNoteHandler::selectNotesInRect(const QRectF &rect) {
                         m_selectedNotes.append(&ng);
                         shapeItem->setPen(m_editor->getNotePen(ng.track, false, true));
                         shapeItem->setZValue(999);
+                        // Also update label z-value
+                        if (ng.label) {
+                            ng.label->setZValue(1000);
+                        }
                     }
                 }
             }
@@ -132,6 +155,10 @@ void MidiEditorNoteHandler::selectAll() {
                 m_selectedNotes.append(&ng);
                 shapeItem->setPen(m_editor->getNotePen(ng.track, false, true));
                 shapeItem->setZValue(999);
+                // Also update label z-value
+                if (ng.label) {
+                    ng.label->setZValue(1000);
+                }
             }
         }
     }
@@ -516,6 +543,28 @@ void MidiEditorNoteHandler::deleteSelectedNotes() {
     }
     
     clearSelection();
+    
+    // Use undo command
+    auto cmd = std::make_unique<DeleteNotesCommand>(m_editor, notesToDelete);
+    m_editor->getUndoManager()->executeCommand(std::move(cmd));
+    
+    emit notesModified();
+}
+
+void MidiEditorNoteHandler::deleteNote(NoteGraphics *note) {
+    if (!note) return;
+    
+    auto *seq = m_editor->getSequence();
+    if (!seq) return;
+    
+    // Remove from selection if selected
+    if (m_selectedNotes.contains(note)) {
+        m_selectedNotes.removeOne(note);
+    }
+    
+    // Create list with single note to delete
+    QList<QPair<NoteNagaTrack*, NN_Note_t>> notesToDelete;
+    notesToDelete.append({note->track, note->note});
     
     // Use undo command
     auto cmd = std::make_unique<DeleteNotesCommand>(m_editor, notesToDelete);

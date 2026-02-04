@@ -34,38 +34,34 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     // =========================================================================
     m_normalContent = new QWidget();
     m_normalContent->setObjectName("TrackInfoPanel");
-    m_normalContent->setFixedWidth(220);
+    m_normalContent->setFixedWidth(170);
     // Background color is set dynamically in refreshStyle() for selection support
     QHBoxLayout *info_outer_layout = new QHBoxLayout(m_normalContent);
     info_outer_layout->setContentsMargins(0, 0, 0, 0);
     info_outer_layout->setSpacing(0);
 
-    // Left panel with track number + instrument icon (inside TrackInfoPanel)
+    // Left panel with instrument icon + track number (inside TrackInfoPanel)
     m_leftPanel = new QWidget();
     m_leftPanel->setObjectName("TrackLeftPanel");
-    m_leftPanel->setFixedWidth(50);
+    m_leftPanel->setFixedWidth(52);
     QHBoxLayout *left_layout = new QHBoxLayout(m_leftPanel);
-    left_layout->setContentsMargins(0, 0, 0, 0);
     left_layout->setSpacing(0);
 
-    // Track number button (left side) - aligned to left edge
-    index_btn = new QPushButton(QString::number(this->track->getId() + 1));
-    index_btn->setObjectName("TrackIndexButton");
-    index_btn->setFixedSize(18, 60);
-    index_btn->setCursor(Qt::PointingHandCursor);
-    index_btn->setToolTip("Click to change track color");
-    connect(index_btn, &QPushButton::clicked, this, &TrackWidget::colorSelect);
-    left_layout->addWidget(index_btn, 0);
-
-    // Instrument button (right side of left panel)
+    // Instrument button (left column) - larger area for icon
     instrument_btn = new QPushButton();
     instrument_btn->setObjectName("InstrumentButton");
     instrument_btn->setFlat(true);
     instrument_btn->setCursor(Qt::PointingHandCursor);
-    instrument_btn->setFixedSize(32, 60);
-    instrument_btn->setIconSize(QSize(26, 26));
     connect(instrument_btn, &QPushButton::clicked, this, &TrackWidget::instrumentSelect);
-    left_layout->addWidget(instrument_btn, 0);
+    left_layout->addWidget(instrument_btn, 1, Qt::AlignCenter);
+
+    // Track number button (right column) - small, for color selection only
+    index_btn = new QPushButton(QString::number(this->track->getId() + 1));
+    index_btn->setObjectName("TrackIndexButton");
+    index_btn->setCursor(Qt::PointingHandCursor);
+    index_btn->setToolTip("Click to change track color");
+    connect(index_btn, &QPushButton::clicked, this, &TrackWidget::colorSelect);
+    left_layout->addWidget(index_btn, 0, Qt::AlignRight | Qt::AlignVCenter);
 
     info_outer_layout->addWidget(m_leftPanel, 0);
 
@@ -253,8 +249,12 @@ void TrackWidget::updateIndexButtonStyle()
                 border: none;
                 color: #ffffff;
                 font-weight: bold;
-                font-size: 11px;
-                padding: 0px;
+                font-size: 10px;
+                padding: 2px 4px;
+                min-width: 16px;
+                max-width: 24px;
+                min-height: 14px;
+                max-height: 18px;
             }
         )";
         index_btn->setStyleSheet(style);
@@ -268,7 +268,7 @@ void TrackWidget::updateIndexButtonStyle()
     double luminance = nn_yiq_luminance(color);
     QString textColor = luminance > 128.0 ? "#000000" : "#ffffff";
     // Hover: if dark background, lighten; if light, darken
-    QString hoverColor = luminance > 128.0 ? bgColor.darker(115).name() : bgColor.lighter(130).name();
+    QString hoverColor = luminance > 128.0 ? bgColor.darker(120).name() : bgColor.lighter(140).name();
     
     QString style = QString(R"(
         QPushButton#TrackIndexButton {
@@ -276,8 +276,12 @@ void TrackWidget::updateIndexButtonStyle()
             border: none;
             color: %1;
             font-weight: bold;
-            font-size: 11px;
-            padding: 0px;
+            font-size: 10px;
+            padding: 2px 4px;
+            min-width: 16px;
+            max-width: 24px;
+            min-height: 14px;
+            max-height: 18px;
         }
         QPushButton#TrackIndexButton:hover {
             background: %2;
@@ -578,6 +582,11 @@ void TrackWidget::refreshStyle(bool selected, bool darker_bg)
         QPushButton#InstrumentButton {
             border: none;
             background: transparent;
+            min-width: 36px;
+            max-width: 40px;
+            min-height: 36px;
+            max-height: 44px;
+            icon-size: 32px;
         }
         QPushButton#InstrumentButton:hover {
             background: rgba(255, 255, 255, 40);

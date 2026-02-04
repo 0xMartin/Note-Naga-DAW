@@ -59,6 +59,7 @@ public:
     void resizeSelectedNotes(const QPointF &delta);
     void applyNoteChanges();
     void deleteSelectedNotes();
+    void deleteNote(NoteGraphics *note);
     void duplicateSelectedNotes();
     void quantizeSelectedNotes();
     void moveSelectedNotesToTrack(NoteNagaTrack *targetTrack);

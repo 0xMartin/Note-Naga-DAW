@@ -617,8 +617,16 @@ void MidiEditorWidget::mousePressEvent(QMouseEvent *event) {
         }
     }
     else if (event->button() == Qt::RightButton) {
-        // Show context menu
-        m_contextMenu->show(event->globalPos(), m_noteHandler->hasSelection());
+        // Right click on note = delete it (note under cursor with highest z-value)
+        NoteGraphics *noteUnderCursor = m_noteHandler->findNoteUnderCursor(scenePos);
+        if (noteUnderCursor) {
+            m_noteHandler->deleteNote(noteUnderCursor);
+            event->accept();
+            return;
+        } else {
+            // Right click outside note = show context menu
+            m_contextMenu->show(event->globalPos(), m_noteHandler->hasSelection());
+        }
     }
     
     QGraphicsView::mousePressEvent(event);
