@@ -1,7 +1,10 @@
 {
     "cmake.configureArgs": [
-        "-DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt"
+        "-DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ],
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.errorSquiggles": "enabled",
     "files.associations": {
         "qstring": "cpp",
         "qicon": "cpp",

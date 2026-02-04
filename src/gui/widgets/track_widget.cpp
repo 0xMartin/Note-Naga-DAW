@@ -22,7 +22,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
 {
     connect(track, &NoteNagaTrack::metadataChanged, this, &TrackWidget::updateTrackInfo);
     setObjectName("TrackWidget");
-    setFixedHeight(64);  // Height to fit larger dials with value text
+    setFixedHeight(60);  // Height to fit larger dials with value text
 
     QHBoxLayout *main_hbox = new QHBoxLayout(this);
     main_hbox->setContentsMargins(0, 0, 4, 0);
@@ -34,7 +34,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     // =========================================================================
     m_normalContent = new QWidget();
     m_normalContent->setObjectName("TrackInfoPanel");
-    m_normalContent->setFixedWidth(170);
+    m_normalContent->setFixedWidth(175);
     // Background color is set dynamically in refreshStyle() for selection support
     QHBoxLayout *info_outer_layout = new QHBoxLayout(m_normalContent);
     info_outer_layout->setContentsMargins(0, 0, 0, 0);
@@ -43,7 +43,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     // Left panel with instrument icon + track number (inside TrackInfoPanel)
     m_leftPanel = new QWidget();
     m_leftPanel->setObjectName("TrackLeftPanel");
-    m_leftPanel->setFixedWidth(52);
+    m_leftPanel->setFixedWidth(60);
     QHBoxLayout *left_layout = new QHBoxLayout(m_leftPanel);
     left_layout->setSpacing(0);
 
@@ -307,8 +307,8 @@ void TrackWidget::updateLeftPanelStyle()
                 border: 1px solid %2;
                 border-top-left-radius: 0px;
                 border-bottom-left-radius: 0px;
-                border-top-right-radius: 8px;
-                border-bottom-right-radius: 8px;
+                border-top-right-radius: 28px;
+                border-bottom-right-radius: 28px;
             }
         )").arg(bg, borderColor);
         if (m_leftPanel) {
@@ -339,8 +339,8 @@ void TrackWidget::updateLeftPanelStyle()
                 border: 1px solid %2;
                 border-top-left-radius: 0px;
                 border-bottom-left-radius: 0px;
-                border-top-right-radius: 8px;
-                border-bottom-right-radius: 8px;
+                border-top-right-radius: 28px;
+                border-bottom-right-radius: 28px;
             }
         )").arg(bgColor.name(), borderColor);
         

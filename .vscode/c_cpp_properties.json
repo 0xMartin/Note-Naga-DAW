@@ -3,15 +3,53 @@
         {
             "name": "Mac",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/note_naga_engine/include",
+                "${workspaceFolder}/build/note_naga_engine",
+                "${workspaceFolder}/build/NoteNaga_autogen/include",
+                "${workspaceFolder}/libs/verovio/include",
+                "${workspaceFolder}/libs/verovio/include/vrv",
+                "${workspaceFolder}/libs/verovio/include/json",
+                "${workspaceFolder}/libs/verovio/include/midi",
+                "${workspaceFolder}/libs/verovio/include/pugi",
+                "${workspaceFolder}/libs/verovio/libmei/dist",
+                "${workspaceFolder}/libs/verovio/libmei/addons",
+                "/opt/homebrew/lib/QtCore.framework/Headers",
+                "/opt/homebrew/lib/QtWidgets.framework/Headers",
+                "/opt/homebrew/lib/QtGui.framework/Headers",
+                "/opt/homebrew/lib/QtConcurrent.framework/Headers",
+                "/opt/homebrew/lib/QtSvg.framework/Headers",
+                "/opt/homebrew/lib/QtSvgWidgets.framework/Headers",
+                "/opt/homebrew/lib/QtPrintSupport.framework/Headers",
+                "/opt/homebrew/lib/QtXml.framework/Headers",
+                "/opt/homebrew/include",
+                "/opt/homebrew/Cellar/fluid-synth/2.5.2/include",
+                "/opt/homebrew/Cellar/opencv/4.13.0_3/include/opencv4",
+                "/opt/homebrew/Cellar/rtmidi/6.0.0/include/rtmidi",
+                "/opt/homebrew/Cellar/rtaudio/6.0.1/include/rtaudio",
+                "/opt/homebrew/Cellar/portaudio/19.7.0/include"
             ],
-            "defines": [],
-            "macFrameworkPath": [],
-            "compilerPath": "/usr/bin/clang",
+            "defines": [
+                "QT_CORE_LIB",
+                "QT_GUI_LIB",
+                "QT_WIDGETS_LIB",
+                "QT_CONCURRENT_LIB",
+                "QT_SVG_LIB",
+                "QT_SVGWIDGETS_LIB",
+                "QT_PRINTSUPPORT_LIB",
+                "QT_XML_LIB"
+            ],
+            "macFrameworkPath": [
+                "/opt/homebrew/lib"
+            ],
+            "compilerPath": "/usr/bin/clang++",
             "cStandard": "c17",
-            "cppStandard": "c++17",
+            "cppStandard": "c++20",
             "intelliSenseMode": "macos-clang-arm64",
-            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+            "compilerArgs": [
+                "-iframework",
+                "/opt/homebrew/lib"
+            ]
         }
     ],
     "version": 4
