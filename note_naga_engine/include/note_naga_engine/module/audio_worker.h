@@ -2,6 +2,7 @@
 
 #include <RtAudio.h>
 #include <atomic>
+#include <thread>
 #include <note_naga_engine/module/dsp_engine.h>
 
 /**
@@ -20,7 +21,15 @@ public:
     void setDSPEngine(NoteNagaDSPEngine* dsp);
 
     /**
-     * @brief Starts the audio device (stream). Can be called multiple times.
+     * @brief Starts the audio device (stream) asynchronously. 
+     * Returns immediately, audio initialization happens in background.
+     * @param sampleRate The sample rate to use for the audio stream.
+     * @param blockSize The block size (number of frames) for the audio stream.
+     */
+    void startAsync(unsigned int sampleRate, unsigned int blockSize);
+
+    /**
+     * @brief Starts the audio device (stream) synchronously.
      * @param sampleRate The sample rate to use for the audio stream.
      * @param blockSize The block size (number of frames) for the audio stream.
      * @return True if the stream started successfully, false otherwise.
@@ -69,8 +78,10 @@ private:
     unsigned int sample_rate = 44100;
     unsigned int block_size = 512;
     unsigned int output_channels = 2;
-    bool stream_open = false;
+    std::atomic<bool> stream_open{false};
     std::atomic<bool> is_muted{false};
+    std::atomic<bool> init_in_progress{false};
+    std::thread init_thread;
 
     // Callback volaný RtAudio, naplňuje výstupní buffer audio daty.
     static int audioCallback(void* outputBuffer, void*, unsigned int nFrames,

@@ -8,7 +8,6 @@
 
 #include <note_naga_engine/module/audio_worker.h>
 #include <note_naga_engine/module/dsp_engine.h>
-#include <note_naga_engine/module/mixer.h>
 #include <note_naga_engine/module/playback_worker.h>
 #include <note_naga_engine/module/spectrum_analyzer.h>
 #include <note_naga_engine/module/pan_analyzer.h>
@@ -129,18 +128,18 @@ public:
     bool loadProject(const std::string &midi_file_path);
 
     /*******************************************************************************************************/
-    // Mixer Control
+    // Track Control
     /*******************************************************************************************************/
 
     /**
-     * @brief Mutes or unmutes a track in the mixer.
+     * @brief Mutes or unmutes a track.
      * @param track Pointer to the track to mute/unmute.
      * @param mute True to mute, false to unmute.
      */
     void muteTrack(NoteNagaTrack *track, bool mute = true);
 
     /**
-     * @brief Solos or unsolos a track in the mixer.
+     * @brief Solos or unsolos a track.
      * @param track Pointer to the track to solo/unsolo.
      * @param solo True to solo, false to unsolo.
      */
@@ -207,12 +206,6 @@ public:
     NoteNagaRuntimeData *getRuntimeData() { return this->runtime_data; }
 
     /**
-     * @brief Gets the mixer instance.
-     * @return Pointer to the NoteNagaMixer.
-     */
-    NoteNagaMixer *getMixer() { return this->mixer; }
-
-    /**
      * @brief Gets the playback worker instance.
      * @return Pointer to the PlaybackWorker.
      */
@@ -274,16 +267,21 @@ Q_SIGNALS:
      * @brief Signal emitted when a synthesizer is updated.
      */
     void synthUpdated(NoteNagaSynthesizer *synth);
+
+    /**
+     * @brief Signal emitted when a note is played (from single note or playback).
+     * @param note The note that was played.
+     */
+    void notePlayed(const NN_Note_t &note);
 #endif
 
 protected:
     NoteNagaRuntimeData *runtime_data;                   ///< Pointer to the runtime data instance
     NoteNagaPlaybackWorker *playback_worker;         ///< Pointer to the playback worker instance
-    NoteNagaMixer *mixer;                            ///< Pointer to the mixer instance
     NoteNagaDSPEngine *dsp_engine;                   ///< Pointer to the DSP engine instance
     NoteNagaAudioWorker *audio_worker;               ///< Pointer to the audio worker instance
     NoteNagaSpectrumAnalyzer *spectrum_analyzer;     ///< Pointer to the spectrum analyzer instance
     NoteNagaPanAnalyzer *pan_analyzer;               ///< Pointer to the pan analyzer instance
     NoteNagaMetronome *metronome;                    ///< Pointer to the metronome instance
-    std::vector<NoteNagaSynthesizer *> synthesizers; ///< List of synthesizers used by the engine
+    std::vector<NoteNagaSynthesizer *> synthesizers; ///< List of global synthesizers (for master DSP)
 };

@@ -9,7 +9,6 @@
 #include "../widgets/midi_tact_ruler.h"
 #include "../widgets/timeline_overview_widget.h"
 #include "../widgets/track_list_widget.h"
-#include "../widgets/track_mixer_widget.h"
 
 #include <QGridLayout>
 #include <QVBoxLayout>
@@ -165,9 +164,9 @@ void MidiEditorSection::setupDockLayout()
     addDockWidget(Qt::RightDockWidgetArea, editorDock);
     m_docks["editor"] = editorDock;
 
-    // === Track list dock (left top) ===
+    // === Track list dock (left, full height) ===
     m_trackListWidget = new TrackListWidget(m_engine, this);
-    m_trackListWidget->setMinimumWidth(250);
+    m_trackListWidget->setMinimumWidth(280);
     m_trackListWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     
     auto *tracklistDock = new AdvancedDockWidget(
@@ -184,40 +183,17 @@ void MidiEditorSection::setupDockLayout()
     addDockWidget(Qt::LeftDockWidgetArea, tracklistDock);
     m_docks["tracklist"] = tracklistDock;
 
-    // === Mixer dock (left bottom) ===
-    m_mixerWidget = new TrackMixerWidget(m_engine, this);
-    m_mixerWidget->setMinimumWidth(250);
-    m_mixerWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
-    
-    auto *mixerDock = new AdvancedDockWidget(
-        tr("Track Mixer"), 
-        QIcon(":/icons/mixer.svg"),
-        m_mixerWidget->getTitleWidget(), 
-        this
-    );
-    mixerDock->setWidget(m_mixerWidget);
-    mixerDock->setObjectName("mixer");
-    mixerDock->setAllowedAreas(Qt::AllDockWidgetAreas);
-    mixerDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable |
-                           QDockWidget::DockWidgetFloatable);
-    addDockWidget(Qt::LeftDockWidgetArea, mixerDock);
-    m_docks["mixer"] = mixerDock;
-
     // === Configure layout ===
-    // Left side: track list on top, mixer on bottom (vertical split)
+    // Left side: track list (full height)
     // Right side: MIDI editor (takes most space)
     m_docks["editor"]->setParent(this);
     m_docks["tracklist"]->setParent(this);
-    m_docks["mixer"]->setParent(this);
 
-    // First, split horizontally: left area (tracklist) and right area (editor)
+    // Split horizontally: left area (tracklist) and right area (editor)
     splitDockWidget(m_docks["tracklist"], m_docks["editor"], Qt::Horizontal);
-    // Then split the left area vertically: tracklist on top, mixer below
-    splitDockWidget(m_docks["tracklist"], m_docks["mixer"], Qt::Vertical);
     
     m_docks["editor"]->raise();
     m_docks["tracklist"]->setFloating(false);
-    m_docks["mixer"]->setFloating(false);
 
     for (auto dock : m_docks) {
         dock->setVisible(true);

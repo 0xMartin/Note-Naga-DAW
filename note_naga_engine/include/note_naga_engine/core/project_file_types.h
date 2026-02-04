@@ -144,16 +144,27 @@ struct NOTE_NAGA_ENGINE_API TrackConfig {
     bool visible;
     bool muted;
     bool solo;
-    float volume;
+    float volume;                             ///< Legacy volume (0-1)
     bool isTempoTrack;                        ///< True if this is a tempo track
     std::vector<NoteConfig> notes;            ///< Notes in this track
     std::vector<TempoEventConfig> tempoEvents; ///< Tempo events (only for tempo tracks)
+    
+    // Per-track synth configuration (new architecture)
+    std::string synthType;                    ///< "fluidsynth" or "external_midi"
+    std::string synthSoundFontPath;           ///< Path to SoundFont for FluidSynth
+    std::string synthMidiPort;                ///< MIDI port for external MIDI
+    std::vector<DSPBlockConfig> synthDspBlocks; ///< DSP blocks for this track's synth
+    float audioVolumeDb;                      ///< Audio output volume in dB (-5 to +5)
+    int midiPanOffset;                        ///< MIDI pan offset (-64 to +64)
+    int midiVelocityOffset;                   ///< MIDI velocity offset (-64 to +64)
     
     TrackConfig()
         : id(0), name("Track"), instrument(0), channel(0),
           colorR(0x50), colorG(0x80), colorB(0xc0),
           visible(true), muted(false), solo(false), volume(1.0f),
-          isTempoTrack(false) {}
+          isTempoTrack(false),
+          synthType("fluidsynth"), synthSoundFontPath(""), synthMidiPort(""),
+          audioVolumeDb(0.0f), midiPanOffset(0), midiVelocityOffset(0) {}
 };
 
 /*******************************************************************************************************/
@@ -201,9 +212,7 @@ struct NOTE_NAGA_ENGINE_API SynthesizerConfig {
 struct NOTE_NAGA_ENGINE_API NoteNagaProjectData {
     NoteNagaProjectMetadata metadata;
     std::vector<MidiSequenceConfig> sequences;
-    std::vector<SynthesizerConfig> synthesizers;
-    std::vector<DSPBlockConfig> masterDspBlocks;
-    std::vector<RoutingEntryConfig> routingTable;
+    std::vector<DSPBlockConfig> masterDspBlocks;  ///< Master DSP blocks
     bool dspEnabled;
     
     NoteNagaProjectData() : dspEnabled(true) {}

@@ -6,6 +6,7 @@
 #include <QFrame>
 #include <QColor>
 #include <QMenu>
+#include <QTimer>
 #include <vector>
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -46,11 +47,13 @@ private:
     QScrollArea* scroll_area;
     QWidget* container;
     QVBoxLayout* vbox;
+    QTimer* meter_update_timer_;
 
     void initTitleUI();
     void initUI();
     void updateSelection(NoteNagaMidiSeq *sequence, int widget_idx);
     void showTrackContextMenu(TrackWidget *trackWidget, const QPoint &globalPos);
+    void updateTrackMeters();
 
 /*******************************************************************************************************/
 // Signal and Slots
@@ -64,7 +67,6 @@ public slots:
 
 private slots:
     void reloadTracks(NoteNagaMidiSeq *seq);
-    void handlePlayingNote(const NN_Note_t& note);
     void onAddTrack();
     void onAddTempoTrack();
     void onRemoveTrack();

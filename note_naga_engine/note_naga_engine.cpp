@@ -11,10 +11,12 @@ NoteNagaEngine::NoteNagaEngine()
 #endif
 {
     this->runtime_data = nullptr;
-    this->mixer = nullptr;
     this->playback_worker = nullptr;
     this->dsp_engine = nullptr;
     this->audio_worker = nullptr;
+    this->spectrum_analyzer = nullptr;
+    this->pan_analyzer = nullptr;
+    this->metronome = nullptr;
     NOTE_NAGA_LOG_INFO("Instance created. Version: " + std::string(NOTE_NAGA_VERSION_STR));
 }
 
@@ -31,16 +33,12 @@ NoteNagaEngine::~NoteNagaEngine() {
         audio_worker = nullptr;
     }
 
-    if (mixer) {
-        delete mixer;
-        mixer = nullptr;
-    }
-
     if (playback_worker) {
         delete playback_worker;
         playback_worker = nullptr;
     }
 
+    // Global synthesizers (for master DSP) - track synths are deleted with tracks
     for (auto *synth : this->synthesizers) {
         delete synth;
     }
@@ -73,13 +71,6 @@ NoteNagaEngine::~NoteNagaEngine() {
 /*******************************************************************************************************/
 
 bool NoteNagaEngine::initialize() {
-    // Initialize synthesizers
-    if (this->synthesizers.empty()) {
-        std::string soundfontPath = SoundFontFinder::findSoundFont();
-        this->synthesizers.push_back(
-            new NoteNagaSynthFluidSynth("FluidSynth 1", soundfontPath));
-    }
-
     // Initialize spectrum analyzer
     if (!this->spectrum_analyzer) {
         this->spectrum_analyzer = new NoteNagaSpectrumAnalyzer(2048);
@@ -100,37 +91,38 @@ bool NoteNagaEngine::initialize() {
     // runtime data
     if (!this->runtime_data) this->runtime_data = new NoteNagaRuntimeData();
 
-    // mixer
-    if (!this->mixer) { this->mixer = new NoteNagaMixer(this->runtime_data, &this->synthesizers); }
-
-    // playback worker
+    // playback worker (no longer needs mixer)
     if (!this->playback_worker) {
-        this->playback_worker = new NoteNagaPlaybackWorker(this->runtime_data, this->mixer, 30.0);
+        this->playback_worker = new NoteNagaPlaybackWorker(this->runtime_data, 30.0);
 
         this->playback_worker->addFinishedCallback([this]() {
-            if (mixer) mixer->stopAllNotes();
+            // Stop all notes on all tracks
+            if (runtime_data && runtime_data->getActiveSequence()) {
+                for (auto* track : runtime_data->getActiveSequence()->getTracks()) {
+                    if (track && !track->isTempoTrack()) {
+                        track->stopAllNotes();
+                    }
+                }
+            }
             NN_QT_EMIT(this->playbackStopped());
         });
     }
 
-    // dsp engine
+    // dsp engine - now works with tracks instead of global synths
     if (!this->dsp_engine) {
         this->dsp_engine = new NoteNagaDSPEngine(this->metronome, this->spectrum_analyzer, this->pan_analyzer);
-        for (auto *synth : this->synthesizers) {
-            if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
-                this->dsp_engine->addSynth(softSynth);
-            }
-        }
+        // Set runtime data for track-based rendering
+        this->dsp_engine->setRuntimeData(this->runtime_data);
     }
 
-    // audio worker
+    // audio worker - start asynchronously to avoid blocking UI on slow devices (e.g. Bluetooth)
     if (!this->audio_worker) { 
         this->audio_worker = new NoteNagaAudioWorker(this->dsp_engine);
-        this->audio_worker->start(44100, 512);
+        this->audio_worker->startAsync(44100, 512);
     }
 
-    bool status = this->runtime_data && this->mixer && this->playback_worker &&
-                  !this->synthesizers.empty() && this->audio_worker && this->dsp_engine;
+    bool status = this->runtime_data && this->playback_worker &&
+                  this->audio_worker && this->dsp_engine;
     if (status) {
         NOTE_NAGA_LOG_INFO("Initialized successfully");
     } else {
@@ -175,28 +167,40 @@ bool NoteNagaEngine::startPlayback() {
 bool NoteNagaEngine::stopPlayback() {
     if (playback_worker) {
         if (playback_worker->stop()) {
+            // Stop all notes on all tracks
+            if (runtime_data && runtime_data->getActiveSequence()) {
+                for (NoteNagaTrack *track : runtime_data->getActiveSequence()->getTracks()) {
+                    if (track) {
+                        track->stopAllNotes();
+                    }
+                }
+            }
             // playbackStopped is emitted from thread finished callback
             return true;
         }
     }
-    if (mixer) mixer->stopAllNotes();
     NOTE_NAGA_LOG_WARNING("Failed to stop playback");
     return false;
 }
 
 void NoteNagaEngine::playSingleNote(const NN_Note_t &midi_note) {
-    if (mixer) {
-        mixer->pushToQueue(NN_MixerMessage_t{midi_note, true, true});
+    // Play note directly through the track's synth
+    if (midi_note.parent) {
+        midi_note.parent->playNote(midi_note);
+#ifndef QT_DEACTIVATED
+        emit notePlayed(midi_note);
+#endif
     } else {
-        NOTE_NAGA_LOG_ERROR("Failed to play single note: Mixer is not initialized");
+        NOTE_NAGA_LOG_ERROR("Failed to play single note: Note has no parent track");
     }
 }
 
 void NoteNagaEngine::stopSingleNote(const NN_Note_t &midi_note) {
-    if (mixer) {
-        mixer->pushToQueue(NN_MixerMessage_t{midi_note, false, true});
+    // Stop note directly through the track's synth
+    if (midi_note.parent) {
+        midi_note.parent->stopNote(midi_note);
     } else {
-        NOTE_NAGA_LOG_ERROR("Failed to play single note: Mixer is not initialized");
+        NOTE_NAGA_LOG_ERROR("Failed to stop single note: Note has no parent track");
     }
 }
 
@@ -223,22 +227,30 @@ bool NoteNagaEngine::loadProject(const std::string &midi_file_path) {
 }
 
 /*******************************************************************************************************/
-// Mixer Control
+// Track Control
 /*******************************************************************************************************/
 
 void NoteNagaEngine::muteTrack(NoteNagaTrack *track, bool mute) {
-    if (mixer) {
-        mixer->muteTrack(track, mute);
+    if (track) {
+        track->setMuted(mute);
     } else {
-        NOTE_NAGA_LOG_ERROR("Failed to mute track: Mixer is not initialized");
+        NOTE_NAGA_LOG_ERROR("Failed to mute track: Track is nullptr");
     }
 }
 
 void NoteNagaEngine::soloTrack(NoteNagaTrack *track, bool solo) {
-    if (mixer) {
-        mixer->soloTrack(track, solo);
+    if (track) {
+        track->setSolo(solo);
+        // Update solo track in sequence
+        if (runtime_data && runtime_data->getActiveSequence()) {
+            if (solo) {
+                runtime_data->getActiveSequence()->setSoloTrack(track);
+            } else if (runtime_data->getActiveSequence()->getSoloTrack() == track) {
+                runtime_data->getActiveSequence()->setSoloTrack(nullptr);
+            }
+        }
     } else {
-        NOTE_NAGA_LOG_ERROR("Failed to solo track: Mixer is not initialized");
+        NOTE_NAGA_LOG_ERROR("Failed to solo track: Track is nullptr");
     }
 }
 
@@ -251,7 +263,7 @@ void NoteNagaEngine::enableLooping(bool enabled) {
 }
 
 /*******************************************************************************************************/
-// Synthesizer Control
+// Synthesizer Control (Global/Master synths for backwards compatibility)
 /*******************************************************************************************************/
 
 void NoteNagaEngine::addSynthesizer(NoteNagaSynthesizer *synth) {
@@ -259,7 +271,6 @@ void NoteNagaEngine::addSynthesizer(NoteNagaSynthesizer *synth) {
     connect(synth, &NoteNagaSynthesizer::synthUpdated, this, &NoteNagaEngine::synthUpdated);
 #endif
     this->synthesizers.push_back(synth);
-    this->mixer->detectOutputs();
     if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
         this->dsp_engine->addSynth(softSynth);
     }
@@ -270,7 +281,6 @@ void NoteNagaEngine::removeSynthesizer(NoteNagaSynthesizer *synth) {
     auto it = std::find(this->synthesizers.begin(), this->synthesizers.end(), synth);
     if (it != this->synthesizers.end()) {
         this->synthesizers.erase(it);
-        this->mixer->detectOutputs();
         if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
             this->dsp_engine->removeSynth(softSynth);
             NN_QT_EMIT(this->synthRemoved(synth));

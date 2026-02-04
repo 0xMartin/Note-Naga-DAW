@@ -44,14 +44,17 @@ NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
       last_error_ = "Failed to load SoundFont: " + sf2_path;
       NOTE_NAGA_LOG_ERROR(last_error_);
       soundfont_loaded_.store(false, std::memory_order_release);
+      synth_ready_.store(false, std::memory_order_release);
     } else {
       last_error_.clear();
       soundfont_loaded_.store(true, std::memory_order_release);
+      synth_ready_.store(true, std::memory_order_release);  // Mark synth as ready!
       NOTE_NAGA_LOG_INFO("FluidSynth loaded sfid=" + std::to_string(sfid));
     }
   } else {
     // No SoundFont path provided - synth is valid but no sound
     soundfont_loaded_.store(false, std::memory_order_release);
+    synth_ready_.store(false, std::memory_order_release);
     NOTE_NAGA_LOG_INFO("FluidSynth created without SoundFont");
   }
 }
@@ -110,7 +113,8 @@ void NoteNagaSynthFluidSynth::playNote(const NN_Note_t &note, int channel,
   // Always set pan before playing note (MIDI CC 10: 0=left, 64=center, 127=right)
   // Clamp pan to valid range
   float clampedPan = std::clamp(pan, -1.0f, 1.0f);
-  int midiPan = static_cast<int>(std::round(clampedPan * 63.0f + 64.0f));
+  // Convert -1.0 to +1.0 → 0 to 127 (-1.0->0, 0.0->64, +1.0->127)
+  int midiPan = static_cast<int>(std::round(clampedPan * 63.5f + 63.5f));
   midiPan = std::clamp(midiPan, 0, 127);
   fluid_synth_cc(fluidsynth_, channel, 10, midiPan);
   channel_pan_[channel] = pan;

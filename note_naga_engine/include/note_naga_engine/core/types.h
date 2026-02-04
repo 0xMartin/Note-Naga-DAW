@@ -15,6 +15,10 @@
 #include <string>
 #include <vector>
 
+// Forward declarations for synth types (avoid circular include)
+class NoteNagaSynthesizer;
+class INoteNagaSoftSynth;
+
 /*******************************************************************************************************/
 // Macros for emitting signals depending on NN_QT_EMIT_ENABLED
 /*******************************************************************************************************/
@@ -372,6 +376,45 @@ public:
      */
     float getVolume() const { return volume; }
 
+    // PER-TRACK SYNTH GETTERS
+    // ///////////////////////////////////////////////////////////////////////////////
+    
+    /**
+     * @brief Gets the track's synthesizer instance.
+     * @return Pointer to the synthesizer, or nullptr if not set.
+     */
+    NoteNagaSynthesizer* getSynth() const { return synth_; }
+    
+    /**
+     * @brief Gets the track's synthesizer as a soft synth interface.
+     * @return Pointer to INoteNagaSoftSynth, or nullptr if synth doesn't support it.
+     */
+    INoteNagaSoftSynth* getSoftSynth() const;
+    
+    /**
+     * @brief Gets the audio output volume in dB.
+     * @return Volume in dB (-24.0 to +6.0).
+     */
+    float getAudioVolumeDb() const { return audio_volume_db_; }
+    
+    /**
+     * @brief Gets the audio output volume as linear gain.
+     * @return Linear gain multiplier.
+     */
+    float getAudioVolumeLinear() const;
+    
+    /**
+     * @brief Gets the MIDI pan offset.
+     * @return Pan offset (-64 to +64).
+     */
+    int getMidiPanOffset() const { return midi_pan_offset_; }
+    
+    /**
+     * @brief Gets the pan as normalized float for audio processing.
+     * @return Pan value (-1.0 = full left, 0.0 = center, +1.0 = full right).
+     */
+    float getPanNormalized() const { return midi_pan_offset_ / 64.0f; }
+
     // SETTERS
     // ///////////////////////////////////////////////////////////////////////////////
 
@@ -442,6 +485,60 @@ public:
      */
     void setVolume(float new_volume);
 
+    // PER-TRACK SYNTH SETTERS
+    // ///////////////////////////////////////////////////////////////////////////////
+    
+    /**
+     * @brief Sets the track's synthesizer instance.
+     *        The track takes ownership of the synth and will delete it on destruction.
+     * @param synth Pointer to the synthesizer.
+     */
+    void setSynth(NoteNagaSynthesizer* synth);
+    
+    /**
+     * @brief Initializes the track's default synthesizer using SoundFontFinder.
+     *        Creates a FluidSynth with the first available soundfont.
+     * @return True if synth was successfully initialized.
+     */
+    bool initDefaultSynth();
+    
+    /**
+     * @brief Sets the audio output volume in dB.
+     * @param db Volume in dB (-24.0 to +6.0).
+     */
+    void setAudioVolumeDb(float db);
+    
+    /**
+     * @brief Sets the MIDI pan offset.
+     * @param offset Pan offset (-64 to +64).
+     */
+    void setMidiPanOffset(int offset);
+    
+    /**
+     * @brief Plays a note through this track's synth with pan offset applied.
+     * @param note The note to play.
+     */
+    void playNote(const NN_Note_t& note);
+    
+    /**
+     * @brief Stops a note on this track's synth.
+     * @param note The note to stop.
+     */
+    void stopNote(const NN_Note_t& note);
+    
+    /**
+     * @brief Stops all notes on this track's synth.
+     */
+    void stopAllNotes();
+    
+    /**
+     * @brief Renders audio from this track's synth with volume applied.
+     * @param left Left channel buffer.
+     * @param right Right channel buffer.
+     * @param num_frames Number of frames to render.
+     */
+    void renderAudio(float* left, float* right, size_t num_frames);
+
 protected:
     int track_id;                      ///< Unique track ID
     std::optional<int> instrument;     ///< Instrument index (optional)
@@ -451,9 +548,14 @@ protected:
     bool visible;                      ///< Track visibility
     bool muted;                        ///< Track muted state
     bool solo;                         ///< Track solo state
-    float volume;                      ///< Track volume (0.0 - 1.0)
+    float volume;                      ///< Track volume (0.0 - 1.0) - legacy, use audio_volume_db_
     std::vector<NN_Note_t> midi_notes; ///< MIDI notes in this track
     NoteNagaMidiSeq *parent;           ///< Pointer to parent MIDI sequence
+    
+    // Per-track synthesizer (new architecture)
+    NoteNagaSynthesizer *synth_;           ///< Track's own synthesizer instance
+    float audio_volume_db_;                ///< Audio output volume in dB (-24.0 to +6.0)
+    int midi_pan_offset_;                  ///< MIDI pan offset (-64 to +64)
     
     // Tempo track support
     bool is_tempo_track;                         ///< True if this is a tempo track

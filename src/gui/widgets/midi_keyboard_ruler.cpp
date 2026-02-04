@@ -23,10 +23,18 @@ MidiKeyboardRuler::MidiKeyboardRuler(NoteNagaEngine *engine_, int viewer_row_hei
 
     this->pressed_note.note = -1;
 
-    connect(engine->getMixer(), &NoteNagaMixer::noteInSignal, this,
-            &MidiKeyboardRuler::handleNotePlay);
     connect(this->engine, &NoteNagaEngine::playbackStopped, this,
             [this]() { this->clearHighlights(); });
+
+    // Connect to engine's notePlayed signal for single notes
+    connect(this->engine, &NoteNagaEngine::notePlayed, this,
+            &MidiKeyboardRuler::handleNotePlay);
+
+    // Connect to playback worker's notePlayed signal for playback notes
+    if (auto *worker = this->engine->getPlaybackWorker()) {
+        connect(worker, &NoteNagaPlaybackWorker::notePlayed, this,
+                &MidiKeyboardRuler::handleNotePlay, Qt::QueuedConnection);
+    }
 
     setObjectName("MidiKeyboardRuler");
     setMinimumWidth(60);

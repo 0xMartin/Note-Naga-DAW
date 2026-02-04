@@ -14,16 +14,14 @@ class MidiControlBarWidget;
 class MidiTactRuler;
 class MidiKeyboardRuler;
 class TrackListWidget;
-class TrackMixerWidget;
 class NotePropertyEditor;
 class TempoTrackEditor;
 class TimelineOverviewWidget;
 
 /**
  * @brief MidiEditorSection provides the MIDI Editor section layout with:
- *        - Track list (left)
+ *        - Track list (left, full height)
  *        - MIDI editor with rulers + note property editor + control bar (center)
- *        - Track mixer (right)
  *        All components wrapped in AdvancedDockWidget.
  */
 class MidiEditorSection : public QMainWindow, public ISection {
@@ -42,7 +40,6 @@ public:
     MidiTactRuler* getTactRuler() const { return m_midiTactRuler; }
     MidiKeyboardRuler* getKeyboardRuler() const { return m_midiKeyboardRuler; }
     TrackListWidget* getTrackList() const { return m_trackListWidget; }
-    TrackMixerWidget* getTrackMixer() const { return m_mixerWidget; }
     NotePropertyEditor* getNotePropertyEditor() const { return m_notePropertyEditor; }
     TempoTrackEditor* getTempoTrackEditor() const { return m_tempoTrackEditor; }
 
@@ -70,7 +67,6 @@ private:
     MidiTactRuler *m_midiTactRuler;
     MidiKeyboardRuler *m_midiKeyboardRuler;
     TrackListWidget *m_trackListWidget;
-    TrackMixerWidget *m_mixerWidget;
     NotePropertyEditor *m_notePropertyEditor;
     TempoTrackEditor *m_tempoTrackEditor;
     TimelineOverviewWidget *m_timelineOverview;

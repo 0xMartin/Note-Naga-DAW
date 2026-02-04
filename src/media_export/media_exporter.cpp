@@ -17,14 +17,17 @@
 class ManualModeGuard
 {
 public:
-    ManualModeGuard(NoteNagaEngine *engine) : m_engine(engine)
+    ManualModeGuard(NoteNagaEngine *engine, NoteNagaMidiSeq *sequence) : m_engine(engine), m_sequence(sequence)
     {
         if (m_engine)
         {
-            m_engine->getMixer()->enterManualMode();
-            for (auto *synth : m_engine->getSynthesizers())
-            {
-                synth->enterManualMode();
+            // Enter manual mode on all track synths
+            if (m_sequence) {
+                for (auto *track : m_sequence->getTracks()) {
+                    if (track && track->getSynth()) {
+                        track->getSynth()->enterManualMode();
+                    }
+                }
             }
             m_engine->getAudioWorker()->mute();
         }
@@ -33,10 +36,13 @@ public:
     {
         if (m_engine)
         {
-            m_engine->getMixer()->exitManualMode();
-            for (auto *synth : m_engine->getSynthesizers())
-            {
-                synth->exitManualMode();
+            // Exit manual mode on all track synths
+            if (m_sequence) {
+                for (auto *track : m_sequence->getTracks()) {
+                    if (track && track->getSynth()) {
+                        track->getSynth()->exitManualMode();
+                    }
+                }
             }
             m_engine->getAudioWorker()->unmute();
         }
@@ -44,6 +50,7 @@ public:
 
 private:
     NoteNagaEngine *m_engine;
+    NoteNagaMidiSeq *m_sequence;
 };
 
 
@@ -196,7 +203,7 @@ void MediaExporter::cleanup()
 
 bool MediaExporter::exportAudio(const QString &outputPath)
 {
-    ManualModeGuard manualMode(this->m_engine);
+    ManualModeGuard manualMode(this->m_engine, m_sequence);
 
     const int sampleRate = 44100;
     const int numChannels = 2;
@@ -207,9 +214,7 @@ bool MediaExporter::exportAudio(const QString &outputPath)
 
     NoteNagaRuntimeData *project = m_engine->getRuntimeData();
     NoteNagaMidiSeq *activeSequence = project->getActiveSequence();
-    NoteNagaMixer *mixer = m_engine->getMixer();
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    auto synthesizers = m_engine->getSynthesizers();
 
     struct MidiEvent
     {
@@ -234,7 +239,11 @@ bool MediaExporter::exportAudio(const QString &outputPath)
     std::sort(allEvents.begin(), allEvents.end(), [](const MidiEvent &a, const MidiEvent &b)
               { return a.tick < b.tick; });
 
-    mixer->stopAllNotes();
+    // Stop all notes on all tracks
+    for (auto *track : activeSequence->getTracks()) {
+        if (track) track->stopAllNotes();
+    }
+    
     int last_tick = 0;
     int totalSamplesRendered = 0;
 
@@ -255,16 +264,21 @@ bool MediaExporter::exportAudio(const QString &outputPath)
                 totalSamplesRendered += samplesToRender;
             }
         }
-        if (event.isNoteOn)
-            mixer->playNote(event.note);
-        else
-            mixer->stopNote(event.note);
-        mixer->flushNotes();
-        mixer->processQueue();
-        for (auto *synth : synthesizers)
-        {
-            synth->processQueue();
+        
+        // Play/stop note through track's synth
+        if (event.note.parent) {
+            if (event.isNoteOn) {
+                event.note.parent->playNote(event.note);
+            } else {
+                event.note.parent->stopNote(event.note);
+            }
+            // Process the track's synth queue
+            NoteNagaSynthesizer *synth = event.note.parent->getSynth();
+            if (synth) {
+                synth->processQueue();
+            }
         }
+        
         last_tick = event.tick;
 
         // In audio-only mode, we want this signal to drive the main progress bar

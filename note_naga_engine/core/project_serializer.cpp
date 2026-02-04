@@ -158,9 +158,6 @@ bool NoteNagaProjectSerializer::saveProject(const std::string &filePath, const N
         writeInt32(file, 0);  // No sequences
     }
     
-    // Write synthesizers
-    serializeSynthesizers(file);
-    
     // Write master DSP blocks
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
     if (dspEngine) {
@@ -176,9 +173,6 @@ bool NoteNagaProjectSerializer::saveProject(const std::string &filePath, const N
         writeInt32(file, 0);
         writeBool(file, true);
     }
-    
-    // Write routing table
-    serializeRoutingTable(file);
     
     file.close();
     NOTE_NAGA_LOG_INFO("Project saved: " + filePath);
@@ -250,11 +244,6 @@ bool NoteNagaProjectSerializer::loadProject(const std::string &filePath, NoteNag
         runtime->setActiveSequence(runtime->getSequences().front());
     }
     
-    // Read synthesizers
-    if (!deserializeSynthesizers(file)) {
-        NOTE_NAGA_LOG_WARNING("Failed to load synthesizers, using defaults");
-    }
-    
     // Read master DSP blocks
     NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
     if (dspEngine) {
@@ -276,11 +265,6 @@ bool NoteNagaProjectSerializer::loadProject(const std::string &filePath, NoteNag
         
         bool dspEnabled = readBool(file);
         dspEngine->setEnableDSP(dspEnabled);
-    }
-    
-    // Read routing table
-    if (!deserializeRoutingTable(file)) {
-        m_engine->getMixer()->createDefaultRouting();
     }
     
     file.close();
@@ -332,17 +316,15 @@ bool NoteNagaProjectSerializer::createEmptyProject(const NoteNagaProjectMetadata
     seq->setPPQ(480);
     seq->setTempo(600000);  // 100 BPM in microseconds
     
-    // Create one default track
+    // Create one default track with default synth
     NoteNagaTrack *track = seq->addTrack(0);  // Piano
     if (track) {
         track->setName("Track 1");
+        track->initDefaultSynth();
     }
     
     runtime->addSequence(seq);
     runtime->setActiveSequence(seq);
-    
-    // Create default routing
-    m_engine->getMixer()->createDefaultRouting();
     
     return true;
 }
@@ -391,6 +373,16 @@ bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaM
         bool solo = readBool(in);
         float volume = readFloat(in);
         
+        // Read per-track synth configuration (Version 3+)
+        float audioVolumeDb = readFloat(in);
+        int32_t midiPanOffset = readInt32(in);
+        int32_t midiVelocityOffset = readInt32(in);  // Read but ignore (deprecated)
+        (void)midiVelocityOffset;  // Suppress unused warning
+        
+        // Read synth type and configuration
+        std::string synthType = readString(in);
+        std::string soundFontPath = readString(in);
+        
         // Read tempo track flag and events
         bool isTempoTrack = readBool(in);
         std::vector<NN_TempoEvent_t> tempoEvents;
@@ -416,6 +408,24 @@ bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaM
         track->setMuted(muted);
         track->setSolo(solo);
         track->setVolume(volume);
+        
+        // Set per-track synth parameters
+        track->setAudioVolumeDb(audioVolumeDb);
+        track->setMidiPanOffset(midiPanOffset);
+        
+        // Initialize synth
+        if (synthType == "fluidsynth" && !soundFontPath.empty()) {
+            NoteNagaSynthFluidSynth *fluidSynth = new NoteNagaSynthFluidSynth("Track Synth", soundFontPath);
+            if (fluidSynth->isValid()) {
+                track->setSynth(fluidSynth);
+            } else {
+                NOTE_NAGA_LOG_WARNING("Failed to load SoundFont during project load: " + soundFontPath);
+                delete fluidSynth;
+                track->initDefaultSynth();
+            }
+        } else {
+            track->initDefaultSynth();
+        }
         
         // Set tempo track state
         if (isTempoTrack) {
@@ -457,6 +467,22 @@ void NoteNagaProjectSerializer::serializeTrack(std::ofstream &out, NoteNagaTrack
     writeBool(out, track->isMuted());
     writeBool(out, track->isSolo());
     writeFloat(out, track->getVolume());
+    
+    // Per-track synth configuration (Version 3+)
+    writeFloat(out, track->getAudioVolumeDb());
+    writeInt32(out, track->getMidiPanOffset());
+    writeInt32(out, 0);  // midiVelocityOffset - deprecated, write 0 for compatibility
+    
+    // Synth type and configuration
+    INoteNagaSoftSynth* synth = track->getSoftSynth();
+    NoteNagaSynthFluidSynth* fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
+    if (fluidSynth) {
+        writeString(out, "fluidsynth");
+        writeString(out, fluidSynth->getSoundFontPath());
+    } else {
+        writeString(out, "none");
+        writeString(out, "");
+    }
     
     // Tempo track flag and events
     writeBool(out, track->isTempoTrack());
@@ -535,206 +561,6 @@ NoteNagaDSPBlockBase *NoteNagaProjectSerializer::deserializeDSPBlock(std::ifstre
     }
     
     return block;
-}
-
-/*******************************************************************************************************/
-// Synthesizer Serialization
-/*******************************************************************************************************/
-
-void NoteNagaProjectSerializer::serializeSynthesizers(std::ofstream &out)
-{
-    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    std::vector<NoteNagaSynthesizer*> synths = m_engine->getSynthesizers();
-    
-    writeInt32(out, static_cast<int32_t>(synths.size()));
-    
-    for (NoteNagaSynthesizer *synth : synths) {
-        if (!synth) continue;
-        
-        writeString(out, synth->getName());
-        
-        NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
-        NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
-        
-        if (fluidSynth) {
-            writeString(out, "fluidsynth");
-            writeString(out, fluidSynth->getSoundFontPath());
-            writeString(out, "");  // No MIDI port
-        } else if (externalMidi) {
-            writeString(out, "external_midi");
-            writeString(out, "");  // No soundfont
-            writeString(out, externalMidi->getCurrentPortName());
-        } else {
-            writeString(out, "unknown");
-            writeString(out, "");
-            writeString(out, "");
-        }
-        
-        // Write DSP blocks for this synth
-        INoteNagaSoftSynth *softSynth = dynamic_cast<INoteNagaSoftSynth*>(synth);
-        if (softSynth && dspEngine) {
-            std::vector<NoteNagaDSPBlockBase*> synthBlocks = dspEngine->getSynthDSPBlocks(softSynth);
-            writeInt32(out, static_cast<int32_t>(synthBlocks.size()));
-            for (NoteNagaDSPBlockBase *block : synthBlocks) {
-                if (block) {
-                    serializeDSPBlock(out, block);
-                }
-            }
-        } else {
-            writeInt32(out, 0);
-        }
-    }
-}
-
-bool NoteNagaProjectSerializer::deserializeSynthesizers(std::ifstream &in)
-{
-    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    std::vector<NoteNagaSynthesizer*> synths = m_engine->getSynthesizers();
-    
-    int32_t numSynths = readInt32(in);
-    
-    for (int32_t i = 0; i < numSynths; ++i) {
-        std::string synthName = readString(in);
-        std::string synthType = readString(in);
-        std::string soundFontPath = readString(in);
-        std::string midiPort = readString(in);
-        
-        // Find existing synth by name
-        NoteNagaSynthesizer *synth = nullptr;
-        for (NoteNagaSynthesizer *s : synths) {
-            if (s && s->getName() == synthName) {
-                synth = s;
-                break;
-            }
-        }
-        
-        // Create synth if not found
-        if (!synth && !synthType.empty()) {
-            if (synthType == "fluidsynth" && !soundFontPath.empty()) {
-                NoteNagaSynthFluidSynth *fluidSynth = new NoteNagaSynthFluidSynth(synthName, soundFontPath);
-                if (!fluidSynth->isValid()) {
-                    NOTE_NAGA_LOG_WARNING("Failed to load SoundFont during project load: " + soundFontPath + 
-                                          " - Error: " + fluidSynth->getLastError());
-                }
-                synth = fluidSynth;
-                m_engine->addSynthesizer(synth);
-                synths = m_engine->getSynthesizers();
-            } else if (synthType == "external_midi" && !midiPort.empty()) {
-                synth = new NoteNagaSynthExternalMidi(synthName, midiPort);
-                m_engine->addSynthesizer(synth);
-                synths = m_engine->getSynthesizers();
-            }
-        } else if (synth) {
-            // Update existing synth configuration
-            NoteNagaSynthFluidSynth *fluidSynth = dynamic_cast<NoteNagaSynthFluidSynth*>(synth);
-            NoteNagaSynthExternalMidi *externalMidi = dynamic_cast<NoteNagaSynthExternalMidi*>(synth);
-            
-            if (fluidSynth && !soundFontPath.empty()) {
-                if (!fluidSynth->setSoundFont(soundFontPath)) {
-                    NOTE_NAGA_LOG_WARNING("Failed to reload SoundFont: " + soundFontPath + 
-                                          " - Error: " + fluidSynth->getLastError());
-                }
-            } else if (externalMidi && !midiPort.empty()) {
-                externalMidi->setMidiOutputPort(midiPort);
-            }
-        }
-        
-        // Read DSP blocks for this synth
-        int32_t numBlocks = readInt32(in);
-        
-        if (synth && dspEngine) {
-            INoteNagaSoftSynth *softSynth = dynamic_cast<INoteNagaSoftSynth*>(synth);
-            if (softSynth) {
-                // Clear existing DSP blocks
-                std::vector<NoteNagaDSPBlockBase*> blocksCopy = dspEngine->getSynthDSPBlocks(softSynth);
-                for (NoteNagaDSPBlockBase *block : blocksCopy) {
-                    dspEngine->removeSynthDSPBlock(softSynth, block);
-                    delete block;
-                }
-                
-                // Read new blocks
-                for (int32_t j = 0; j < numBlocks; ++j) {
-                    NoteNagaDSPBlockBase *block = deserializeDSPBlock(in);
-                    if (block) {
-                        dspEngine->addSynthDSPBlock(softSynth, block);
-                    }
-                }
-            } else {
-                // Skip blocks if not a soft synth
-                for (int32_t j = 0; j < numBlocks; ++j) {
-                    NoteNagaDSPBlockBase *block = deserializeDSPBlock(in);
-                    delete block;
-                }
-            }
-        } else {
-            // Skip blocks if synth not available
-            for (int32_t j = 0; j < numBlocks; ++j) {
-                NoteNagaDSPBlockBase *block = deserializeDSPBlock(in);
-                delete block;
-            }
-        }
-    }
-    
-    return in.good();
-}
-
-/*******************************************************************************************************/
-// Routing Table Serialization
-/*******************************************************************************************************/
-
-void NoteNagaProjectSerializer::serializeRoutingTable(std::ofstream &out)
-{
-    NoteNagaMixer *mixer = m_engine->getMixer();
-    if (!mixer) {
-        writeInt32(out, 0);
-        return;
-    }
-    
-    const std::vector<NoteNagaRoutingEntry> &entries = mixer->getRoutingEntries();
-    writeInt32(out, static_cast<int32_t>(entries.size()));
-    
-    for (const NoteNagaRoutingEntry &entry : entries) {
-        writeInt32(out, entry.track ? entry.track->getId() : -1);
-        writeString(out, entry.output);
-        writeInt32(out, entry.channel);
-        writeFloat(out, entry.volume);
-        writeInt32(out, entry.note_offset);
-        writeFloat(out, entry.pan);
-    }
-}
-
-bool NoteNagaProjectSerializer::deserializeRoutingTable(std::ifstream &in)
-{
-    NoteNagaMixer *mixer = m_engine->getMixer();
-    NoteNagaRuntimeData *runtime = m_engine->getRuntimeData();
-    if (!mixer || !runtime) return false;
-    
-    mixer->clearRoutingTable();
-    
-    NoteNagaMidiSeq *seq = runtime->getActiveSequence();
-    if (!seq) return false;
-    
-    const std::vector<NoteNagaTrack*> &tracks = seq->getTracks();
-    
-    int32_t numEntries = readInt32(in);
-    for (int32_t i = 0; i < numEntries; ++i) {
-        int32_t trackId = readInt32(in);
-        std::string output = readString(in);
-        int32_t channel = readInt32(in);
-        float volume = readFloat(in);
-        int32_t noteOffset = readInt32(in);
-        float pan = readFloat(in);
-        
-        if (trackId < 0 || trackId >= static_cast<int32_t>(tracks.size())) continue;
-        
-        NoteNagaTrack *track = tracks[trackId];
-        if (!track) continue;
-        
-        NoteNagaRoutingEntry entry(track, output, channel, volume, noteOffset, pan);
-        mixer->addRoutingEntry(entry);
-    }
-    
-    return in.good();
 }
 
 /*******************************************************************************************************/

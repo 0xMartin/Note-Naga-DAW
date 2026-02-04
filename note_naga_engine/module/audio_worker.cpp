@@ -8,12 +8,42 @@ NoteNagaAudioWorker::NoteNagaAudioWorker(NoteNagaDSPEngine *dsp) {
     NOTE_NAGA_LOG_INFO("Audio worker initialized");
 }
 
-NoteNagaAudioWorker::~NoteNagaAudioWorker() { stop(); }
+NoteNagaAudioWorker::~NoteNagaAudioWorker() { 
+    // Wait for init thread to finish if still running
+    if (init_thread.joinable()) {
+        init_thread.join();
+    }
+    stop(); 
+}
 
 void NoteNagaAudioWorker::setDSPEngine(NoteNagaDSPEngine *dsp) { this->dsp_engine = dsp; }
 
+void NoteNagaAudioWorker::startAsync(unsigned int sampleRate, unsigned int blockSize) {
+    if (this->stream_open.load() || this->init_in_progress.load()) {
+        NOTE_NAGA_LOG_WARNING("Audio worker is already running or initializing");
+        return;
+    }
+
+    // Join previous init thread if any
+    if (init_thread.joinable()) {
+        init_thread.join();
+    }
+
+    this->init_in_progress.store(true);
+    
+    // Start audio initialization in background thread
+    init_thread = std::thread([this, sampleRate, blockSize]() {
+        NOTE_NAGA_LOG_INFO("Starting async audio initialization...");
+        bool result = this->start(sampleRate, blockSize);
+        this->init_in_progress.store(false);
+        if (!result) {
+            NOTE_NAGA_LOG_WARNING("Async audio initialization failed");
+        }
+    });
+}
+
 bool NoteNagaAudioWorker::start(unsigned int sampleRate, unsigned int blockSize) {
-    if (this->stream_open) {
+    if (this->stream_open.load()) {
         NOTE_NAGA_LOG_WARNING("Audio worker is already running");
         return false;
     }
@@ -77,7 +107,7 @@ bool NoteNagaAudioWorker::start(unsigned int sampleRate, unsigned int blockSize)
                 continue;
             }
 
-            this->stream_open = true;
+            this->stream_open.store(true);
             this->output_channels = params.nChannels;
 
             NOTE_NAGA_LOG_INFO("Audio worker started on device: " + info.name);
@@ -109,7 +139,7 @@ bool NoteNagaAudioWorker::start(unsigned int sampleRate, unsigned int blockSize)
 }
 
 bool NoteNagaAudioWorker::stop() {
-    if (this->stream_open) {
+    if (this->stream_open.load()) {
         try {
             if (this->audio.isStreamRunning()) {
                 this->audio.stopStream();
@@ -124,7 +154,7 @@ bool NoteNagaAudioWorker::stop() {
                 NOTE_NAGA_LOG_WARNING("Audio stream was not running or already closed");
             }
         } catch (const std::exception &e) { NOTE_NAGA_LOG_ERROR(e.what()); }
-        this->stream_open = false;
+        this->stream_open.store(false);
         NOTE_NAGA_LOG_INFO("Audio worker stopped");
         return true;
     } else {

@@ -4,7 +4,6 @@
 #include <note_naga_engine/core/project_file_types.h>
 #include <note_naga_engine/core/runtime_data.h>
 #include <note_naga_engine/core/dsp_block_base.h>
-#include <note_naga_engine/module/mixer.h>
 #include <note_naga_engine/module/dsp_engine.h>
 
 #include <string>
@@ -17,7 +16,7 @@ class NoteNagaEngine;
  * @brief Binary file format magic number and version.
  */
 constexpr uint32_t NNPROJ_MAGIC = 0x4E4E5052;  // "NNPR" in little endian
-constexpr uint32_t NNPROJ_VERSION = 2;
+constexpr uint32_t NNPROJ_VERSION = 3;  // Version 3: Per-track synth architecture
 
 /**
  * @brief Handles serialization and deserialization of Note Naga project files.
@@ -113,12 +112,6 @@ private:
     
     void serializeDSPBlock(std::ofstream &out, NoteNagaDSPBlockBase *block);
     NoteNagaDSPBlockBase *deserializeDSPBlock(std::ifstream &in);
-    
-    void serializeSynthesizers(std::ofstream &out);
-    bool deserializeSynthesizers(std::ifstream &in);
-    
-    void serializeRoutingTable(std::ofstream &out);
-    bool deserializeRoutingTable(std::ifstream &in);
     
     // DSP block factory
     NoteNagaDSPBlockBase *createDSPBlockByName(const std::string &name);

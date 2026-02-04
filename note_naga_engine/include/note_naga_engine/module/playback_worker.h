@@ -1,7 +1,7 @@
 #pragma once
 
 #include <note_naga_engine/core/runtime_data.h>
-#include <note_naga_engine/module/mixer.h>
+#include <note_naga_engine/core/types.h>
 #include <note_naga_engine/note_naga_api.h>
 
 #include <atomic>
@@ -41,10 +41,9 @@ public:
     /**
      * @brief Constructs the playback worker.
      * @param project Pointer to NoteNagaRuntimeData.
-     * @param mixer Pointer to NoteNagaMixer.
      * @param timer_interval_ms Worker timer interval in milliseconds.
      */
-    explicit NoteNagaPlaybackWorker(NoteNagaRuntimeData *project, NoteNagaMixer *mixer,
+    explicit NoteNagaPlaybackWorker(NoteNagaRuntimeData *project,
                             double timer_interval_ms);
 
     /**
@@ -117,7 +116,6 @@ public:
 
 private:
     NoteNagaRuntimeData *project; ///< Pointer to project data (not owned)
-    NoteNagaMixer *mixer;     ///< Pointer to mixer (not owned)
 
     // Internal State
     // ////////////////////////////////////////////////////////////////////////////////
@@ -166,6 +164,12 @@ private:
      */
     void emitPlayingState(bool playing);
 
+    /**
+     * @brief Emits the Qt signal for a played note.
+     * @param note The note that was played.
+     */
+    void emitNotePlayed(const NN_Note_t &note);
+
     // SIGNALS
     // ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,6 +189,11 @@ Q_SIGNALS:
      * @param playing_val New playing state.
      */
     void playingStateChanged(bool playing_val);
+    /**
+     * @brief Qt signal emitted when a note is played during playback.
+     * @param note The note that was played.
+     */
+    void notePlayed(const NN_Note_t &note);
 #endif
 };
 
@@ -201,14 +210,15 @@ public:
     using FinishedCallback = std::function<void()>; ///< Callback type for finished event
     using PositionChangedCallback =
         std::function<void(int)>; ///< Callback type for position changed event
+    using NotePlayedCallback =
+        std::function<void(const NN_Note_t&)>; ///< Callback type for note played event
 
     /**
      * @brief Constructs the worker.
      * @param project Pointer to NoteNagaRuntimeData instance.
-     * @param mixer Pointer to NoteNagaMixer instance.
      * @param timer_interval Timer interval in milliseconds.
      */
-    PlaybackThreadWorker(NoteNagaRuntimeData *project, NoteNagaMixer *mixer,
+    PlaybackThreadWorker(NoteNagaRuntimeData *project,
                          double timer_interval);
 
     /**
@@ -258,11 +268,23 @@ public:
      */
     void removePositionChangedCallback(CallbackId id);
 
+    /**
+     * @brief Adds a callback for when a note is played during playback.
+     * @param cb Callback function taking the note.
+     * @return Unique callback ID.
+     */
+    CallbackId addNotePlayedCallback(NotePlayedCallback cb);
+
+    /**
+     * @brief Removes a note played callback by its ID.
+     * @param id Callback ID to remove.
+     */
+    void removeNotePlayedCallback(CallbackId id);
+
     std::atomic<bool> should_stop{false}; ///< Flag to signal worker thread should stop
 
 private:
     NoteNagaRuntimeData *project; ///< Pointer to project data (not owned)
-    NoteNagaMixer *mixer;     ///< Pointer to mixer (not owned)
 
     // Timing
     // ////////////////////////////////////////////////////////////////////////////////
@@ -283,6 +305,8 @@ private:
         finished_callbacks; ///< List of finished callbacks
     std::vector<std::pair<CallbackId, PositionChangedCallback>>
         position_changed_callbacks; ///< List of position changed callbacks
+    std::vector<std::pair<CallbackId, NotePlayedCallback>>
+        note_played_callbacks; ///< List of note played callbacks
 
     // Private Methods
     // //////////////////////////////////////////////////////////////////////////
@@ -297,4 +321,10 @@ private:
      * @param tick Current playback tick.
      */
     void emitPositionChanged(int tick);
+
+    /**
+     * @brief Emits all registered note played callbacks with the given note.
+     * @param note The note that was played.
+     */
+    void emitNotePlayed(const NN_Note_t &note);
 };

@@ -23,7 +23,6 @@
 #include "widgets/midi_tact_ruler.h"
 #include "editor/midi_editor_widget.h"
 #include "widgets/track_list_widget.h"
-#include "widgets/track_mixer_widget.h"
 #include "dialogs/project_wizard_dialog.h"
 #include "undo/undo_manager.h"
 

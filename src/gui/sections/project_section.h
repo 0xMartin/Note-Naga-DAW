@@ -74,11 +74,6 @@ public:
     void markAsSaved();
     
     /**
-     * @brief Refresh synthesizer list from engine
-     */
-    void refreshSynthesizerList();
-    
-    /**
      * @brief Show save success dialog
      */
     void showSaveSuccess(const QString &filePath = QString());
@@ -110,11 +105,6 @@ private slots:
     void onSaveClicked();
     void onSaveAsClicked();
     void onExportMidiClicked();
-    void onRenameSynthClicked();
-    void onAddSynthClicked();
-    void onRemoveSynthClicked();
-    void onConfigureSynthClicked();
-    void onSynthSelectionChanged();
     void onTempoChanged(double bpm);
     void onPPQChanged(int ppq);
 
@@ -129,7 +119,6 @@ private:
     QWidget* createSequenceSettingsSection();
     QWidget* createStatisticsSection();
     QWidget* createFileInfoSection();
-    QWidget* createSynthesizerSection();
     QWidget* createCard(const QString &title, QWidget *content);
     void updateStatistics();
     void updateSequenceSettings();
@@ -169,14 +158,6 @@ private:
     QLabel *m_trackCountLabel;
     QLabel *m_noteCountLabel;
     QLabel *m_durationLabel;
-
-    // UI Elements - Synthesizers
-    QListWidget *m_synthList;
-    QComboBox *m_synthTypeCombo;
-    QPushButton *m_addSynthBtn;
-    QPushButton *m_removeSynthBtn;
-    QPushButton *m_renameSynthBtn;
-    QPushButton *m_configureSynthBtn;
 
     // UI Elements - Actions
     QPushButton *m_saveBtn;

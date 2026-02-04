@@ -42,6 +42,9 @@ public:
     // Recalculate canvas size (public for parent widget to call on resize)
     void recalculateSize();
     
+    // Update note range (public for refresh when notes change)
+    void updateNoteRange();
+    
 protected:
     void paintEvent(QPaintEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
@@ -66,7 +69,6 @@ private:
     // Active notes (currently playing): note -> trackIndex
     QMap<int, int> m_activeNotes;
     
-    void updateNoteRange();
     void updateActiveNotes();
     QColor getTrackColor(int trackIndex) const;
     QColor getNoteColor(int trackIndex, int midiNote, int velocity) const;
@@ -97,6 +99,7 @@ private slots:
     void onSequenceChanged(NoteNagaMidiSeq *seq);
     void onTickChanged(int tick);
     void onPlayingStateChanged(bool playing);
+    void onTrackNotesChanged();
     void updateViewportRect();
     
     // Scale controls
@@ -110,7 +113,11 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void connectTrackSignals(NoteNagaMidiSeq *seq);
+    void disconnectTrackSignals();
+    
     NoteNagaEngine *m_engine;
+    NoteNagaMidiSeq *m_currentSequence = nullptr;
     
     QWidget *m_titleWidget;
     QPushButton *m_btnZoomInTime;

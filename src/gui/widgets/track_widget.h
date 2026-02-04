@@ -13,7 +13,8 @@
 #include <QString>
 #include <QVBoxLayout>
 
-#include "../components/volume_bar.h"
+#include "../components/audio_dial_centered.h"
+#include "../components/track_stereo_meter.h"
 #include <note_naga_engine/note_naga_engine.h>
 
 /**
@@ -40,10 +41,10 @@ public:
     NoteNagaTrack *getTrack() const { return this->track; }
 
     /**
-     * @brief Get the volume bar associated with this track.
-     * @return Pointer to the VolumeBar.
+     * @brief Get the stereo meter associated with this track.
+     * @return Pointer to the TrackStereoMeter.
      */
-    VolumeBar *getVolumeBar() const { return volume_bar; }
+    TrackStereoMeter *getStereoMeter() const { return m_stereoMeter; }
 
     /**
      * @brief Set the checked state of the solo view button.
@@ -59,22 +60,34 @@ private:
     NoteNagaEngine *engine;
 
     QPushButton *instrument_btn;
-    QLabel *index_lbl;
+    QPushButton *index_btn;           ///< Track number button (also color picker)
     QLineEdit *name_edit;
-    QLabel *unsaved_indicator;  ///< Dot indicator showing unsaved track name
-    QPushButton *color_btn;
+    QLabel *unsaved_indicator;        ///< Dot indicator showing unsaved track name
     QPushButton *invisible_btn;
-    QPushButton *solo_view_btn; ///< Toggle solo view (show only this track)
+    QPushButton *solo_view_btn;       ///< Toggle solo view (show only this track)
     QPushButton *solo_btn;
     QPushButton *mute_btn;
-    QPushButton *tempo_active_btn;  ///< Toggle for tempo track activation
-    VolumeBar *volume_bar;
+    QPushButton *synth_btn;           ///< Synth configuration button
+    QPushButton *tempo_active_btn;    ///< Toggle for tempo track activation
+    TrackStereoMeter *m_stereoMeter;  ///< Stereo level meter
+    
+    // Per-track synth control dials
+    AudioDialCentered *m_volumeDial;          ///< Audio volume in dB (-24 to +6)
+    AudioDialCentered *m_panDial;             ///< MIDI pan offset (-64 to +64)
+    QWidget *m_dialsWidget;                   ///< Container for dials (hidden for tempo track)
+    QWidget *m_leftPanel;                     ///< Left panel with index + instrument
     
     // For tempo track special layout
     QWidget *m_normalContent;  ///< Container for normal track controls
     QWidget *m_tempoContent;   ///< Container for tempo track controls
-    QLabel *m_tempoIndexLabel; ///< Track number label for tempo track
     bool m_isTempoTrackLayout; ///< Track if currently showing tempo layout
+    
+    // Selection state for styling
+    bool m_selected = false;   ///< Whether this track is currently selected
+    bool m_darkerBg = false;   ///< Whether using darker background (alternating rows)
+
+    void updateIndexButtonStyle();  ///< Update track number button style based on track color
+    void updateLeftPanelStyle();    ///< Update left panel style based on track color
 
 /*******************************************************************************************************/
 // Signal and Slots
@@ -108,10 +121,13 @@ private slots:
     void onToggleSolo();
     void onToggleMute();
     void onToggleTempoActive();
+    void onSynthClicked();
     void onNameEdited();
     void onNameTextChanged(const QString &text);
     void colorSelect();
     void instrumentSelect();
+    void onVolumeDialChanged(float value);
+    void onPanDialChanged(float value);
     
 private:
     void setupTempoTrackLayout();

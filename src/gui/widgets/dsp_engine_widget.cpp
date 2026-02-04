@@ -27,6 +27,14 @@ DSPEngineWidget::DSPEngineWidget(NoteNagaEngine *engine, QWidget *parent)
     connect(engine, &NoteNagaEngine::synthAdded, this, &DSPEngineWidget::onSynthAdded);
     connect(engine, &NoteNagaEngine::synthRemoved, this, &DSPEngineWidget::onSynthRemoved);
     connect(engine, &NoteNagaEngine::synthUpdated, this, &DSPEngineWidget::onSynthUpdated);
+    
+    // Connect to runtime data for sequence/track changes
+    if (auto* runtimeData = engine->getRuntimeData()) {
+        connect(runtimeData, &NoteNagaRuntimeData::activeSequenceChanged, 
+                this, [this](NoteNagaMidiSeq*) { updateSynthesizerSelector(); });
+        connect(runtimeData, &NoteNagaRuntimeData::activeSequenceTrackListChanged,
+                this, [this](NoteNagaMidiSeq*) { updateSynthesizerSelector(); });
+    }
 #endif
 
     initTitleUI();
@@ -72,28 +80,48 @@ void DSPEngineWidget::initTitleUI() {
 void DSPEngineWidget::updateSynthesizerSelector() {
     synth_selector->blockSignals(true);
     
-    // Remember current selection
-    QString current_text = synth_selector->currentText();
+    // Remember current selection by data pointer
+    void* current_data = nullptr;
+    if (synth_selector->currentIndex() >= 0) {
+        QVariant data = synth_selector->itemData(synth_selector->currentIndex());
+        if (data.isValid()) {
+            current_data = data.value<void*>();
+        }
+    }
     
     // Clear and add "Master" as first option
     synth_selector->clear();
     synth_selector->addItem("Master", QVariant::fromValue(nullptr));
     
-    // Add all available synthesizers
-    for (auto synth : engine->getSynthesizers()) {
-        if (auto soft_synth = dynamic_cast<INoteNagaSoftSynth*>(synth)) {
-            QString name = QString::fromStdString(synth->getName());
-            synth_selector->addItem(name, QVariant::fromValue(static_cast<void*>(soft_synth)));
+    // Add tracks from active sequence (format: "id : track name")
+    if (auto* runtimeData = engine->getRuntimeData()) {
+        if (auto* seq = runtimeData->getActiveSequence()) {
+            for (auto* track : seq->getTracks()) {
+                if (!track || track->isTempoTrack()) continue;
+                
+                INoteNagaSoftSynth* softSynth = track->getSoftSynth();
+                if (!softSynth) continue;
+                
+                QString displayName = QString("%1 : %2")
+                    .arg(track->getId() + 1)
+                    .arg(QString::fromStdString(track->getName()));
+                synth_selector->addItem(displayName, QVariant::fromValue(static_cast<void*>(softSynth)));
+            }
         }
     }
     
-    // Restore selection if possible
-    if (!current_text.isEmpty()) {
-        int idx = synth_selector->findText(current_text);
-        if (idx >= 0) {
-            synth_selector->setCurrentIndex(idx);
+    // Restore selection if possible (by data pointer)
+    int restore_idx = 0;
+    if (current_data) {
+        for (int i = 0; i < synth_selector->count(); ++i) {
+            QVariant data = synth_selector->itemData(i);
+            if (data.isValid() && data.value<void*>() == current_data) {
+                restore_idx = i;
+                break;
+            }
         }
     }
+    synth_selector->setCurrentIndex(restore_idx);
     
     synth_selector->blockSignals(false);
 }

@@ -1049,7 +1049,8 @@ void MidiEditorWidget::updateAllNotes() {
     for (const auto &track : last_seq->getTracks()) {
         if (!track || !track->isVisible()) continue;
         
-        bool is_drum = engine->getMixer()->isPercussion(track);
+        // Check if this is a percussion track (MIDI channel 10 / index 9)
+        bool is_drum = track->getChannel().value_or(0) == 9;
         bool is_selected = last_seq->getActiveTrack() &&
                          last_seq->getActiveTrack()->getId() == track->getId();
 
@@ -1080,7 +1081,8 @@ void MidiEditorWidget::updateTrackNotes(NoteNagaTrack *track) {
     int visible_y0 = verticalScrollBar()->value();
     int visible_y1 = visible_y0 + viewport()->height();
 
-    bool is_drum = engine->getMixer()->isPercussion(track);
+    // Check if this is a percussion track (MIDI channel 10 / index 9)
+    bool is_drum = track->getChannel().value_or(0) == 9;
     bool is_selected = last_seq->getActiveTrack() &&
                      last_seq->getActiveTrack()->getId() == track->getId();
 

@@ -36,6 +36,7 @@ public:
 
     void addItem(const QString &text, const QVariant &userData = QVariant());
     void clear();
+    int count() const { return static_cast<int>(items.size()); }
     int currentIndex() const;
     void setCurrentIndex(int index);
     QString currentText() const;

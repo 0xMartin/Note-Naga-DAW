@@ -1,8 +1,11 @@
 #include <note_naga_engine/core/types.h>
+#include <note_naga_engine/core/soundfont_finder.h>
+#include <note_naga_engine/synth/synth_fluidsynth.h>
 
 #include <algorithm>
 #include <atomic>
 #include <map>
+#include <cmath>
 
 #include <note_naga_engine/logger.h>
 #include <string>
@@ -81,6 +84,10 @@ NoteNagaTrack::NoteNagaTrack()
   this->volume = 1.0f;
   this->is_tempo_track = false;
   this->tempo_track_active = false;
+  // Per-track synth members
+  this->synth_ = nullptr;
+  this->audio_volume_db_ = 0.0f;
+  this->midi_pan_offset_ = 0;
   NOTE_NAGA_LOG_INFO("Created default Track with ID: " +
                      std::to_string(track_id));
 }
@@ -106,6 +113,10 @@ NoteNagaTrack::NoteNagaTrack(int track_id, NoteNagaMidiSeq *parent,
   this->muted = false;
   this->solo = false;
   this->volume = 1.0f;
+  // Per-track synth members
+  this->synth_ = nullptr;
+  this->audio_volume_db_ = 0.0f;
+  this->midi_pan_offset_ = 0;
   NOTE_NAGA_LOG_INFO("Created Track with ID: " + std::to_string(track_id) +
                      " and name: " + this->name);
 }
@@ -204,6 +215,135 @@ void NoteNagaTrack::setVolume(float new_volume) {
     return;
   this->volume = new_volume;
   NN_QT_EMIT(metadataChanged(this, "volume"));
+}
+
+/*******************************************************************************************************/
+// Note Naga Track - Per-Track Synth Methods
+/*******************************************************************************************************/
+
+INoteNagaSoftSynth* NoteNagaTrack::getSoftSynth() const {
+  return dynamic_cast<INoteNagaSoftSynth*>(synth_);
+}
+
+float NoteNagaTrack::getAudioVolumeLinear() const {
+  // Convert dB to linear gain: gain = 10^(dB/20)
+  return std::pow(10.0f, audio_volume_db_ / 20.0f);
+}
+
+void NoteNagaTrack::setSynth(NoteNagaSynthesizer* synth) {
+  if (synth_ == synth)
+    return;
+  // Delete old synth if we own it
+  if (synth_ != nullptr) {
+    delete synth_;
+  }
+  synth_ = synth;
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " synth set to: " + (synth ? synth->getName() : "nullptr"));
+  NN_QT_EMIT(metadataChanged(this, "synth"));
+}
+
+bool NoteNagaTrack::initDefaultSynth() {
+  // Find a soundfont
+  std::string sf2_path = SoundFontFinder::findSoundFont();
+  if (sf2_path.empty()) {
+    NOTE_NAGA_LOG_WARNING("Track ID: " + std::to_string(track_id) + 
+                          " - No soundfont found for default synth");
+    return false;
+  }
+  
+  // Create FluidSynth with the found soundfont
+  std::string synth_name = "Track " + std::to_string(track_id + 1) + " Synth";
+  auto* fluidSynth = new NoteNagaSynthFluidSynth(synth_name, sf2_path);
+  
+  if (!fluidSynth->isValid()) {
+    NOTE_NAGA_LOG_ERROR("Track ID: " + std::to_string(track_id) + 
+                        " - Failed to initialize FluidSynth: " + fluidSynth->getLastError());
+    delete fluidSynth;
+    return false;
+  }
+  
+  setSynth(fluidSynth);
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " - Default synth initialized with soundfont: " + sf2_path);
+  return true;
+}
+
+void NoteNagaTrack::setAudioVolumeDb(float db) {
+  // Clamp to valid range
+  db = std::max(-24.0f, std::min(6.0f, db));
+  if (audio_volume_db_ == db)
+    return;
+  audio_volume_db_ = db;
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " audio_volume_db set to: " + std::to_string(db));
+  NN_QT_EMIT(metadataChanged(this, "audio_volume_db"));
+}
+
+void NoteNagaTrack::setMidiPanOffset(int offset) {
+  // Clamp to valid range
+  offset = std::max(-64, std::min(64, offset));
+  if (midi_pan_offset_ == offset)
+    return;
+  midi_pan_offset_ = offset;
+  NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                     " midi_pan_offset set to: " + std::to_string(offset));
+  NN_QT_EMIT(metadataChanged(this, "midi_pan_offset"));
+}
+
+void NoteNagaTrack::playNote(const NN_Note_t& note) {
+  if (!synth_ || muted)
+    return;
+  
+  // Get channel from track or use default
+  int chan = channel.value_or(0);
+  
+  // Pan is applied in renderAudio() now, not per-note
+  // Pass center pan (0.0) to synth - actual panning happens at audio level
+  synth_->playNote(note, chan, 0.0f);
+}
+
+void NoteNagaTrack::stopNote(const NN_Note_t& note) {
+  if (!synth_)
+    return;
+  synth_->stopNote(note);
+}
+
+void NoteNagaTrack::stopAllNotes() {
+  if (!synth_)
+    return;
+  synth_->stopAllNotes(nullptr, this);
+}
+
+void NoteNagaTrack::renderAudio(float* left, float* right, size_t num_frames) {
+  auto* softSynth = getSoftSynth();
+  if (!softSynth || muted)
+    return;
+  
+  // Render audio from synth (centered - pan applied below)
+  softSynth->renderAudio(left, right, num_frames);
+  
+  // Apply audio volume gain and pan
+  float gain = getAudioVolumeLinear();
+  float pan = getPanNormalized();  // -1.0 (left) to +1.0 (right)
+  
+  // Equal power panning for hard pan:
+  // pan = -1.0: left_gain = 1.0, right_gain = 0.0
+  // pan =  0.0: left_gain = 0.707, right_gain = 0.707 (but we want 1.0/1.0 for center)
+  // pan = +1.0: left_gain = 0.0, right_gain = 1.0
+  // Using linear panning for true hard pan (0% on opposite channel)
+  float left_gain = (pan <= 0.0f) ? 1.0f : (1.0f - pan);
+  float right_gain = (pan >= 0.0f) ? 1.0f : (1.0f + pan);
+  
+  left_gain *= gain;
+  right_gain *= gain;
+  
+  for (size_t i = 0; i < num_frames; ++i) {
+    // Mix stereo to mono first, then apply pan
+    float mono = (left[i] + right[i]) * 0.5f;
+    left[i] = mono * left_gain;
+    right[i] = mono * right_gain;
+  }
 }
 
 /*******************************************************************************************************/
@@ -736,6 +876,9 @@ NoteNagaTrack* NoteNagaMidiSeq::addTrack(int instrument_index) {
       0);
   this->tracks.push_back(newTrack);
 
+  // Initialize default synthesizer for the new track (Per-Track Synth architecture)
+  newTrack->initDefaultSynth();
+
 #ifndef QT_DEACTIVATED
   // Connect metadata signal so name/color/etc changes are propagated
   connect(newTrack, &NoteNagaTrack::metadataChanged, this,
@@ -802,6 +945,13 @@ void NoteNagaMidiSeq::loadFromMidi(const std::string &midi_file_path) {
   // Set the tracks
   this->tracks = tracks_tmp;
   this->computeMaxTick();
+
+  // Initialize default synthesizer for each track (Per-Track Synth architecture)
+  for (NoteNagaTrack *track : this->tracks) {
+    if (track && !track->isTempoTrack()) {
+      track->initDefaultSynth();
+    }
+  }
 
   // Set the active track
   if (!tracks.empty())

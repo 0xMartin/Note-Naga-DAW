@@ -731,7 +731,15 @@ void TrackPreviewWidget::updateViewportRect()
 
 void TrackPreviewWidget::onSequenceChanged(NoteNagaMidiSeq *seq)
 {
+    // Disconnect from old sequence tracks
+    disconnectTrackSignals();
+    
+    m_currentSequence = seq;
     m_canvas->setSequence(seq);
+    
+    // Connect to new sequence tracks
+    connectTrackSignals(seq);
+    
     updateViewportRect();
 }
 
@@ -796,4 +804,44 @@ void TrackPreviewWidget::onZoomOutPitch()
     int newViewportHeight = m_scrollArea->viewport()->height();
     int newValue = (int)(centerRatio * (newMax + newViewportHeight) - newViewportHeight / 2.0);
     vbar->setValue(qMax(0, qMin(newMax, newValue)));
+}
+
+void TrackPreviewWidget::onTrackNotesChanged()
+{
+    // Refresh the canvas when notes are added/removed from any track
+    m_canvas->updateNoteRange();
+    m_canvas->recalculateSize();
+    m_canvas->update();
+}
+
+void TrackPreviewWidget::connectTrackSignals(NoteNagaMidiSeq *seq)
+{
+    if (!seq) return;
+    
+    // Connect to each track's metadataChanged signal
+    for (NoteNagaTrack *track : seq->getTracks()) {
+        if (!track) continue;
+        connect(track, &NoteNagaTrack::metadataChanged, this, [this](NoteNagaTrack*, const std::string &param) {
+            if (param == "notes") {
+                onTrackNotesChanged();
+            }
+        });
+    }
+    
+    // Also connect to trackListChanged in case tracks are added/removed
+    connect(seq, &NoteNagaMidiSeq::trackListChanged, this, &TrackPreviewWidget::onTrackNotesChanged);
+}
+
+void TrackPreviewWidget::disconnectTrackSignals()
+{
+    if (!m_currentSequence) return;
+    
+    // Disconnect from all tracks
+    for (NoteNagaTrack *track : m_currentSequence->getTracks()) {
+        if (!track) continue;
+        disconnect(track, nullptr, this, nullptr);
+    }
+    
+    // Disconnect from sequence
+    disconnect(m_currentSequence, nullptr, this, nullptr);
 }

@@ -20,12 +20,54 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames, bool compute_rm
     if (mix_right_.size() < num_frames) mix_right_.resize(num_frames, 0.0f);
     if (temp_left_.size() < num_frames) temp_left_.resize(num_frames, 0.0f);
     if (temp_right_.size() < num_frames) temp_right_.resize(num_frames, 0.0f);
+    if (track_left_.size() < num_frames) track_left_.resize(num_frames, 0.0f);
+    if (track_right_.size() < num_frames) track_right_.resize(num_frames, 0.0f);
     
     std::fill(mix_left_.begin(), mix_left_.begin() + num_frames, 0.0f);
     std::fill(mix_right_.begin(), mix_right_.begin() + num_frames, 0.0f);
 
-    // Render all synths and mix
     std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
+    
+    // Render audio from all tracks (new per-track synth architecture)
+    if (runtime_data_ && runtime_data_->getActiveSequence()) {
+        NoteNagaMidiSeq* seq = runtime_data_->getActiveSequence();
+        for (NoteNagaTrack* track : seq->getTracks()) {
+            if (!track || track->isMuted() || track->isTempoTrack()) continue;
+            
+            INoteNagaSoftSynth* softSynth = track->getSoftSynth();
+            if (!softSynth) continue;
+            
+            // Clear track buffers
+            std::fill(track_left_.begin(), track_left_.begin() + num_frames, 0.0f);
+            std::fill(track_right_.begin(), track_right_.begin() + num_frames, 0.0f);
+            
+            // Render this track (applies its own volume internally)
+            track->renderAudio(track_left_.data(), track_right_.data(), num_frames);
+            
+            // Apply track's synth DSP blocks if DSP is enabled
+            if (this->enable_dsp_) {
+                auto it = synth_dsp_blocks_.find(softSynth);
+                if (it != synth_dsp_blocks_.end()) {
+                    for (NoteNagaDSPBlockBase *block : it->second) {
+                        if (block->isActive()) {
+                            block->process(track_left_.data(), track_right_.data(), num_frames);
+                        }
+                    }
+                }
+            }
+            
+            // Calculate and store per-track RMS
+            track_rms_values_[track] = calculateTrackRMS(track_left_.data(), track_right_.data(), num_frames);
+            
+            // Add to mix buffers
+            for (size_t i = 0; i < num_frames; i++) {
+                mix_left_[i] += track_left_[i];
+                mix_right_[i] += track_right_[i];
+            }
+        }
+    }
+    
+    // Also render global synths (for backwards compatibility / master synth)
     for (INoteNagaSoftSynth *synth : this->synths_) {
         // Clear temporary buffers
         std::fill(temp_left_.begin(), temp_left_.begin() + num_frames, 0.0f);
@@ -223,6 +265,28 @@ void NoteNagaDSPEngine::calculateRMS(float *left, float *right, size_t numFrames
     // Konverze na dBFS (0 dB = max, typicky -60 až 0)
     this->last_rms_left_ = (rms_left > 0.000001f) ? 20.0f * log10(rms_left) : -100.0f;
     this->last_rms_right_ = (rms_right > 0.000001f) ? 20.0f * log10(rms_right) : -100.0f;
+}
+
+std::pair<float, float> NoteNagaDSPEngine::calculateTrackRMS(float *left, float *right, size_t numFrames) {
+    double sum_left = 0.0, sum_right = 0.0;
+    for (size_t i = 0; i < numFrames; ++i) {
+        sum_left += left[i] * left[i];
+        sum_right += right[i] * right[i];
+    }
+    float rms_left = sqrt(sum_left / numFrames);
+    float rms_right = sqrt(sum_right / numFrames);
+    
+    float db_left = (rms_left > 0.000001f) ? 20.0f * log10(rms_left) : -100.0f;
+    float db_right = (rms_right > 0.000001f) ? 20.0f * log10(rms_right) : -100.0f;
+    return {db_left, db_right};
+}
+
+std::pair<float, float> NoteNagaDSPEngine::getTrackVolumeDb(NoteNagaTrack* track) const {
+    auto it = track_rms_values_.find(track);
+    if (it != track_rms_values_.end()) {
+        return it->second;
+    }
+    return {-100.0f, -100.0f};
 }
 
 void NoteNagaDSPEngine::resetAllBlocks() {

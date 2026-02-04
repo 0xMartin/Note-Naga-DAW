@@ -10,6 +10,7 @@
 TrackListWidget::TrackListWidget(NoteNagaEngine *engine_, QWidget *parent)
     : QWidget(parent), engine(engine_), selected_row(-1) {
   this->title_widget = nullptr;
+  this->meter_update_timer_ = nullptr;
   initTitleUI();
   initUI();
 
@@ -22,8 +23,11 @@ TrackListWidget::TrackListWidget(NoteNagaEngine *engine_, QWidget *parent)
   connect(engine->getRuntimeData(),
           &NoteNagaRuntimeData::activeSequenceTrackListChanged, this,
           &TrackListWidget::reloadTracks);
-  connect(engine->getMixer(), &NoteNagaMixer::noteInSignal, this,
-          &TrackListWidget::handlePlayingNote);
+
+  // Timer to update track stereo meters
+  meter_update_timer_ = new QTimer(this);
+  connect(meter_update_timer_, &QTimer::timeout, this, &TrackListWidget::updateTrackMeters);
+  meter_update_timer_->start(50); // 20 fps
 }
 
 void TrackListWidget::initTitleUI() {
@@ -158,23 +162,6 @@ void TrackListWidget::updateSelection(NoteNagaMidiSeq *sequence,
   }
 }
 
-void TrackListWidget::handlePlayingNote(const NN_Note_t &note) {
-  NoteNagaTrack *track = note.parent;
-  if (!track)
-    return;
-  NoteNagaRuntimeData *project = engine->getRuntimeData();
-
-  double time_ms = note_time_ms(note, project->getPPQ(), project->getTempo());
-  for (auto *w : track_widgets) {
-    if (w->getTrack() == track && note.velocity.has_value() &&
-        note.velocity.value() > 0) {
-      w->getVolumeBar()->setValue(static_cast<double>(note.velocity.value()),
-                                  time_ms);
-      break;
-    }
-  }
-}
-
 void TrackListWidget::selectAndScrollToTrack(NoteNagaTrack *track) {
   if (!track) return;
   
@@ -295,10 +282,6 @@ void TrackListWidget::onRemoveTrack() {
     return;
   }
 
-  NoteNagaTrack *track = seq->getTracks()[selected_row];
-  if (track) {
-    engine->getMixer()->removeRoutingEntryForTrack(track);
-  }
   seq->removeTrack(selected_row);
 }
 
@@ -322,11 +305,9 @@ void TrackListWidget::onClearTracks() {
                             QMessageBox::Yes | QMessageBox::No,
                             QMessageBox::No) == QMessageBox::Yes) {
     seq->clear();
-    engine->getMixer()->clearRoutingTable();
     
     // Create one empty track so the project is never without tracks
     seq->addTrack(0);  // Piano as default
-    engine->getMixer()->createDefaultRouting();
   }
 }
 
@@ -342,7 +323,6 @@ void TrackListWidget::onReloadTracks() {
                             "Are you sure you want to reload all tracks?") ==
       QMessageBox::Yes) {
     seq->loadFromMidi(seq->getFilePath());
-    engine->getMixer()->createDefaultRouting();
   }
 }
 
@@ -525,9 +505,6 @@ void TrackListWidget::onDuplicateTrack() {
     newNote.parent = newTrack;
     newTrack->addNote(newNote);
   }
-  
-  // Create routing entry for new track
-  engine->getMixer()->createDefaultRouting();
 }
 
 void TrackListWidget::onMoveTrackUp() {
@@ -548,4 +525,20 @@ void TrackListWidget::onMoveTrackDown() {
   
   seq->moveTrack(selected_row, selected_row + 1);
   selected_row++;
+}
+
+void TrackListWidget::updateTrackMeters() {
+  auto* dspEngine = engine->getDSPEngine();
+  if (!dspEngine) return;
+  
+  for (TrackWidget* widget : track_widgets) {
+    if (!widget) continue;
+    NoteNagaTrack* track = widget->getTrack();
+    if (!track) continue;
+    
+    auto rms = dspEngine->getTrackVolumeDb(track);
+    if (TrackStereoMeter* meter = widget->getStereoMeter()) {
+      meter->setVolumesDb(rms.first, rms.second);
+    }
+  }
 }

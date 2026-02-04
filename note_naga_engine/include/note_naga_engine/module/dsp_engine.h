@@ -137,6 +137,20 @@ public:
     std::vector<INoteNagaSoftSynth*> getAllSynths() const { return synths_; }
 
     /**
+     * @brief Set the runtime data for track-based rendering.
+     * 
+     * @param runtime_data Pointer to the runtime data.
+     */
+    void setRuntimeData(NoteNagaRuntimeData* runtime_data) { runtime_data_ = runtime_data; }
+
+    /**
+     * @brief Get the runtime data.
+     * 
+     * @return NoteNagaRuntimeData* Pointer to the runtime data.
+     */
+    NoteNagaRuntimeData* getRuntimeData() const { return runtime_data_; }
+
+    /**
      * @brief Set the output volume.
      * 
      * @param volume New output volume (0.0 to 1.0).
@@ -158,6 +172,14 @@ public:
     std::pair<float, float> getCurrentVolumeDb() const;
 
     /**
+     * @brief Get the current volume in dB for a specific track.
+     * 
+     * @param track Pointer to the track.
+     * @return std::pair<float, float> Current volume in dB (left, right).
+     */
+    std::pair<float, float> getTrackVolumeDb(NoteNagaTrack* track) const;
+
+    /**
      * @brief Reset internal state of all DSP blocks.
      * Call this when playback restarts to prevent state bleed.
      */
@@ -168,17 +190,23 @@ private:
     std::vector<INoteNagaSoftSynth*> synths_;
     std::vector<NoteNagaDSPBlockBase*> dsp_blocks_;
     
-    // Mapping from synth to its DSP blocks
+    // Mapping from synth to its DSP blocks (for per-track synths)
     std::map<INoteNagaSoftSynth*, std::vector<NoteNagaDSPBlockBase*>> synth_dsp_blocks_;
+    
+    // Runtime data for track-based rendering
+    NoteNagaRuntimeData* runtime_data_ = nullptr;
     
     std::vector<float> mix_left_;
     std::vector<float> mix_right_;
     std::vector<float> temp_left_;
     std::vector<float> temp_right_;
+    std::vector<float> track_left_;
+    std::vector<float> track_right_;
     
     float output_volume_ = 1.0f;
     float last_rms_left_ = -100.0f;
     float last_rms_right_ = -100.0f;
+    std::map<NoteNagaTrack*, std::pair<float, float>> track_rms_values_; ///< Per-track RMS in dB
     bool enable_dsp_ = true;
     
     NoteNagaMetronome* metronome_ = nullptr;
@@ -186,4 +214,5 @@ private:
     NoteNagaPanAnalyzer* pan_analyzer_ = nullptr;
     
     void calculateRMS(float *left, float *right, size_t numFrames);
+    std::pair<float, float> calculateTrackRMS(float *left, float *right, size_t numFrames);
 };

@@ -48,7 +48,6 @@ set(PUBLIC_HEADER_FILES
     # include/note_naga_engine/io
     ./include/note_naga_engine/io/midi_file.h
     # include/note_naga_engine/module
-    ./include/note_naga_engine/module/mixer.h
     ./include/note_naga_engine/module/playback_worker.h
     ./include/note_naga_engine/module/audio_worker.h
     ./include/note_naga_engine/module/dsp_engine.h
@@ -103,7 +102,6 @@ set(SOURCE_FILES
     # io
     ./io/midi_file.cpp
     # module
-    ./module/mixer.cpp
     ./module/playback_worker.cpp
     ./module/audio_worker.cpp
     ./module/dsp_engine.cpp
