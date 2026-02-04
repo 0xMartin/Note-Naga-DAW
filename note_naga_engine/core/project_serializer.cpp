@@ -317,10 +317,11 @@ bool NoteNagaProjectSerializer::createEmptyProject(const NoteNagaProjectMetadata
     seq->setTempo(600000);  // 100 BPM in microseconds
     
     // Create one default track with default synth
+    // Note: addTrack() already calls initDefaultSynth() internally
     NoteNagaTrack *track = seq->addTrack(0);  // Piano
     if (track) {
         track->setName("Track 1");
-        track->initDefaultSynth();
+        // initDefaultSynth is already called in addTrack()
     }
     
     runtime->addSequence(seq);
@@ -413,19 +414,12 @@ bool NoteNagaProjectSerializer::deserializeSequence(std::ifstream &in, NoteNagaM
         track->setAudioVolumeDb(audioVolumeDb);
         track->setMidiPanOffset(midiPanOffset);
         
-        // Initialize synth
+        // Initialize synth asynchronously
         if (synthType == "fluidsynth" && !soundFontPath.empty()) {
-            NoteNagaSynthFluidSynth *fluidSynth = new NoteNagaSynthFluidSynth("Track Synth", soundFontPath);
-            if (fluidSynth->isValid()) {
-                track->setSynth(fluidSynth);
-            } else {
-                NOTE_NAGA_LOG_WARNING("Failed to load SoundFont during project load: " + soundFontPath);
-                delete fluidSynth;
-                track->initDefaultSynth();
-            }
-        } else {
-            track->initDefaultSynth();
+            NoteNagaSynthFluidSynth *fluidSynth = new NoteNagaSynthFluidSynth("Track Synth", soundFontPath, true /* loadAsync */);
+            track->setSynth(fluidSynth);
         }
+        // Note: addTrack() already calls initDefaultSynth() which loads async
         
         // Set tempo track state
         if (isTempoTrack) {

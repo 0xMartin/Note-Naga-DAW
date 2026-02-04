@@ -75,9 +75,12 @@ private:
     AudioDialCentered *m_volumeDial;          ///< Audio volume in dB (-24 to +6)
     AudioDialCentered *m_panDial;             ///< MIDI pan offset (-64 to +64)
     QWidget *m_dialsWidget;                   ///< Container for dials (hidden for tempo track)
-    QWidget *m_leftPanel;                     ///< Left panel with index + instrument
+    QWidget *m_leftPanel;                     ///< Left panel with index + instrument (inside TrackInfoPanel)
     
     // For tempo track special layout
+    QWidget *m_tempoLeftPanel;                ///< Separate left panel for tempo track (always visible)
+    QPushButton *m_tempoInstrumentBtn;        ///< Tempo track instrument button
+    QPushButton *m_tempoIndexBtn;             ///< Tempo track index button
     QWidget *m_normalContent;  ///< Container for normal track controls
     QWidget *m_tempoContent;   ///< Container for tempo track controls
     bool m_isTempoTrackLayout; ///< Track if currently showing tempo layout

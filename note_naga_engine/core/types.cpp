@@ -252,20 +252,25 @@ bool NoteNagaTrack::initDefaultSynth() {
     return false;
   }
   
-  // Create FluidSynth with the found soundfont
+  // Create FluidSynth with the found soundfont - use async loading to not block GUI
   std::string synth_name = "Track " + std::to_string(track_id + 1) + " Synth";
-  auto* fluidSynth = new NoteNagaSynthFluidSynth(synth_name, sf2_path);
+  auto* fluidSynth = new NoteNagaSynthFluidSynth(synth_name, sf2_path, true /* loadAsync */);
   
-  if (!fluidSynth->isValid()) {
-    NOTE_NAGA_LOG_ERROR("Track ID: " + std::to_string(track_id) + 
-                        " - Failed to initialize FluidSynth: " + fluidSynth->getLastError());
-    delete fluidSynth;
-    return false;
-  }
+  // Set callback to log when loading completes
+  fluidSynth->setLoadCompletedCallback([this, sf2_path](bool success) {
+    if (success) {
+      NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
+                         " - SoundFont loaded successfully: " + sf2_path);
+      NN_QT_EMIT(metadataChanged(this, "synth_loaded"));
+    } else {
+      NOTE_NAGA_LOG_ERROR("Track ID: " + std::to_string(track_id) + 
+                          " - Failed to load SoundFont: " + sf2_path);
+    }
+  });
   
   setSynth(fluidSynth);
   NOTE_NAGA_LOG_INFO("Track ID: " + std::to_string(track_id) + 
-                     " - Default synth initialized with soundfont: " + sf2_path);
+                     " - Default synth initializing with soundfont: " + sf2_path);
   return true;
 }
 

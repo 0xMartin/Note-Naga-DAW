@@ -6,7 +6,8 @@
 #include <chrono>
 
 NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
-                                                 const std::string &sf2_path)
+                                                 const std::string &sf2_path,
+                                                 bool loadAsync)
     : NoteNagaSynthesizer(name), synth_settings_(nullptr), fluidsynth_(nullptr),
       sf2_path_(sf2_path) {
   // Initialize FluidSynth settings and synth
@@ -39,17 +40,15 @@ NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
   
   // Load SoundFont if path is provided
   if (!sf2_path.empty()) {
-    int sfid = fluid_synth_sfload(fluidsynth_, sf2_path.c_str(), 1);
-    if (sfid < 0) {
-      last_error_ = "Failed to load SoundFont: " + sf2_path;
-      NOTE_NAGA_LOG_ERROR(last_error_);
-      soundfont_loaded_.store(false, std::memory_order_release);
+    if (loadAsync) {
+      // Load asynchronously in background thread
+      loading_in_progress_.store(true, std::memory_order_release);
       synth_ready_.store(false, std::memory_order_release);
+      NOTE_NAGA_LOG_INFO("FluidSynth starting async load of: " + sf2_path);
+      load_thread_ = std::thread(&NoteNagaSynthFluidSynth::loadSoundFontInternal, this);
     } else {
-      last_error_.clear();
-      soundfont_loaded_.store(true, std::memory_order_release);
-      synth_ready_.store(true, std::memory_order_release);  // Mark synth as ready!
-      NOTE_NAGA_LOG_INFO("FluidSynth loaded sfid=" + std::to_string(sfid));
+      // Load synchronously (original behavior)
+      loadSoundFontInternal();
     }
   } else {
     // No SoundFont path provided - synth is valid but no sound
@@ -59,9 +58,36 @@ NoteNagaSynthFluidSynth::NoteNagaSynthFluidSynth(const std::string &name,
   }
 }
 
+void NoteNagaSynthFluidSynth::loadSoundFontInternal() {
+  int sfid = fluid_synth_sfload(fluidsynth_, sf2_path_.c_str(), 1);
+  if (sfid < 0) {
+    last_error_ = "Failed to load SoundFont: " + sf2_path_;
+    NOTE_NAGA_LOG_ERROR(last_error_);
+    soundfont_loaded_.store(false, std::memory_order_release);
+    synth_ready_.store(false, std::memory_order_release);
+  } else {
+    last_error_.clear();
+    soundfont_loaded_.store(true, std::memory_order_release);
+    synth_ready_.store(true, std::memory_order_release);
+    NOTE_NAGA_LOG_INFO("FluidSynth loaded sfid=" + std::to_string(sfid));
+  }
+  
+  loading_in_progress_.store(false, std::memory_order_release);
+  
+  // Invoke callback if set
+  if (load_completed_callback_) {
+    load_completed_callback_(soundfont_loaded_.load(std::memory_order_acquire));
+  }
+}
+
 NoteNagaSynthFluidSynth::~NoteNagaSynthFluidSynth() {
   // Mark synth as not ready to stop any rendering
   synth_ready_.store(false, std::memory_order_release);
+  
+  // Wait for any async loading to complete
+  if (load_thread_.joinable()) {
+    load_thread_.join();
+  }
   
   // Small delay to ensure audio callback finishes
   std::this_thread::sleep_for(std::chrono::milliseconds(50));

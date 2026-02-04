@@ -6,6 +6,8 @@
 #include <atomic>
 #include <mutex>
 #include <string>
+#include <thread>
+#include <functional>
 
 class DSPEngine;
 
@@ -18,8 +20,9 @@ public:
      * @brief Konstruktor FluidSynth syntetizéru
      * @param name Název syntetizéru
      * @param sf2_path Cesta k SoundFont souboru (.sf2 nebo .sf3)
+     * @param loadAsync If true, SoundFont is loaded asynchronously in background
      */
-    NoteNagaSynthFluidSynth(const std::string &name, const std::string &sf2_path);
+    NoteNagaSynthFluidSynth(const std::string &name, const std::string &sf2_path, bool loadAsync = false);
     ~NoteNagaSynthFluidSynth() override;
 
     virtual void playNote(const NN_Note_t &note, int channel = 0, float pan = 0.0) override;
@@ -57,6 +60,20 @@ public:
      */
     std::string getLastError() const { return last_error_; }
 
+    /**
+     * @brief Check if the SoundFont is currently being loaded asynchronously
+     * @return True if loading is in progress
+     */
+    bool isLoading() const { return loading_in_progress_.load(std::memory_order_acquire); }
+
+    /**
+     * @brief Set a callback to be invoked when async SoundFont loading completes
+     * @param callback Function to call with success status
+     */
+    void setLoadCompletedCallback(std::function<void(bool)> callback) {
+        load_completed_callback_ = std::move(callback);
+    }
+
 protected:
     // Mutex for thread-safe access to the synthesizer
     std::mutex synth_mutex_;
@@ -66,6 +83,9 @@ protected:
     
     // Atomic flag to indicate if SoundFont is successfully loaded
     std::atomic<bool> soundfont_loaded_{false};
+    
+    // Atomic flag to indicate if async loading is in progress
+    std::atomic<bool> loading_in_progress_{false};
 
     // FluidSynth interní struktury
     fluid_settings_t *synth_settings_;
@@ -76,6 +96,17 @@ protected:
     
     // Last error message
     std::string last_error_;
+    
+    // Background loading thread
+    std::thread load_thread_;
+    
+    // Callback for async load completion
+    std::function<void(bool)> load_completed_callback_;
 
     void ensureFluidsynth();
+    
+    /**
+     * @brief Internal method to load SoundFont (can be called from background thread)
+     */
+    void loadSoundFontInternal();
 };

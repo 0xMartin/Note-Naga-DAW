@@ -29,8 +29,34 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     main_hbox->setSpacing(0);
 
     // =========================================================================
+    // Tempo track left panel (separate, always visible for tempo track)
+    // =========================================================================
+    m_tempoLeftPanel = new QWidget();
+    m_tempoLeftPanel->setObjectName("TempoLeftPanel");
+    m_tempoLeftPanel->setFixedWidth(60);
+    m_tempoLeftPanel->setVisible(false);  // Initially hidden, shown for tempo track
+    QHBoxLayout *tempo_left_layout = new QHBoxLayout(m_tempoLeftPanel);
+    tempo_left_layout->setContentsMargins(3, 0, 0, 0);
+    tempo_left_layout->setSpacing(0);
+
+    m_tempoInstrumentBtn = new QPushButton();
+    m_tempoInstrumentBtn->setObjectName("InstrumentButton");
+    m_tempoInstrumentBtn->setFlat(true);
+    m_tempoInstrumentBtn->setEnabled(false);
+    m_tempoInstrumentBtn->setIcon(QIcon(":/icons/tempo.svg"));
+    m_tempoInstrumentBtn->setToolTip("Tempo Track - Controls dynamic tempo changes");
+    tempo_left_layout->addWidget(m_tempoInstrumentBtn, 1, Qt::AlignLeft | Qt::AlignVCenter);
+
+    m_tempoIndexBtn = new QPushButton(QString::number(this->track->getId() + 1));
+    m_tempoIndexBtn->setObjectName("TrackIndexButton");
+    m_tempoIndexBtn->setEnabled(false);
+    tempo_left_layout->addWidget(m_tempoIndexBtn, 0, Qt::AlignRight | Qt::AlignVCenter);
+
+    main_hbox->addWidget(m_tempoLeftPanel, 0);
+
+    // =========================================================================
     // Column 1: TrackInfoPanel - dark bg with rounded right corners
-    //           Contains: Left colored panel + name/buttons
+    //           Contains: Left colored panel + name/buttons (for normal tracks)
     // =========================================================================
     m_normalContent = new QWidget();
     m_normalContent->setObjectName("TrackInfoPanel");
@@ -45,6 +71,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     m_leftPanel->setObjectName("TrackLeftPanel");
     m_leftPanel->setFixedWidth(60);
     QHBoxLayout *left_layout = new QHBoxLayout(m_leftPanel);
+    left_layout->setContentsMargins(3, 0, 0, 0);
     left_layout->setSpacing(0);
 
     // Instrument button (left column) - larger area for icon
@@ -53,7 +80,7 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
     instrument_btn->setFlat(true);
     instrument_btn->setCursor(Qt::PointingHandCursor);
     connect(instrument_btn, &QPushButton::clicked, this, &TrackWidget::instrumentSelect);
-    left_layout->addWidget(instrument_btn, 1, Qt::AlignCenter);
+    left_layout->addWidget(instrument_btn, 1, Qt::AlignLeft | Qt::AlignVCenter);
 
     // Track number button (right column) - small, for color selection only
     index_btn = new QPushButton(QString::number(this->track->getId() + 1));
@@ -239,25 +266,8 @@ TrackWidget::TrackWidget(NoteNagaEngine *engine_, NoteNagaTrack* track_, QWidget
 
 void TrackWidget::updateIndexButtonStyle()
 {
-    bool isTempoTrack = track->isTempoTrack();
-    
-    if (isTempoTrack) {
-        // White text for tempo track on dark background
-        QString style = R"(
-            QPushButton#TrackIndexButton {
-                background: transparent;
-                border: none;
-                color: #ffffff;
-                font-weight: bold;
-                font-size: 10px;
-                padding: 2px 4px;
-                min-width: 16px;
-                max-width: 24px;
-                min-height: 14px;
-                max-height: 18px;
-            }
-        )";
-        index_btn->setStyleSheet(style);
+    // Tempo track has its own m_tempoIndexBtn styled in updateLeftPanelStyle()
+    if (track->isTempoTrack()) {
         return;
     }
     
@@ -298,22 +308,43 @@ void TrackWidget::updateLeftPanelStyle()
     bool isTempoTrack = track->isTempoTrack();
     
     if (isTempoTrack) {
-        // Dark background for tempo track (no color), slightly bluer when selected
+        // Style the tempo left panel (dark background, slightly bluer when selected)
         QString bg = m_selected ? "#2a3848" : "#252830";
         QString borderColor = m_selected ? "#3a5070" : "#3a3d45";
         QString style = QString(R"(
-            QWidget#TrackLeftPanel {
+            QWidget#TempoLeftPanel {
                 background: %1;
                 border: 1px solid %2;
                 border-top-left-radius: 0px;
                 border-bottom-left-radius: 0px;
-                border-top-right-radius: 28px;
-                border-bottom-right-radius: 28px;
+                border-top-right-radius: 27px;
+                border-bottom-right-radius: 27px;
+                padding: 0px;
+                margin: 0px;
             }
         )").arg(bg, borderColor);
-        if (m_leftPanel) {
-            m_leftPanel->setStyleSheet(style);
-            m_leftPanel->setAttribute(Qt::WA_TranslucentBackground, false);
+        if (m_tempoLeftPanel) {
+            m_tempoLeftPanel->setStyleSheet(style);
+            m_tempoLeftPanel->setAttribute(Qt::WA_TranslucentBackground, false);
+        }
+        
+        // Style tempo index button
+        QString indexStyle = R"(
+            QPushButton#TrackIndexButton {
+                background: transparent;
+                border: none;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 2px 4px;
+                min-width: 16px;
+                max-width: 24px;
+                min-height: 14px;
+                max-height: 18px;
+            }
+        )";
+        if (m_tempoIndexBtn) {
+            m_tempoIndexBtn->setStyleSheet(indexStyle);
         }
     } else {
         NN_Color_t color = track->getColor();
@@ -339,8 +370,10 @@ void TrackWidget::updateLeftPanelStyle()
                 border: 1px solid %2;
                 border-top-left-radius: 0px;
                 border-bottom-left-radius: 0px;
-                border-top-right-radius: 28px;
-                border-bottom-right-radius: 28px;
+                border-top-right-radius: 27px;
+                border-bottom-right-radius: 27px;
+                padding: 0px;
+                margin: 0px;
             }
         )").arg(bgColor.name(), borderColor);
         
@@ -362,6 +395,7 @@ void TrackWidget::updateTrackInfo(NoteNagaTrack* track, const std::string &param
         m_isTempoTrackLayout = isTempoTrack;
         m_normalContent->setVisible(!isTempoTrack);
         m_tempoContent->setVisible(isTempoTrack);
+        m_tempoLeftPanel->setVisible(isTempoTrack);  // Show tempo left panel for tempo track
         // Hide dials and stereo meter for tempo track
         if (m_dialsWidget) m_dialsWidget->setVisible(!isTempoTrack);
         if (m_stereoMeter) m_stereoMeter->setVisible(!isTempoTrack);
@@ -371,11 +405,8 @@ void TrackWidget::updateTrackInfo(NoteNagaTrack* track, const std::string &param
     updateLeftPanelStyle();
     
     if (isTempoTrack) {
-        instrument_btn->setIcon(QIcon(":/icons/tempo.svg"));
-        instrument_btn->setToolTip("Tempo Track - Controls dynamic tempo changes");
-        instrument_btn->setEnabled(false);
-        index_btn->setText(QString::number(track->getId() + 1));
-        index_btn->setEnabled(false);
+        // Update tempo left panel
+        m_tempoIndexBtn->setText(QString::number(track->getId() + 1));
         
         // Update tempo active button state
         if (tempo_active_btn) {
@@ -577,15 +608,18 @@ void TrackWidget::refreshStyle(bool selected, bool darker_bg)
             background: %1;
             border: 1px solid %2;
             border-radius: 0px;
-            padding: 0px;
+            padding: 1px;
+            margin: 0px;
         }
         QPushButton#InstrumentButton {
             border: none;
+            padding: 2px;
+            margin: 0px;
             background: transparent;
-            min-width: 36px;
-            max-width: 40px;
-            min-height: 36px;
-            max-height: 44px;
+            min-width: 34px;
+            max-width: 34px;
+            min-height: 34px;
+            max-height: 34px;
             icon-size: 32px;
         }
         QPushButton#InstrumentButton:hover {
