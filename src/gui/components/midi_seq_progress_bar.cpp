@@ -15,7 +15,7 @@
 // --- Constructor ---
 MidiSequenceProgressBar::MidiSequenceProgressBar(QWidget *parent)
     : QWidget(parent), midi_seq(nullptr), current_time(0.f), total_time(1.f),
-      waveform_resolution(400), m_computePending(false) {
+      m_arrangementMode(false), waveform_resolution(400), m_computePending(false) {
     setMinimumWidth(300);
     setMinimumHeight(38);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -66,6 +66,12 @@ void MidiSequenceProgressBar::setMidiSequence(NoteNagaMidiSeq *seq) {
 }
 
 void MidiSequenceProgressBar::updateMaxTime() {
+    // In arrangement mode, don't recalculate from midi_seq - use setTotalTime() instead
+    if (m_arrangementMode) {
+        update();
+        return;
+    }
+    
     if (!midi_seq) return;
     // Use same base tempo calculation - don't recalculate waveform on every update
     double base_tempo_us = double(this->midi_seq->getTempo());
@@ -93,6 +99,13 @@ void MidiSequenceProgressBar::setCurrentTime(float seconds) {
 void MidiSequenceProgressBar::setTotalTime(float seconds) {
     if (std::abs(total_time - seconds) > 0.01f) {
         total_time = std::max(0.01f, seconds);
+        update();
+    }
+}
+
+void MidiSequenceProgressBar::setArrangementMode(bool isArrangement) {
+    if (m_arrangementMode != isArrangement) {
+        m_arrangementMode = isArrangement;
         update();
     }
 }
@@ -134,39 +147,66 @@ void MidiSequenceProgressBar::paintEvent(QPaintEvent *event) {
     p.setBrush(bar_bg);
     p.drawRect(bar_rect);
 
-    // --- Draw waveform: sharp, no gaps ---
-    if (bar_width > 10 && bar_height > 6 && !waveform.empty()) {
-        int N = waveform_resolution;
-        float xstep = float(bar_width) / N;
-        // Draw dark waveform (background)
-        for (int i = 0; i < N; ++i) {
-            float val = waveform[i];
-            // Pozor: x není zaokrouhlováno na int, ale je to float
-            float x0 = bar_left + i * xstep;
-            float x1 = bar_left + (i + 1) * xstep;
-            float y0 = bar_bottom - val * bar_height * 0.88f;
-            QRectF rect(x0, y0, x1 - x0, bar_bottom - y0);
+    // Calculate progress position
+    float rel = (total_time > 0.01f) ? (current_time / total_time) : 0.f;
+    float progress_x = bar_left + rel * bar_width;
+
+    if (m_arrangementMode) {
+        // --- Arrangement mode: simple progress bar without waveform ---
+        if (bar_width > 10 && bar_height > 6) {
+            // Draw filled progress area with gradient
+            QLinearGradient gradient(bar_left, 0, bar_left + bar_width, 0);
+            gradient.setColorAt(0, QColor("#3a5a3a"));
+            gradient.setColorAt(1, QColor("#2a4a2a"));
+            
+            QRectF progressRect(bar_left, bar_top + 2, progress_x - bar_left, bar_height - 4);
             p.setPen(Qt::NoPen);
-            p.setBrush(waveform_fg);
-            p.drawRect(rect);
+            p.setBrush(QColor("#4a8a4a"));
+            p.drawRect(progressRect);
+            
+            // Draw position indicator
+            p.setPen(QPen(position_indicator_color, 2));
+            p.drawLine(int(progress_x), bar_top, int(progress_x), bar_bottom);
+            
+            // Draw "ARRANGEMENT" label in center
+            p.setPen(QColor("#888888"));
+            QFont font = p.font();
+            font.setPointSize(9);
+            p.setFont(font);
+            p.drawText(bar_rect, Qt::AlignCenter, tr("ARRANGEMENT"));
         }
-        // Overlay: colorize waveform up to progress position
-        float rel = (total_time > 0.1f) ? (current_time / total_time) : 0.f;
-        float progress_x = bar_left + rel * bar_width;
-        for (int i = 0; i < N; ++i) {
-            float val = waveform[i];
-            float x0 = bar_left + i * xstep;
-            float x1 = bar_left + (i + 1) * xstep;
-            if (x0 >= progress_x) break;
-            float y0 = bar_bottom - val * bar_height * 0.88f;
-            QRectF rect(x0, y0, std::min(x1, progress_x) - x0, bar_bottom - y0);
-            p.setPen(Qt::NoPen);
-            p.setBrush(waveform_fg_active);
-            p.drawRect(rect);
+    } else {
+        // --- Sequence mode: Draw waveform ---
+        if (bar_width > 10 && bar_height > 6 && !waveform.empty()) {
+            int N = waveform_resolution;
+            float xstep = float(bar_width) / N;
+            // Draw dark waveform (background)
+            for (int i = 0; i < N; ++i) {
+                float val = waveform[i];
+                float x0 = bar_left + i * xstep;
+                float x1 = bar_left + (i + 1) * xstep;
+                float y0 = bar_bottom - val * bar_height * 0.88f;
+                QRectF rect(x0, y0, x1 - x0, bar_bottom - y0);
+                p.setPen(Qt::NoPen);
+                p.setBrush(waveform_fg);
+                p.drawRect(rect);
+            }
+            // Overlay: colorize waveform up to progress position
+            for (int i = 0; i < N; ++i) {
+                float val = waveform[i];
+                float x0 = bar_left + i * xstep;
+                float x1 = bar_left + (i + 1) * xstep;
+                if (x0 >= progress_x) break;
+                float y0 = bar_bottom - val * bar_height * 0.88f;
+                QRectF rect(x0, y0, std::min(x1, progress_x) - x0, bar_bottom - y0);
+                p.setPen(Qt::NoPen);
+                p.setBrush(waveform_fg_active);
+                p.drawRect(rect);
+            }
+            // --- Draw red position indicator (thin vertical bar) ---
+            p.setPen(QPen(position_indicator_color, 1.5));
+            p.drawLine(int(progress_x), bar_top, int(progress_x), bar_bottom);
         }
-        // --- Draw red position indicator (thin vertical bar) ---
-        p.setPen(QPen(position_indicator_color, 1.5));
-        p.drawLine(int(progress_x), bar_top, int(progress_x), bar_bottom);
     }
 
     // --- Draw outline ---
@@ -318,10 +358,6 @@ std::vector<float> MidiSequenceProgressBar::computeWaveformData() const {
     if (midi_seq->getTracks().empty()) {
         return result;
     }
-    // Lower threshold to allow waveform with just 1 note (0.01 seconds minimum)
-    if (total_time < 0.01f) {
-        return result;
-    }
 
     std::vector<NoteNagaTrack *> tracks = midi_seq->getTracks();
     std::vector<const NN_Note_t *> notes;
@@ -339,43 +375,69 @@ std::vector<float> MidiSequenceProgressBar::computeWaveformData() const {
     }
     
     int N = waveform_resolution;
-    float bucket_dur = total_time / N;
     std::vector<float> buckets(N, 0.0f);
 
     int ppq = midi_seq->getPPQ();
-    // Use base/initial tempo for consistent waveform (not affected by tempo changes)
     int base_tempo = midi_seq->getTempo();  // Microseconds per quarter note
+    if (ppq <= 0 || base_tempo <= 0) return result;
+    
     float bpm = 60000000.0f / base_tempo;   // Convert to BPM
     float scale = 1.0f / 127.0f;
+    
+    // Calculate total duration in seconds from max tick
+    int maxTick = midi_seq->getMaxTick();
+    if (maxTick <= 0) maxTick = 1;
+    float sequenceDuration = float(maxTick) / ppq * (60.0f / bpm);
+    
+    // Minimum duration for waveform visualization
+    float effectiveDuration = std::max(sequenceDuration, 0.1f);
 
     for (const NN_Note_t *note : notes) {
         if (!note->start.has_value()) continue;
-        // Calculate time in seconds using base tempo
-        float start_sec = float(note->start.value()) / ppq * (60.0f / bpm);
-        float dur_sec = note->length.has_value()
-                ? (float(note->length.value()) / ppq * (60.0f / bpm))
-                : 0.1f;
-        float velocity =
-            note->velocity.has_value() ? float(note->velocity.value()) : 90.f;
+        
+        // Calculate note position as a fraction of the total sequence
+        float noteStartFraction = float(note->start.value()) / float(maxTick);
+        float noteDurationTicks = note->length.has_value() ? float(note->length.value()) : (ppq / 4.0f);
+        float noteEndFraction = float(note->start.value() + noteDurationTicks) / float(maxTick);
+        
+        // Clamp fractions
+        noteStartFraction = std::clamp(noteStartFraction, 0.0f, 1.0f);
+        noteEndFraction = std::clamp(noteEndFraction, 0.0f, 1.0f);
+        
+        float velocity = note->velocity.has_value() ? float(note->velocity.value()) : 90.f;
 
-        int start_bucket = std::max(0, std::min(N - 1, int(start_sec / bucket_dur)));
-        int end_bucket =
-            std::max(0, std::min(N - 1, int((start_sec + dur_sec) / bucket_dur)));
+        int start_bucket = static_cast<int>(noteStartFraction * (N - 1));
+        int end_bucket = static_cast<int>(noteEndFraction * (N - 1));
+        
+        // Ensure valid range
+        start_bucket = std::clamp(start_bucket, 0, N - 1);
+        end_bucket = std::clamp(end_bucket, 0, N - 1);
+        
+        // Ensure at least one bucket is filled
+        if (end_bucket < start_bucket) end_bucket = start_bucket;
+        
+        // Fill buckets
         for (int b = start_bucket; b <= end_bucket; ++b) {
             buckets[b] += velocity * scale;
         }
+        
+        // For single notes, also add to neighbors for visibility
+        if (start_bucket == end_bucket) {
+            if (start_bucket > 0) buckets[start_bucket - 1] += velocity * scale * 0.3f;
+            if (start_bucket < N - 1) buckets[start_bucket + 1] += velocity * scale * 0.3f;
+        }
     }
 
-    std::vector<float> sorted_buckets = buckets;
-    std::sort(sorted_buckets.begin(), sorted_buckets.end());
-
-    float percentile = 0.98;
-    int idx = std::min(N-1, int(N * percentile));
-    float norm_value = sorted_buckets[idx];
-    if (norm_value < 1.0f) norm_value = 1.0f; 
+    // Normalize
+    float maxVal = *std::max_element(buckets.begin(), buckets.end());
+    if (maxVal < 0.0001f) {
+        // No data at all - return empty waveform
+        return result;
+    }
 
     for (int i = 0; i < N; ++i) {
-        result[i] = std::clamp(buckets[i] / norm_value, 0.f, 1.f);
+        result[i] = std::clamp(buckets[i] / maxVal, 0.f, 1.f);
+        // Apply slight curve for better visual contrast
         result[i] = std::pow(result[i], 0.7f);
     }
     

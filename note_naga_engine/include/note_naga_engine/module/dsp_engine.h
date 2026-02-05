@@ -8,6 +8,7 @@
 #include <note_naga_engine/module/spectrum_analyzer.h>
 #include <note_naga_engine/module/pan_analyzer.h>
 #include <note_naga_engine/core/runtime_data.h>
+#include <note_naga_engine/module/playback_worker.h>
 
 #include <vector>
 #include <mutex>
@@ -151,6 +152,22 @@ public:
     NoteNagaRuntimeData* getRuntimeData() const { return runtime_data_; }
 
     /**
+     * @brief Set the playback mode (Sequence or Arrangement).
+     * In Sequence mode, only the active sequence's tracks are rendered.
+     * In Arrangement mode, all sequences' tracks are rendered.
+     * 
+     * @param mode The playback mode.
+     */
+    void setPlaybackMode(PlaybackMode mode) { playback_mode_ = mode; }
+
+    /**
+     * @brief Get the current playback mode.
+     * 
+     * @return PlaybackMode Current playback mode.
+     */
+    PlaybackMode getPlaybackMode() const { return playback_mode_; }
+
+    /**
      * @brief Set the output volume.
      * 
      * @param volume New output volume (0.0 to 1.0).
@@ -195,6 +212,9 @@ private:
     
     // Runtime data for track-based rendering
     NoteNagaRuntimeData* runtime_data_ = nullptr;
+    
+    // Playback mode: Sequence (render active sequence) or Arrangement (render all)
+    PlaybackMode playback_mode_ = PlaybackMode::Sequence;
     
     std::vector<float> mix_left_;
     std::vector<float> mix_right_;

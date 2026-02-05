@@ -312,6 +312,19 @@ void MainWindow::setup_sections() {
         connect(midiEditor->getUndoManager(), &UndoManager::undoStateChanged,
                 this, &MainWindow::updateUndoRedoState);
     }
+    
+    // Connect arrangement section edit sequence request
+    connect(m_arrangementSection, &ArrangementSection::switchToMidiEditor,
+            this, [this](int sequenceIndex) {
+        // Set active sequence
+        auto sequences = engine->getRuntimeData()->getSequences();
+        if (sequenceIndex >= 0 && sequenceIndex < static_cast<int>(sequences.size())) {
+            engine->getRuntimeData()->setActiveSequence(sequences[sequenceIndex]);
+        }
+        // Switch to MIDI editor
+        m_sectionSwitcher->setCurrentSection(AppSection::MidiEditor);
+        onSectionChanged(AppSection::MidiEditor);
+    });
 }
 
 void MainWindow::onSectionChanged(AppSection section) {
@@ -353,12 +366,20 @@ void MainWindow::onSectionChanged(AppSection section) {
             break;
         case AppSection::MidiEditor:
             m_midiEditorSection->onSectionActivated();
+            // Auto-switch to Sequence playback mode
+            if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setPlaybackMode(PlaybackMode::Sequence);
+            }
             break;
         case AppSection::DspEditor:
             m_dspEditorSection->onSectionActivated();
             break;
         case AppSection::Arrangement:
             m_arrangementSection->onSectionActivated();
+            // Auto-switch to Arrangement playback mode
+            if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setPlaybackMode(PlaybackMode::Arrangement);
+            }
             break;
         case AppSection::Notation:
             m_notationSection->onSectionActivated();
@@ -415,6 +436,10 @@ void MainWindow::connect_signals() {
     connect(transportBar, &GlobalTransportBar::goToEnd, this, &MainWindow::goto_end);
     connect(transportBar, &GlobalTransportBar::playPositionChanged, this,
             &MainWindow::onControlBarPositionClicked);
+    
+    // Connect playback mode changes to DSP editor (hide track preview in arrangement mode)
+    connect(transportBar, &GlobalTransportBar::playbackModeChanged, 
+            m_dspEditorSection, &DSPEditorSection::setPlaybackMode);
 }
 
 void MainWindow::set_auto_follow(bool checked) { auto_follow = checked; }

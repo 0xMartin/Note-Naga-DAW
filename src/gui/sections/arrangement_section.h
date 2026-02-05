@@ -5,6 +5,7 @@
 #include <QString>
 #include <QSplitter>
 #include <QScrollBar>
+#include <QTimer>
 
 #include <note_naga_engine/note_naga_engine.h>
 #include "section_interface.h"
@@ -42,6 +43,10 @@ public:
      */
     void resetLayout();
 
+signals:
+    /// Emitted when user wants to edit a sequence in MIDI editor
+    void switchToMidiEditor(int sequenceIndex);
+
 public slots:
     void showHideDock(const QString &name, bool checked);
     void onArrangementChanged();
@@ -62,6 +67,7 @@ private:
     
     // State
     bool m_layoutInitialized = false;
+    QTimer *m_meterUpdateTimer = nullptr;
     
     void setupDockLayout();
     void connectSignals();

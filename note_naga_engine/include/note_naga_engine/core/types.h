@@ -847,6 +847,12 @@ public:
      * @param track Pointer to the soloed track.
      */
     void setSoloTrack(NoteNagaTrack *track);
+
+    /**
+     * @brief Sets the file path (used for display name).
+     * @param path New file path or display name.
+     */
+    void setFilePath(const std::string &path) { file_path = path; }
     
     // TEMPO TRACK METHODS
     // ///////////////////////////////////////////////////////////////////////////////

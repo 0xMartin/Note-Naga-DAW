@@ -13,11 +13,12 @@ ArrangementTimelineRuler::ArrangementTimelineRuler(NoteNagaEngine *engine, QWidg
     setMinimumHeight(28);
     setMaximumHeight(28);
     setMouseTracking(true);
+    setCursor(Qt::PointingHandCursor);
     
     // Get PPQ from engine if available
     if (m_engine && m_engine->getRuntimeData()) {
-        // Could get PPQ from runtime data or MIDI sequence
-        m_ppq = 480; // Default PPQ
+        m_ppq = m_engine->getRuntimeData()->getPPQ();
+        if (m_ppq <= 0) m_ppq = 480;
     }
 }
 
@@ -89,8 +90,15 @@ int64_t ArrangementTimelineRuler::getTicksPerBeat() const
 QString ArrangementTimelineRuler::formatTickLabel(int64_t tick) const
 {
     if (m_timeFormat == Seconds) {
-        // Assume 120 BPM for now
-        double seconds = static_cast<double>(tick) / m_ppq / 2.0;
+        // Use actual project tempo
+        double bpm = 120.0;  // Default
+        if (m_engine && m_engine->getRuntimeData()) {
+            int projectTempo = m_engine->getRuntimeData()->getTempo();
+            if (projectTempo > 0) {
+                bpm = 60000000.0 / projectTempo;
+            }
+        }
+        double seconds = static_cast<double>(tick) / m_ppq * (60.0 / bpm);
         int minutes = static_cast<int>(seconds / 60);
         int secs = static_cast<int>(seconds) % 60;
         return QString("%1:%2").arg(minutes).arg(secs, 2, 10, QChar('0'));
@@ -185,6 +193,24 @@ void ArrangementTimelineRuler::paintEvent(QPaintEvent *event)
         tick += majorStep;
     }
     
+    // Draw hover indicator (before playhead so playhead is on top)
+    if (m_isHovered && m_hoverX >= LEFT_MARGIN) {
+        // Draw semi-transparent hint area
+        painter.fillRect(QRect(m_hoverX - 1, 0, 3, height()), QColor("#ff585840"));
+        
+        // Draw vertical line at hover position
+        painter.setPen(QPen(QColor("#ff5858"), 2));
+        painter.drawLine(m_hoverX, 0, m_hoverX, height());
+        
+        // Draw small triangle pointer at top
+        QPainterPath hoverPath;
+        hoverPath.moveTo(m_hoverX - 4, 0);
+        hoverPath.lineTo(m_hoverX + 4, 0);
+        hoverPath.lineTo(m_hoverX, 6);
+        hoverPath.closeSubpath();
+        painter.fillPath(hoverPath, QColor("#ff5858"));
+    }
+    
     // Draw playhead
     if (m_playheadTick >= startTick && m_playheadTick <= endTick) {
         int x = tickToX(m_playheadTick);
@@ -203,7 +229,7 @@ void ArrangementTimelineRuler::paintEvent(QPaintEvent *event)
 
 void ArrangementTimelineRuler::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && event->pos().x() >= LEFT_MARGIN) {
         m_isDragging = true;
         int64_t tick = xToTick(event->pos().x());
         tick = qMax(static_cast<int64_t>(0), tick);
@@ -214,6 +240,10 @@ void ArrangementTimelineRuler::mousePressEvent(QMouseEvent *event)
 
 void ArrangementTimelineRuler::mouseMoveEvent(QMouseEvent *event)
 {
+    // Update hover position for visual feedback
+    m_hoverX = event->pos().x();
+    update();
+    
     if (m_isDragging) {
         int64_t tick = xToTick(event->pos().x());
         tick = qMax(static_cast<int64_t>(0), tick);
@@ -228,6 +258,21 @@ void ArrangementTimelineRuler::mouseReleaseEvent(QMouseEvent *event)
         m_isDragging = false;
     }
     QWidget::mouseReleaseEvent(event);
+}
+
+void ArrangementTimelineRuler::enterEvent(QEnterEvent *event)
+{
+    Q_UNUSED(event);
+    m_isHovered = true;
+    update();
+}
+
+void ArrangementTimelineRuler::leaveEvent(QEvent *event)
+{
+    Q_UNUSED(event);
+    m_isHovered = false;
+    m_hoverX = -1;
+    update();
 }
 
 void ArrangementTimelineRuler::wheelEvent(QWheelEvent *event)

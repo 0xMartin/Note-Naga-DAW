@@ -166,3 +166,17 @@ void DSPEditorSection::refreshDSPWidgets()
         m_dspWidget->refresh();
     }
 }
+
+void DSPEditorSection::setPlaybackMode(PlaybackMode mode)
+{
+    // Hide track preview in arrangement mode (it only shows sequence data)
+    auto it = m_docks.find("trackpreview");
+    if (it != m_docks.end()) {
+        AdvancedDockWidget *previewDock = *it;
+        if (mode == PlaybackMode::Arrangement) {
+            previewDock->setVisible(false);
+        } else {
+            previewDock->setVisible(true);
+        }
+    }
+}

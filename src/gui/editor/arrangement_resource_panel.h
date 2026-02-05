@@ -93,12 +93,6 @@ signals:
     
     /// Emitted when user creates a new sequence
     void createSequenceRequested();
-    
-    /// Emitted when a sequence is deleted
-    void sequenceDeleted(int sequenceIndex);
-    
-    /// Emitted when a sequence is renamed
-    void sequenceRenamed(int sequenceIndex, const QString &newName);
 
 private slots:
     void onItemDoubleClicked(QListWidgetItem *item);
@@ -107,8 +101,8 @@ private slots:
 
 private:
     void initUI();
-    void renameSequence(int index);
-    void deleteSequence(int index);
+    void renameSequence(int sequenceIndex);
+    void deleteSequence(int sequenceIndex);
 
     NoteNagaEngine *m_engine;
     

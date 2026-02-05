@@ -10,12 +10,14 @@
 #include <QMouseEvent>
 #include <QMenu>
 #include <QLineEdit>
+#include <QMap>
 
 class NoteNagaEngine;
 class NoteNagaArrangement;
 class NoteNagaArrangementTrack;
 struct NN_MidiClip_t;
 class ArrangementTimelineRuler;
+class TrackStereoMeter;
 
 /**
  * @brief Main timeline widget for Arrangement section
@@ -78,6 +80,9 @@ public:
     
     // Content rect (excluding track headers)
     QRect contentRect() const;
+    
+    // Track meters
+    void updateTrackMeters();
 
 signals:
     void clipSelected(NN_MidiClip_t *clip);
@@ -183,6 +188,11 @@ private:
     // Inline track name editing
     QLineEdit *m_trackNameEdit = nullptr;
     int m_editingTrackIndex = -1;
+    
+    // Track stereo meters (per track index)
+    QMap<int, TrackStereoMeter*> m_trackMeters;
+    void ensureTrackMetersExist();
+    void updateTrackMeterPositions();
     
     void startTrackNameEdit(int trackIndex);
     void finishTrackNameEdit();

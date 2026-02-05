@@ -70,11 +70,15 @@ void SectionSwitcher::setupUi()
     m_transportBar = new GlobalTransportBar(m_engine, this);
     mainLayout->addWidget(m_transportBar);
     
-    // Connect playback mode changes to engine's playback worker
+    // Connect playback mode changes to engine's playback worker and DSP engine
     if (m_engine && m_engine->getPlaybackWorker()) {
         connect(m_transportBar, &GlobalTransportBar::playbackModeChanged, this, 
                 [this](PlaybackMode mode) {
             m_engine->getPlaybackWorker()->setPlaybackMode(mode);
+            // Also update DSP engine so it renders the correct sequences
+            if (m_engine->getDSPEngine()) {
+                m_engine->getDSPEngine()->setPlaybackMode(mode);
+            }
         });
     }
 
@@ -116,20 +120,21 @@ void SectionSwitcher::setupUi()
         {AppSection::Notation, ":/icons/app_section_notation.svg", tr("Notation")}
     };
 
-    // === MIDI Sequence Selector (left side) ===
-    m_sequenceSelector = new MidiSequenceSelector(m_engine, this);
-    m_sequenceSelector->setFixedWidth(240);
-    buttonLayout->addWidget(m_sequenceSelector);
-
-    // Add stretch to push buttons to the right
-    buttonLayout->addStretch();
-
+    // === Section Buttons (left side) ===
     for (const auto &info : sections) {
         SectionButton *btn = new SectionButton(QIcon(info.iconPath), info.title, this);
         m_buttonGroup->addButton(btn, static_cast<int>(info.section));
         m_buttons.append(btn);
         buttonLayout->addWidget(btn);
     }
+
+    // Add stretch to push selector to the right
+    buttonLayout->addStretch();
+
+    // === MIDI Sequence Selector (right side) ===
+    m_sequenceSelector = new MidiSequenceSelector(m_engine, this);
+    m_sequenceSelector->setFixedWidth(240);
+    buttonLayout->addWidget(m_sequenceSelector);
 
     mainLayout->addWidget(buttonRow);
 

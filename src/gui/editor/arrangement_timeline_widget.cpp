@@ -1,9 +1,11 @@
 #include "arrangement_timeline_widget.h"
 #include "arrangement_timeline_ruler.h"
+#include "../components/track_stereo_meter.h"
 
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/core/runtime_data.h>
 #include <note_naga_engine/core/types.h>
+#include <note_naga_engine/module/dsp_engine.h>
 
 #include <QDragEnterEvent>
 #include <QMimeData>
@@ -12,6 +14,7 @@
 #include <QColorDialog>
 #include <QInputDialog>
 #include <cmath>
+#include <algorithm>
 
 static const int RESIZE_HANDLE_WIDTH = 6;
 static const int HEADER_BUTTON_SIZE = 20;
@@ -74,6 +77,7 @@ void ArrangementTimelineWidget::setVerticalOffset(int offset)
     
     if (m_verticalOffset != offset) {
         m_verticalOffset = offset;
+        updateTrackMeterPositions();
         update();
     }
 }
@@ -137,6 +141,9 @@ void ArrangementTimelineWidget::deleteSelectedClips()
         }
     }
     
+    // Update arrangement max tick after deletion
+    arrangement->updateMaxTick();
+    
     m_selectedClipIds.clear();
     update();
     emit selectionChanged();
@@ -151,7 +158,115 @@ void ArrangementTimelineWidget::refreshFromArrangement()
             arrangement->addTrack("Track 1");
         }
     }
+    ensureTrackMetersExist();
+    updateTrackMeterPositions();
     update();
+}
+
+void ArrangementTimelineWidget::ensureTrackMetersExist()
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    int trackCount = static_cast<int>(arrangement->getTrackCount());
+    
+    // Remove meters for tracks that no longer exist
+    QList<int> toRemove;
+    for (auto it = m_trackMeters.begin(); it != m_trackMeters.end(); ++it) {
+        if (it.key() >= trackCount) {
+            toRemove.append(it.key());
+        }
+    }
+    for (int idx : toRemove) {
+        delete m_trackMeters.take(idx);
+    }
+    
+    // Create meters for new tracks
+    for (int i = 0; i < trackCount; ++i) {
+        if (!m_trackMeters.contains(i)) {
+            TrackStereoMeter *meter = new TrackStereoMeter(this, -70, 0);
+            meter->setFixedSize(TRACK_HEADER_WIDTH - 16, 12);
+            m_trackMeters[i] = meter;
+        }
+    }
+}
+
+void ArrangementTimelineWidget::updateTrackMeterPositions()
+{
+    for (auto it = m_trackMeters.begin(); it != m_trackMeters.end(); ++it) {
+        int trackIndex = it.key();
+        TrackStereoMeter *meter = it.value();
+        
+        int y = trackIndexToY(trackIndex);
+        // Position meter at bottom of track header, with padding
+        // Leave space for buttons at top (name area ~22px, buttons ~24px, then meter)
+        int meterY = y + m_trackHeight - 16; // 4px padding from bottom
+        
+        meter->move(8, meterY);
+        
+        // Hide if scrolled out of view
+        bool visible = (y + m_trackHeight > 0) && (y < height());
+        meter->setVisible(visible);
+    }
+}
+
+void ArrangementTimelineWidget::updateTrackMeters()
+{
+    if (!m_engine) return;
+    
+    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+    if (!dspEngine) return;
+    
+    NoteNagaRuntimeData *runtimeData = m_engine->getRuntimeData();
+    if (!runtimeData) return;
+    
+    NoteNagaArrangement *arrangement = runtimeData->getArrangement();
+    if (!arrangement) return;
+    
+    int64_t currentTick = runtimeData->getCurrentArrangementTick();
+    auto tracks = arrangement->getTracks();
+    
+    for (auto it = m_trackMeters.begin(); it != m_trackMeters.end(); ++it) {
+        int trackIndex = it.key();
+        TrackStereoMeter *meter = it.value();
+        
+        if (trackIndex >= static_cast<int>(tracks.size()) || !tracks[trackIndex]) {
+            meter->reset();
+            continue;
+        }
+        
+        NoteNagaArrangementTrack *arrTrack = tracks[trackIndex];
+        if (arrTrack->isMuted()) {
+            meter->reset();
+            continue;
+        }
+        
+        // Aggregate RMS from all active clips on this track
+        float maxLeftDb = -100.0f;
+        float maxRightDb = -100.0f;
+        
+        for (const auto& clip : arrTrack->getClips()) {
+            if (clip.muted) continue;
+            if (!clip.containsTick(static_cast<int>(currentTick))) continue;
+            
+            // Get the referenced sequence
+            NoteNagaMidiSeq *seq = runtimeData->getSequenceById(clip.sequenceId);
+            if (!seq) continue;
+            
+            // Get RMS from all tracks in this sequence
+            for (NoteNagaTrack *midiTrack : seq->getTracks()) {
+                if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
+                
+                auto rms = dspEngine->getTrackVolumeDb(midiTrack);
+                maxLeftDb = std::max(maxLeftDb, rms.first);
+                maxRightDb = std::max(maxRightDb, rms.second);
+            }
+        }
+        
+        meter->setVolumesDb(maxLeftDb, maxRightDb);
+    }
 }
 
 void ArrangementTimelineWidget::setRuler(ArrangementTimelineRuler *ruler)
@@ -890,8 +1005,22 @@ void ArrangementTimelineWidget::mouseReleaseEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton) {
         if (m_interactionMode == MovingClip) {
             emit clipMoved(m_dragClipId, xToTick(event->pos().x()));
+            // Update arrangement max tick after move
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement) {
+                    arrangement->updateMaxTick();
+                }
+            }
         } else if (m_interactionMode == ResizingClipLeft || m_interactionMode == ResizingClipRight) {
             // Emit resize signal if needed
+            // Update arrangement max tick after resize
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement) {
+                    arrangement->updateMaxTick();
+                }
+            }
         }
         
         m_interactionMode = None;
@@ -1042,6 +1171,7 @@ void ArrangementTimelineWidget::dropEvent(QDropEvent *event)
 void ArrangementTimelineWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+    updateTrackMeterPositions();
 }
 void ArrangementTimelineWidget::showTrackContextMenu(int trackIndex, const QPoint &globalPos)
 {

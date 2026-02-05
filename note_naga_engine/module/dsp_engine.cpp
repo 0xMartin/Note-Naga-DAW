@@ -28,41 +28,57 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames, bool compute_rm
 
     std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
     
-    // Render audio from all tracks (new per-track synth architecture)
-    if (runtime_data_ && runtime_data_->getActiveSequence()) {
-        NoteNagaMidiSeq* seq = runtime_data_->getActiveSequence();
-        for (NoteNagaTrack* track : seq->getTracks()) {
-            if (!track || track->isMuted() || track->isTempoTrack()) continue;
+    // Render audio from tracks based on playback mode
+    if (runtime_data_) {
+        std::vector<NoteNagaMidiSeq*> sequencesToRender;
+        
+        if (playback_mode_ == PlaybackMode::Arrangement) {
+            // In Arrangement mode, render ALL sequences
+            sequencesToRender = runtime_data_->getSequences();
+        } else {
+            // In Sequence mode, only render the active sequence
+            NoteNagaMidiSeq* activeSeq = runtime_data_->getActiveSequence();
+            if (activeSeq) {
+                sequencesToRender.push_back(activeSeq);
+            }
+        }
+        
+        for (NoteNagaMidiSeq* seq : sequencesToRender) {
+            if (!seq) continue;
             
-            INoteNagaSoftSynth* softSynth = track->getSoftSynth();
-            if (!softSynth) continue;
-            
-            // Clear track buffers
-            std::fill(track_left_.begin(), track_left_.begin() + num_frames, 0.0f);
-            std::fill(track_right_.begin(), track_right_.begin() + num_frames, 0.0f);
-            
-            // Render this track (applies its own volume internally)
-            track->renderAudio(track_left_.data(), track_right_.data(), num_frames);
-            
-            // Apply track's synth DSP blocks if DSP is enabled
-            if (this->enable_dsp_) {
-                auto it = synth_dsp_blocks_.find(softSynth);
-                if (it != synth_dsp_blocks_.end()) {
-                    for (NoteNagaDSPBlockBase *block : it->second) {
-                        if (block->isActive()) {
-                            block->process(track_left_.data(), track_right_.data(), num_frames);
+            for (NoteNagaTrack* track : seq->getTracks()) {
+                if (!track || track->isMuted() || track->isTempoTrack()) continue;
+                
+                INoteNagaSoftSynth* softSynth = track->getSoftSynth();
+                if (!softSynth) continue;
+                
+                // Clear track buffers
+                std::fill(track_left_.begin(), track_left_.begin() + num_frames, 0.0f);
+                std::fill(track_right_.begin(), track_right_.begin() + num_frames, 0.0f);
+                
+                // Render this track (applies its own volume internally)
+                track->renderAudio(track_left_.data(), track_right_.data(), num_frames);
+                
+                // Apply track's synth DSP blocks if DSP is enabled
+                if (this->enable_dsp_) {
+                    auto it = synth_dsp_blocks_.find(softSynth);
+                    if (it != synth_dsp_blocks_.end()) {
+                        for (NoteNagaDSPBlockBase *block : it->second) {
+                            if (block->isActive()) {
+                                block->process(track_left_.data(), track_right_.data(), num_frames);
+                            }
                         }
                     }
                 }
-            }
-            
-            // Calculate and store per-track RMS
-            track_rms_values_[track] = calculateTrackRMS(track_left_.data(), track_right_.data(), num_frames);
-            
-            // Add to mix buffers
-            for (size_t i = 0; i < num_frames; i++) {
-                mix_left_[i] += track_left_[i];
-                mix_right_[i] += track_right_[i];
+                
+                // Calculate and store per-track RMS
+                track_rms_values_[track] = calculateTrackRMS(track_left_.data(), track_right_.data(), num_frames);
+                
+                // Add to mix buffers
+                for (size_t i = 0; i < num_frames; i++) {
+                    mix_left_[i] += track_left_[i];
+                    mix_right_[i] += track_right_[i];
+                }
             }
         }
     }

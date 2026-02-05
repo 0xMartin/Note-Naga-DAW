@@ -245,7 +245,17 @@ void GlobalTransportBar::setupConnections()
 
     connect(runtimeData, &NoteNagaRuntimeData::currentTickChanged, this,
             [this]() {
-                updateProgressBar();
+                if (m_playbackMode == PlaybackMode::Sequence) {
+                    updateProgressBar();
+                }
+            });
+    
+    // Also listen to arrangement tick changes for arrangement mode
+    connect(runtimeData, &NoteNagaRuntimeData::currentArrangementTickChanged, this,
+            [this]() {
+                if (m_playbackMode == PlaybackMode::Arrangement) {
+                    updateProgressBar();
+                }
             });
 
     connect(runtimeData, &NoteNagaRuntimeData::currentTempoChanged, this,
@@ -261,6 +271,7 @@ void GlobalTransportBar::setupConnections()
         setPlaying(false);
         m_isPlaying = false;
         updateBPM();
+        updateProgressBar();  // Update progress bar to show correct position after stop
     });
     
     // Initialize with current active sequence if exists
@@ -331,8 +342,6 @@ void GlobalTransportBar::updateProgressBar()
     NoteNagaRuntimeData* project = m_engine->getRuntimeData();
     if (m_ppq == 0 || m_tempo == 0) return;
     
-    double usPerTick = double(m_tempo) / double(m_ppq);
-    
     if (m_playbackMode == PlaybackMode::Arrangement) {
         // In arrangement mode, show arrangement position and total time
         NoteNagaArrangement *arrangement = project->getArrangement();
@@ -340,11 +349,16 @@ void GlobalTransportBar::updateProgressBar()
             int currentTick = project->getCurrentArrangementTick();
             int maxTick = arrangement->getMaxTick();
             
+            // Use project tempo for arrangement
+            int projectTempo = project->getTempo();
+            int projectPpq = project->getPPQ();
+            if (projectTempo == 0 || projectPpq == 0) return;
+            
+            double usPerTick = double(projectTempo) / double(projectPpq);
             double curSec = double(currentTick) * usPerTick / 1'000'000.0;
             double totalSec = double(maxTick) * usPerTick / 1'000'000.0;
             
             // Update progress bar with arrangement data
-            // We need to temporarily set total_time for proper display
             m_progressBar->setTotalTime(std::max(1.0f, static_cast<float>(totalSec)));
             m_progressBar->setCurrentTime(curSec);
             return;
@@ -352,6 +366,7 @@ void GlobalTransportBar::updateProgressBar()
     }
     
     // Default: sequence mode
+    double usPerTick = double(m_tempo) / double(m_ppq);
     double curSec = double(project->getCurrentTick()) * usPerTick / 1'000'000.0;
     m_progressBar->setCurrentTime(curSec);
 }
@@ -380,10 +395,12 @@ void GlobalTransportBar::setPlaybackMode(PlaybackMode mode)
             m_playbackModeBtn->setIcon(QIcon(":/icons/playback-sequence.svg"));
             m_playbackModeBtn->setToolTip(tr("Sequence Mode - plays selected MIDI sequence"));
             m_playbackModeBtn->setChecked(false);
+            m_progressBar->setArrangementMode(false);
         } else {
             m_playbackModeBtn->setIcon(QIcon(":/icons/playback-compose.svg"));
             m_playbackModeBtn->setToolTip(tr("Arrangement Mode - plays full timeline/composition"));
             m_playbackModeBtn->setChecked(true);
+            m_progressBar->setArrangementMode(true);
         }
 
         emit playbackModeChanged(mode);
@@ -450,30 +467,54 @@ void GlobalTransportBar::metronomeBtnClicked()
 void GlobalTransportBar::onProgressBarPositionPressed(float seconds)
 {
     NoteNagaRuntimeData* project = m_engine->getRuntimeData();
-    if (!project || m_ppq == 0 || m_tempo == 0) return;
-
-    int tickPosition = nn_seconds_to_ticks(seconds, m_ppq, m_tempo);
+    if (!project) return;
 
     m_wasPlaying = m_engine->isPlaying();
     if (m_wasPlaying) m_engine->stopPlayback();
-    project->setCurrentTick(tickPosition);
+    
+    if (m_playbackMode == PlaybackMode::Arrangement) {
+        // In arrangement mode, use project tempo/ppq for tick calculation
+        int projectTempo = project->getTempo();
+        int projectPpq = project->getPPQ();
+        if (projectTempo == 0 || projectPpq == 0) return;
+        
+        int tickPosition = nn_seconds_to_ticks(seconds, projectPpq, projectTempo);
+        project->setCurrentArrangementTick(tickPosition);
+    } else {
+        // Sequence mode
+        if (m_ppq == 0 || m_tempo == 0) return;
+        int tickPosition = nn_seconds_to_ticks(seconds, m_ppq, m_tempo);
+        project->setCurrentTick(tickPosition);
+    }
 
     updateProgressBar();
 
-    emit playPositionChanged(seconds, tickPosition);
+    emit playPositionChanged(seconds, 0);
 }
 
 void GlobalTransportBar::onProgressBarPositionDragged(float seconds)
 {
     NoteNagaRuntimeData* project = m_engine->getRuntimeData();
-    if (!project || m_ppq == 0 || m_tempo == 0) return;
+    if (!project) return;
 
-    int tickPosition = nn_seconds_to_ticks(seconds, m_ppq, m_tempo);
-    project->setCurrentTick(tickPosition);
+    if (m_playbackMode == PlaybackMode::Arrangement) {
+        // In arrangement mode, use project tempo/ppq for tick calculation
+        int projectTempo = project->getTempo();
+        int projectPpq = project->getPPQ();
+        if (projectTempo == 0 || projectPpq == 0) return;
+        
+        int tickPosition = nn_seconds_to_ticks(seconds, projectPpq, projectTempo);
+        project->setCurrentArrangementTick(tickPosition);
+    } else {
+        // Sequence mode
+        if (m_ppq == 0 || m_tempo == 0) return;
+        int tickPosition = nn_seconds_to_ticks(seconds, m_ppq, m_tempo);
+        project->setCurrentTick(tickPosition);
+    }
 
     updateProgressBar();
 
-    emit playPositionChanged(seconds, tickPosition);
+    emit playPositionChanged(seconds, 0);
 }
 
 void GlobalTransportBar::onProgressBarPositionReleased(float seconds)

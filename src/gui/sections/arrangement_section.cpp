@@ -26,6 +26,15 @@ ArrangementSection::ArrangementSection(NoteNagaEngine *engine, QWidget *parent)
     
     setupDockLayout();
     connectSignals();
+    
+    // Timer for updating track stereo meters
+    m_meterUpdateTimer = new QTimer(this);
+    connect(m_meterUpdateTimer, &QTimer::timeout, this, [this]() {
+        if (m_timeline) {
+            m_timeline->updateTrackMeters();
+        }
+    });
+    m_meterUpdateTimer->start(30); // ~33 Hz update rate
 }
 
 ArrangementSection::~ArrangementSection()
@@ -196,8 +205,8 @@ void ArrangementSection::connectSignals()
     if (m_resourcePanel) {
         connect(m_resourcePanel, &ArrangementResourcePanel::editSequenceRequested,
                 this, [this](int sequenceIndex) {
-            // Could switch to MIDI editor section with this sequence
-            Q_UNUSED(sequenceIndex);
+            // Switch to MIDI editor section with this sequence
+            emit switchToMidiEditor(sequenceIndex);
         });
         
         // Handle new sequence creation
@@ -276,10 +285,26 @@ void ArrangementSection::connectSignals()
                 m_timelineRuler, &ArrangementTimelineRuler::setPixelsPerTick);
     }
     
-    // Connect ruler seek requests
-    if (m_timelineRuler && m_timeline) {
+    // Connect ruler seek requests - handle with playback stop/restart
+    if (m_timelineRuler) {
         connect(m_timelineRuler, &ArrangementTimelineRuler::seekRequested,
-                m_timeline, &ArrangementTimelineWidget::seekRequested);
+                this, [this](int64_t tick) {
+            if (!m_engine || !m_engine->getRuntimeData()) return;
+            
+            // Remember if playback was running
+            bool wasPlaying = m_engine->isPlaying();
+            if (wasPlaying) {
+                m_engine->stopPlayback();
+            }
+            
+            // Set the arrangement position
+            m_engine->getRuntimeData()->setCurrentArrangementTick(static_cast<int>(tick));
+            
+            // Restart playback if it was running
+            if (wasPlaying) {
+                m_engine->startPlayback();
+            }
+        });
     }
 }
 

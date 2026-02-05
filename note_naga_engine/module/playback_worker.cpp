@@ -472,37 +472,28 @@ void PlaybackThreadWorker::runArrangementMode() {
     if (current_tick >= arrangement_max_tick) {
         current_tick = 0;
         this->project->setCurrentArrangementTick(0);
-        NOTE_NAGA_LOG_WARNING("Arrangement tick at or beyond max, resetting to start");
     }
 
-    // Initialize timing
-    recalculateTempo();
-
-    // Track active clips and their note indices
-    // Map: (arrangement_track_id, clip_id, midi_track_id) -> note index
-    struct ClipPlayState {
-        int lastProcessedTick;
-        std::unordered_map<int, size_t> trackNoteIndices; // midi_track_id -> note index
-    };
-    std::map<std::pair<int, int>, ClipPlayState> clipStates; // (arr_track_id, clip_id) -> state
+    // Get project tempo
+    int projectTempo = this->project->getTempo();
+    int projectPPQ = this->project->getPPQ();
+    double us_per_tick = static_cast<double>(projectTempo) / projectPPQ;
+    double ms_per_tick = us_per_tick / 1000.0;
 
     using clock = std::chrono::high_resolution_clock;
     auto last_iteration_time = clock::now();
     double fractional_ticks = 0.0;
 
+    // Simple approach: for each tick range, iterate ALL tracks and ALL clips
+    // and check if any notes should be played or stopped
+    
     while (!should_stop) {
-        // Calculate time since last iteration
         auto now = clock::now();
         double elapsed_ms = std::chrono::duration<double, std::milli>(now - last_iteration_time).count();
         last_iteration_time = now;
 
-        // Get current tempo from project
-        int effectiveTempo = this->project->getTempo();
-        double us_per_tick = static_cast<double>(effectiveTempo) / this->project->getPPQ();
-        double current_ms_per_tick = us_per_tick / 1000.0;
-
         // Accumulate ticks
-        fractional_ticks += elapsed_ms / current_ms_per_tick;
+        fractional_ticks += elapsed_ms / ms_per_tick;
         int tick_advance = static_cast<int>(fractional_ticks);
         fractional_ticks -= tick_advance;
 
@@ -517,115 +508,97 @@ void PlaybackThreadWorker::runArrangementMode() {
 
         // Check for end of arrangement
         if (current_tick >= arrangement_max_tick) {
-            current_tick = arrangement_max_tick;
             if (!this->looping) {
                 this->should_stop = true;
+                current_tick = arrangement_max_tick;
+            } else {
+                // Stop all notes before looping
+                for (auto* seq : this->project->getSequences()) {
+                    for (auto* track : seq->getTracks()) {
+                        if (track && !track->isTempoTrack()) {
+                            track->stopAllNotes();
+                        }
+                    }
+                }
+                current_tick = 0;
+                last_tick = -1; // Force re-processing from start
+                this->project->setCurrentArrangementTick(current_tick);
             }
         }
 
-        // Get all active clips at current tick
-        auto activeClips = arrangement->getActiveClipsAtTick(current_tick);
+        // Iterate ALL arrangement tracks
+        for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
+            NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
+            if (!arrTrack || arrTrack->isMuted()) continue;
 
-        // Process each active clip
-        for (const auto& [arrTrack, clip] : activeClips) {
-            if (arrTrack->isMuted() || clip->muted) continue;
+            // Iterate ALL clips in this track
+            for (const auto& clip : arrTrack->getClips()) {
+                if (clip.muted) continue;
 
-            // Get the referenced MIDI sequence
-            NoteNagaMidiSeq* seq = this->project->getSequenceById(clip->sequenceId);
-            if (!seq) continue;
-
-            // Get sequence length for looping
-            int seqLength = seq->getMaxTick();
-            if (seqLength <= 0) continue;
-
-            // Calculate sequence-local tick range with looping support
-            int seqTickStart = clip->toSequenceTickLooped(last_tick, seqLength);
-            int seqTickEnd = clip->toSequenceTickLooped(current_tick, seqLength);
-            
-            // Handle loop boundary crossing
-            int lastLoopIter = clip->getLoopIteration(last_tick, seqLength);
-            int currLoopIter = clip->getLoopIteration(current_tick, seqLength);
-            bool crossedLoopBoundary = (currLoopIter > lastLoopIter);
-
-            // Clamp to valid range within the clip
-            int clipLocalStart = clip->offsetTicks;
-            int clipLocalEnd = clip->offsetTicks + clip->durationTicks;
-            
-            // When we cross a loop boundary, we need to handle notes at the end of last loop
-            // and notes at the start of the new loop
-            if (crossedLoopBoundary) {
-                // Reset clip state for new loop iteration
-                auto key = std::make_pair(arrTrack->getId(), clip->id);
-                clipStates[key] = ClipPlayState();
+                // Check if current tick is within clip's timeline range
+                // Clip covers from clip.startTick to clip.startTick + clip.durationTicks
+                int clipStart = clip.startTick;
+                int clipEnd = clip.startTick + clip.durationTicks;
                 
-                // Process from 0 to seqTickEnd (start of new loop)
-                seqTickStart = 0;
-            }
-            
-            if (seqTickStart >= seqTickEnd && !crossedLoopBoundary) continue;
+                // Skip if we're completely outside this clip's range
+                if (current_tick < clipStart || last_tick >= clipEnd) continue;
 
-            // Get or create clip state
-            auto key = std::make_pair(arrTrack->getId(), clip->id);
-            auto& state = clipStates[key];
+                // Get the referenced MIDI sequence
+                NoteNagaMidiSeq* seq = this->project->getSequenceById(clip.sequenceId);
+                if (!seq) continue;
 
-            // Process notes for each track in the sequence
-            for (auto* midiTrack : seq->getTracks()) {
-                if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
+                int seqLength = seq->getMaxTick();
+                if (seqLength <= 0) continue;
 
-                // Get remapped channel
-                bool isDrumTrack = midiTrack->getChannel().value_or(0) == MIDI_DRUM_CHANNEL;
-                int remappedChannel = arrTrack->getRemappedChannel(
-                    midiTrack->getChannel().value_or(0), isDrumTrack);
+                // For each tick in the range [last_tick+1, current_tick], calculate the
+                // corresponding sequence tick (with looping) and check for notes
+                for (int arrangeTick = last_tick + 1; arrangeTick <= current_tick; ++arrangeTick) {
+                    // Skip if outside clip range
+                    if (arrangeTick < clipStart || arrangeTick >= clipEnd) continue;
 
-                // Get note index for this track
-                size_t& noteIndex = state.trackNoteIndices[midiTrack->getId()];
-                const auto& notes = midiTrack->getNotes();
-
-                // Process notes in range
-                for (; noteIndex < notes.size(); ++noteIndex) {
-                    const NN_Note_t& note = notes[noteIndex];
-                    if (!note.start.has_value() || !note.length.has_value()) continue;
-
-                    int noteStart = note.start.value();
-                    int noteEnd = noteStart + note.length.value();
-
-                    // Note ON
-                    if (seqTickStart <= noteStart && noteStart < seqTickEnd) {
-                        // Create a modified note with remapped channel if needed
-                        NN_Note_t playNote = note;
-                        // Note: channel remapping is handled at the track level
-                        midiTrack->playNote(playNote);
-                        emitNotePlayed(playNote);
+                    // Calculate sequence-local tick with looping
+                    int localTick = (arrangeTick - clipStart) + clip.offsetTicks;
+                    int seqTick = localTick % seqLength;
+                    
+                    // Check for loop boundary (when seqTick wraps to 0)
+                    int prevLocalTick = localTick - 1;
+                    int prevSeqTick = (prevLocalTick >= 0) ? (prevLocalTick % seqLength) : -1;
+                    bool crossedLoopBoundary = (prevSeqTick >= 0 && seqTick < prevSeqTick);
+                    
+                    // If we crossed a loop boundary, stop all notes from this sequence
+                    if (crossedLoopBoundary) {
+                        for (auto* midiTrack : seq->getTracks()) {
+                            if (midiTrack && !midiTrack->isTempoTrack()) {
+                                midiTrack->stopAllNotes();
+                            }
+                        }
                     }
 
-                    // Note OFF
-                    if (seqTickStart < noteEnd && noteEnd <= seqTickEnd) {
-                        midiTrack->stopNote(note);
-                    }
+                    // Process notes for each MIDI track in the sequence
+                    for (auto* midiTrack : seq->getTracks()) {
+                        if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
 
-                    // If note starts after current range, we're done
-                    if (noteStart >= seqTickEnd) break;
-                }
+                        const auto& notes = midiTrack->getNotes();
+                        for (const auto& note : notes) {
+                            if (!note.start.has_value() || !note.length.has_value()) continue;
 
-                // Reset index if we're past this range (for next iteration)
-                if (noteIndex > 10) noteIndex -= 10;
-            }
-        }
+                            int noteStart = note.start.value();
+                            int noteEnd = noteStart + note.length.value();
 
-        // Looping
-        if (this->looping && current_tick >= arrangement_max_tick) {
-            // Stop all notes before looping
-            for (auto* seq : this->project->getSequences()) {
-                for (auto* track : seq->getTracks()) {
-                    if (track && !track->isTempoTrack()) {
-                        track->stopAllNotes();
+                            // Note ON: if this tick matches the note start
+                            if (seqTick == noteStart) {
+                                midiTrack->playNote(note);
+                                emitNotePlayed(note);
+                            }
+
+                            // Note OFF: if this tick matches the note end
+                            if (seqTick == noteEnd) {
+                                midiTrack->stopNote(note);
+                            }
+                        }
                     }
                 }
             }
-            current_tick = 0;
-            this->project->setCurrentArrangementTick(current_tick);
-            clipStates.clear(); // Reset all clip states
-            NOTE_NAGA_LOG_INFO("Arrangement reached end, looping back to start");
         }
 
         // Emit position changed

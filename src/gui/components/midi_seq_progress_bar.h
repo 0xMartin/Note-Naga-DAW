@@ -58,9 +58,16 @@ public:
      * @param seconds Total time in seconds.
      */
     void setTotalTime(float seconds);
+    
+    /**
+     * @brief Sets arrangement mode (shows simple progress instead of waveform).
+     * @param isArrangement True for arrangement mode.
+     */
+    void setArrangementMode(bool isArrangement);
 
     float getCurrentTime() const { return current_time; }
     float getTotalTime() const { return total_time; }
+    bool isArrangementMode() const { return m_arrangementMode; }
 
     // Colors
     QColor bar_bg;
@@ -94,6 +101,7 @@ private:
     NoteNagaMidiSeq *midi_seq;
     float current_time;
     float total_time;
+    bool m_arrangementMode;
 
     std::vector<float> waveform;
     int waveform_resolution;

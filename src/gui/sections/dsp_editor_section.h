@@ -6,6 +6,7 @@
 #include <QString>
 
 #include <note_naga_engine/note_naga_engine.h>
+#include <note_naga_engine/module/playback_worker.h>
 #include "section_interface.h"
 
 class AdvancedDockWidget;
@@ -41,6 +42,11 @@ public:
      * @brief Refresh DSP widgets after project load
      */
     void refreshDSPWidgets();
+    
+    /**
+     * @brief Sets playback mode visibility for track preview
+     */
+    void setPlaybackMode(PlaybackMode mode);
 
 private:
     NoteNagaEngine *m_engine;

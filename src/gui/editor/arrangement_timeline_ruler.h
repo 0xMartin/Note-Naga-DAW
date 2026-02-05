@@ -55,6 +55,8 @@ signals:
     void zoomChanged(double ppTick);
 
 protected:
+    void enterEvent(QEnterEvent *event) override;
+    void leaveEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -80,6 +82,10 @@ private:
     int m_ppq = 480;  // Pulses per quarter note
     
     bool m_isDragging = false;
+    
+    // Hover state for click-to-seek visual feedback
+    bool m_isHovered = false;
+    int m_hoverX = -1;
 };
 
 #endif // ARRANGEMENT_TIMELINE_RULER_H

@@ -198,10 +198,9 @@ void ArrangementResourcePanel::showContextMenu(const QPoint &pos)
     )");
     
     QAction *editAction = menu.addAction(tr("Edit Sequence"));
-    QAction *renameAction = menu.addAction(tr("Rename..."));
+    QAction *renameAction = menu.addAction(tr("Rename Sequence"));
     menu.addSeparator();
-    QAction *deleteAction = menu.addAction(tr("Delete"));
-    deleteAction->setIcon(QIcon::fromTheme("edit-delete"));
+    QAction *deleteAction = menu.addAction(tr("Delete Sequence"));
     
     QAction *selected = menu.exec(m_sequenceList->mapToGlobal(pos));
     
@@ -214,14 +213,14 @@ void ArrangementResourcePanel::showContextMenu(const QPoint &pos)
     }
 }
 
-void ArrangementResourcePanel::renameSequence(int index)
+void ArrangementResourcePanel::renameSequence(int sequenceIndex)
 {
     if (!m_engine || !m_engine->getRuntimeData()) return;
     
     auto sequences = m_engine->getRuntimeData()->getSequences();
-    if (index < 0 || index >= static_cast<int>(sequences.size())) return;
+    if (sequenceIndex < 0 || sequenceIndex >= static_cast<int>(sequences.size())) return;
     
-    NoteNagaMidiSeq *seq = sequences[index];
+    NoteNagaMidiSeq *seq = sequences[sequenceIndex];
     if (!seq) return;
     
     // Get current name
@@ -229,49 +228,48 @@ void ArrangementResourcePanel::renameSequence(int index)
     if (!seq->getFilePath().empty()) {
         QString path = QString::fromStdString(seq->getFilePath());
         int lastSlash = path.lastIndexOf('/');
-        currentName = (lastSlash >= 0) ? path.mid(lastSlash + 1) : path;
+        if (lastSlash >= 0) {
+            currentName = path.mid(lastSlash + 1);
+        } else {
+            currentName = path;
+        }
         int lastDot = currentName.lastIndexOf('.');
-        if (lastDot > 0) currentName = currentName.left(lastDot);
+        if (lastDot > 0) {
+            currentName = currentName.left(lastDot);
+        }
     } else {
-        currentName = tr("Sequence %1").arg(index + 1);
+        currentName = tr("Sequence %1").arg(sequenceIndex + 1);
     }
     
     bool ok;
     QString newName = QInputDialog::getText(this, tr("Rename Sequence"),
-                                            tr("Enter new name:"),
-                                            QLineEdit::Normal, currentName, &ok);
-    
-    if (ok && !newName.isEmpty() && newName != currentName) {
-        // For now, we store name in a simple way - could extend engine API
-        // The name will be reflected in clip display
-        emit sequenceRenamed(index, newName);
+                                            tr("New name:"), QLineEdit::Normal,
+                                            currentName, &ok);
+    if (ok && !newName.isEmpty()) {
+        // Set the new name as file path (without extension for display)
+        seq->setFilePath(newName.toStdString());
         refreshFromProject();
     }
 }
 
-void ArrangementResourcePanel::deleteSequence(int index)
+void ArrangementResourcePanel::deleteSequence(int sequenceIndex)
 {
     if (!m_engine || !m_engine->getRuntimeData()) return;
     
     auto sequences = m_engine->getRuntimeData()->getSequences();
-    if (index < 0 || index >= static_cast<int>(sequences.size())) return;
+    if (sequenceIndex < 0 || sequenceIndex >= static_cast<int>(sequences.size())) return;
     
-    // Confirmation dialog
+    NoteNagaMidiSeq *seq = sequences[sequenceIndex];
+    if (!seq) return;
+    
+    // Confirm deletion
     QMessageBox::StandardButton reply = QMessageBox::question(
-        this,
-        tr("Delete Sequence"),
-        tr("Are you sure you want to delete this sequence?\n"
-           "This action cannot be undone."),
-        QMessageBox::Yes | QMessageBox::No,
-        QMessageBox::No
-    );
+        this, tr("Delete Sequence"),
+        tr("Are you sure you want to delete this sequence?\nThis action cannot be undone."),
+        QMessageBox::Yes | QMessageBox::No);
     
     if (reply == QMessageBox::Yes) {
-        NoteNagaMidiSeq *seq = sequences[index];
-        if (seq) {
-            m_engine->getRuntimeData()->removeSequence(seq);
-            emit sequenceDeleted(index);
-            refreshFromProject();
-        }
+        m_engine->getRuntimeData()->removeSequence(seq);
+        refreshFromProject();
     }
 }
