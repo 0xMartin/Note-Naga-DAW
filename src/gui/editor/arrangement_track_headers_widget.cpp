@@ -182,6 +182,33 @@ void ArrangementTrackHeadersWidget::updateTrackMeters()
             NoteNagaMidiSeq *seq = runtimeData->getSequenceById(clip.sequenceId);
             if (!seq) continue;
             
+            int seqLength = seq->getMaxTick();
+            if (seqLength <= 0) continue;
+            
+            // Calculate current sequence tick for this clip
+            int seqTick = clip.toSequenceTickLooped(static_cast<int>(currentTick), seqLength);
+            
+            // Check if any notes are currently playing in this clip's sequence tick
+            bool hasActiveNotes = false;
+            for (NoteNagaTrack *midiTrack : seq->getTracks()) {
+                if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
+                
+                // Check if any note is active at this sequence tick
+                for (const auto& note : midiTrack->getNotes()) {
+                    if (!note.start.has_value() || !note.length.has_value()) continue;
+                    int noteStart = note.start.value();
+                    int noteEnd = noteStart + note.length.value();
+                    if (seqTick >= noteStart && seqTick < noteEnd) {
+                        hasActiveNotes = true;
+                        break;
+                    }
+                }
+                if (hasActiveNotes) break;
+            }
+            
+            // Only show RMS if this clip has active notes
+            if (!hasActiveNotes) continue;
+            
             // Get RMS from all tracks in this sequence
             for (NoteNagaTrack *midiTrack : seq->getTracks()) {
                 if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
