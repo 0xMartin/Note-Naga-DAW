@@ -5,6 +5,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QSet>
 #include <QPainter>
 #include <QMouseEvent>
@@ -12,12 +13,14 @@
 #include <QLineEdit>
 #include <QMap>
 
+#include <note_naga_engine/core/types.h>
+
 class NoteNagaEngine;
 class NoteNagaArrangement;
 class NoteNagaArrangementTrack;
 struct NN_MidiClip_t;
 class ArrangementTimelineRuler;
-class TrackStereoMeter;
+class ArrangementTrackHeadersWidget;
 
 /**
  * @brief Main timeline widget for Arrangement section
@@ -78,10 +81,14 @@ public:
     // Ruler synchronization
     void setRuler(ArrangementTimelineRuler *ruler);
     
-    // Content rect (excluding track headers)
+    // Track headers widget (left side)
+    void setTrackHeadersWidget(ArrangementTrackHeadersWidget *headersWidget);
+    ArrangementTrackHeadersWidget* getTrackHeadersWidget() const { return m_trackHeadersWidget; }
+    
+    // Content rect (excluding track headers - now the full widget since headers are separate)
     QRect contentRect() const;
     
-    // Track meters
+    // Track meters - delegated to headers widget
     void updateTrackMeters();
 
 signals:
@@ -147,6 +154,16 @@ private:
     // Context menus
     void showTrackContextMenu(int trackIndex, const QPoint &globalPos);
     void showEmptyAreaContextMenu(const QPoint &globalPos);
+    void showClipContextMenu(const QPoint &globalPos);
+    
+    // Clipboard operations
+    void copySelectedClips();
+    void cutSelectedClips();
+    void pasteClips();
+    void startPasteMode();
+    void cancelPasteMode();
+    void finishPaste();
+    void drawPastePreview(QPainter &painter);
 
     NoteNagaEngine *m_engine;
     ArrangementTimelineRuler *m_ruler = nullptr;
@@ -169,7 +186,7 @@ private:
     int m_selectedTrackIndex = -1;
     
     // Interaction state
-    enum InteractionMode { None, Selecting, MovingClip, ResizingClipLeft, ResizingClipRight };
+    enum InteractionMode { None, Selecting, MovingClip, ResizingClipLeft, ResizingClipRight, PastingClips };
     InteractionMode m_interactionMode = None;
     QPoint m_dragStartPos;
     int64_t m_dragStartTick = 0;
@@ -178,6 +195,31 @@ private:
     int64_t m_originalClipStart = 0;
     int64_t m_originalClipDuration = 0;
     QRect m_selectionRect;
+    
+    // Multi-clip movement: store original positions for all selected clips
+    struct ClipOriginalState {
+        int clipId;
+        int trackIndex;
+        int64_t startTick;
+        int64_t durationTicks;
+        // Additional data for cut/paste (full clip info)
+        int sequenceId = -1;
+        int offsetTicks = 0;
+        bool muted = false;
+        std::string name;
+        NN_Color_t color;
+    };
+    QList<ClipOriginalState> m_originalClipStates;
+    int m_dragStartTrackIndex = -1;  // Track where drag started for cross-track moves
+    
+    // Clipboard for copy/cut/paste
+    QList<ClipOriginalState> m_clipboardClips;
+    int m_clipboardBaseTrack = 0;      // Lowest track index in clipboard
+    int64_t m_clipboardBaseTick = 0;   // Earliest tick in clipboard
+    
+    // Paste preview state
+    int m_pastePreviewTrack = -1;
+    int64_t m_pastePreviewTick = 0;
     
     // Drop preview
     bool m_showDropPreview = false;
@@ -189,10 +231,8 @@ private:
     QLineEdit *m_trackNameEdit = nullptr;
     int m_editingTrackIndex = -1;
     
-    // Track stereo meters (per track index)
-    QMap<int, TrackStereoMeter*> m_trackMeters;
-    void ensureTrackMetersExist();
-    void updateTrackMeterPositions();
+    // Track headers widget (separate widget containing all track headers with meters)
+    ArrangementTrackHeadersWidget *m_trackHeadersWidget = nullptr;
     
     void startTrackNameEdit(int trackIndex);
     void finishTrackNameEdit();

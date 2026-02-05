@@ -1,0 +1,71 @@
+#ifndef ARRANGEMENT_TRACK_HEADERS_WIDGET_H
+#define ARRANGEMENT_TRACK_HEADERS_WIDGET_H
+
+#include <QWidget>
+#include <QVBoxLayout>
+#include <QScrollArea>
+#include <QList>
+
+class NoteNagaEngine;
+class NoteNagaArrangementTrack;
+class ArrangementTrackHeaderWidget;
+class TrackStereoMeter;
+
+/**
+ * @brief Container widget for all track headers in the arrangement view.
+ * Provides a vertically scrollable list of track header widgets.
+ */
+class ArrangementTrackHeadersWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit ArrangementTrackHeadersWidget(NoteNagaEngine *engine, QWidget *parent = nullptr);
+    
+    void setEngine(NoteNagaEngine *engine);
+    NoteNagaEngine* getEngine() const { return m_engine; }
+    
+    void refreshFromArrangement();
+    void setVerticalOffset(int offset);
+    int getVerticalOffset() const { return m_verticalOffset; }
+    
+    void setTrackHeight(int height);
+    int getTrackHeight() const { return m_trackHeight; }
+    
+    void setSelectedTrack(int trackIndex);
+    int getSelectedTrack() const { return m_selectedTrackIndex; }
+    
+    void updateTrackMeters();
+    
+    // Get total content height
+    int contentHeight() const;
+
+signals:
+    void trackMuteToggled(int trackIndex);
+    void trackSoloToggled(int trackIndex);
+    void trackColorChangeRequested(int trackIndex);
+    void trackSelected(int trackIndex);
+    void trackNameChanged(int trackIndex, const QString &newName);
+    void deleteTrackRequested(int trackIndex);
+    void addTrackRequested();
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+
+private:
+    NoteNagaEngine *m_engine = nullptr;
+    QList<ArrangementTrackHeaderWidget*> m_headerWidgets;
+    
+    int m_trackHeight = 60;
+    int m_verticalOffset = 0;
+    int m_selectedTrackIndex = -1;
+    
+    void updateHeaderPositions();
+    void clearHeaders();
+};
+
+#endif // ARRANGEMENT_TRACK_HEADERS_WIDGET_H

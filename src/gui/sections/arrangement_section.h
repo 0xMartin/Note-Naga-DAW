@@ -13,8 +13,12 @@
 class AdvancedDockWidget;
 class ArrangementLayerManager;
 class ArrangementTimelineWidget;
+class ArrangementTrackHeadersWidget;
 class ArrangementResourcePanel;
 class ArrangementTimelineRuler;
+
+// Track header width constant (must match arrangement_timeline_widget.h)
+static const int TRACK_HEADER_WIDTH = 160;
 
 /**
  * @brief ArrangementSection provides the Arrangement/Composition view with:
@@ -61,9 +65,15 @@ private:
     // Content widgets
     ArrangementLayerManager *m_layerManager;
     ArrangementTimelineWidget *m_timeline;
+    ArrangementTrackHeadersWidget *m_trackHeaders;
     ArrangementResourcePanel *m_resourcePanel;
     ArrangementTimelineRuler *m_timelineRuler;
     QScrollBar *m_timelineScrollBar;
+    
+    // Splitter and helper widgets
+    QSplitter *m_headerTimelineSplitter = nullptr;
+    QWidget *m_headerCorner = nullptr;
+    QWidget *m_scrollbarSpacer = nullptr;
     
     // State
     bool m_layoutInitialized = false;

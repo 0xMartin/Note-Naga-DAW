@@ -62,19 +62,28 @@ void TrackStereoMeter::paintEvent(QPaintEvent* event) {
     int w = width();
     int h = height();
     
-    // Margins and spacing
-    int topMargin = 12;
-    int bottomMargin = 12;
-    int centerGap = 6;  // Gap between L and R bars
+    // Compact layout for small heights (arrangement track headers)
+    bool compactMode = (h <= 24);
     
-    // Label area width
-    int labelWidth = 14;
+    int topMargin, bottomMargin, centerGap, labelWidth;
+    if (compactMode) {
+        topMargin = 1;
+        bottomMargin = 1;
+        centerGap = 1;
+        labelWidth = 10;  // Smaller L/R labels
+    } else {
+        topMargin = 12;
+        bottomMargin = 12;
+        centerGap = 6;
+        labelWidth = 14;
+    }
+    
     int barAreaX = labelWidth;
-    int barAreaW = w - labelWidth - 4;
+    int barAreaW = w - labelWidth - 2;  // Extend closer to right edge
     
     // Two bars with gap between them
     int availableHeight = h - topMargin - bottomMargin - centerGap;
-    int barHeight = availableHeight / 2;
+    int barHeight = qMax(2, availableHeight / 2);
     int topBarY = topMargin;
     int bottomBarY = topMargin + barHeight + centerGap;
 
@@ -177,9 +186,14 @@ void TrackStereoMeter::paintEvent(QPaintEvent* event) {
     // Draw L/R labels on the left
     p.setPen(QColor("#888888"));
     QFont labelFont = font();
-    labelFont.setPointSize(9);
-    labelFont.setBold(true);
+    if (h <= 24) {
+        labelFont.setPointSize(7);
+        labelFont.setBold(false);
+    } else {
+        labelFont.setPointSize(9);
+        labelFont.setBold(true);
+    }
     p.setFont(labelFont);
-    p.drawText(1, topBarY, labelWidth - 2, barHeight, Qt::AlignVCenter | Qt::AlignRight, "L");
-    p.drawText(1, bottomBarY, labelWidth - 2, barHeight, Qt::AlignVCenter | Qt::AlignRight, "R");
+    p.drawText(0, topBarY, labelWidth - 1, barHeight, Qt::AlignVCenter | Qt::AlignRight, "L");
+    p.drawText(0, bottomBarY, labelWidth - 1, barHeight, Qt::AlignVCenter | Qt::AlignRight, "R");
 }

@@ -3,6 +3,7 @@
 #include "../dock_system/advanced_dock_widget.h"
 #include "../editor/arrangement_layer_manager.h"
 #include "../editor/arrangement_timeline_widget.h"
+#include "../editor/arrangement_track_headers_widget.h"
 #include "../editor/arrangement_resource_panel.h"
 #include "../editor/arrangement_timeline_ruler.h"
 
@@ -13,6 +14,7 @@
 #include <QScrollBar>
 #include <QSplitter>
 #include <QTimer>
+#include <QColorDialog>
 
 ArrangementSection::ArrangementSection(NoteNagaEngine *engine, QWidget *parent)
     : QMainWindow(parent), m_engine(engine)
@@ -80,22 +82,85 @@ void ArrangementSection::setupDockLayout()
     m_docks["Layers"] = layerDock;
 
     // === Timeline dock (center) ===
+    // Main container with vertical layout: top row (corner+ruler), middle (splitter), bottom (scrollbar row)
     QWidget *timelineContainer = new QWidget();
     QVBoxLayout *timelineLayout = new QVBoxLayout(timelineContainer);
     timelineLayout->setContentsMargins(0, 0, 0, 0);
     timelineLayout->setSpacing(0);
-
-    // Timeline ruler at top
+    
+    // === Top row: corner spacer + ruler ===
+    QWidget *topRow = new QWidget(this);
+    QHBoxLayout *topRowLayout = new QHBoxLayout(topRow);
+    topRowLayout->setContentsMargins(0, 0, 0, 0);
+    topRowLayout->setSpacing(0);
+    
+    // Header corner spacer (top-left, matches ruler height)
+    // Initial width includes splitter handle (4px) to align with timeline content
+    m_headerCorner = new QWidget(this);
+    m_headerCorner->setFixedHeight(30);
+    m_headerCorner->setMinimumWidth(TRACK_HEADER_WIDTH + 4);  // +4 for splitter handle
+    m_headerCorner->setStyleSheet("background-color: #1e1e24;");
+    topRowLayout->addWidget(m_headerCorner);
+    
+    // Timeline ruler at top (right of corner spacer)
     m_timelineRuler = new ArrangementTimelineRuler(m_engine, this);
     m_timelineRuler->setFixedHeight(30);
-    timelineLayout->addWidget(m_timelineRuler);
-
-    // Main timeline widget
+    topRowLayout->addWidget(m_timelineRuler, 1);
+    
+    timelineLayout->addWidget(topRow);
+    
+    // === Middle: splitter with headers and timeline ===
+    m_headerTimelineSplitter = new QSplitter(Qt::Horizontal, this);
+    m_headerTimelineSplitter->setHandleWidth(4);
+    m_headerTimelineSplitter->setStyleSheet(R"(
+        QSplitter::handle {
+            background-color: #3a3a42;
+        }
+        QSplitter::handle:hover {
+            background-color: #5a5a65;
+        }
+    )");
+    
+    // Create track headers widget (left side)
+    m_trackHeaders = new ArrangementTrackHeadersWidget(m_engine, this);
+    m_trackHeaders->setMinimumWidth(120);
+    m_headerTimelineSplitter->addWidget(m_trackHeaders);
+    
+    // Main timeline widget (right side)
     m_timeline = new ArrangementTimelineWidget(m_engine, this);
     m_timeline->setMinimumWidth(300);
     m_timeline->setMinimumHeight(200);
-    timelineLayout->addWidget(m_timeline, 1);
-
+    m_timeline->setTrackHeadersWidget(m_trackHeaders);  // Connect headers widget
+    m_headerTimelineSplitter->addWidget(m_timeline);
+    
+    // Set initial splitter sizes (headers: 160, timeline: stretch)
+    m_headerTimelineSplitter->setSizes({TRACK_HEADER_WIDTH, 600});
+    m_headerTimelineSplitter->setStretchFactor(0, 0);  // Headers don't stretch
+    m_headerTimelineSplitter->setStretchFactor(1, 1);  // Timeline stretches
+    
+    // Connect splitter to update corner width (account for splitter handle width)
+    connect(m_headerTimelineSplitter, &QSplitter::splitterMoved, this, [this](int pos, int index) {
+        Q_UNUSED(index);
+        // Add splitter handle width to align ruler with timeline content
+        int handleWidth = m_headerTimelineSplitter->handleWidth();
+        m_headerCorner->setFixedWidth(pos + handleWidth);
+        m_scrollbarSpacer->setFixedWidth(pos + handleWidth);
+    });
+    
+    timelineLayout->addWidget(m_headerTimelineSplitter, 1);
+    
+    // === Bottom row: scrollbar spacer + scrollbar ===
+    QWidget *bottomRow = new QWidget(this);
+    QHBoxLayout *bottomRowLayout = new QHBoxLayout(bottomRow);
+    bottomRowLayout->setContentsMargins(0, 0, 0, 0);
+    bottomRowLayout->setSpacing(0);
+    
+    m_scrollbarSpacer = new QWidget(this);
+    m_scrollbarSpacer->setFixedWidth(TRACK_HEADER_WIDTH + 4);  // +4 for splitter handle
+    m_scrollbarSpacer->setFixedHeight(14);
+    m_scrollbarSpacer->setStyleSheet("background-color: #1e1e24;");
+    bottomRowLayout->addWidget(m_scrollbarSpacer);
+    
     // Horizontal scrollbar for timeline
     m_timelineScrollBar = new QScrollBar(Qt::Horizontal, this);
     m_timelineScrollBar->setStyleSheet(R"(
@@ -120,7 +185,9 @@ void ArrangementSection::setupDockLayout()
             background: none;
         }
     )");
-    timelineLayout->addWidget(m_timelineScrollBar);
+    bottomRowLayout->addWidget(m_timelineScrollBar, 1);
+    
+    timelineLayout->addWidget(bottomRow);
 
     QFrame *editorContainer = new QFrame();
     editorContainer->setObjectName("TimelineContainer");
@@ -175,6 +242,57 @@ void ArrangementSection::connectSignals()
                 this, &ArrangementSection::onArrangementChanged);
         connect(m_layerManager, &ArrangementLayerManager::tracksReordered,
                 this, &ArrangementSection::onArrangementChanged);
+    }
+    
+    // Connect track headers widget
+    if (m_trackHeaders) {
+        connect(m_trackHeaders, &ArrangementTrackHeadersWidget::addTrackRequested, this, [this]() {
+            if (!m_engine || !m_engine->getRuntimeData()) return;
+            NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+            if (!arrangement) return;
+            QString name = tr("Track %1").arg(arrangement->getTrackCount() + 1);
+            arrangement->addTrack(name.toStdString());
+            onArrangementChanged();
+        });
+        
+        // Connect track selection
+        connect(m_trackHeaders, &ArrangementTrackHeadersWidget::trackSelected, this, [this](int trackIndex) {
+            m_trackHeaders->setSelectedTrack(trackIndex);
+        });
+        
+        // Connect track deletion
+        connect(m_trackHeaders, &ArrangementTrackHeadersWidget::deleteTrackRequested, this, [this](int trackIndex) {
+            if (!m_engine || !m_engine->getRuntimeData()) return;
+            NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+            if (!arrangement) return;
+            
+            auto tracks = arrangement->getTracks();
+            if (trackIndex < 0 || trackIndex >= static_cast<int>(tracks.size())) return;
+            
+            // Remove the track
+            arrangement->removeTrack(trackIndex);
+            m_trackHeaders->setSelectedTrack(-1);  // Clear selection
+            onArrangementChanged();
+        });
+        
+        // Connect color change request to show color dialog
+        connect(m_trackHeaders, &ArrangementTrackHeadersWidget::trackColorChangeRequested, this, [this](int trackIndex) {
+            if (!m_engine || !m_engine->getRuntimeData()) return;
+            NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+            if (!arrangement) return;
+            auto tracks = arrangement->getTracks();
+            if (trackIndex < 0 || trackIndex >= static_cast<int>(tracks.size())) return;
+            
+            NoteNagaArrangementTrack *track = tracks[trackIndex];
+            if (!track) return;
+            
+            QColor currentColor = track->getColor().toQColor();
+            QColor newColor = QColorDialog::getColor(currentColor, this, tr("Select Track Color"));
+            if (newColor.isValid()) {
+                track->setColor(NN_Color_t::fromQColor(newColor));
+                onArrangementChanged();
+            }
+        });
     }
     
     // Connect scrollbar to timeline

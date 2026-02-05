@@ -13,7 +13,7 @@
             "externalConsole": false,
             "MIMode": "lldb",
             "preLaunchTask": "CMake: build",
-            "visualizerFile": "/Users/martin/Library/Application Support/Code/User/workspaceStorage/6ca254dc205ba6a3a83dbbeebb32b3ff/tonka3000.qtvsctools/qt.natvis.xml"
+            "visualizerFile": "/Users/martin/Library/Application Support/Code/User/workspaceStorage/5d87707fcf7c81a1ae69cf39d3059789/tonka3000.qtvsctools/qt.natvis.xml"
         }
     ]
 }

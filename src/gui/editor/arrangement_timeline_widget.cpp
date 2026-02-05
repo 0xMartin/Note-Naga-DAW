@@ -1,5 +1,6 @@
 #include "arrangement_timeline_widget.h"
 #include "arrangement_timeline_ruler.h"
+#include "arrangement_track_headers_widget.h"
 #include "../components/track_stereo_meter.h"
 
 #include <note_naga_engine/note_naga_engine.h>
@@ -32,7 +33,8 @@ ArrangementTimelineWidget::ArrangementTimelineWidget(NoteNagaEngine *engine, QWi
 
 QRect ArrangementTimelineWidget::contentRect() const
 {
-    return QRect(TRACK_HEADER_WIDTH, 0, width() - TRACK_HEADER_WIDTH, height());
+    // The entire widget is now content area since headers are in a separate widget
+    return rect();
 }
 
 void ArrangementTimelineWidget::setPixelsPerTick(double ppTick)
@@ -77,7 +79,10 @@ void ArrangementTimelineWidget::setVerticalOffset(int offset)
     
     if (m_verticalOffset != offset) {
         m_verticalOffset = offset;
-        updateTrackMeterPositions();
+        // Sync vertical offset with headers widget
+        if (m_trackHeadersWidget) {
+            m_trackHeadersWidget->setVerticalOffset(m_verticalOffset);
+        }
         update();
     }
 }
@@ -158,114 +163,29 @@ void ArrangementTimelineWidget::refreshFromArrangement()
             arrangement->addTrack("Track 1");
         }
     }
-    ensureTrackMetersExist();
-    updateTrackMeterPositions();
+    // Refresh track headers widget if connected
+    if (m_trackHeadersWidget) {
+        m_trackHeadersWidget->refreshFromArrangement();
+    }
     update();
 }
 
-void ArrangementTimelineWidget::ensureTrackMetersExist()
+void ArrangementTimelineWidget::setTrackHeadersWidget(ArrangementTrackHeadersWidget *headersWidget)
 {
-    if (!m_engine || !m_engine->getRuntimeData()) return;
-    
-    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
-    if (!arrangement) return;
-    
-    int trackCount = static_cast<int>(arrangement->getTrackCount());
-    
-    // Remove meters for tracks that no longer exist
-    QList<int> toRemove;
-    for (auto it = m_trackMeters.begin(); it != m_trackMeters.end(); ++it) {
-        if (it.key() >= trackCount) {
-            toRemove.append(it.key());
-        }
-    }
-    for (int idx : toRemove) {
-        delete m_trackMeters.take(idx);
-    }
-    
-    // Create meters for new tracks
-    for (int i = 0; i < trackCount; ++i) {
-        if (!m_trackMeters.contains(i)) {
-            TrackStereoMeter *meter = new TrackStereoMeter(this, -70, 0);
-            meter->setFixedSize(TRACK_HEADER_WIDTH - 16, 12);
-            m_trackMeters[i] = meter;
-        }
-    }
-}
-
-void ArrangementTimelineWidget::updateTrackMeterPositions()
-{
-    for (auto it = m_trackMeters.begin(); it != m_trackMeters.end(); ++it) {
-        int trackIndex = it.key();
-        TrackStereoMeter *meter = it.value();
-        
-        int y = trackIndexToY(trackIndex);
-        // Position meter at bottom of track header, with padding
-        // Leave space for buttons at top (name area ~22px, buttons ~24px, then meter)
-        int meterY = y + m_trackHeight - 16; // 4px padding from bottom
-        
-        meter->move(8, meterY);
-        
-        // Hide if scrolled out of view
-        bool visible = (y + m_trackHeight > 0) && (y < height());
-        meter->setVisible(visible);
+    m_trackHeadersWidget = headersWidget;
+    if (m_trackHeadersWidget) {
+        m_trackHeadersWidget->setEngine(m_engine);
+        m_trackHeadersWidget->setTrackHeight(m_trackHeight);
+        m_trackHeadersWidget->setVerticalOffset(m_verticalOffset);
+        m_trackHeadersWidget->refreshFromArrangement();
     }
 }
 
 void ArrangementTimelineWidget::updateTrackMeters()
 {
-    if (!m_engine) return;
-    
-    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
-    if (!dspEngine) return;
-    
-    NoteNagaRuntimeData *runtimeData = m_engine->getRuntimeData();
-    if (!runtimeData) return;
-    
-    NoteNagaArrangement *arrangement = runtimeData->getArrangement();
-    if (!arrangement) return;
-    
-    int64_t currentTick = runtimeData->getCurrentArrangementTick();
-    auto tracks = arrangement->getTracks();
-    
-    for (auto it = m_trackMeters.begin(); it != m_trackMeters.end(); ++it) {
-        int trackIndex = it.key();
-        TrackStereoMeter *meter = it.value();
-        
-        if (trackIndex >= static_cast<int>(tracks.size()) || !tracks[trackIndex]) {
-            meter->reset();
-            continue;
-        }
-        
-        NoteNagaArrangementTrack *arrTrack = tracks[trackIndex];
-        if (arrTrack->isMuted()) {
-            meter->reset();
-            continue;
-        }
-        
-        // Aggregate RMS from all active clips on this track
-        float maxLeftDb = -100.0f;
-        float maxRightDb = -100.0f;
-        
-        for (const auto& clip : arrTrack->getClips()) {
-            if (clip.muted) continue;
-            if (!clip.containsTick(static_cast<int>(currentTick))) continue;
-            
-            // Get the referenced sequence
-            NoteNagaMidiSeq *seq = runtimeData->getSequenceById(clip.sequenceId);
-            if (!seq) continue;
-            
-            // Get RMS from all tracks in this sequence
-            for (NoteNagaTrack *midiTrack : seq->getTracks()) {
-                if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
-                
-                auto rms = dspEngine->getTrackVolumeDb(midiTrack);
-                maxLeftDb = std::max(maxLeftDb, rms.first);
-                maxRightDb = std::max(maxRightDb, rms.second);
-            }
-        }
-        
-        meter->setVolumesDb(maxLeftDb, maxRightDb);
+    // Delegate to the track headers widget
+    if (m_trackHeadersWidget) {
+        m_trackHeadersWidget->updateTrackMeters();
     }
 }
 
@@ -282,18 +202,17 @@ void ArrangementTimelineWidget::setRuler(ArrangementTimelineRuler *ruler)
     }
 }
 
-// Coordinate conversion (x coordinates offset by track header width)
+// Coordinate conversion (now simpler since headers are in a separate widget)
 int64_t ArrangementTimelineWidget::xToTick(int x) const
 {
-    // Subtract header width since content starts after headers
-    int contentX = x - TRACK_HEADER_WIDTH;
-    return static_cast<int64_t>((contentX + m_horizontalOffset) / m_pixelsPerTick);
+    // Content starts at x=0 since headers are in separate widget
+    return static_cast<int64_t>((x + m_horizontalOffset) / m_pixelsPerTick);
 }
 
 int ArrangementTimelineWidget::tickToX(int64_t tick) const
 {
-    // Add header width since content starts after headers
-    return TRACK_HEADER_WIDTH + static_cast<int>(tick * m_pixelsPerTick) - m_horizontalOffset;
+    // Content starts at x=0 since headers are in separate widget
+    return static_cast<int>(tick * m_pixelsPerTick) - m_horizontalOffset;
 }
 
 int ArrangementTimelineWidget::yToTrackIndex(int y) const
@@ -308,7 +227,9 @@ int ArrangementTimelineWidget::trackIndexToY(int trackIndex) const
 
 bool ArrangementTimelineWidget::isInHeaderArea(const QPoint &pos) const
 {
-    return pos.x() < TRACK_HEADER_WIDTH;
+    // Headers are now in a separate widget, so nothing in this widget is "header area"
+    Q_UNUSED(pos);
+    return false;
 }
 
 int ArrangementTimelineWidget::headerTrackAtY(int y) const
@@ -473,13 +394,14 @@ void ArrangementTimelineWidget::drawTrackHeaders(QPainter &painter)
             trackName = tr("Track %1").arg(i + 1);
         }
         
-        QRect nameRect(8, y + 4, TRACK_HEADER_WIDTH - 80, m_trackHeight - 8);
+        // Track name in top portion, leaving space for meter at bottom (14px meter + 4px padding)
+        QRect nameRect(8, y + 2, TRACK_HEADER_WIDTH - 80, 20);
         painter.drawText(nameRect, Qt::AlignLeft | Qt::AlignVCenter, 
                          painter.fontMetrics().elidedText(trackName, Qt::ElideRight, nameRect.width()));
         
-        // Buttons: Color, Mute, Solo (right side)
+        // Buttons: Color, Mute, Solo (right side, positioned higher to not overlap meter)
         int buttonsX = TRACK_HEADER_WIDTH - (3 * (HEADER_BUTTON_SIZE + HEADER_BUTTON_PADDING));
-        int buttonY = y + (m_trackHeight - HEADER_BUTTON_SIZE) / 2;
+        int buttonY = y + 22;  // Position buttons below track name
         
         // Color button
         QRect colorBtnRect(buttonsX, buttonY, HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE);
@@ -518,36 +440,34 @@ void ArrangementTimelineWidget::drawTrackLanes(QPainter &painter)
 
     int trackCount = static_cast<int>(arrangement->getTrackCount());
     
-    // If no tracks, draw a hint/placeholder in content area
+    // If no tracks, draw a hint/placeholder
     if (trackCount == 0) {
-        QRect contentArea = contentRect();
-        painter.fillRect(contentArea, QColor("#1a1a20"));
+        painter.fillRect(rect(), QColor("#1a1a20"));
         painter.setPen(QColor("#555555"));
         QFont font = painter.font();
         font.setPointSize(11);
         painter.setFont(font);
-        painter.drawText(contentArea, Qt::AlignCenter, tr("Drag a MIDI sequence here to create a track"));
+        painter.drawText(rect(), Qt::AlignCenter, tr("Drag a MIDI sequence here to create a track"));
         return;
     }
     
-    // Draw track lanes in content area only
+    // Draw track lanes (headers are now in separate widget)
     for (int i = 0; i < trackCount; ++i) {
         int y = trackIndexToY(i);
         
-        // Alternating background - only in content area
+        // Alternating background
         QColor bgColor = (i % 2 == 0) ? QColor("#1a1a20") : QColor("#1e1e24");
-        painter.fillRect(TRACK_HEADER_WIDTH, y, width() - TRACK_HEADER_WIDTH, m_trackHeight, bgColor);
+        painter.fillRect(0, y, width(), m_trackHeight, bgColor);
         
         // Track separator
         painter.setPen(QColor("#3a3a42"));
-        painter.drawLine(TRACK_HEADER_WIDTH, y + m_trackHeight - 1, width(), y + m_trackHeight - 1);
+        painter.drawLine(0, y + m_trackHeight - 1, width(), y + m_trackHeight - 1);
     }
     
     // Fill remaining space below tracks
     int bottomY = trackIndexToY(trackCount);
     if (bottomY < height()) {
-        painter.fillRect(TRACK_HEADER_WIDTH, bottomY, width() - TRACK_HEADER_WIDTH, 
-                        height() - bottomY, QColor("#151518"));
+        painter.fillRect(0, bottomY, width(), height() - bottomY, QColor("#151518"));
     }
 }
 
@@ -754,15 +674,14 @@ void ArrangementTimelineWidget::paintEvent(QPaintEvent *event)
     // Background for entire widget
     painter.fillRect(rect(), QColor("#1a1a20"));
     
-    // Draw content area first (track lanes, clips, etc.)
+    // Draw content area (track lanes, clips, etc.)
+    // Note: Track headers are now in a separate ArrangementTrackHeadersWidget
     drawTrackLanes(painter);
     drawClips(painter);
     drawSelectionRect(painter);
     drawDropPreview(painter);
+    drawPastePreview(painter);
     drawPlayhead(painter);
-    
-    // Draw track headers on top (they stay fixed on the left)
-    drawTrackHeaders(painter);
 }
 
 // Mouse events
@@ -772,6 +691,17 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
     m_dragStartPos = event->pos();
     
     if (event->button() == Qt::LeftButton) {
+        // If in paste mode, finalize paste at this position
+        if (m_interactionMode == PastingClips) {
+            // Update preview position one last time
+            int64_t tick = xToTick(event->pos().x());
+            int trackIdx = yToTrackIndex(event->pos().y());
+            m_pastePreviewTick = snapTick(qMax(static_cast<int64_t>(0), tick));
+            m_pastePreviewTrack = qMax(0, trackIdx);
+            finishPaste();
+            return;
+        }
+        
         // Check if click is in header area
         if (isInHeaderArea(event->pos())) {
             int headerTrack;
@@ -830,8 +760,29 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
             m_dragClipId = clip->id;
             m_dragTrackIndex = trackIndex;
             m_dragStartTick = xToTick(event->pos().x());
+            m_dragStartTrackIndex = trackIndex;
             m_originalClipStart = clip->startTick;
             m_originalClipDuration = clip->durationTicks;
+            
+            // Store original state for ALL selected clips (for multi-clip movement)
+            m_originalClipStates.clear();
+            NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+            if (arrangement) {
+                for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+                    auto *track = arrangement->getTracks()[tIdx];
+                    if (!track) continue;
+                    for (const auto &c : track->getClips()) {
+                        if (m_selectedClipIds.contains(c.id)) {
+                            ClipOriginalState state;
+                            state.clipId = c.id;
+                            state.trackIndex = tIdx;
+                            state.startTick = c.startTick;
+                            state.durationTicks = c.durationTicks;
+                            m_originalClipStates.append(state);
+                        }
+                    }
+                }
+            }
             
             if (zone == LeftEdgeHit) {
                 m_interactionMode = ResizingClipLeft;
@@ -855,6 +806,12 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
             }
         }
     } else if (event->button() == Qt::RightButton) {
+        // Cancel paste mode if active
+        if (m_interactionMode == PastingClips) {
+            cancelPasteMode();
+            return;
+        }
+        
         // Context menu
         if (isInHeaderArea(event->pos())) {
             int trackIndex = headerTrackAtY(event->pos().y());
@@ -871,10 +828,14 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
             int trackIndex;
             NN_MidiClip_t *clip = clipAtPosition(event->pos(), trackIndex);
             if (clip) {
-                // TODO: Show clip context menu
+                // Select clip if not already selected
+                if (!m_selectedClipIds.contains(clip->id)) {
+                    selectClip(clip->id, false);
+                }
+                showClipContextMenu(event->globalPosition().toPoint());
             } else {
-                // Show add track menu for empty content area
-                showEmptyAreaContextMenu(event->globalPosition().toPoint());
+                // Show context menu for empty content area
+                showClipContextMenu(event->globalPosition().toPoint());
             }
         }
     }
@@ -900,6 +861,16 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
         }
     }
     
+    // Handle paste preview mode - update preview position on mouse move
+    if (m_interactionMode == PastingClips) {
+        int64_t tick = xToTick(event->pos().x());
+        int trackIdx = yToTrackIndex(event->pos().y());
+        m_pastePreviewTick = snapTick(qMax(static_cast<int64_t>(0), tick));
+        m_pastePreviewTrack = qMax(0, trackIdx);
+        update();
+        return;
+    }
+    
     if (!(event->buttons() & Qt::LeftButton)) {
         return;
     }
@@ -913,19 +884,43 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
         case MovingClip: {
             int64_t currentTick = xToTick(event->pos().x());
             int64_t tickDelta = currentTick - m_dragStartTick;
-            int64_t newStart = snapTick(m_originalClipStart + tickDelta);
-            newStart = qMax(static_cast<int64_t>(0), newStart);
+            int currentTrack = yToTrackIndex(event->pos().y());
+            int trackDelta = currentTrack - m_dragStartTrackIndex;
             
-            // Find and move the clip
-            for (auto *track : arrangement->getTracks()) {
-                for (auto &clip : track->getClips()) {
-                    if (clip.id == m_dragClipId) {
-                        clip.startTick = newStart;
-                        update();
-                        break;
+            // Move ALL selected clips based on delta from their original positions
+            for (const auto &origState : m_originalClipStates) {
+                // Calculate new position
+                int64_t newStart = snapTick(origState.startTick + tickDelta);
+                newStart = qMax(static_cast<int64_t>(0), newStart);
+                int newTrackIdx = qBound(0, origState.trackIndex + trackDelta, 
+                                         static_cast<int>(arrangement->getTrackCount()) - 1);
+                
+                // Find the clip in its original track
+                bool found = false;
+                for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+                    auto *track = arrangement->getTracks()[tIdx];
+                    if (!track) continue;
+                    
+                    for (int cIdx = 0; cIdx < static_cast<int>(track->getClips().size()); ++cIdx) {
+                        auto &clip = track->getClips()[cIdx];
+                        if (clip.id == origState.clipId) {
+                            // If track changed, move clip to new track
+                            if (tIdx != newTrackIdx) {
+                                NN_MidiClip_t clipCopy = clip;
+                                clipCopy.startTick = newStart;
+                                track->removeClip(clip.id);
+                                arrangement->getTracks()[newTrackIdx]->addClip(clipCopy);
+                            } else {
+                                clip.startTick = newStart;
+                            }
+                            found = true;
+                            break;
+                        }
                     }
+                    if (found) break;
                 }
             }
+            update();
             break;
         }
         
@@ -1109,8 +1104,30 @@ void ArrangementTimelineWidget::keyPressEvent(QKeyEvent *event)
             }
             break;
             
+        case Qt::Key_C:
+            if (event->modifiers() & Qt::ControlModifier) {
+                copySelectedClips();
+            }
+            break;
+            
+        case Qt::Key_X:
+            if (event->modifiers() & Qt::ControlModifier) {
+                cutSelectedClips();
+            }
+            break;
+            
+        case Qt::Key_V:
+            if (event->modifiers() & Qt::ControlModifier) {
+                startPasteMode();
+            }
+            break;
+            
         case Qt::Key_Escape:
-            clearSelection();
+            if (m_interactionMode == PastingClips) {
+                cancelPasteMode();
+            } else {
+                clearSelection();
+            }
             break;
             
         default:
@@ -1171,7 +1188,7 @@ void ArrangementTimelineWidget::dropEvent(QDropEvent *event)
 void ArrangementTimelineWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-    updateTrackMeterPositions();
+    // Headers widget handles its own sizing via the parent layout
 }
 void ArrangementTimelineWidget::showTrackContextMenu(int trackIndex, const QPoint &globalPos)
 {
@@ -1247,6 +1264,216 @@ void ArrangementTimelineWidget::showEmptyAreaContextMenu(const QPoint &globalPos
         arrangement->addTrack(name.toStdString());
         update();
     }
+}
+
+void ArrangementTimelineWidget::showClipContextMenu(const QPoint &globalPos)
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    QMenu menu(this);
+    
+    bool hasSelection = !m_selectedClipIds.isEmpty();
+    bool hasClipboard = !m_clipboardClips.isEmpty();
+    
+    QAction *copyAction = menu.addAction(tr("Copy"));
+    copyAction->setShortcut(QKeySequence::Copy);
+    copyAction->setEnabled(hasSelection);
+    
+    QAction *cutAction = menu.addAction(tr("Cut"));
+    cutAction->setShortcut(QKeySequence::Cut);
+    cutAction->setEnabled(hasSelection);
+    
+    QAction *pasteAction = menu.addAction(tr("Paste"));
+    pasteAction->setShortcut(QKeySequence::Paste);
+    pasteAction->setEnabled(hasClipboard);
+    
+    menu.addSeparator();
+    
+    QAction *duplicateAction = menu.addAction(tr("Duplicate"));
+    duplicateAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+    duplicateAction->setEnabled(hasSelection);
+    
+    QAction *deleteAction = menu.addAction(tr("Delete"));
+    deleteAction->setShortcut(QKeySequence::Delete);
+    deleteAction->setEnabled(hasSelection);
+    
+    menu.addSeparator();
+    
+    QAction *selectAllAction = menu.addAction(tr("Select All"));
+    selectAllAction->setShortcut(QKeySequence::SelectAll);
+    
+    QAction *selected = menu.exec(globalPos);
+    
+    if (selected == copyAction) {
+        copySelectedClips();
+    } else if (selected == cutAction) {
+        cutSelectedClips();
+    } else if (selected == pasteAction) {
+        startPasteMode();
+    } else if (selected == duplicateAction) {
+        copySelectedClips();
+        // Paste immediately at offset
+        for (auto &clipState : m_clipboardClips) {
+            clipState.startTick += 480; // Offset by 1 beat
+        }
+        finishPaste();
+    } else if (selected == deleteAction) {
+        deleteSelectedClips();
+    } else if (selected == selectAllAction) {
+        for (auto *track : arrangement->getTracks()) {
+            for (const auto &clip : track->getClips()) {
+                m_selectedClipIds.insert(clip.id);
+            }
+        }
+        update();
+        emit selectionChanged();
+    }
+}
+
+void ArrangementTimelineWidget::copySelectedClips()
+{
+    if (m_selectedClipIds.isEmpty()) return;
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    m_clipboardClips.clear();
+    m_clipboardBaseTick = INT64_MAX;
+    m_clipboardBaseTrack = INT_MAX;
+    
+    // Collect all selected clips with full data
+    for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+        auto *track = arrangement->getTracks()[tIdx];
+        if (!track) continue;
+        
+        for (const auto &clip : track->getClips()) {
+            if (m_selectedClipIds.contains(clip.id)) {
+                ClipOriginalState state;
+                state.clipId = clip.id;
+                state.trackIndex = tIdx;
+                state.startTick = clip.startTick;
+                state.durationTicks = clip.durationTicks;
+                // Store full clip data for cut operation support
+                state.sequenceId = clip.sequenceId;
+                state.offsetTicks = clip.offsetTicks;
+                state.muted = clip.muted;
+                state.name = clip.name;
+                state.color = clip.color;
+                m_clipboardClips.append(state);
+                
+                m_clipboardBaseTick = qMin(m_clipboardBaseTick, static_cast<int64_t>(clip.startTick));
+                m_clipboardBaseTrack = qMin(m_clipboardBaseTrack, tIdx);
+            }
+        }
+    }
+}
+
+void ArrangementTimelineWidget::cutSelectedClips()
+{
+    copySelectedClips();
+    deleteSelectedClips();
+}
+
+void ArrangementTimelineWidget::startPasteMode()
+{
+    if (m_clipboardClips.isEmpty()) return;
+    
+    m_interactionMode = PastingClips;
+    m_pastePreviewTrack = 0;
+    m_pastePreviewTick = 0;
+    setCursor(Qt::CrossCursor);
+    setMouseTracking(true);
+    update();
+}
+
+void ArrangementTimelineWidget::cancelPasteMode()
+{
+    m_interactionMode = None;
+    m_pastePreviewTrack = -1;
+    m_pastePreviewTick = 0;
+    setCursor(Qt::ArrowCursor);
+    update();
+}
+
+void ArrangementTimelineWidget::finishPaste()
+{
+    if (m_clipboardClips.isEmpty()) return;
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    // Calculate offset from original clipboard position to paste position
+    int64_t tickOffset = m_pastePreviewTick - m_clipboardBaseTick;
+    int trackOffset = m_pastePreviewTrack - m_clipboardBaseTrack;
+    
+    // Clear selection for new clips
+    m_selectedClipIds.clear();
+    
+    // Create new clips from clipboard
+    for (const auto &clipState : m_clipboardClips) {
+        // Calculate target track
+        int targetTrackIdx = qBound(0, clipState.trackIndex + trackOffset, 
+                                    static_cast<int>(arrangement->getTrackCount()) - 1);
+        auto *targetTrack = arrangement->getTracks()[targetTrackIdx];
+        if (!targetTrack) continue;
+        
+        // Create new clip from stored state (works for both copy and cut)
+        NN_MidiClip_t newClip;
+        newClip.sequenceId = clipState.sequenceId;
+        newClip.startTick = clipState.startTick + tickOffset;
+        newClip.durationTicks = clipState.durationTicks;
+        newClip.offsetTicks = clipState.offsetTicks;
+        newClip.muted = clipState.muted;
+        newClip.name = clipState.name;
+        newClip.color = clipState.color;
+        
+        targetTrack->addClip(newClip);
+        m_selectedClipIds.insert(newClip.id);
+    }
+    
+    m_interactionMode = None;
+    m_pastePreviewTrack = -1;
+    m_pastePreviewTick = 0;
+    setCursor(Qt::ArrowCursor);
+    update();
+    emit selectionChanged();
+}
+
+void ArrangementTimelineWidget::drawPastePreview(QPainter &painter)
+{
+    if (m_interactionMode != PastingClips || m_clipboardClips.isEmpty()) return;
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    int64_t tickOffset = m_pastePreviewTick - m_clipboardBaseTick;
+    int trackOffset = m_pastePreviewTrack - m_clipboardBaseTrack;
+    
+    painter.setOpacity(0.5);
+    
+    for (const auto &clipState : m_clipboardClips) {
+        int targetTrackIdx = qBound(0, clipState.trackIndex + trackOffset, 
+                                    static_cast<int>(arrangement->getTrackCount()) - 1);
+        int64_t targetTick = clipState.startTick + tickOffset;
+        
+        int x = tickToX(targetTick);
+        int y = trackIndexToY(targetTrackIdx);
+        int w = static_cast<int>(clipState.durationTicks * m_pixelsPerTick);
+        int h = m_trackHeight - 4;
+        
+        // Ghost clip rectangle
+        painter.fillRect(x, y + 2, w, h, QColor(100, 149, 237, 128)); // Cornflower blue
+        painter.setPen(QPen(QColor(100, 149, 237), 2, Qt::DashLine));
+        painter.drawRect(x, y + 2, w, h);
+    }
+    
+    painter.setOpacity(1.0);
 }
 
 // === Inline Track Name Editing ===

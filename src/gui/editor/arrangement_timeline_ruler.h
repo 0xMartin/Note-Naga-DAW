@@ -12,7 +12,7 @@ class NoteNagaEngine;
  * 
  * Displays time markers in bars:beats format or seconds/minutes.
  * Supports click-to-seek and time signature display.
- * Has a left margin that aligns with the track header column.
+ * Now a standalone widget that aligns with ArrangementTimelineWidget.
  */
 class ArrangementTimelineRuler : public QWidget
 {
@@ -23,9 +23,6 @@ public:
         BarsBeats,
         Seconds
     };
-    
-    // Must match ArrangementTimelineWidget::TRACK_HEADER_WIDTH
-    static constexpr int LEFT_MARGIN = 160;
 
     explicit ArrangementTimelineRuler(NoteNagaEngine *engine, QWidget *parent = nullptr);
 
