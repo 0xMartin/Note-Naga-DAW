@@ -72,6 +72,7 @@ private slots:
     void onRemoveTrack();
     void onClearTracks();
     void onReloadTracks();
+    void onReloadAllSoundFonts();
     void onDuplicateTrack();
     void onMoveTrackUp();
     void onMoveTrackDown();

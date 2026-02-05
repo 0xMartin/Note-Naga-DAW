@@ -3,6 +3,8 @@
 #include "../dialogs/instrument_selector_dialog.h"
 #include "../nn_gui_utils.h"
 #include "note_naga_engine/core/types.h"
+#include "note_naga_engine/synth/synth_fluidsynth.h"
+#include <QFileDialog>
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -53,11 +55,15 @@ void TrackListWidget::initTitleUI() {
   QPushButton *btn_reload = create_small_button(
       ":/icons/reload.svg", "Reload Tracks from MIDI", "ReloadButton");
 
+  QPushButton *btn_reload_sf = create_small_button(
+      ":/icons/audio-signal.svg", "Set SoundFont for all tracks", "SetGlobalSFButton");
+
   layout->addWidget(btn_add, 0, Qt::AlignRight);
   layout->addWidget(btn_add_tempo, 0, Qt::AlignRight);
   layout->addWidget(btn_remove, 0, Qt::AlignRight);
   layout->addWidget(btn_clear, 0, Qt::AlignRight);
   layout->addWidget(btn_reload, 0, Qt::AlignRight);
+  layout->addWidget(btn_reload_sf, 0, Qt::AlignRight);
 
   connect(btn_add, &QPushButton::clicked, this, &TrackListWidget::onAddTrack);
   connect(btn_add_tempo, &QPushButton::clicked, this, &TrackListWidget::onAddTempoTrack);
@@ -67,6 +73,8 @@ void TrackListWidget::initTitleUI() {
           &TrackListWidget::onClearTracks);
   connect(btn_reload, &QPushButton::clicked, this,
           &TrackListWidget::onReloadTracks);
+  connect(btn_reload_sf, &QPushButton::clicked, this,
+          &TrackListWidget::onReloadAllSoundFonts);
 }
 
 void TrackListWidget::initUI() {
@@ -324,6 +332,50 @@ void TrackListWidget::onReloadTracks() {
       QMessageBox::Yes) {
     seq->loadFromMidi(seq->getFilePath());
   }
+}
+
+void TrackListWidget::onReloadAllSoundFonts() {
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
+  if (!seq) {
+    QMessageBox::warning(this, tr("No Active Sequence"),
+                         tr("Please load a MIDI file first."));
+    return;
+  }
+
+  // Open file dialog to select SoundFont
+  QString sfPath = QFileDialog::getOpenFileName(
+      this,
+      tr("Select SoundFont for All Tracks"),
+      QString(),
+      tr("SoundFont Files (*.sf2 *.sf3 *.SF2 *.SF3);;All Files (*)")
+  );
+
+  if (sfPath.isEmpty()) {
+    return; // User cancelled
+  }
+
+  int updatedCount = 0;
+  int failedCount = 0;
+
+  for (auto *track : seq->getTracks()) {
+    if (!track) continue;
+    
+    NoteNagaSynthFluidSynth *fluidSynth = 
+        dynamic_cast<NoteNagaSynthFluidSynth*>(track->getSynth());
+    if (!fluidSynth) continue;
+    
+    if (fluidSynth->setSoundFont(sfPath.toStdString())) {
+      updatedCount++;
+    } else {
+      failedCount++;
+    }
+  }
+
+  QString msg = tr("Updated SoundFont on %1 track(s).").arg(updatedCount);
+  if (failedCount > 0) {
+    msg += tr("\n%1 track(s) failed to update.").arg(failedCount);
+  }
+  QMessageBox::information(this, tr("SoundFont Update"), msg);
 }
 
 void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoint &globalPos) {
