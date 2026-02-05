@@ -1,4 +1,7 @@
 #include "section_switcher.h"
+#include "../components/track_stereo_meter.h"
+#include <note_naga_engine/note_naga_engine.h>
+#include <note_naga_engine/module/dsp_engine.h>
 
 #include <QStyle>
 
@@ -10,9 +13,9 @@ SectionButton::SectionButton(const QIcon &icon, const QString &text, QWidget *pa
     setIcon(icon);
     setText(text);
     setCheckable(true);
-    setIconSize(QSize(24, 24));
-    setMinimumHeight(48);
-    setMinimumWidth(140);
+    setIconSize(QSize(32, 32));
+    setMinimumHeight(40);
+    setMinimumWidth(130);
     
     // DaVinci Resolve-like styling - matching app theme
     setStyleSheet(R"(
@@ -21,7 +24,7 @@ SectionButton::SectionButton(const QIcon &icon, const QString &text, QWidget *pa
             color: #aaaaaa;
             border: none;
             border-radius: 4px;
-            padding: 10px 20px;
+            padding: 6px 16px;
             font-size: 12px;
             font-weight: 600;
             text-align: center;
@@ -46,8 +49,9 @@ SectionButton::SectionButton(const QIcon &icon, const QString &text, QWidget *pa
 
 // === SectionSwitcher implementation ===
 
-SectionSwitcher::SectionSwitcher(QWidget *parent)
-    : QWidget(parent), m_currentSection(AppSection::Project)
+SectionSwitcher::SectionSwitcher(NoteNagaEngine *engine, QWidget *parent)
+    : QWidget(parent), m_engine(engine), m_currentSection(AppSection::Project),
+      m_globalMeter(nullptr), m_meterTimer(nullptr)
 {
     setupUi();
 }
@@ -60,6 +64,23 @@ void SectionSwitcher::setupUi()
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
+
+    // Create global stereo meter on the left
+    m_globalMeter = new TrackStereoMeter(this);
+    m_globalMeter->setMinimumWidth(100);
+    m_globalMeter->setMaximumWidth(140);
+    m_globalMeter->setFixedHeight(48);
+    layout->addWidget(m_globalMeter);
+
+    // Setup meter update timer
+    m_meterTimer = new QTimer(this);
+    connect(m_meterTimer, &QTimer::timeout, this, [this]() {
+        if (m_engine && m_engine->getDSPEngine()) {
+            auto dbs = m_engine->getDSPEngine()->getCurrentVolumeDb();
+            m_globalMeter->setVolumesDb(dbs.first, dbs.second);
+        }
+    });
+    m_meterTimer->start(50);
 
     m_buttonGroup = new QButtonGroup(this);
     m_buttonGroup->setExclusive(true);
@@ -91,6 +112,14 @@ void SectionSwitcher::setupUi()
 
     // Add stretch after buttons to center them
     layout->addStretch();
+
+    // Add invisible spacer on the right to balance the meter on the left
+    QWidget *rightSpacer = new QWidget(this);
+    rightSpacer->setStyleSheet("background: transparent;");
+    rightSpacer->setMinimumWidth(100);
+    rightSpacer->setMaximumWidth(140);
+    rightSpacer->setFixedHeight(48);
+    layout->addWidget(rightSpacer);
 
     // Set default checked button
     if (!m_buttons.isEmpty()) {

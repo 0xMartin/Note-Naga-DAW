@@ -277,7 +277,7 @@ void MainWindow::setup_sections() {
     m_sectionStack->addWidget(m_notationSection);    // index 4 - Notation
     
     // Create section switcher (bottom bar)
-    m_sectionSwitcher = new SectionSwitcher(this);
+    m_sectionSwitcher = new SectionSwitcher(engine, this);
     connect(m_sectionSwitcher, &SectionSwitcher::sectionChanged, 
             this, &MainWindow::onSectionChanged);
     

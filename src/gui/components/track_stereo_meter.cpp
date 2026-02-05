@@ -6,7 +6,7 @@
 TrackStereoMeter::TrackStereoMeter(QWidget* parent, int minDb, int maxDb)
     : QWidget(parent), minDb_(minDb), maxDb_(maxDb) {
     setMinimumHeight(22);
-    setMaximumHeight(56);
+    setMaximumHeight(72);
     setAttribute(Qt::WA_TranslucentBackground);
     leftPeakTimer_.start();
     rightPeakTimer_.start();
@@ -177,7 +177,7 @@ void TrackStereoMeter::paintEvent(QPaintEvent* event) {
     // Draw L/R labels on the left
     p.setPen(QColor("#888888"));
     QFont labelFont = font();
-    labelFont.setPointSize(7);
+    labelFont.setPointSize(9);
     labelFont.setBold(true);
     p.setFont(labelFont);
     p.drawText(1, topBarY, labelWidth - 2, barHeight, Qt::AlignVCenter | Qt::AlignRight, "L");

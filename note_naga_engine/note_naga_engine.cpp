@@ -23,14 +23,15 @@ NoteNagaEngine::NoteNagaEngine()
 NoteNagaEngine::~NoteNagaEngine() {
     if (playback_worker) playback_worker->stop();
 
-    if (dsp_engine) {
-        delete dsp_engine;
-        dsp_engine = nullptr;
-    }
-
+    // Audio worker must be deleted BEFORE dsp_engine because it uses dsp_engine in callback
     if (audio_worker) {
         delete audio_worker;
         audio_worker = nullptr;
+    }
+
+    if (dsp_engine) {
+        delete dsp_engine;
+        dsp_engine = nullptr;
     }
 
     if (playback_worker) {
@@ -243,10 +244,17 @@ void NoteNagaEngine::soloTrack(NoteNagaTrack *track, bool solo) {
         track->setSolo(solo);
         // Update solo track in sequence
         if (runtime_data && runtime_data->getActiveSequence()) {
+            NoteNagaMidiSeq* seq = runtime_data->getActiveSequence();
             if (solo) {
-                runtime_data->getActiveSequence()->setSoloTrack(track);
-            } else if (runtime_data->getActiveSequence()->getSoloTrack() == track) {
-                runtime_data->getActiveSequence()->setSoloTrack(nullptr);
+                seq->setSoloTrack(track);
+                // Stop all notes on other tracks (they should not play during solo)
+                for (NoteNagaTrack* otherTrack : seq->getTracks()) {
+                    if (otherTrack && otherTrack != track) {
+                        otherTrack->stopAllNotes();
+                    }
+                }
+            } else if (seq->getSoloTrack() == track) {
+                seq->setSoloTrack(nullptr);
             }
         }
     } else {

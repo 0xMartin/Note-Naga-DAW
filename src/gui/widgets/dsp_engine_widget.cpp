@@ -84,6 +84,8 @@ void DSPEngineWidget::initTitleUI() {
 }
 
 void DSPEngineWidget::updateSynthesizerSelector() {
+    if (!engine) return;
+    
     synth_selector->blockSignals(true);
     
     // Remember current selection by data pointer
@@ -100,19 +102,24 @@ void DSPEngineWidget::updateSynthesizerSelector() {
     synth_selector->addItem("Master", QVariant::fromValue(nullptr));
     
     // Add tracks from active sequence (format: "id : track name")
-    if (auto* runtimeData = engine->getRuntimeData()) {
-        if (auto* seq = runtimeData->getActiveSequence()) {
-            for (auto* track : seq->getTracks()) {
-                if (!track || track->isTempoTrack()) continue;
-                
-                INoteNagaSoftSynth* softSynth = track->getSoftSynth();
-                if (!softSynth) continue;
-                
-                QString displayName = QString("%1 : %2")
-                    .arg(track->getId() + 1)
-                    .arg(QString::fromStdString(track->getName()));
-                synth_selector->addItem(displayName, QVariant::fromValue(static_cast<void*>(softSynth)));
-            }
+    auto* runtimeData = engine->getRuntimeData();
+    if (!runtimeData) {
+        synth_selector->setCurrentIndex(0);
+        synth_selector->blockSignals(false);
+        return;
+    }
+    
+    if (auto* seq = runtimeData->getActiveSequence()) {
+        for (auto* track : seq->getTracks()) {
+            if (!track || track->isTempoTrack()) continue;
+            
+            INoteNagaSoftSynth* softSynth = track->getSoftSynth();
+            if (!softSynth) continue;
+            
+            QString displayName = QString("%1 : %2")
+                .arg(track->getId() + 1)
+                .arg(QString::fromStdString(track->getName()));
+            synth_selector->addItem(displayName, QVariant::fromValue(static_cast<void*>(softSynth)));
         }
     }
     
@@ -180,8 +187,12 @@ void DSPEngineWidget::refreshDSPWidgets() {
     
     if (!engine) return;
     
+    // Check if DSP engine is still valid (may be null during shutdown)
+    NoteNagaDSPEngine* dspEngine = engine->getDSPEngine();
+    if (!dspEngine) return;
+    
     // Sync DSP enabled button state from engine
-    bool dspEnabled = engine->getDSPEngine()->isDSPEnabled();
+    bool dspEnabled = dspEngine->isDSPEnabled();
     btn_enable->setChecked(!dspEnabled);  // Checked means disabled
     btn_enable->setIcon(QIcon(dspEnabled ? ":/icons/active.svg" : ":/icons/inactive.svg"));
     
@@ -189,10 +200,10 @@ void DSPEngineWidget::refreshDSPWidgets() {
     std::vector<NoteNagaDSPBlockBase*> blocks;
     if (current_synth == nullptr) {
         // Master blocks
-        blocks = engine->getDSPEngine()->getDSPBlocks();
+        blocks = dspEngine->getDSPBlocks();
     } else {
         // Synth-specific blocks
-        blocks = engine->getDSPEngine()->getSynthDSPBlocks(current_synth);
+        blocks = dspEngine->getSynthDSPBlocks(current_synth);
     }
     
     // Create widgets for each block
@@ -406,7 +417,8 @@ void DSPEngineWidget::contextMenuEvent(QContextMenuEvent *event)
     menu.addSeparator();
     
     // Enable/Disable DSP
-    bool dspEnabled = engine ? engine->getDSPEngine()->isDSPEnabled() : true;
+    NoteNagaDSPEngine* dspEng = engine ? engine->getDSPEngine() : nullptr;
+    bool dspEnabled = dspEng ? dspEng->isDSPEnabled() : true;
     QAction *toggleAction = menu.addAction(
         QIcon(dspEnabled ? ":/icons/inactive.svg" : ":/icons/active.svg"),
         dspEnabled ? "Disable DSP Processing" : "Enable DSP Processing"

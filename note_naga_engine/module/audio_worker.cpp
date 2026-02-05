@@ -9,6 +9,12 @@ NoteNagaAudioWorker::NoteNagaAudioWorker(NoteNagaDSPEngine *dsp) {
 }
 
 NoteNagaAudioWorker::~NoteNagaAudioWorker() { 
+    // Signal that we're stopping - audio callback should exit immediately
+    stopping_.store(true, std::memory_order_release);
+    
+    // Clear dsp_engine pointer so callback produces silence
+    dsp_engine = nullptr;
+    
     // Wait for init thread to finish if still running
     if (init_thread.joinable()) {
         init_thread.join();
@@ -169,10 +175,17 @@ int NoteNagaAudioWorker::audioCallback(void *outputBuffer, void *, unsigned int 
     NoteNagaAudioWorker *self = static_cast<NoteNagaAudioWorker *>(userData);
     float *out = static_cast<float *>(outputBuffer);
     unsigned int channels = self->output_channels;
+    
+    // Check if we're stopping - fill with silence and exit immediately
+    if (self->stopping_.load(std::memory_order_acquire)) {
+        std::memset(out, 0, sizeof(float) * nFrames * channels);
+        return 0;
+    }
 
     // Zkontrolujeme, zda je worker ztlumený (muted) nebo nemá DSP engine.
     // .load() bezpečně přečte hodnotu z atomické proměnné.
-    if (self->is_muted.load(std::memory_order_relaxed) || !self->dsp_engine) {
+    NoteNagaDSPEngine* dsp = self->dsp_engine;  // Cache pointer locally
+    if (self->is_muted.load(std::memory_order_relaxed) || !dsp) {
         // Pokud ano, vyplníme buffer tichem (nulami).
         std::memset(out, 0, sizeof(float) * nFrames * channels);
     } else {
@@ -181,13 +194,13 @@ int NoteNagaAudioWorker::audioCallback(void *outputBuffer, void *, unsigned int 
         if (channels == 1) {
             // Render to temp stereo buffer, then mix down to mono
             std::vector<float> stereoBuffer(nFrames * 2);
-            self->dsp_engine->render(stereoBuffer.data(), nFrames, true);
+            dsp->render(stereoBuffer.data(), nFrames, true);
             // Mix stereo to mono
             for (unsigned int i = 0; i < nFrames; ++i) {
                 out[i] = (stereoBuffer[i * 2] + stereoBuffer[i * 2 + 1]) * 0.5f;
             }
         } else {
-            self->dsp_engine->render(out, nFrames, true);
+            dsp->render(out, nFrames, true);
         }
     }
     return 0;

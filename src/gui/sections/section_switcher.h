@@ -7,6 +7,10 @@
 #include <QIcon>
 #include <QString>
 #include <QList>
+#include <QTimer>
+
+class NoteNagaEngine;
+class TrackStereoMeter;
 
 /**
  * @brief AppSection enum defines available application sections
@@ -35,7 +39,7 @@ public:
 class SectionSwitcher : public QWidget {
     Q_OBJECT
 public:
-    explicit SectionSwitcher(QWidget *parent = nullptr);
+    explicit SectionSwitcher(NoteNagaEngine *engine = nullptr, QWidget *parent = nullptr);
 
     /**
      * @brief Sets the currently active section
@@ -57,9 +61,12 @@ signals:
     void sectionChanged(AppSection section);
 
 private:
+    NoteNagaEngine *m_engine;
     AppSection m_currentSection;
     QButtonGroup *m_buttonGroup;
     QList<SectionButton*> m_buttons;
+    TrackStereoMeter *m_globalMeter;
+    QTimer *m_meterTimer;
 
     void setupUi();
 };

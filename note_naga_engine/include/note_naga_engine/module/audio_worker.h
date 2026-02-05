@@ -81,6 +81,7 @@ private:
     std::atomic<bool> stream_open{false};
     std::atomic<bool> is_muted{false};
     std::atomic<bool> init_in_progress{false};
+    std::atomic<bool> stopping_{false};  // Flag to prevent callback access during shutdown
     std::thread init_thread;
 
     // Callback volaný RtAudio, naplňuje výstupní buffer audio daty.
