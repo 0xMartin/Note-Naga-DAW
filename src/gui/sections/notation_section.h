@@ -18,7 +18,6 @@
 
 class AdvancedDockWidget;
 class VerovioWidget;
-class MidiControlBarWidget;
 
 /**
  * @brief NotationSection provides traditional music notation display.
@@ -64,9 +63,6 @@ private:
     
     // Main notation widget
     VerovioWidget *m_notationWidget;
-    
-    // Control bar
-    MidiControlBarWidget *m_controlBar;
     
     // Settings widgets
     QWidget *m_settingsWidget;

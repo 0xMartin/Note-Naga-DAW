@@ -15,6 +15,18 @@
 class NOTE_NAGA_ENGINE_API PlaybackThreadWorker;
 
 /*******************************************************************************************************/
+// Playback Mode Enum
+/*******************************************************************************************************/
+
+/**
+ * @brief Playback mode determines what content is being played.
+ */
+enum class PlaybackMode {
+    Sequence,    ///< Play only the selected MIDI sequence (loop in editor)
+    Arrangement  ///< Play the full timeline/arrangement (Compose mode)
+};
+
+/*******************************************************************************************************/
 // Playback Worker
 /*******************************************************************************************************/
 
@@ -76,6 +88,18 @@ public:
     void enableLooping(bool enabled);
 
     /**
+     * @brief Sets the playback mode (Sequence or Arrangement).
+     * @param mode The playback mode to use.
+     */
+    void setPlaybackMode(PlaybackMode mode);
+
+    /**
+     * @brief Gets the current playback mode.
+     * @return Current playback mode.
+     */
+    PlaybackMode getPlaybackMode() const { return playback_mode_; }
+
+    /**
      * @brief Adds a callback for the finished event.
      * @param cb Callback function.
      * @return Unique callback ID.
@@ -122,6 +146,7 @@ private:
 
     double timer_interval;                 ///< Timer interval in milliseconds
     bool looping;                          ///< Looping is enabled
+    PlaybackMode playback_mode_;           ///< Current playback mode
     std::atomic<bool> playing{false};      ///< Whether playback is currently running
     std::atomic<bool> should_stop{false};  ///< Flag to signal playback should stop
     std::thread worker_thread;             ///< Thread running the playback logic
@@ -217,9 +242,11 @@ public:
      * @brief Constructs the worker.
      * @param project Pointer to NoteNagaRuntimeData instance.
      * @param timer_interval Timer interval in milliseconds.
+     * @param mode Playback mode (Sequence or Arrangement).
      */
     PlaybackThreadWorker(NoteNagaRuntimeData *project,
-                         double timer_interval);
+                         double timer_interval,
+                         PlaybackMode mode = PlaybackMode::Sequence);
 
     /**
      * @brief Recalculates the tempo based on current project settings.
@@ -296,6 +323,7 @@ private:
     int start_tick_at_start; ///< Tick at which playback started
     int last_tempo_check_tick{0}; ///< Last tick where tempo was checked (for dynamic tempo)
     bool looping; ///< Looping is enabled
+    PlaybackMode playback_mode_; ///< Current playback mode (Sequence or Arrangement)
 
     // Callbacks
     // ////////////////////////////////////////////////////////////////////////////////
@@ -327,4 +355,14 @@ private:
      * @param note The note that was played.
      */
     void emitNotePlayed(const NN_Note_t &note);
+
+    /**
+     * @brief Run playback in Sequence mode (single MIDI sequence).
+     */
+    void runSequenceMode();
+
+    /**
+     * @brief Run playback in Arrangement mode (full timeline).
+     */
+    void runArrangementMode();
 };

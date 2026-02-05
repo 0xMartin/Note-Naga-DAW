@@ -11,8 +11,19 @@ NoteNagaRuntimeData::NoteNagaRuntimeData()
     // Initialize with empty sequences
     sequences.clear();
     active_sequence = nullptr;
+    arrangement_ = new NoteNagaArrangement();
     current_tick = 0;
+    current_arrangement_tick_ = 0;
     max_tick = 0;
+    
+#ifndef QT_DEACTIVATED
+    // Connect arrangement signals
+    connect(arrangement_, &NoteNagaArrangement::tracksChanged, this,
+            &NoteNagaRuntimeData::arrangementChanged);
+    connect(arrangement_, &NoteNagaArrangement::clipsChanged, this,
+            &NoteNagaRuntimeData::arrangementChanged);
+#endif
+    
     NOTE_NAGA_LOG_INFO("Runtime data initialized");
 }
 
@@ -21,6 +32,12 @@ NoteNagaRuntimeData::~NoteNagaRuntimeData() {
         if (seq) delete seq;
     }
     sequences.clear();
+    
+    if (arrangement_) {
+        delete arrangement_;
+        arrangement_ = nullptr;
+    }
+    
     NOTE_NAGA_LOG_INFO("Runtime data destroyed");
 }
 
@@ -145,4 +162,17 @@ NoteNagaMidiSeq *NoteNagaRuntimeData::getSequenceById(int sequence_id) {
         if (seq && seq->getId() == sequence_id) { return seq; }
     }
     return nullptr;
+}
+
+void NoteNagaRuntimeData::setCurrentArrangementTick(int tick) {
+    if (this->current_arrangement_tick_ == tick) return;
+    this->current_arrangement_tick_ = tick;
+    NN_QT_EMIT(currentArrangementTickChanged(tick));
+}
+
+int NoteNagaRuntimeData::getArrangementMaxTick() const {
+    if (arrangement_) {
+        return arrangement_->getMaxTick();
+    }
+    return 0;
 }

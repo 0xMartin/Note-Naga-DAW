@@ -8,7 +8,6 @@
 #include <QDockWidget>
 #include <QDateTime>
 
-#include "../components/midi_seq_progress_bar.h" 
 #include "../dock_system/advanced_dock_widget.h"
 #include <note_naga_engine/nn_utils.h>
 
@@ -154,43 +153,6 @@ void MediaExportSection::setupDockLayout()
     m_previewStatsLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_previewStatsLabel->setText(tr("FPS: -- | Frame: -- ms | Resolution: --"));
     previewLayout->addWidget(m_previewStatsLabel);
-    
-    // Timeline controls
-    int btnSize = 20; 
-    QString buttonStyle = QString(R"(
-        QPushButton {
-            background-color: qlineargradient(spread:repeat, x1:1, y1:0, x2:1, y2:1, stop:0 #303239,stop:1 #2e3135);
-            color: #fff;
-            border-style: solid;
-            border-width: 1px;
-            border-color: #494d56;
-            padding: 5px;
-            min-width: %1px;
-            max-width: %1px;
-            min-height: %1px;
-            max-height: %1px;
-        }
-        QPushButton:hover { background-color: #293f5b; border: 1px solid #3277c2; }
-        QPushButton:pressed { background-color: #37404a; border: 1px solid #506080; }
-        QPushButton:checked { background: #3477c0; border: 1.9px solid #79b8ff; }
-    )").arg(btnSize);
-
-    QHBoxLayout *timelineLayout = new QHBoxLayout;
-    timelineLayout->setSpacing(6);
-
-    m_playPauseButton = new QPushButton;
-    m_playPauseButton->setIcon(QIcon(":/icons/play.svg"));
-    m_playPauseButton->setToolTip(tr("Play"));
-    m_playPauseButton->setCheckable(true);
-    m_playPauseButton->setStyleSheet(buttonStyle);
-    m_playPauseButton->setIconSize(QSize(btnSize * 0.8, btnSize * 0.8)); 
-
-    m_progressBar = new MidiSequenceProgressBar;
-    m_progressBar->setFixedHeight(btnSize * 1.6); 
-
-    timelineLayout->addWidget(m_playPauseButton);
-    timelineLayout->addWidget(m_progressBar, 1);
-    previewLayout->addLayout(timelineLayout);
 
     auto *previewDock = new AdvancedDockWidget(
         tr("Preview"), 
@@ -603,11 +565,6 @@ void MediaExportSection::setupDockLayout()
 
 void MediaExportSection::connectWidgetSignals()
 {
-    // Playback
-    connect(m_playPauseButton, &QPushButton::clicked, this, &MediaExportSection::onPlayPauseClicked);
-    connect(m_progressBar, &MidiSequenceProgressBar::positionPressed, this, &MediaExportSection::seek);
-    connect(m_progressBar, &MidiSequenceProgressBar::positionDragged, this, &MediaExportSection::seek);
-    connect(m_progressBar, &MidiSequenceProgressBar::positionReleased, this, &MediaExportSection::seek);
     connect(m_exportButton, &QPushButton::clicked, this, &MediaExportSection::onExportClicked);
     connect(m_exportTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MediaExportSection::onExportTypeChanged);
     
@@ -684,13 +641,6 @@ void MediaExportSection::connectEngineSignals()
     connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::currentTickChanged, 
             this, &MediaExportSection::onPlaybackTickChanged);
     
-    connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged, 
-            this, [this](bool playing){
-                m_playPauseButton->setChecked(playing);
-                m_playPauseButton->setToolTip(playing ? tr("Pause") : tr("Play"));
-                m_playPauseButton->setIcon(playing ? QIcon(":/icons/stop.svg") : QIcon(":/icons/play.svg"));
-            });
-    
     // Listen for sequence changes
     connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::activeSequenceChanged,
             this, [this](NoteNagaMidiSeq*) {
@@ -721,8 +671,6 @@ void MediaExportSection::refreshSequence()
     }
     
     m_totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), m_sequence->getPPQ(), m_sequence->getTempo());
-    m_progressBar->setMidiSequence(m_sequence);
-    m_progressBar->updateMaxTime();
     
     // Only start preview worker if section is currently active
     if (m_sectionActive) {
@@ -915,26 +863,6 @@ void MediaExportSection::updatePreviewSettings()
     }
 }
 
-void MediaExportSection::onPlayPauseClicked()
-{
-    if (m_engine->isPlaying()) {
-        m_engine->stopPlayback();
-    } else {
-        m_engine->startPlayback();
-    }
-}
-
-void MediaExportSection::seek(float seconds)
-{
-    if (m_engine->isPlaying()) {
-        m_engine->stopPlayback();
-    }
-    m_currentTime = (double)seconds;
-    int tick = nn_seconds_to_ticks(m_currentTime, m_sequence->getPPQ(), m_sequence->getTempo());
-    m_engine->setPlaybackPosition(tick);
-    onPlaybackTickChanged(tick);
-}
-
 void MediaExportSection::onPlaybackTickChanged(int tick)
 {
     if (!m_sequence) return;
@@ -945,10 +873,6 @@ void MediaExportSection::onPlaybackTickChanged(int tick)
         QMetaObject::invokeMethod(m_previewWorker, "updateTime", Qt::QueuedConnection,
                                   Q_ARG(double, m_currentTime));
     }
-
-    m_progressBar->blockSignals(true);
-    m_progressBar->setCurrentTime(m_currentTime);
-    m_progressBar->blockSignals(false);
 }
 
 void MediaExportSection::onPreviewFrameReady(const QImage& frame)

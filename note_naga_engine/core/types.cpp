@@ -1602,3 +1602,271 @@ void nn_fft(std::vector<std::complex<float>> &a) {
     }
   }
 }
+
+/*******************************************************************************************************/
+// Arrangement Types (Timeline / Composition)
+/*******************************************************************************************************/
+
+static std::atomic<int> next_clip_id = 1;
+static std::atomic<int> next_arrangement_track_id = 1;
+
+int nn_generate_unique_clip_id() { return next_clip_id++; }
+
+int nn_generate_unique_arrangement_track_id() { return next_arrangement_track_id++; }
+
+// --- NoteNagaArrangementTrack ---
+
+NoteNagaArrangementTrack::NoteNagaArrangementTrack()
+#ifndef QT_DEACTIVATED
+    : QObject(nullptr)
+#endif
+{
+    id_ = nn_generate_unique_arrangement_track_id();
+    name_ = "Track " + std::to_string(id_);
+    color_ = DEFAULT_CHANNEL_COLORS[id_ % DEFAULT_CHANNEL_COLORS.size()];
+    muted_ = false;
+    solo_ = false;
+    volume_ = 1.0f;
+    channelOffset_ = 0;
+}
+
+NoteNagaArrangementTrack::NoteNagaArrangementTrack(int id, const std::string &name)
+#ifndef QT_DEACTIVATED
+    : QObject(nullptr)
+#endif
+{
+    id_ = id;
+    name_ = name.empty() ? "Track " + std::to_string(id) : name;
+    color_ = DEFAULT_CHANNEL_COLORS[id % DEFAULT_CHANNEL_COLORS.size()];
+    muted_ = false;
+    solo_ = false;
+    volume_ = 1.0f;
+    channelOffset_ = 0;
+}
+
+void NoteNagaArrangementTrack::addClip(const NN_MidiClip_t &clip) {
+    clips_.push_back(clip);
+    // Keep clips sorted by start tick
+    std::sort(clips_.begin(), clips_.end());
+    NN_QT_EMIT(clipsChanged());
+}
+
+bool NoteNagaArrangementTrack::removeClip(int clipId) {
+    auto it = std::find_if(clips_.begin(), clips_.end(),
+                           [clipId](const NN_MidiClip_t &c) { return c.id == clipId; });
+    if (it != clips_.end()) {
+        clips_.erase(it);
+        NN_QT_EMIT(clipsChanged());
+        return true;
+    }
+    return false;
+}
+
+NN_MidiClip_t* NoteNagaArrangementTrack::getClipById(int clipId) {
+    auto it = std::find_if(clips_.begin(), clips_.end(),
+                           [clipId](const NN_MidiClip_t &c) { return c.id == clipId; });
+    return (it != clips_.end()) ? &(*it) : nullptr;
+}
+
+const NN_MidiClip_t* NoteNagaArrangementTrack::getClipById(int clipId) const {
+    auto it = std::find_if(clips_.begin(), clips_.end(),
+                           [clipId](const NN_MidiClip_t &c) { return c.id == clipId; });
+    return (it != clips_.end()) ? &(*it) : nullptr;
+}
+
+std::vector<const NN_MidiClip_t*> NoteNagaArrangementTrack::getClipsAtTick(int tick) const {
+    std::vector<const NN_MidiClip_t*> result;
+    for (const auto &clip : clips_) {
+        if (clip.containsTick(tick) && !clip.muted) {
+            result.push_back(&clip);
+        }
+    }
+    return result;
+}
+
+bool NoteNagaArrangementTrack::moveClip(int clipId, int newStartTick) {
+    auto *clip = getClipById(clipId);
+    if (clip) {
+        clip->startTick = newStartTick;
+        std::sort(clips_.begin(), clips_.end());
+        NN_QT_EMIT(clipsChanged());
+        return true;
+    }
+    return false;
+}
+
+bool NoteNagaArrangementTrack::resizeClip(int clipId, int newDuration) {
+    auto *clip = getClipById(clipId);
+    if (clip && newDuration > 0) {
+        clip->durationTicks = newDuration;
+        NN_QT_EMIT(clipsChanged());
+        return true;
+    }
+    return false;
+}
+
+int NoteNagaArrangementTrack::getRemappedChannel(int originalChannel, bool isDrumTrack) const {
+    // Drum channel (9) is never remapped
+    if (isDrumTrack || originalChannel == MIDI_DRUM_CHANNEL) {
+        return MIDI_DRUM_CHANNEL;
+    }
+    
+    // Apply channel offset, wrapping around and skipping drum channel
+    int remapped = originalChannel + channelOffset_;
+    remapped = remapped % 16;
+    
+    // Skip drum channel if we land on it
+    if (remapped == MIDI_DRUM_CHANNEL) {
+        remapped = (remapped + 1) % 16;
+        // If we're now at 0 and offset was positive, that's fine
+        // If we accidentally wrapped to drum channel again, skip it
+        if (remapped == MIDI_DRUM_CHANNEL) {
+            remapped = (remapped + 1) % 16;
+        }
+    }
+    
+    return remapped;
+}
+
+void NoteNagaArrangementTrack::setChannelOffset(int offset) {
+    channelOffset_ = offset % 16;
+    NN_QT_EMIT(metadataChanged(this, "channelOffset"));
+}
+
+void NoteNagaArrangementTrack::setName(const std::string &name) {
+    name_ = name;
+    NN_QT_EMIT(metadataChanged(this, "name"));
+}
+
+void NoteNagaArrangementTrack::setColor(const NN_Color_t &color) {
+    color_ = color;
+    NN_QT_EMIT(metadataChanged(this, "color"));
+}
+
+void NoteNagaArrangementTrack::setMuted(bool muted) {
+    muted_ = muted;
+    NN_QT_EMIT(metadataChanged(this, "muted"));
+}
+
+void NoteNagaArrangementTrack::setSolo(bool solo) {
+    solo_ = solo;
+    NN_QT_EMIT(metadataChanged(this, "solo"));
+}
+
+void NoteNagaArrangementTrack::setVolume(float volume) {
+    volume_ = std::clamp(volume, 0.0f, 1.0f);
+    NN_QT_EMIT(metadataChanged(this, "volume"));
+}
+
+// --- NoteNagaArrangement ---
+
+NoteNagaArrangement::NoteNagaArrangement()
+#ifndef QT_DEACTIVATED
+    : QObject(nullptr)
+#endif
+{
+    maxTick_ = 0;
+}
+
+NoteNagaArrangement::~NoteNagaArrangement() {
+    clear();
+}
+
+void NoteNagaArrangement::clear() {
+    for (auto *track : tracks_) {
+        delete track;
+    }
+    tracks_.clear();
+    maxTick_ = 0;
+    NN_QT_EMIT(tracksChanged());
+    NN_QT_EMIT(maxTickChanged(0));
+}
+
+NoteNagaArrangementTrack* NoteNagaArrangement::addTrack(const std::string &name) {
+    auto *track = new NoteNagaArrangementTrack(nn_generate_unique_arrangement_track_id(), name);
+    tracks_.push_back(track);
+    
+#ifndef QT_DEACTIVATED
+    // Connect clip changes to arrangement signals
+    connect(track, &NoteNagaArrangementTrack::clipsChanged, this, [this]() {
+        updateMaxTick();
+        emit clipsChanged();
+    });
+#endif
+    
+    NN_QT_EMIT(tracksChanged());
+    return track;
+}
+
+bool NoteNagaArrangement::removeTrack(int trackId) {
+    auto it = std::find_if(tracks_.begin(), tracks_.end(),
+                           [trackId](NoteNagaArrangementTrack *t) { return t->getId() == trackId; });
+    if (it != tracks_.end()) {
+        delete *it;
+        tracks_.erase(it);
+        updateMaxTick();
+        NN_QT_EMIT(tracksChanged());
+        return true;
+    }
+    return false;
+}
+
+NoteNagaArrangementTrack* NoteNagaArrangement::getTrackById(int trackId) {
+    auto it = std::find_if(tracks_.begin(), tracks_.end(),
+                           [trackId](NoteNagaArrangementTrack *t) { return t->getId() == trackId; });
+    return (it != tracks_.end()) ? *it : nullptr;
+}
+
+const NoteNagaArrangementTrack* NoteNagaArrangement::getTrackById(int trackId) const {
+    auto it = std::find_if(tracks_.begin(), tracks_.end(),
+                           [trackId](const NoteNagaArrangementTrack *t) { return t->getId() == trackId; });
+    return (it != tracks_.end()) ? *it : nullptr;
+}
+
+bool NoteNagaArrangement::moveTrack(int fromIndex, int toIndex) {
+    if (fromIndex < 0 || fromIndex >= static_cast<int>(tracks_.size()) ||
+        toIndex < 0 || toIndex >= static_cast<int>(tracks_.size()) ||
+        fromIndex == toIndex) {
+        return false;
+    }
+    
+    auto *track = tracks_[fromIndex];
+    tracks_.erase(tracks_.begin() + fromIndex);
+    tracks_.insert(tracks_.begin() + toIndex, track);
+    NN_QT_EMIT(tracksChanged());
+    return true;
+}
+
+std::vector<std::pair<NoteNagaArrangementTrack*, const NN_MidiClip_t*>>
+NoteNagaArrangement::getActiveClipsAtTick(int tick) const {
+    std::vector<std::pair<NoteNagaArrangementTrack*, const NN_MidiClip_t*>> result;
+    
+    for (auto *track : tracks_) {
+        if (track->isMuted()) continue;
+        
+        auto clips = track->getClipsAtTick(tick);
+        for (const auto *clip : clips) {
+            result.emplace_back(const_cast<NoteNagaArrangementTrack*>(track), clip);
+        }
+    }
+    
+    return result;
+}
+
+int NoteNagaArrangement::computeMaxTick() const {
+    int maxTick = 0;
+    for (const auto *track : tracks_) {
+        for (const auto &clip : track->getClips()) {
+            maxTick = std::max(maxTick, clip.getEndTick());
+        }
+    }
+    return maxTick;
+}
+
+void NoteNagaArrangement::updateMaxTick() {
+    int newMax = computeMaxTick();
+    if (newMax != maxTick_) {
+        maxTick_ = newMax;
+        NN_QT_EMIT(maxTickChanged(maxTick_));
+    }
+}

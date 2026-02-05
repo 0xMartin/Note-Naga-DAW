@@ -1,6 +1,8 @@
 #include <note_naga_engine/module/playback_worker.h>
 
 #include <algorithm>
+#include <map>
+#include <unordered_map>
 #include <note_naga_engine/logger.h>
 
 /*******************************************************************************************************/
@@ -17,6 +19,7 @@ NoteNagaPlaybackWorker::NoteNagaPlaybackWorker(NoteNagaRuntimeData *project,
     this->timer_interval = timer_interval_ms / 1000.0;
     this->last_id = 0;
     this->pending_cleanup = false;
+    this->playback_mode_ = PlaybackMode::Sequence;
     NOTE_NAGA_LOG_INFO("Initialized successfully with timer interval: " +
                        std::to_string(timer_interval_ms) + " ms");
 }
@@ -126,7 +129,7 @@ bool NoteNagaPlaybackWorker::play() {
     }
 
     should_stop = false;
-    worker = new PlaybackThreadWorker(project, timer_interval);
+    worker = new PlaybackThreadWorker(project, timer_interval, playback_mode_);
     worker->enableLooping(this->looping);
 
     // Forward events from thread worker to this worker
@@ -174,6 +177,12 @@ void NoteNagaPlaybackWorker::enableLooping(bool enabled) {
     }
 }
 
+void NoteNagaPlaybackWorker::setPlaybackMode(PlaybackMode mode) {
+    this->playback_mode_ = mode;
+    NOTE_NAGA_LOG_INFO("Playback mode set to: " + 
+                       std::string(mode == PlaybackMode::Sequence ? "Sequence" : "Arrangement"));
+}
+
 void NoteNagaPlaybackWorker::cleanupThread() {
     if (worker) {
         delete worker;
@@ -189,12 +198,14 @@ void NoteNagaPlaybackWorker::cleanupThread() {
 /*******************************************************************************************************/
 
 PlaybackThreadWorker::PlaybackThreadWorker(NoteNagaRuntimeData *project,
-                                           double timer_interval) {
+                                           double timer_interval,
+                                           PlaybackMode mode) {
     this->project = project;
     this->timer_interval = timer_interval;
     this->start_tick_at_start = 0;
     this->last_id = 0;
     this->looping = false;
+    this->playback_mode_ = mode;
 }
 
 PlaybackThreadWorker::CallbackId PlaybackThreadWorker::addFinishedCallback(FinishedCallback cb) {
@@ -273,6 +284,14 @@ void PlaybackThreadWorker::removeNotePlayedCallback(CallbackId id) {
 void PlaybackThreadWorker::stop() { should_stop = true; }
 
 void PlaybackThreadWorker::run() {
+    if (playback_mode_ == PlaybackMode::Arrangement) {
+        runArrangementMode();
+    } else {
+        runSequenceMode();
+    }
+}
+
+void PlaybackThreadWorker::runSequenceMode() {
     // Ensure we have a valid project and active sequence
     NoteNagaMidiSeq *active_sequence = this->project->getActiveSequence();
     if (!active_sequence) {
@@ -419,6 +438,194 @@ void PlaybackThreadWorker::run() {
         }
     }
 
-    NOTE_NAGA_LOG_INFO("Playback thread finished");
+    NOTE_NAGA_LOG_INFO("Playback thread finished (Sequence mode)");
+    emitFinished();
+}
+
+void PlaybackThreadWorker::runArrangementMode() {
+    // Get arrangement from project
+    NoteNagaArrangement *arrangement = this->project->getArrangement();
+    if (!arrangement || arrangement->getTrackCount() == 0) {
+        NOTE_NAGA_LOG_WARNING("No arrangement or empty arrangement, cannot play");
+        emitFinished();
+        return;
+    }
+
+    int arrangement_max_tick = arrangement->getMaxTick();
+    if (arrangement_max_tick <= 0) {
+        NOTE_NAGA_LOG_WARNING("Arrangement has no content (max tick = 0)");
+        emitFinished();
+        return;
+    }
+
+    // Stop all notes on all sequences
+    for (auto* seq : this->project->getSequences()) {
+        for (auto* track : seq->getTracks()) {
+            if (track && !track->isTempoTrack()) {
+                track->stopAllNotes();
+            }
+        }
+    }
+
+    // Ensure we start from a valid tick
+    int current_tick = this->project->getCurrentArrangementTick();
+    if (current_tick >= arrangement_max_tick) {
+        current_tick = 0;
+        this->project->setCurrentArrangementTick(0);
+        NOTE_NAGA_LOG_WARNING("Arrangement tick at or beyond max, resetting to start");
+    }
+
+    // Initialize timing
+    recalculateTempo();
+
+    // Track active clips and their note indices
+    // Map: (arrangement_track_id, clip_id, midi_track_id) -> note index
+    struct ClipPlayState {
+        int lastProcessedTick;
+        std::unordered_map<int, size_t> trackNoteIndices; // midi_track_id -> note index
+    };
+    std::map<std::pair<int, int>, ClipPlayState> clipStates; // (arr_track_id, clip_id) -> state
+
+    using clock = std::chrono::high_resolution_clock;
+    auto last_iteration_time = clock::now();
+    double fractional_ticks = 0.0;
+
+    while (!should_stop) {
+        // Calculate time since last iteration
+        auto now = clock::now();
+        double elapsed_ms = std::chrono::duration<double, std::milli>(now - last_iteration_time).count();
+        last_iteration_time = now;
+
+        // Get current tempo from project
+        int effectiveTempo = this->project->getTempo();
+        double us_per_tick = static_cast<double>(effectiveTempo) / this->project->getPPQ();
+        double current_ms_per_tick = us_per_tick / 1000.0;
+
+        // Accumulate ticks
+        fractional_ticks += elapsed_ms / current_ms_per_tick;
+        int tick_advance = static_cast<int>(fractional_ticks);
+        fractional_ticks -= tick_advance;
+
+        if (tick_advance < 1) {
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+            continue;
+        }
+
+        int last_tick = current_tick;
+        current_tick += tick_advance;
+        this->project->setCurrentArrangementTick(current_tick);
+
+        // Check for end of arrangement
+        if (current_tick >= arrangement_max_tick) {
+            current_tick = arrangement_max_tick;
+            if (!this->looping) {
+                this->should_stop = true;
+            }
+        }
+
+        // Get all active clips at current tick
+        auto activeClips = arrangement->getActiveClipsAtTick(current_tick);
+
+        // Process each active clip
+        for (const auto& [arrTrack, clip] : activeClips) {
+            if (arrTrack->isMuted() || clip->muted) continue;
+
+            // Get the referenced MIDI sequence
+            NoteNagaMidiSeq* seq = this->project->getSequenceById(clip->sequenceId);
+            if (!seq) continue;
+
+            // Calculate sequence-local tick range
+            int seqTickStart = clip->toSequenceTick(last_tick);
+            int seqTickEnd = clip->toSequenceTick(current_tick);
+
+            // Clamp to valid range within the clip
+            int clipLocalStart = clip->offsetTicks;
+            int clipLocalEnd = clip->offsetTicks + clip->durationTicks;
+            seqTickStart = std::max(seqTickStart, clipLocalStart);
+            seqTickEnd = std::min(seqTickEnd, clipLocalEnd);
+
+            if (seqTickStart >= seqTickEnd) continue;
+
+            // Get or create clip state
+            auto key = std::make_pair(arrTrack->getId(), clip->id);
+            auto& state = clipStates[key];
+
+            // Process notes for each track in the sequence
+            for (auto* midiTrack : seq->getTracks()) {
+                if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
+
+                // Get remapped channel
+                bool isDrumTrack = midiTrack->getChannel().value_or(0) == MIDI_DRUM_CHANNEL;
+                int remappedChannel = arrTrack->getRemappedChannel(
+                    midiTrack->getChannel().value_or(0), isDrumTrack);
+
+                // Get note index for this track
+                size_t& noteIndex = state.trackNoteIndices[midiTrack->getId()];
+                const auto& notes = midiTrack->getNotes();
+
+                // Process notes in range
+                for (; noteIndex < notes.size(); ++noteIndex) {
+                    const NN_Note_t& note = notes[noteIndex];
+                    if (!note.start.has_value() || !note.length.has_value()) continue;
+
+                    int noteStart = note.start.value();
+                    int noteEnd = noteStart + note.length.value();
+
+                    // Note ON
+                    if (seqTickStart <= noteStart && noteStart < seqTickEnd) {
+                        // Create a modified note with remapped channel if needed
+                        NN_Note_t playNote = note;
+                        // Note: channel remapping is handled at the track level
+                        midiTrack->playNote(playNote);
+                        emitNotePlayed(playNote);
+                    }
+
+                    // Note OFF
+                    if (seqTickStart < noteEnd && noteEnd <= seqTickEnd) {
+                        midiTrack->stopNote(note);
+                    }
+
+                    // If note starts after current range, we're done
+                    if (noteStart >= seqTickEnd) break;
+                }
+
+                // Reset index if we're past this range (for next iteration)
+                if (noteIndex > 10) noteIndex -= 10;
+            }
+        }
+
+        // Looping
+        if (this->looping && current_tick >= arrangement_max_tick) {
+            // Stop all notes before looping
+            for (auto* seq : this->project->getSequences()) {
+                for (auto* track : seq->getTracks()) {
+                    if (track && !track->isTempoTrack()) {
+                        track->stopAllNotes();
+                    }
+                }
+            }
+            current_tick = 0;
+            this->project->setCurrentArrangementTick(current_tick);
+            clipStates.clear(); // Reset all clip states
+            NOTE_NAGA_LOG_INFO("Arrangement reached end, looping back to start");
+        }
+
+        // Emit position changed
+        this->emitPositionChanged(current_tick);
+
+        // Sleep
+        std::this_thread::sleep_for(std::chrono::duration<double>(timer_interval));
+    }
+
+    // Stop all notes on finish
+    for (auto* seq : this->project->getSequences()) {
+        for (auto* track : seq->getTracks()) {
+            if (track && !track->isTempoTrack()) {
+                track->stopAllNotes();
+            }
+        }
+    }
+
+    NOTE_NAGA_LOG_INFO("Playback thread finished (Arrangement mode)");
     emitFinished();
 }

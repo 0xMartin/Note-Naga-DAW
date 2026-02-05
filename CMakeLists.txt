@@ -53,6 +53,7 @@ set(HEADER_FILES
     src/gui/sections/notation_section.h
     src/gui/sections/track_preview_widget.h
     src/gui/sections/project_section.h
+    src/gui/sections/arrangement_section.h
     # gui/components
     src/gui/components/audio_dial.h
     src/gui/components/audio_dial_centered.h
@@ -61,6 +62,7 @@ set(HEADER_FILES
     src/gui/components/button_group_widget.h
     src/gui/components/indicator_led_widget.h
     src/gui/components/midi_seq_progress_bar.h
+    src/gui/components/midi_sequence_selector.h
     src/gui/components/separator.h
     src/gui/components/spectrum_analyzer.h
     src/gui/components/audio_bars_visualizer.h
@@ -82,11 +84,15 @@ set(HEADER_FILES
     src/gui/editor/midi_editor_types.h
     src/gui/editor/midi_editor_context_menu.h
     src/gui/editor/midi_editor_note_handler.h
+    src/gui/editor/arrangement_layer_manager.h
+    src/gui/editor/arrangement_timeline_widget.h
+    src/gui/editor/arrangement_timeline_ruler.h
+    src/gui/editor/arrangement_resource_panel.h
     # gui/widgets
     src/gui/widgets/verovio_widget.h
     src/gui/widgets/dsp_block_widget.h
     src/gui/widgets/dsp_engine_widget.h
-    src/gui/widgets/midi_control_bar_widget.h
+    src/gui/widgets/global_transport_bar.h
     src/gui/widgets/midi_keyboard_ruler.h
     src/gui/widgets/midi_tact_ruler.h
     src/gui/widgets/track_list_widget.h
@@ -111,6 +117,7 @@ set(SOURCE_FILES
     src/gui/sections/notation_section.cpp
     src/gui/sections/track_preview_widget.cpp
     src/gui/sections/project_section.cpp
+    src/gui/sections/arrangement_section.cpp
     # gui/components
     src/gui/components/audio_dial.cpp
     src/gui/components/audio_dial_centered.cpp
@@ -119,6 +126,7 @@ set(SOURCE_FILES
     src/gui/components/button_group_widget.cpp
     src/gui/components/indicator_led_widget.cpp
     src/gui/components/midi_seq_progress_bar.cpp
+    src/gui/components/midi_sequence_selector.cpp
     src/gui/components/pan_analyzer.cpp
     src/gui/components/separator.cpp
     src/gui/components/spectrum_analyzer.cpp
@@ -142,6 +150,10 @@ set(SOURCE_FILES
     src/gui/editor/midi_editor_note_handler.cpp
     src/gui/editor/note_property_editor.cpp
     src/gui/editor/tempo_track_editor.cpp
+    src/gui/editor/arrangement_layer_manager.cpp
+    src/gui/editor/arrangement_timeline_widget.cpp
+    src/gui/editor/arrangement_timeline_ruler.cpp
+    src/gui/editor/arrangement_resource_panel.cpp
     # gui/undo
     src/gui/undo/undo_manager.cpp
     src/gui/undo/midi_note_commands.cpp
@@ -149,7 +161,7 @@ set(SOURCE_FILES
     src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp
     src/gui/widgets/dsp_engine_widget.cpp
-    src/gui/widgets/midi_control_bar_widget.cpp
+    src/gui/widgets/global_transport_bar.cpp
     src/gui/widgets/midi_keyboard_ruler.cpp
     src/gui/widgets/midi_tact_ruler.cpp
     src/gui/widgets/timeline_overview_widget.cpp

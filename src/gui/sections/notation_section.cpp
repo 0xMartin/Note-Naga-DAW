@@ -6,7 +6,6 @@
 #include <QTimer>
 
 #include "../widgets/verovio_widget.h"
-#include "../widgets/midi_control_bar_widget.h"
 #include "../dock_system/advanced_dock_widget.h"
 #include <note_naga_engine/nn_utils.h>
 #include <note_naga_engine/core/types.h>
@@ -112,9 +111,7 @@ void NotationSection::setupDockLayout()
     
     notationLayout->addWidget(m_notationWidget, 1);
     
-    // Control bar at bottom
-    m_controlBar = new MidiControlBarWidget(m_engine, this);
-    notationLayout->addWidget(m_controlBar);
+    // Control bar is now global in SectionSwitcher
     
     // Create title buttons widget (Refresh, Print)
     QWidget *titleButtons = m_notationWidget->createTitleButtonWidget(this);
@@ -333,22 +330,7 @@ void NotationSection::connectSignals()
     connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::currentTickChanged,
             this, &NotationSection::onPlaybackTickChanged);
     
-    // Control bar playback signals
-    connect(m_controlBar, &MidiControlBarWidget::playToggled, this, [this]() {
-        if (m_engine->isPlaying()) {
-            m_engine->stopPlayback();
-        } else {
-            m_engine->startPlayback();
-        }
-    });
-    connect(m_controlBar, &MidiControlBarWidget::goToStart, this, [this]() {
-        m_engine->getRuntimeData()->setCurrentTick(0);
-    });
-    connect(m_controlBar, &MidiControlBarWidget::goToEnd, this, [this]() {
-        if (m_sequence) {
-            m_engine->getRuntimeData()->setCurrentTick(m_sequence->getMaxTick());
-        }
-    });
+    // Control bar is now global in SectionSwitcher - no local connections needed
     
     // Connect notation settings changes to apply function
     connect(m_keySignatureCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),

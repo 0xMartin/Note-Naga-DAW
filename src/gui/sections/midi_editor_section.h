@@ -10,7 +10,6 @@
 
 class AdvancedDockWidget;
 class MidiEditorWidget;
-class MidiControlBarWidget;
 class MidiTactRuler;
 class MidiKeyboardRuler;
 class TrackListWidget;
@@ -36,7 +35,6 @@ public:
 
     // Access to widgets for external signal connections
     MidiEditorWidget* getMidiEditor() const { return m_midiEditor; }
-    MidiControlBarWidget* getControlBar() const { return m_controlBar; }
     MidiTactRuler* getTactRuler() const { return m_midiTactRuler; }
     MidiKeyboardRuler* getKeyboardRuler() const { return m_midiKeyboardRuler; }
     TrackListWidget* getTrackList() const { return m_trackListWidget; }
@@ -63,7 +61,6 @@ private:
     
     // Content widgets
     MidiEditorWidget *m_midiEditor;
-    MidiControlBarWidget *m_controlBar;
     MidiTactRuler *m_midiTactRuler;
     MidiKeyboardRuler *m_midiKeyboardRuler;
     TrackListWidget *m_trackListWidget;

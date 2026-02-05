@@ -19,7 +19,7 @@
 #include <note_naga_engine/nn_utils.h>
 
 // Section widget includes for signal connections
-#include "widgets/midi_control_bar_widget.h"
+#include "widgets/global_transport_bar.h"
 #include "widgets/midi_tact_ruler.h"
 #include "editor/midi_editor_widget.h"
 #include "widgets/track_list_widget.h"
@@ -268,13 +268,15 @@ void MainWindow::setup_sections() {
     m_dspEditorSection = new DSPEditorSection(engine, this);
     m_notationSection = new NotationSection(engine, this);
     m_mediaExportSection = new MediaExportSection(engine, this);
+    m_arrangementSection = new ArrangementSection(engine, this);
     
     // Add sections to stack (order must match AppSection enum)
-    m_sectionStack->addWidget(m_projectSection);     // index 0 - Project
-    m_sectionStack->addWidget(m_midiEditorSection);  // index 1 - MidiEditor
-    m_sectionStack->addWidget(m_dspEditorSection);   // index 2 - DspEditor
-    m_sectionStack->addWidget(m_mediaExportSection); // index 3 - MediaExport
-    m_sectionStack->addWidget(m_notationSection);    // index 4 - Notation
+    m_sectionStack->addWidget(m_projectSection);      // index 0 - Project
+    m_sectionStack->addWidget(m_midiEditorSection);   // index 1 - MidiEditor
+    m_sectionStack->addWidget(m_dspEditorSection);    // index 2 - DspEditor
+    m_sectionStack->addWidget(m_arrangementSection);  // index 3 - Arrangement
+    m_sectionStack->addWidget(m_mediaExportSection);  // index 4 - MediaExport
+    m_sectionStack->addWidget(m_notationSection);     // index 5 - Notation
     
     // Create section switcher (bottom bar)
     m_sectionSwitcher = new SectionSwitcher(engine, this);
@@ -329,6 +331,9 @@ void MainWindow::onSectionChanged(AppSection section) {
         case AppSection::DspEditor:
             m_dspEditorSection->onSectionDeactivated();
             break;
+        case AppSection::Arrangement:
+            m_arrangementSection->onSectionDeactivated();
+            break;
         case AppSection::Notation:
             m_notationSection->onSectionDeactivated();
             break;
@@ -351,6 +356,9 @@ void MainWindow::onSectionChanged(AppSection section) {
             break;
         case AppSection::DspEditor:
             m_dspEditorSection->onSectionActivated();
+            break;
+        case AppSection::Arrangement:
+            m_arrangementSection->onSectionActivated();
             break;
         case AppSection::Notation:
             m_notationSection->onSectionActivated();
@@ -400,20 +408,12 @@ void MainWindow::connect_signals() {
     connect(engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::playingStateChanged, this,
             &MainWindow::on_playing_state_changed);
 
-    // Connect control bar signals from MIDI editor section
-    MidiControlBarWidget *control_bar = m_midiEditorSection->getControlBar();
-    connect(control_bar, &MidiControlBarWidget::playToggled, this, &MainWindow::toggle_play);
-    connect(control_bar, &MidiControlBarWidget::goToStart, this, &MainWindow::goto_start);
-    connect(control_bar, &MidiControlBarWidget::goToEnd, this, &MainWindow::goto_end);
-    connect(control_bar, &MidiControlBarWidget::playPositionChanged, this,
-            &MainWindow::onControlBarPositionClicked);
-    
-    // Connect control bar signals from DSP editor section
-    MidiControlBarWidget *dsp_control_bar = m_dspEditorSection->getControlBar();
-    connect(dsp_control_bar, &MidiControlBarWidget::playToggled, this, &MainWindow::toggle_play);
-    connect(dsp_control_bar, &MidiControlBarWidget::goToStart, this, &MainWindow::goto_start);
-    connect(dsp_control_bar, &MidiControlBarWidget::goToEnd, this, &MainWindow::goto_end);
-    connect(dsp_control_bar, &MidiControlBarWidget::playPositionChanged, this,
+    // Connect global transport bar signals from section switcher
+    GlobalTransportBar *transportBar = m_sectionSwitcher->getTransportBar();
+    connect(transportBar, &GlobalTransportBar::playToggled, this, &MainWindow::toggle_play);
+    connect(transportBar, &GlobalTransportBar::goToStart, this, &MainWindow::goto_start);
+    connect(transportBar, &GlobalTransportBar::goToEnd, this, &MainWindow::goto_end);
+    connect(transportBar, &GlobalTransportBar::playPositionChanged, this,
             &MainWindow::onControlBarPositionClicked);
 }
 

@@ -2,6 +2,7 @@
 
 #include <QWidget>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QPushButton>
 #include <QButtonGroup>
 #include <QIcon>
@@ -11,6 +12,8 @@
 
 class NoteNagaEngine;
 class TrackStereoMeter;
+class GlobalTransportBar;
+class MidiSequenceSelector;
 
 /**
  * @brief AppSection enum defines available application sections
@@ -19,8 +22,9 @@ enum class AppSection {
     Project = 0,
     MidiEditor = 1,
     DspEditor = 2,
-    MediaExport = 3,
-    Notation = 4
+    Arrangement = 3,
+    MediaExport = 4,
+    Notation = 5
 };
 
 /**
@@ -53,6 +57,18 @@ public:
      */
     AppSection currentSection() const { return m_currentSection; }
 
+    /**
+     * @brief Gets the global transport bar for signal connections
+     * @return Pointer to the GlobalTransportBar widget
+     */
+    GlobalTransportBar* getTransportBar() const { return m_transportBar; }
+
+    /**
+     * @brief Gets the MIDI sequence selector widget
+     * @return Pointer to the MidiSequenceSelector widget
+     */
+    MidiSequenceSelector* getSequenceSelector() const { return m_sequenceSelector; }
+
 signals:
     /**
      * @brief Emitted when user clicks on a section button
@@ -65,8 +81,8 @@ private:
     AppSection m_currentSection;
     QButtonGroup *m_buttonGroup;
     QList<SectionButton*> m_buttons;
-    TrackStereoMeter *m_globalMeter;
-    QTimer *m_meterTimer;
+    GlobalTransportBar *m_transportBar;
+    MidiSequenceSelector *m_sequenceSelector;
 
     void setupUi();
 };

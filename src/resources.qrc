@@ -5,10 +5,12 @@
     <file>icons/clear.svg</file>
     <file>icons/eye-not-visible.svg</file>
     <file>icons/eye-visible.svg</file>
+    <file>icons/layers.svg</file>
     <file>icons/logo.png</file>
     <file>icons/logo.svg</file>
     <file>icons/media-backward-end.svg</file>
     <file>icons/media-forward-end.svg</file>
+    <file>icons/music-note.svg</file>
     <file>icons/open.svg</file>
     <file>icons/play.svg</file>
     <file>icons/redo.svg</file>
@@ -18,6 +20,7 @@
     <file>icons/save.svg</file>
     <file>icons/solo.svg</file>
     <file>icons/solo-view.svg</file>
+    <file>icons/timeline.svg</file>
     <file>icons/sound-off.svg</file>
     <file>icons/sound-on.svg</file>
     <file>icons/stop.svg</file>
@@ -54,10 +57,13 @@
     <file>icons/app_section_midi.svg</file>
     <file>icons/app_section_notation.svg</file>
     <file>icons/app_section_project.svg</file>
+    <file>icons/app_section_arrangement.svg</file>
     <file>icons/chart-line.svg</file>
     <file>icons/chart-area.svg</file>
     <file>icons/print.svg</file>
     <file>icons/arrow-down.svg</file>
+    <file>icons/playback-sequence.svg</file>
+    <file>icons/playback-compose.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>

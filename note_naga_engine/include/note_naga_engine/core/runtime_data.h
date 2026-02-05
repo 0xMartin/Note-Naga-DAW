@@ -123,13 +123,43 @@ public:
      */
     bool setActiveSequence(NoteNagaMidiSeq *sequence);
 
+    // ARRANGEMENT METHODS
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Gets the arrangement object.
+     * @return Pointer to the arrangement.
+     */
+    NoteNagaArrangement* getArrangement() { return arrangement_; }
+    const NoteNagaArrangement* getArrangement() const { return arrangement_; }
+
+    /**
+     * @brief Gets the current arrangement tick (separate from sequence tick).
+     * @return Current arrangement tick.
+     */
+    int getCurrentArrangementTick() const { return current_arrangement_tick_; }
+
+    /**
+     * @brief Sets the current arrangement tick.
+     * @param tick The tick value.
+     */
+    void setCurrentArrangementTick(int tick);
+
+    /**
+     * @brief Gets the maximum tick in the arrangement.
+     * @return Maximum arrangement tick.
+     */
+    int getArrangementMaxTick() const;
+
 protected:
     std::vector<NoteNagaMidiSeq *> sequences; ///< All MIDI sequences in the project
     NoteNagaMidiSeq *active_sequence; ///< Pointer to the currently active sequence
+    NoteNagaArrangement *arrangement_; ///< The arrangement/composition timeline
 
     int ppq;                       ///< Pulses per quarter note (PPQ)
     int tempo;                     ///< Tempo of the project (BPM)
-    std::atomic<int> current_tick; ///< Current position in ticks
+    std::atomic<int> current_tick; ///< Current position in ticks (for sequence mode)
+    std::atomic<int> current_arrangement_tick_; ///< Current position in arrangement mode
     int max_tick;                  ///< Maximum tick in the project
 
     // SIGNALS
@@ -179,5 +209,16 @@ Q_SIGNALS:
      * @param track Pointer to the track.
      */
     void activeSequenceTrackListChanged(NoteNagaMidiSeq *seq);
+
+    /**
+     * @brief Signal emitted when the arrangement tick changes.
+     * @param tick The current arrangement tick.
+     */
+    void currentArrangementTickChanged(int tick);
+
+    /**
+     * @brief Signal emitted when arrangement tracks/clips change.
+     */
+    void arrangementChanged();
 #endif
 };

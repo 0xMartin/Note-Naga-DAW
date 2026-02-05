@@ -174,6 +174,13 @@ bool NoteNagaProjectSerializer::saveProject(const std::string &filePath, const N
         writeBool(file, true);
     }
     
+    // Write Arrangement (v6+)
+    if (runtime && runtime->getArrangement()) {
+        serializeArrangement(file, runtime->getArrangement());
+    } else {
+        writeInt32(file, 0);  // No arrangement tracks
+    }
+    
     file.close();
     NOTE_NAGA_LOG_INFO("Project saved: " + filePath);
     return true;
@@ -270,6 +277,13 @@ bool NoteNagaProjectSerializer::loadProject(const std::string &filePath, NoteNag
         
         bool dspEnabled = readBool(file);
         dspEngine->setEnableDSP(dspEnabled);
+    }
+    
+    // Read Arrangement (v6+)
+    if (m_loadingVersion >= 6 && runtime && runtime->getArrangement()) {
+        if (!deserializeArrangement(file, runtime->getArrangement())) {
+            NOTE_NAGA_LOG_WARNING("Failed to load arrangement data, continuing with empty arrangement");
+        }
     }
     
     file.close();
@@ -661,5 +675,149 @@ NoteNagaDSPBlockBase *NoteNagaProjectSerializer::createDSPBlockByName(const std:
     }
     
     return nullptr;
+}
+
+/*******************************************************************************************************/
+// Arrangement Serialization (v6+)
+/*******************************************************************************************************/
+
+void NoteNagaProjectSerializer::serializeArrangement(std::ofstream &out, NoteNagaArrangement *arrangement)
+{
+    if (!arrangement) {
+        writeInt32(out, 0);
+        return;
+    }
+    
+    const auto& tracks = arrangement->getTracks();
+    writeInt32(out, static_cast<int32_t>(tracks.size()));
+    
+    for (auto* track : tracks) {
+        serializeArrangementTrack(out, track);
+    }
+}
+
+bool NoteNagaProjectSerializer::deserializeArrangement(std::ifstream &in, NoteNagaArrangement *arrangement)
+{
+    if (!arrangement) return false;
+    
+    // Clear existing arrangement
+    arrangement->clear();
+    
+    int32_t numTracks = readInt32(in);
+    if (numTracks < 0 || numTracks > 10000) {
+        NOTE_NAGA_LOG_ERROR("Invalid arrangement track count: " + std::to_string(numTracks));
+        return false;
+    }
+    
+    for (int32_t i = 0; i < numTracks; ++i) {
+        auto* track = arrangement->addTrack();
+        if (!deserializeArrangementTrack(in, track)) {
+            NOTE_NAGA_LOG_ERROR("Failed to deserialize arrangement track " + std::to_string(i));
+            return false;
+        }
+    }
+    
+    arrangement->updateMaxTick();
+    return true;
+}
+
+void NoteNagaProjectSerializer::serializeArrangementTrack(std::ofstream &out, NoteNagaArrangementTrack *track)
+{
+    if (!track) return;
+    
+    writeInt32(out, track->getId());
+    writeString(out, track->getName());
+    
+    // Color
+    writeUInt8(out, track->getColor().red);
+    writeUInt8(out, track->getColor().green);
+    writeUInt8(out, track->getColor().blue);
+    
+    writeBool(out, track->isMuted());
+    writeBool(out, track->isSolo());
+    writeFloat(out, track->getVolume());
+    writeInt32(out, track->getChannelOffset());
+    
+    // Clips
+    const auto& clips = track->getClips();
+    writeInt32(out, static_cast<int32_t>(clips.size()));
+    for (const auto& clip : clips) {
+        serializeMidiClip(out, clip);
+    }
+}
+
+bool NoteNagaProjectSerializer::deserializeArrangementTrack(std::ifstream &in, NoteNagaArrangementTrack *track)
+{
+    if (!track) return false;
+    
+    int32_t id = readInt32(in);
+    track->setId(id);
+    
+    std::string name = readString(in);
+    track->setName(name);
+    
+    // Color
+    uint8_t r = readUInt8(in);
+    uint8_t g = readUInt8(in);
+    uint8_t b = readUInt8(in);
+    track->setColor(NN_Color_t(r, g, b));
+    
+    track->setMuted(readBool(in));
+    track->setSolo(readBool(in));
+    track->setVolume(readFloat(in));
+    track->setChannelOffset(readInt32(in));
+    
+    // Clips
+    int32_t numClips = readInt32(in);
+    if (numClips < 0 || numClips > 100000) {
+        NOTE_NAGA_LOG_ERROR("Invalid clip count: " + std::to_string(numClips));
+        return false;
+    }
+    
+    for (int32_t i = 0; i < numClips; ++i) {
+        NN_MidiClip_t clip;
+        if (!deserializeMidiClip(in, clip)) {
+            NOTE_NAGA_LOG_ERROR("Failed to deserialize clip " + std::to_string(i));
+            return false;
+        }
+        track->addClip(clip);
+    }
+    
+    return true;
+}
+
+void NoteNagaProjectSerializer::serializeMidiClip(std::ofstream &out, const NN_MidiClip_t &clip)
+{
+    writeInt32(out, clip.id);
+    writeInt32(out, clip.sequenceId);
+    writeInt32(out, clip.startTick);
+    writeInt32(out, clip.durationTicks);
+    writeInt32(out, clip.offsetTicks);
+    writeBool(out, clip.muted);
+    writeString(out, clip.name);
+    
+    // Color
+    writeUInt8(out, clip.color.red);
+    writeUInt8(out, clip.color.green);
+    writeUInt8(out, clip.color.blue);
+}
+
+bool NoteNagaProjectSerializer::deserializeMidiClip(std::ifstream &in, NN_MidiClip_t &clip)
+{
+    clip.id = readInt32(in);
+    clip.sequenceId = readInt32(in);
+    clip.startTick = readInt32(in);
+    clip.durationTicks = readInt32(in);
+    clip.offsetTicks = readInt32(in);
+    clip.muted = readBool(in);
+    clip.name = readString(in);
+    
+    // Color
+    uint8_t r = readUInt8(in);
+    uint8_t g = readUInt8(in);
+    uint8_t b = readUInt8(in);
+    clip.color = NN_Color_t(r, g, b);
+    
+    return in.good();
 }
 

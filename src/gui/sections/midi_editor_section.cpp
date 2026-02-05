@@ -4,7 +4,6 @@
 #include "../editor/midi_editor_widget.h"
 #include "../editor/note_property_editor.h"
 #include "../editor/tempo_track_editor.h"
-#include "../widgets/midi_control_bar_widget.h"
 #include "../widgets/midi_keyboard_ruler.h"
 #include "../widgets/midi_tact_ruler.h"
 #include "../widgets/timeline_overview_widget.h"
@@ -135,19 +134,15 @@ void MidiEditorSection::setupDockLayout()
     m_editorSplitter->setStretchFactor(0, 4);
     m_editorSplitter->setStretchFactor(1, 1);
 
-    // Main editor layout with splitter and control bar
-    QVBoxLayout *editorLayout = new QVBoxLayout();
-    editorLayout->setContentsMargins(0, 0, 0, 0);
-    editorLayout->setSpacing(0);
-    editorLayout->addWidget(m_editorSplitter, 1);
-    
-    m_controlBar = new MidiControlBarWidget(m_engine, this);
-    editorLayout->addWidget(m_controlBar);
-    
+    // Main editor container - splitter fills the entire space
+    // Control bar is now global in SectionSwitcher
     QFrame *editorContainer = new QFrame();
     editorContainer->setObjectName("EditorContainer");
     editorContainer->setStyleSheet("QFrame#EditorContainer { border: 1px solid #19191f; }");
-    editorContainer->setLayout(editorLayout);
+    QVBoxLayout *editorLayout = new QVBoxLayout(editorContainer);
+    editorLayout->setContentsMargins(0, 0, 0, 0);
+    editorLayout->setSpacing(0);
+    editorLayout->addWidget(m_editorSplitter, 1);
     editorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     auto *editorDock = new AdvancedDockWidget(

@@ -9,7 +9,6 @@
 #include <note_naga_engine/note_naga_engine.h>
 #include "section_interface.h"
 
-#include "../components/midi_seq_progress_bar.h"
 #include "../components/audio_bars_visualizer.h" 
 #include "../../media_export/media_exporter.h" 
 #include "../../media_export/media_renderer.h" 
@@ -55,10 +54,8 @@ public:
     void refreshSequence();
 
 private slots:
-    // Playback controls
-    void onPlayPauseClicked();
+    // Playback position
     void onPlaybackTickChanged(int tick);
-    void seek(float seconds); 
     
     // Export process
     void onExportClicked();
@@ -104,8 +101,6 @@ private:
     QLabel *m_previewStatsLabel;
     AudioBarsVisualizer *m_audioBarsVisualizer;
     QStackedWidget *m_previewStack;
-    QPushButton *m_playPauseButton;
-    MidiSequenceProgressBar *m_progressBar; 
     QPushButton *m_exportButton;
     
     // Preview stats tracking

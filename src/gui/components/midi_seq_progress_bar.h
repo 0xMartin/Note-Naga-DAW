@@ -2,8 +2,12 @@
 
 #include <QWidget>
 #include <QMouseEvent>
+#include <QFuture>
+#include <QFutureWatcher>
+#include <QTimer>
 #include <vector>
 #include <QImage>
+#include <atomic>
 
 #include <note_naga_engine/core/types.h>
 
@@ -19,6 +23,11 @@ public:
      * @param parent Parent widget.
      */
     explicit MidiSequenceProgressBar(QWidget *parent = nullptr);
+    
+    /**
+     * @brief Destructor.
+     */
+    ~MidiSequenceProgressBar();
 
     /**
      * @brief Sets the MIDI sequence to be displayed in the progress bar.
@@ -27,9 +36,10 @@ public:
     void setMidiSequence(NoteNagaMidiSeq *seq);
 
     /**
-     * @brief Refreshes the waveform display.
+     * @brief Schedules an async refresh of the waveform display.
+     *        Multiple calls are debounced to avoid excessive recomputation.
      */
-    void refreshWaveform();
+    void scheduleWaveformRefresh();
 
     /**
      * @brief Updates the progress bar with the current playback position.
@@ -67,7 +77,14 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
     QString formatTime(float seconds) const;
 
+private slots:
+    void onWaveformComputeFinished();
+
 private:
+    void refreshWaveform();          // Immediate sync refresh (for setMidiSequence)
+    void computeWaveformAsync();
+    std::vector<float> computeWaveformData() const;
+
     NoteNagaMidiSeq *midi_seq;
     float current_time;
     float total_time;
@@ -78,6 +95,11 @@ private:
     QImage waveform_img;
     int waveform_img_width;
     int waveform_img_height;
+
+    // Async waveform computation
+    QTimer* m_refreshDebounceTimer;
+    QFutureWatcher<std::vector<float>>* m_waveformWatcher;
+    std::atomic<bool> m_computePending;
 
     float mapMouseEventToTime(QMouseEvent *event) const;
 };

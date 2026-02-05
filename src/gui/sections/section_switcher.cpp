@@ -1,5 +1,7 @@
 #include "section_switcher.h"
+#include "../widgets/global_transport_bar.h"
 #include "../components/track_stereo_meter.h"
+#include "../components/midi_sequence_selector.h"
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/module/dsp_engine.h>
 
@@ -51,36 +53,40 @@ SectionButton::SectionButton(const QIcon &icon, const QString &text, QWidget *pa
 
 SectionSwitcher::SectionSwitcher(NoteNagaEngine *engine, QWidget *parent)
     : QWidget(parent), m_engine(engine), m_currentSection(AppSection::Project),
-      m_globalMeter(nullptr), m_meterTimer(nullptr)
+      m_transportBar(nullptr), m_sequenceSelector(nullptr)
 {
     setupUi();
 }
 
 void SectionSwitcher::setupUi()
 {
-    setFixedHeight(56);
-    setStyleSheet("background-color: #2a2a30; border-top: 1px solid #3a3a42;");
+    // Main vertical layout: transport bar on top, section buttons below
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
 
-    QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    // === Global Transport Bar (full width at top) ===
+    m_transportBar = new GlobalTransportBar(m_engine, this);
+    mainLayout->addWidget(m_transportBar);
 
-    // Create global stereo meter on the left
-    m_globalMeter = new TrackStereoMeter(this);
-    m_globalMeter->setMinimumWidth(100);
-    m_globalMeter->setMaximumWidth(140);
-    m_globalMeter->setFixedHeight(48);
-    layout->addWidget(m_globalMeter);
-
-    // Setup meter update timer
-    m_meterTimer = new QTimer(this);
-    connect(m_meterTimer, &QTimer::timeout, this, [this]() {
-        if (m_engine && m_engine->getDSPEngine()) {
+    // Setup meter update timer for the transport bar's stereo meter
+    QTimer *meterTimer = new QTimer(this);
+    connect(meterTimer, &QTimer::timeout, this, [this]() {
+        if (m_engine && m_engine->getDSPEngine() && m_transportBar) {
             auto dbs = m_engine->getDSPEngine()->getCurrentVolumeDb();
-            m_globalMeter->setVolumesDb(dbs.first, dbs.second);
+            m_transportBar->getStereoMeter()->setVolumesDb(dbs.first, dbs.second);
         }
     });
-    m_meterTimer->start(50);
+    meterTimer->start(50);
+
+    // === Section Buttons Row ===
+    QWidget *buttonRow = new QWidget(this);
+    buttonRow->setStyleSheet("background-color: #2a2a30;");
+    buttonRow->setFixedHeight(48);
+    
+    QHBoxLayout *buttonLayout = new QHBoxLayout(buttonRow);
+    buttonLayout->setContentsMargins(8, 0, 8, 0);
+    buttonLayout->setSpacing(0);
 
     m_buttonGroup = new QButtonGroup(this);
     m_buttonGroup->setExclusive(true);
@@ -96,30 +102,35 @@ void SectionSwitcher::setupUi()
         {AppSection::Project, ":/icons/app_section_project.svg", tr("Project")},
         {AppSection::MidiEditor, ":/icons/app_section_midi.svg", tr("MIDI Editor")},
         {AppSection::DspEditor, ":/icons/app_section_dsp.svg", tr("DSP Editor")},
+        {AppSection::Arrangement, ":/icons/app_section_arrangement.svg", tr("Arrangement")},
         {AppSection::MediaExport, ":/icons/app_section_media.svg", tr("Media Export")},
         {AppSection::Notation, ":/icons/app_section_notation.svg", tr("Notation")}
     };
 
-    // Add stretch before buttons to center them
-    layout->addStretch();
+    // Left spacer - same width as sequence selector for balance
+    QWidget *leftSpacer = new QWidget(this);
+    leftSpacer->setFixedWidth(240);  // Match sequence selector width
+    buttonLayout->addWidget(leftSpacer);
+
+    // Add stretch before buttons
+    buttonLayout->addStretch();
 
     for (const auto &info : sections) {
         SectionButton *btn = new SectionButton(QIcon(info.iconPath), info.title, this);
         m_buttonGroup->addButton(btn, static_cast<int>(info.section));
         m_buttons.append(btn);
-        layout->addWidget(btn);
+        buttonLayout->addWidget(btn);
     }
 
-    // Add stretch after buttons to center them
-    layout->addStretch();
+    // Add stretch after buttons
+    buttonLayout->addStretch();
 
-    // Add invisible spacer on the right to balance the meter on the left
-    QWidget *rightSpacer = new QWidget(this);
-    rightSpacer->setStyleSheet("background: transparent;");
-    rightSpacer->setMinimumWidth(100);
-    rightSpacer->setMaximumWidth(140);
-    rightSpacer->setFixedHeight(48);
-    layout->addWidget(rightSpacer);
+    // === MIDI Sequence Selector (right side) ===
+    m_sequenceSelector = new MidiSequenceSelector(m_engine, this);
+    m_sequenceSelector->setFixedWidth(240);
+    buttonLayout->addWidget(m_sequenceSelector);
+
+    mainLayout->addWidget(buttonRow);
 
     // Set default checked button
     if (!m_buttons.isEmpty()) {
@@ -131,6 +142,9 @@ void SectionSwitcher::setupUi()
         m_currentSection = static_cast<AppSection>(id);
         emit sectionChanged(m_currentSection);
     });
+
+    // Set overall styling
+    setStyleSheet("background-color: #2a2a30; border-top: 1px solid #3a3a42;");
 }
 
 void SectionSwitcher::setCurrentSection(AppSection section)

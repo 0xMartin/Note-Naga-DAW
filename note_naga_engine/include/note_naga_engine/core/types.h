@@ -1054,3 +1054,369 @@ NOTE_NAGA_ENGINE_API extern double nn_ticks_to_seconds(int ticks, int ppq, int t
  * @return RMS value.
  */
 NOTE_NAGA_ENGINE_API extern void nn_fft(std::vector<std::complex<float>>& a);
+
+/*******************************************************************************************************/
+// Arrangement Types (Timeline / Composition)
+/*******************************************************************************************************/
+
+/**
+ * @brief MIDI channel used for drums (channel 10 in MIDI, 0-indexed = 9).
+ */
+constexpr int MIDI_DRUM_CHANNEL = 9;
+
+/**
+ * @brief Generates a unique identifier for a MidiClip.
+ * @return Unique clip ID.
+ */
+NOTE_NAGA_ENGINE_API int nn_generate_unique_clip_id();
+
+/**
+ * @brief Generates a unique identifier for an ArrangementTrack.
+ * @return Unique arrangement track ID.
+ */
+NOTE_NAGA_ENGINE_API int nn_generate_unique_arrangement_track_id();
+
+/**
+ * @brief Represents a clip on the arrangement timeline.
+ *        A clip is a reference to a MIDI sequence placed at a specific position.
+ *        The same sequence can be placed multiple times as different clips.
+ */
+struct NOTE_NAGA_ENGINE_API NN_MidiClip_t {
+    int id;                  ///< Unique clip ID
+    int sequenceId;          ///< Reference to NoteNagaMidiSeq ID
+    int startTick;           ///< Position on the arrangement timeline (in ticks)
+    int durationTicks;       ///< Duration of the clip (can be shorter than sequence)
+    int offsetTicks;         ///< Offset within the sequence (for trimming start)
+    bool muted;              ///< Whether this clip is muted
+    std::string name;        ///< Optional clip name (defaults to sequence name)
+    NN_Color_t color;        ///< Clip color (defaults to sequence color)
+
+    /**
+     * @brief Default constructor.
+     */
+    NN_MidiClip_t()
+        : id(nn_generate_unique_clip_id()), sequenceId(-1), startTick(0),
+          durationTicks(0), offsetTicks(0), muted(false), name(""), color() {}
+
+    /**
+     * @brief Parameterized constructor.
+     * @param seqId MIDI sequence ID to reference.
+     * @param start Start position in ticks.
+     * @param duration Duration in ticks.
+     * @param offset Offset within sequence in ticks.
+     */
+    NN_MidiClip_t(int seqId, int start, int duration, int offset = 0)
+        : id(nn_generate_unique_clip_id()), sequenceId(seqId), startTick(start),
+          durationTicks(duration), offsetTicks(offset), muted(false), name(""), color() {}
+
+    /**
+     * @brief Gets the end tick of the clip (exclusive).
+     * @return End tick position.
+     */
+    int getEndTick() const { return startTick + durationTicks; }
+
+    /**
+     * @brief Checks if this clip is active at a given tick.
+     * @param tick The tick to check.
+     * @return True if the clip contains this tick.
+     */
+    bool containsTick(int tick) const {
+        return tick >= startTick && tick < getEndTick();
+    }
+
+    /**
+     * @brief Converts arrangement tick to sequence-local tick.
+     * @param arrangementTick The tick on the arrangement timeline.
+     * @return The corresponding tick within the MIDI sequence.
+     */
+    int toSequenceTick(int arrangementTick) const {
+        return (arrangementTick - startTick) + offsetTicks;
+    }
+
+    /**
+     * @brief Comparison operator for sorting by start tick.
+     */
+    bool operator<(const NN_MidiClip_t &other) const {
+        return startTick < other.startTick;
+    }
+};
+
+/**
+ * @brief Represents a track/layer in the arrangement timeline.
+ *        Each arrangement track can contain multiple clips.
+ *        Provides channel remapping to avoid MIDI channel conflicts.
+ */
+#ifndef QT_DEACTIVATED
+class NOTE_NAGA_ENGINE_API NoteNagaArrangementTrack : public QObject {
+    Q_OBJECT
+#else
+class NOTE_NAGA_ENGINE_API NoteNagaArrangementTrack {
+#endif
+
+public:
+    /**
+     * @brief Default constructor.
+     */
+    NoteNagaArrangementTrack();
+
+    /**
+     * @brief Constructor with ID and name.
+     * @param id Unique track ID.
+     * @param name Track name.
+     */
+    NoteNagaArrangementTrack(int id, const std::string &name);
+
+    /**
+     * @brief Destructor.
+     */
+    virtual ~NoteNagaArrangementTrack() = default;
+
+    // CLIP MANAGEMENT
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Adds a clip to this track.
+     * @param clip The clip to add.
+     */
+    void addClip(const NN_MidiClip_t &clip);
+
+    /**
+     * @brief Removes a clip by ID.
+     * @param clipId The clip ID to remove.
+     * @return True if clip was found and removed.
+     */
+    bool removeClip(int clipId);
+
+    /**
+     * @brief Gets a clip by ID.
+     * @param clipId The clip ID.
+     * @return Pointer to the clip, or nullptr if not found.
+     */
+    NN_MidiClip_t* getClipById(int clipId);
+    const NN_MidiClip_t* getClipById(int clipId) const;
+
+    /**
+     * @brief Gets all clips that are active at a given tick.
+     * @param tick The tick to check.
+     * @return Vector of pointers to active clips.
+     */
+    std::vector<const NN_MidiClip_t*> getClipsAtTick(int tick) const;
+
+    /**
+     * @brief Gets all clips in this track.
+     * @return Reference to the clips vector.
+     */
+    const std::vector<NN_MidiClip_t>& getClips() const { return clips_; }
+    std::vector<NN_MidiClip_t>& getClips() { return clips_; }
+
+    /**
+     * @brief Moves a clip to a new position.
+     * @param clipId The clip ID.
+     * @param newStartTick New start position.
+     * @return True if successful.
+     */
+    bool moveClip(int clipId, int newStartTick);
+
+    /**
+     * @brief Resizes a clip.
+     * @param clipId The clip ID.
+     * @param newDuration New duration in ticks.
+     * @return True if successful.
+     */
+    bool resizeClip(int clipId, int newDuration);
+
+    // CHANNEL REMAPPING
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Gets the remapped MIDI channel for a given original channel.
+     *        Drum channel (9) is never remapped.
+     * @param originalChannel The original MIDI channel from the sequence.
+     * @param isDrumTrack Whether the source track is a drum track.
+     * @return The remapped channel to use for output.
+     */
+    int getRemappedChannel(int originalChannel, bool isDrumTrack) const;
+
+    /**
+     * @brief Sets the channel offset for this arrangement track.
+     *        Non-drum channels will be offset by this value (mod 16, skipping drum channel).
+     * @param offset Channel offset (0-15).
+     */
+    void setChannelOffset(int offset);
+
+    /**
+     * @brief Gets the channel offset.
+     * @return Channel offset value.
+     */
+    int getChannelOffset() const { return channelOffset_; }
+
+    // GETTERS
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    int getId() const { return id_; }
+    const std::string& getName() const { return name_; }
+    const NN_Color_t& getColor() const { return color_; }
+    bool isMuted() const { return muted_; }
+    bool isSolo() const { return solo_; }
+    float getVolume() const { return volume_; }
+
+    // SETTERS
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    void setId(int id) { id_ = id; }
+    void setName(const std::string &name);
+    void setColor(const NN_Color_t &color);
+    void setMuted(bool muted);
+    void setSolo(bool solo);
+    void setVolume(float volume);
+
+protected:
+    int id_;                              ///< Unique arrangement track ID
+    std::string name_;                    ///< Track name
+    NN_Color_t color_;                    ///< Track color
+    bool muted_;                          ///< Mute state
+    bool solo_;                           ///< Solo state
+    float volume_;                        ///< Volume (0.0 - 1.0)
+    int channelOffset_;                   ///< MIDI channel offset for remapping
+    std::vector<NN_MidiClip_t> clips_;    ///< All clips on this track
+
+#ifndef QT_DEACTIVATED
+Q_SIGNALS:
+    /**
+     * @brief Signal emitted when track metadata changes.
+     * @param track Pointer to this track.
+     * @param param Name of the changed parameter.
+     */
+    void metadataChanged(NoteNagaArrangementTrack *track, const std::string &param);
+
+    /**
+     * @brief Signal emitted when clips change.
+     */
+    void clipsChanged();
+#endif
+};
+
+/**
+ * @brief Represents the full arrangement/composition timeline.
+ *        Contains multiple arrangement tracks with clips.
+ */
+#ifndef QT_DEACTIVATED
+class NOTE_NAGA_ENGINE_API NoteNagaArrangement : public QObject {
+    Q_OBJECT
+#else
+class NOTE_NAGA_ENGINE_API NoteNagaArrangement {
+#endif
+
+public:
+    /**
+     * @brief Default constructor.
+     */
+    NoteNagaArrangement();
+
+    /**
+     * @brief Destructor.
+     */
+    virtual ~NoteNagaArrangement();
+
+    /**
+     * @brief Clears all tracks and clips.
+     */
+    void clear();
+
+    // TRACK MANAGEMENT
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Adds a new arrangement track.
+     * @param name Track name.
+     * @return Pointer to the newly created track.
+     */
+    NoteNagaArrangementTrack* addTrack(const std::string &name = "Track");
+
+    /**
+     * @brief Removes an arrangement track by ID.
+     * @param trackId The track ID to remove.
+     * @return True if track was found and removed.
+     */
+    bool removeTrack(int trackId);
+
+    /**
+     * @brief Gets a track by ID.
+     * @param trackId The track ID.
+     * @return Pointer to the track, or nullptr if not found.
+     */
+    NoteNagaArrangementTrack* getTrackById(int trackId);
+    const NoteNagaArrangementTrack* getTrackById(int trackId) const;
+
+    /**
+     * @brief Gets all arrangement tracks.
+     * @return Reference to the tracks vector.
+     */
+    const std::vector<NoteNagaArrangementTrack*>& getTracks() const { return tracks_; }
+    std::vector<NoteNagaArrangementTrack*>& getTracks() { return tracks_; }
+
+    /**
+     * @brief Moves a track from one position to another.
+     * @param fromIndex Current index.
+     * @param toIndex Target index.
+     * @return True if successful.
+     */
+    bool moveTrack(int fromIndex, int toIndex);
+
+    /**
+     * @brief Gets the number of tracks.
+     * @return Track count.
+     */
+    size_t getTrackCount() const { return tracks_.size(); }
+
+    // PLAYBACK QUERIES
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Gets all clips that are active at a given tick across all tracks.
+     * @param tick The tick to check.
+     * @return Vector of pairs (track, clip) for all active clips.
+     */
+    std::vector<std::pair<NoteNagaArrangementTrack*, const NN_MidiClip_t*>> 
+        getActiveClipsAtTick(int tick) const;
+
+    /**
+     * @brief Computes the total length of the arrangement in ticks.
+     * @return Maximum end tick of all clips.
+     */
+    int computeMaxTick() const;
+
+    /**
+     * @brief Gets the total length of the arrangement.
+     * @return Max tick value.
+     */
+    int getMaxTick() const { return maxTick_; }
+
+    /**
+     * @brief Updates the max tick value by scanning all clips.
+     */
+    void updateMaxTick();
+
+protected:
+    std::vector<NoteNagaArrangementTrack*> tracks_;  ///< All arrangement tracks
+    int maxTick_;                                     ///< Cached max tick value
+
+#ifndef QT_DEACTIVATED
+Q_SIGNALS:
+    /**
+     * @brief Signal emitted when tracks are added/removed/reordered.
+     */
+    void tracksChanged();
+
+    /**
+     * @brief Signal emitted when any clip changes.
+     */
+    void clipsChanged();
+
+    /**
+     * @brief Signal emitted when the arrangement length changes.
+     * @param maxTick New max tick value.
+     */
+    void maxTickChanged(int maxTick);
+#endif
+};

@@ -2,7 +2,6 @@
 
 #include "../dock_system/advanced_dock_widget.h"
 #include "../widgets/dsp_engine_widget.h"
-#include "../widgets/midi_control_bar_widget.h"
 #include "../components/spectrum_analyzer.h"
 #include "../components/pan_analyzer.h"
 #include "track_preview_widget.h"
@@ -94,25 +93,11 @@ void DSPEditorSection::setupDockLayout()
     addDockWidget(Qt::BottomDockWidgetArea, dspDock);
     m_docks["dsp"] = dspDock;
 
-    // === Track Preview + Control Bar dock (right side - full height) ===
-    // Create container widget for TrackPreview + ControlBar
-    QWidget *previewContainer = new QWidget(this);
-    QVBoxLayout *containerLayout = new QVBoxLayout(previewContainer);
-    containerLayout->setContentsMargins(0, 0, 0, 0);
-    containerLayout->setSpacing(0);
-    
-    // Track preview (main content, expandable)
+    // === Track Preview dock (right side - full height) ===
+    // Control bar is now global in SectionSwitcher
     m_trackPreview = new TrackPreviewWidget(m_engine, this);
     m_trackPreview->setMinimumSize(300, 150);
     m_trackPreview->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    containerLayout->addWidget(m_trackPreview, 1);
-    
-    // Control bar (fixed height at bottom)
-    m_controlBar = new MidiControlBarWidget(m_engine, this);
-    m_controlBar->setMinimumHeight(40);
-    m_controlBar->setMaximumHeight(50);
-    m_controlBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    containerLayout->addWidget(m_controlBar, 0);
     
     auto *previewDock = new AdvancedDockWidget(
         tr("Track Preview"), 
@@ -120,7 +105,7 @@ void DSPEditorSection::setupDockLayout()
         m_trackPreview->getTitleWidget(), 
         this
     );
-    previewDock->setWidget(previewContainer);
+    previewDock->setWidget(m_trackPreview);
     previewDock->setObjectName("trackpreview");
     previewDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     previewDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);

@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
+#include <QtConcurrent>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -14,7 +15,7 @@
 // --- Constructor ---
 MidiSequenceProgressBar::MidiSequenceProgressBar(QWidget *parent)
     : QWidget(parent), midi_seq(nullptr), current_time(0.f), total_time(1.f),
-      waveform_resolution(400) {
+      waveform_resolution(400), m_computePending(false) {
     setMinimumWidth(300);
     setMinimumHeight(38);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -30,6 +31,25 @@ MidiSequenceProgressBar::MidiSequenceProgressBar(QWidget *parent)
     waveform_img = QImage();
     waveform_img_width = 0;
     waveform_img_height = 0;
+    
+    // Setup debounce timer for waveform refresh (300ms debounce)
+    m_refreshDebounceTimer = new QTimer(this);
+    m_refreshDebounceTimer->setSingleShot(true);
+    m_refreshDebounceTimer->setInterval(300);
+    connect(m_refreshDebounceTimer, &QTimer::timeout, this, &MidiSequenceProgressBar::computeWaveformAsync);
+    
+    // Setup future watcher for async waveform computation
+    m_waveformWatcher = new QFutureWatcher<std::vector<float>>(this);
+    connect(m_waveformWatcher, &QFutureWatcher<std::vector<float>>::finished,
+            this, &MidiSequenceProgressBar::onWaveformComputeFinished);
+}
+
+MidiSequenceProgressBar::~MidiSequenceProgressBar()
+{
+    if (m_waveformWatcher->isRunning()) {
+        m_waveformWatcher->cancel();
+        m_waveformWatcher->waitForFinished();
+    }
 }
 
 // --- Setters ---
@@ -55,7 +75,7 @@ void MidiSequenceProgressBar::updateMaxTime() {
     // Only refresh waveform if total time changed significantly (sequence modified)
     if (std::abs(new_total_time - this->total_time) > 0.1) {
         this->total_time = new_total_time;
-        refreshWaveform();
+        scheduleWaveformRefresh();  // Use async refresh
     }
     update();
 }
@@ -238,10 +258,54 @@ void MidiSequenceProgressBar::mouseReleaseEvent(QMouseEvent *event) {
 }
 
 // --- Waveform: Precompute from MIDI sequence ---
-void MidiSequenceProgressBar::refreshWaveform() {
-    std::fill(waveform.begin(), waveform.end(), 0.0f);
 
-    if (!midi_seq || midi_seq->getTracks().empty() || total_time < 0.1f) return;
+// Public API - schedules a debounced waveform refresh
+void MidiSequenceProgressBar::scheduleWaveformRefresh() {
+    m_refreshDebounceTimer->start();  // Restart debounce timer
+}
+
+// Private - old sync implementation kept for setMidiSequence (immediate refresh needed)
+void MidiSequenceProgressBar::refreshWaveform() {
+    waveform = computeWaveformData();
+    update();
+}
+
+// Async computation - runs in background thread
+void MidiSequenceProgressBar::computeWaveformAsync() {
+    if (!midi_seq || m_waveformWatcher->isRunning()) {
+        // If already computing, mark as pending to re-run after completion
+        if (m_waveformWatcher->isRunning()) {
+            m_computePending.store(true);
+        }
+        return;
+    }
+    
+    // Capture necessary data for thread-safe computation
+    QFuture<std::vector<float>> future = QtConcurrent::run([this]() {
+        return computeWaveformData();
+    });
+    
+    m_waveformWatcher->setFuture(future);
+}
+
+// Called when async computation finishes
+void MidiSequenceProgressBar::onWaveformComputeFinished() {
+    if (m_waveformWatcher->isCanceled()) return;
+    
+    waveform = m_waveformWatcher->result();
+    update();
+    
+    // If another refresh was requested while computing, restart
+    if (m_computePending.exchange(false)) {
+        computeWaveformAsync();
+    }
+}
+
+// Thread-safe waveform computation (can run in background)
+std::vector<float> MidiSequenceProgressBar::computeWaveformData() const {
+    std::vector<float> result(waveform_resolution, 0.0f);
+
+    if (!midi_seq || midi_seq->getTracks().empty() || total_time < 0.1f) return result;
 
     std::vector<NoteNagaTrack *> tracks = midi_seq->getTracks();
     std::vector<const NN_Note_t *> notes;
@@ -288,7 +352,9 @@ void MidiSequenceProgressBar::refreshWaveform() {
     if (norm_value < 1.0f) norm_value = 1.0f; 
 
     for (int i = 0; i < N; ++i) {
-        waveform[i] = std::clamp(buckets[i] / norm_value, 0.f, 1.f);
-        waveform[i] = std::pow(waveform[i], 0.7f);
+        result[i] = std::clamp(buckets[i] / norm_value, 0.f, 1.f);
+        result[i] = std::pow(result[i], 0.7f);
     }
+    
+    return result;
 }

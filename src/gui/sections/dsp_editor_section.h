@@ -13,7 +13,6 @@ class DSPEngineWidget;
 class SpectrumAnalyzer;
 class PanAnalyzer;
 class TrackPreviewWidget;
-class MidiControlBarWidget;
 
 /**
  * @brief DSPEditorSection provides the DSP Editor section layout with:
@@ -32,11 +31,6 @@ public:
     // ISection interface
     void onSectionActivated() override;
     void onSectionDeactivated() override;
-    
-    /**
-     * @brief Get control bar widget for signal connections
-     */
-    MidiControlBarWidget *getControlBar() const { return m_controlBar; }
     
     /**
      * @brief Get DSP engine widget
@@ -59,7 +53,6 @@ private:
     SpectrumAnalyzer *m_spectrumAnalyzer;
     PanAnalyzer *m_panAnalyzer;
     TrackPreviewWidget *m_trackPreview;
-    MidiControlBarWidget *m_controlBar;
     
     void setupDockLayout();
 };
