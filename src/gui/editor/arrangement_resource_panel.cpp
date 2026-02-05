@@ -71,6 +71,9 @@ void ArrangementResourcePanel::initUI()
 
     // Sequence list - using custom draggable list
     m_sequenceList = new DraggableSequenceList(this);
+    m_sequenceList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_sequenceList, &QListWidget::customContextMenuRequested,
+            this, &ArrangementResourcePanel::showContextMenu);
     layout->addWidget(m_sequenceList, 1);
 
     // Info label
@@ -101,7 +104,24 @@ void ArrangementResourcePanel::refreshFromProject()
         NoteNagaMidiSeq *seq = sequences[i];
         if (!seq) continue;
         
-        QString name = tr("Sequence %1").arg(i + 1);
+        QString name;
+        // Use file path as display name if available
+        if (!seq->getFilePath().empty()) {
+            QString path = QString::fromStdString(seq->getFilePath());
+            int lastSlash = path.lastIndexOf('/');
+            if (lastSlash >= 0) {
+                name = path.mid(lastSlash + 1);
+            } else {
+                name = path;
+            }
+            // Remove extension
+            int lastDot = name.lastIndexOf('.');
+            if (lastDot > 0) {
+                name = name.left(lastDot);
+            }
+        } else {
+            name = tr("Sequence %1").arg(i + 1);
+        }
         
         // Calculate duration info
         int64_t durationTicks = seq->getMaxTick();
@@ -152,4 +172,106 @@ void ArrangementResourcePanel::onItemDoubleClicked(QListWidgetItem *item)
 void ArrangementResourcePanel::onCreateSequence()
 {
     emit createSequenceRequested();
+}
+
+void ArrangementResourcePanel::showContextMenu(const QPoint &pos)
+{
+    QListWidgetItem *item = m_sequenceList->itemAt(pos);
+    if (!item) return;
+    
+    int sequenceIndex = item->data(Qt::UserRole).toInt();
+    
+    QMenu menu(this);
+    menu.setStyleSheet(R"(
+        QMenu {
+            background-color: #2a2a30;
+            color: #cccccc;
+            border: 1px solid #4a4a52;
+            padding: 4px;
+        }
+        QMenu::item {
+            padding: 6px 20px;
+        }
+        QMenu::item:selected {
+            background-color: #2563eb;
+        }
+    )");
+    
+    QAction *editAction = menu.addAction(tr("Edit Sequence"));
+    QAction *renameAction = menu.addAction(tr("Rename..."));
+    menu.addSeparator();
+    QAction *deleteAction = menu.addAction(tr("Delete"));
+    deleteAction->setIcon(QIcon::fromTheme("edit-delete"));
+    
+    QAction *selected = menu.exec(m_sequenceList->mapToGlobal(pos));
+    
+    if (selected == editAction) {
+        emit editSequenceRequested(sequenceIndex);
+    } else if (selected == renameAction) {
+        renameSequence(sequenceIndex);
+    } else if (selected == deleteAction) {
+        deleteSequence(sequenceIndex);
+    }
+}
+
+void ArrangementResourcePanel::renameSequence(int index)
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    auto sequences = m_engine->getRuntimeData()->getSequences();
+    if (index < 0 || index >= static_cast<int>(sequences.size())) return;
+    
+    NoteNagaMidiSeq *seq = sequences[index];
+    if (!seq) return;
+    
+    // Get current name
+    QString currentName;
+    if (!seq->getFilePath().empty()) {
+        QString path = QString::fromStdString(seq->getFilePath());
+        int lastSlash = path.lastIndexOf('/');
+        currentName = (lastSlash >= 0) ? path.mid(lastSlash + 1) : path;
+        int lastDot = currentName.lastIndexOf('.');
+        if (lastDot > 0) currentName = currentName.left(lastDot);
+    } else {
+        currentName = tr("Sequence %1").arg(index + 1);
+    }
+    
+    bool ok;
+    QString newName = QInputDialog::getText(this, tr("Rename Sequence"),
+                                            tr("Enter new name:"),
+                                            QLineEdit::Normal, currentName, &ok);
+    
+    if (ok && !newName.isEmpty() && newName != currentName) {
+        // For now, we store name in a simple way - could extend engine API
+        // The name will be reflected in clip display
+        emit sequenceRenamed(index, newName);
+        refreshFromProject();
+    }
+}
+
+void ArrangementResourcePanel::deleteSequence(int index)
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    auto sequences = m_engine->getRuntimeData()->getSequences();
+    if (index < 0 || index >= static_cast<int>(sequences.size())) return;
+    
+    // Confirmation dialog
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this,
+        tr("Delete Sequence"),
+        tr("Are you sure you want to delete this sequence?\n"
+           "This action cannot be undone."),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+    );
+    
+    if (reply == QMessageBox::Yes) {
+        NoteNagaMidiSeq *seq = sequences[index];
+        if (seq) {
+            m_engine->getRuntimeData()->removeSequence(seq);
+            emit sequenceDeleted(index);
+            refreshFromProject();
+        }
+    }
 }

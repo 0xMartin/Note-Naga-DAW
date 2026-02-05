@@ -52,6 +52,12 @@ public:
      * @param seconds Current playback time in seconds.
      */
     void setCurrentTime(float seconds);
+    
+    /**
+     * @brief Sets the total time in seconds (for arrangement mode).
+     * @param seconds Total time in seconds.
+     */
+    void setTotalTime(float seconds);
 
     float getCurrentTime() const { return current_time; }
     float getTotalTime() const { return total_time; }

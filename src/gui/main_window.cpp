@@ -432,18 +432,44 @@ void MainWindow::on_playing_state_changed(bool playing) {
 }
 
 void MainWindow::goto_start() {
-    this->engine->setPlaybackPosition(0);
-    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
-    if (midi_editor) {
-        midi_editor->horizontalScrollBar()->setValue(0);
+    GlobalTransportBar *transportBar = m_sectionSwitcher->getTransportBar();
+    PlaybackMode mode = transportBar ? transportBar->getPlaybackMode() : PlaybackMode::Sequence;
+    
+    if (mode == PlaybackMode::Arrangement) {
+        // Set arrangement position to 0
+        if (engine->getRuntimeData()) {
+            engine->getRuntimeData()->setCurrentArrangementTick(0);
+        }
+    } else {
+        // Set sequence position to 0
+        this->engine->setPlaybackPosition(0);
+        MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+        if (midi_editor) {
+            midi_editor->horizontalScrollBar()->setValue(0);
+        }
     }
 }
 
 void MainWindow::goto_end() {
-    this->engine->setPlaybackPosition(this->engine->getRuntimeData()->getMaxTick());
-    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
-    if (midi_editor) {
-        midi_editor->horizontalScrollBar()->setValue(midi_editor->horizontalScrollBar()->maximum());
+    GlobalTransportBar *transportBar = m_sectionSwitcher->getTransportBar();
+    PlaybackMode mode = transportBar ? transportBar->getPlaybackMode() : PlaybackMode::Sequence;
+    
+    if (mode == PlaybackMode::Arrangement) {
+        // Set arrangement position to end
+        if (engine->getRuntimeData()) {
+            NoteNagaArrangement *arrangement = engine->getRuntimeData()->getArrangement();
+            if (arrangement) {
+                int maxTick = arrangement->getMaxTick();
+                engine->getRuntimeData()->setCurrentArrangementTick(maxTick);
+            }
+        }
+    } else {
+        // Set sequence position to end
+        this->engine->setPlaybackPosition(this->engine->getRuntimeData()->getMaxTick());
+        MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+        if (midi_editor) {
+            midi_editor->horizontalScrollBar()->setValue(midi_editor->horizontalScrollBar()->maximum());
+        }
     }
 }
 

@@ -4,6 +4,7 @@
 #include <QMap>
 #include <QString>
 #include <QSplitter>
+#include <QScrollBar>
 
 #include <note_naga_engine/note_naga_engine.h>
 #include "section_interface.h"
@@ -57,12 +58,14 @@ private:
     ArrangementTimelineWidget *m_timeline;
     ArrangementResourcePanel *m_resourcePanel;
     ArrangementTimelineRuler *m_timelineRuler;
+    QScrollBar *m_timelineScrollBar;
     
     // State
     bool m_layoutInitialized = false;
     
     void setupDockLayout();
     void connectSignals();
+    void updateScrollBarRange();
     
 protected:
     void showEvent(QShowEvent *event) override;

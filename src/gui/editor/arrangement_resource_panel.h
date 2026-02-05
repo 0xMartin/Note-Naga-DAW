@@ -9,6 +9,9 @@
 #include <QMimeData>
 #include <QDrag>
 #include <QPainter>
+#include <QMenu>
+#include <QInputDialog>
+#include <QMessageBox>
 
 class NoteNagaEngine;
 
@@ -90,13 +93,22 @@ signals:
     
     /// Emitted when user creates a new sequence
     void createSequenceRequested();
+    
+    /// Emitted when a sequence is deleted
+    void sequenceDeleted(int sequenceIndex);
+    
+    /// Emitted when a sequence is renamed
+    void sequenceRenamed(int sequenceIndex, const QString &newName);
 
 private slots:
     void onItemDoubleClicked(QListWidgetItem *item);
     void onCreateSequence();
+    void showContextMenu(const QPoint &pos);
 
 private:
     void initUI();
+    void renameSequence(int index);
+    void deleteSequence(int index);
 
     NoteNagaEngine *m_engine;
     

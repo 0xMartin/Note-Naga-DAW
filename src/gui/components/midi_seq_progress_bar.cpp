@@ -90,6 +90,13 @@ void MidiSequenceProgressBar::setCurrentTime(float seconds) {
     update();
 }
 
+void MidiSequenceProgressBar::setTotalTime(float seconds) {
+    if (std::abs(total_time - seconds) > 0.01f) {
+        total_time = std::max(0.01f, seconds);
+        update();
+    }
+}
+
 QString MidiSequenceProgressBar::formatTime(float seconds) const {
     int s = int(seconds + 0.5);
     int m = s / 60;
@@ -305,16 +312,32 @@ void MidiSequenceProgressBar::onWaveformComputeFinished() {
 std::vector<float> MidiSequenceProgressBar::computeWaveformData() const {
     std::vector<float> result(waveform_resolution, 0.0f);
 
-    if (!midi_seq || midi_seq->getTracks().empty() || total_time < 0.1f) return result;
+    if (!midi_seq) {
+        return result;
+    }
+    if (midi_seq->getTracks().empty()) {
+        return result;
+    }
+    // Lower threshold to allow waveform with just 1 note (0.01 seconds minimum)
+    if (total_time < 0.01f) {
+        return result;
+    }
 
     std::vector<NoteNagaTrack *> tracks = midi_seq->getTracks();
     std::vector<const NN_Note_t *> notes;
     for (auto *t : tracks) {
-        if (!t->isVisible() || t->isMuted() || t->isTempoTrack()) continue;
+        if (!t->isVisible() || t->isMuted() || t->isTempoTrack()) {
+            continue;
+        }
         for (const auto &n : t->getNotes()) {
             notes.push_back(&n);
         }
     }
+    
+    if (notes.empty()) {
+        return result;
+    }
+    
     int N = waveform_resolution;
     float bucket_dur = total_time / N;
     std::vector<float> buckets(N, 0.0f);

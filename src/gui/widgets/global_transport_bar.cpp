@@ -332,6 +332,26 @@ void GlobalTransportBar::updateProgressBar()
     if (m_ppq == 0 || m_tempo == 0) return;
     
     double usPerTick = double(m_tempo) / double(m_ppq);
+    
+    if (m_playbackMode == PlaybackMode::Arrangement) {
+        // In arrangement mode, show arrangement position and total time
+        NoteNagaArrangement *arrangement = project->getArrangement();
+        if (arrangement) {
+            int currentTick = project->getCurrentArrangementTick();
+            int maxTick = arrangement->getMaxTick();
+            
+            double curSec = double(currentTick) * usPerTick / 1'000'000.0;
+            double totalSec = double(maxTick) * usPerTick / 1'000'000.0;
+            
+            // Update progress bar with arrangement data
+            // We need to temporarily set total_time for proper display
+            m_progressBar->setTotalTime(std::max(1.0f, static_cast<float>(totalSec)));
+            m_progressBar->setCurrentTime(curSec);
+            return;
+        }
+    }
+    
+    // Default: sequence mode
     double curSec = double(project->getCurrentTick()) * usPerTick / 1'000'000.0;
     m_progressBar->setCurrentTime(curSec);
 }

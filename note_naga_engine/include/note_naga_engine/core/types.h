@@ -1132,6 +1132,30 @@ struct NOTE_NAGA_ENGINE_API NN_MidiClip_t {
     int toSequenceTick(int arrangementTick) const {
         return (arrangementTick - startTick) + offsetTicks;
     }
+    
+    /**
+     * @brief Converts arrangement tick to sequence-local tick with looping support.
+     * @param arrangementTick The tick on the arrangement timeline.
+     * @param sequenceLength The length of the source sequence in ticks.
+     * @return The corresponding tick within the MIDI sequence (wrapped for looping).
+     */
+    int toSequenceTickLooped(int arrangementTick, int sequenceLength) const {
+        if (sequenceLength <= 0) return 0;
+        int localTick = (arrangementTick - startTick) + offsetTicks;
+        return localTick % sequenceLength;
+    }
+    
+    /**
+     * @brief Gets the loop iteration number at a given arrangement tick.
+     * @param arrangementTick The tick on the arrangement timeline.
+     * @param sequenceLength The length of the source sequence in ticks.
+     * @return The loop iteration (0 for first play, 1 for first repeat, etc.)
+     */
+    int getLoopIteration(int arrangementTick, int sequenceLength) const {
+        if (sequenceLength <= 0) return 0;
+        int localTick = (arrangementTick - startTick) + offsetTicks;
+        return localTick / sequenceLength;
+    }
 
     /**
      * @brief Comparison operator for sorting by start tick.

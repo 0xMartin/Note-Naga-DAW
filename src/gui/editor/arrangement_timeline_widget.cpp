@@ -144,6 +144,13 @@ void ArrangementTimelineWidget::deleteSelectedClips()
 
 void ArrangementTimelineWidget::refreshFromArrangement()
 {
+    // Ensure at least 1 track exists when arrangement is empty
+    if (m_engine && m_engine->getRuntimeData()) {
+        NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+        if (arrangement && arrangement->getTrackCount() == 0) {
+            arrangement->addTrack("Track 1");
+        }
+    }
     update();
 }
 
@@ -435,6 +442,9 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
     
     NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
     if (!arrangement) return;
+    
+    // Get sequences for lookup
+    auto sequences = m_engine->getRuntimeData()->getSequences();
 
     int trackIndex = 0;
     for (auto *track : arrangement->getTracks()) {
@@ -462,22 +472,125 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
             QColor fillColor = isSelected ? trackColor.lighter(130) : trackColor.darker(120);
             painter.fillRect(clipRect, fillColor);
             
+            // Find the source sequence
+            NoteNagaMidiSeq *sourceSeq = nullptr;
+            for (auto *seq : sequences) {
+                if (seq && seq->getId() == clip.sequenceId) {
+                    sourceSeq = seq;
+                    break;
+                }
+            }
+            
+            // Draw note preview if sequence found
+            if (sourceSeq) {
+                int seqDuration = sourceSeq->getMaxTick();
+                if (seqDuration <= 0) seqDuration = 480 * 4; // Fallback
+                
+                // Calculate number of loops
+                int numLoops = (clip.durationTicks + seqDuration - 1) / seqDuration;
+                
+                // Find note range for scaling
+                int minNote = 127, maxNote = 0;
+                for (auto *t : sourceSeq->getTracks()) {
+                    if (!t || t->isTempoTrack()) continue;
+                    for (const auto &n : t->getNotes()) {
+                        if (n.start.has_value()) {
+                            minNote = std::min(minNote, n.note);
+                            maxNote = std::max(maxNote, n.note);
+                        }
+                    }
+                }
+                if (minNote > maxNote) {
+                    minNote = 48; maxNote = 84; // Default range if no notes
+                }
+                int noteRange = std::max(12, maxNote - minNote + 1);
+                
+                // Draw notes for each loop
+                painter.setClipRect(clipRect);
+                QColor noteColor = trackColor.lighter(180);
+                
+                for (int loop = 0; loop < numLoops; ++loop) {
+                    int loopOffset = loop * seqDuration;
+                    
+                    // Draw loop separator line (except for first loop)
+                    if (loop > 0) {
+                        int separatorX = clipX + 1 + static_cast<int>(loopOffset * m_pixelsPerTick);
+                        if (separatorX < clipRect.right()) {
+                            painter.setPen(QPen(QColor("#ffffff"), 1, Qt::DashLine));
+                            painter.drawLine(separatorX, clipRect.top() + 2, separatorX, clipRect.bottom() - 2);
+                        }
+                    }
+                    
+                    for (auto *t : sourceSeq->getTracks()) {
+                        if (!t || t->isTempoTrack() || t->isMuted()) continue;
+                        
+                        for (const auto &n : t->getNotes()) {
+                            if (!n.start.has_value()) continue;
+                            
+                            int noteStart = n.start.value() + loopOffset;
+                            int noteLength = n.length.value_or(120);
+                            int noteKey = n.note;
+                            
+                            // Check if note is within clip duration
+                            if (noteStart >= clip.durationTicks) continue;
+                            if (noteStart + noteLength > clip.durationTicks) {
+                                noteLength = clip.durationTicks - noteStart;
+                            }
+                            
+                            // Calculate position
+                            int noteX = clipX + 1 + static_cast<int>(noteStart * m_pixelsPerTick);
+                            int noteW = std::max(2, static_cast<int>(noteLength * m_pixelsPerTick));
+                            
+                            // Vertical position (scaled)
+                            float noteRelY = 1.0f - float(noteKey - minNote) / float(noteRange);
+                            int noteY = clipRect.top() + 14 + static_cast<int>(noteRelY * (clipRect.height() - 18));
+                            int noteH = std::max(2, (clipRect.height() - 18) / noteRange);
+                            
+                            painter.fillRect(noteX, noteY, noteW, noteH, noteColor);
+                        }
+                    }
+                }
+                
+                painter.setClipping(false);
+            }
+            
             // Clip border
             painter.setPen(QPen(isSelected ? QColor("#ffffff") : trackColor.lighter(150), isSelected ? 2 : 1));
             painter.drawRect(clipRect);
             
-            // Clip name
+            // Clip name (use sequence name from file path if clip name is empty)
+            QString clipName = QString::fromStdString(clip.name);
+            if (clipName.isEmpty() && sourceSeq) {
+                // Use file path as display name if available
+                if (!sourceSeq->getFilePath().empty()) {
+                    QString path = QString::fromStdString(sourceSeq->getFilePath());
+                    int lastSlash = path.lastIndexOf('/');
+                    if (lastSlash >= 0) {
+                        clipName = path.mid(lastSlash + 1);
+                    } else {
+                        clipName = path;
+                    }
+                    // Remove extension
+                    int lastDot = clipName.lastIndexOf('.');
+                    if (lastDot > 0) {
+                        clipName = clipName.left(lastDot);
+                    }
+                } else {
+                    clipName = QString("Sequence %1").arg(sourceSeq->getId());
+                }
+            }
+            
             painter.setPen(Qt::white);
             QFont font = painter.font();
             font.setPixelSize(11);
+            font.setBold(true);
             painter.setFont(font);
             
-            QString clipName = QString::fromStdString(clip.name);
-            QRect textRect = clipRect.adjusted(4, 2, -4, -2);
-            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, 
+            QRect textRect = clipRect.adjusted(4, 2, -4, -clipRect.height() + 16);
+            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop, 
                            painter.fontMetrics().elidedText(clipName, Qt::ElideRight, textRect.width()));
-            
-            // Draw waveform preview or note bars could go here
+            font.setBold(false);
+            painter.setFont(font);
         }
         
         ++trackIndex;

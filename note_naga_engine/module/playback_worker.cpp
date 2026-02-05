@@ -534,17 +534,35 @@ void PlaybackThreadWorker::runArrangementMode() {
             NoteNagaMidiSeq* seq = this->project->getSequenceById(clip->sequenceId);
             if (!seq) continue;
 
-            // Calculate sequence-local tick range
-            int seqTickStart = clip->toSequenceTick(last_tick);
-            int seqTickEnd = clip->toSequenceTick(current_tick);
+            // Get sequence length for looping
+            int seqLength = seq->getMaxTick();
+            if (seqLength <= 0) continue;
+
+            // Calculate sequence-local tick range with looping support
+            int seqTickStart = clip->toSequenceTickLooped(last_tick, seqLength);
+            int seqTickEnd = clip->toSequenceTickLooped(current_tick, seqLength);
+            
+            // Handle loop boundary crossing
+            int lastLoopIter = clip->getLoopIteration(last_tick, seqLength);
+            int currLoopIter = clip->getLoopIteration(current_tick, seqLength);
+            bool crossedLoopBoundary = (currLoopIter > lastLoopIter);
 
             // Clamp to valid range within the clip
             int clipLocalStart = clip->offsetTicks;
             int clipLocalEnd = clip->offsetTicks + clip->durationTicks;
-            seqTickStart = std::max(seqTickStart, clipLocalStart);
-            seqTickEnd = std::min(seqTickEnd, clipLocalEnd);
-
-            if (seqTickStart >= seqTickEnd) continue;
+            
+            // When we cross a loop boundary, we need to handle notes at the end of last loop
+            // and notes at the start of the new loop
+            if (crossedLoopBoundary) {
+                // Reset clip state for new loop iteration
+                auto key = std::make_pair(arrTrack->getId(), clip->id);
+                clipStates[key] = ClipPlayState();
+                
+                // Process from 0 to seqTickEnd (start of new loop)
+                seqTickStart = 0;
+            }
+            
+            if (seqTickStart >= seqTickEnd && !crossedLoopBoundary) continue;
 
             // Get or create clip state
             auto key = std::make_pair(arrTrack->getId(), clip->id);

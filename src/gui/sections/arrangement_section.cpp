@@ -87,6 +87,32 @@ void ArrangementSection::setupDockLayout()
     m_timeline->setMinimumHeight(200);
     timelineLayout->addWidget(m_timeline, 1);
 
+    // Horizontal scrollbar for timeline
+    m_timelineScrollBar = new QScrollBar(Qt::Horizontal, this);
+    m_timelineScrollBar->setStyleSheet(R"(
+        QScrollBar:horizontal {
+            background-color: #1e1e24;
+            height: 14px;
+            border: none;
+        }
+        QScrollBar::handle:horizontal {
+            background-color: #4a4a55;
+            min-width: 30px;
+            border-radius: 4px;
+            margin: 2px;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background-color: #5a5a65;
+        }
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0px;
+        }
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+            background: none;
+        }
+    )");
+    timelineLayout->addWidget(m_timelineScrollBar);
+
     QFrame *editorContainer = new QFrame();
     editorContainer->setObjectName("TimelineContainer");
     editorContainer->setStyleSheet("QFrame#TimelineContainer { border: 1px solid #19191f; }");
@@ -140,6 +166,30 @@ void ArrangementSection::connectSignals()
                 this, &ArrangementSection::onArrangementChanged);
         connect(m_layerManager, &ArrangementLayerManager::tracksReordered,
                 this, &ArrangementSection::onArrangementChanged);
+    }
+    
+    // Connect scrollbar to timeline
+    if (m_timelineScrollBar && m_timeline) {
+        connect(m_timelineScrollBar, &QScrollBar::valueChanged,
+                m_timeline, &ArrangementTimelineWidget::setHorizontalOffset);
+        connect(m_timeline, &ArrangementTimelineWidget::horizontalOffsetChanged,
+                m_timelineScrollBar, &QScrollBar::setValue);
+        
+        // Update scrollbar range when arrangement changes
+        connect(runtime, &NoteNagaRuntimeData::arrangementChanged, this, [this]() {
+            updateScrollBarRange();
+        });
+        
+        // Also connect to timeline resize
+        connect(m_timeline, &ArrangementTimelineWidget::zoomChanged, this, [this](double) {
+            updateScrollBarRange();
+        });
+    }
+    
+    // Also connect scrollbar to ruler
+    if (m_timelineScrollBar && m_timelineRuler) {
+        connect(m_timelineScrollBar, &QScrollBar::valueChanged,
+                m_timelineRuler, &ArrangementTimelineRuler::setHorizontalOffset);
     }
 
     // Connect resource panel edit requests
@@ -202,7 +252,8 @@ void ArrangementSection::connectSignals()
             
             // Create clip from dropped sequence
             NN_MidiClip_t clip;
-            clip.name = "Clip";
+            // Leave name empty - will use sequence name for display
+            clip.name = "";
             clip.sequenceId = seq->getId();
             clip.startTick = static_cast<int>(tick);
             clip.durationTicks = seq->getMaxTick() > 0 ? seq->getMaxTick() : 480 * 4;
@@ -278,6 +329,28 @@ void ArrangementSection::onArrangementChanged()
     if (m_timelineRuler) {
         m_timelineRuler->update();
     }
+    updateScrollBarRange();
+}
+
+void ArrangementSection::updateScrollBarRange()
+{
+    if (!m_timelineScrollBar || !m_timeline || !m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    // Calculate content width
+    int64_t maxTick = arrangement->getMaxTick();
+    double ppTick = m_timeline->getPixelsPerTick();
+    int contentWidth = static_cast<int>(maxTick * ppTick);
+    
+    // Add 2x viewport width beyond last clip
+    int viewportWidth = m_timeline->contentRect().width();
+    int scrollRange = contentWidth + (2 * viewportWidth);
+    
+    m_timelineScrollBar->setRange(0, std::max(0, scrollRange - viewportWidth));
+    m_timelineScrollBar->setPageStep(viewportWidth);
+    m_timelineScrollBar->setSingleStep(viewportWidth / 10);
 }
 
 void ArrangementSection::onPlaybackPositionChanged(int tick)

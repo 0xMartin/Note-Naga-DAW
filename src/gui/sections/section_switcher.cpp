@@ -4,6 +4,7 @@
 #include "../components/midi_sequence_selector.h"
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/module/dsp_engine.h>
+#include <note_naga_engine/module/playback_worker.h>
 
 #include <QStyle>
 
@@ -68,6 +69,14 @@ void SectionSwitcher::setupUi()
     // === Global Transport Bar (full width at top) ===
     m_transportBar = new GlobalTransportBar(m_engine, this);
     mainLayout->addWidget(m_transportBar);
+    
+    // Connect playback mode changes to engine's playback worker
+    if (m_engine && m_engine->getPlaybackWorker()) {
+        connect(m_transportBar, &GlobalTransportBar::playbackModeChanged, this, 
+                [this](PlaybackMode mode) {
+            m_engine->getPlaybackWorker()->setPlaybackMode(mode);
+        });
+    }
 
     // Setup meter update timer for the transport bar's stereo meter
     QTimer *meterTimer = new QTimer(this);
@@ -107,12 +116,12 @@ void SectionSwitcher::setupUi()
         {AppSection::Notation, ":/icons/app_section_notation.svg", tr("Notation")}
     };
 
-    // Left spacer - same width as sequence selector for balance
-    QWidget *leftSpacer = new QWidget(this);
-    leftSpacer->setFixedWidth(240);  // Match sequence selector width
-    buttonLayout->addWidget(leftSpacer);
+    // === MIDI Sequence Selector (left side) ===
+    m_sequenceSelector = new MidiSequenceSelector(m_engine, this);
+    m_sequenceSelector->setFixedWidth(240);
+    buttonLayout->addWidget(m_sequenceSelector);
 
-    // Add stretch before buttons
+    // Add stretch to push buttons to the right
     buttonLayout->addStretch();
 
     for (const auto &info : sections) {
@@ -121,14 +130,6 @@ void SectionSwitcher::setupUi()
         m_buttons.append(btn);
         buttonLayout->addWidget(btn);
     }
-
-    // Add stretch after buttons
-    buttonLayout->addStretch();
-
-    // === MIDI Sequence Selector (right side) ===
-    m_sequenceSelector = new MidiSequenceSelector(m_engine, this);
-    m_sequenceSelector->setFixedWidth(240);
-    buttonLayout->addWidget(m_sequenceSelector);
 
     mainLayout->addWidget(buttonRow);
 
