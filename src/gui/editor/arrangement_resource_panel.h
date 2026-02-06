@@ -12,11 +12,34 @@
 #include <QMenu>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QStyledItemDelegate>
 
 class NoteNagaEngine;
+class NoteNagaMidiSeq;
 
 // Custom MIME type for MIDI sequences
 static const char* RESOURCE_MIME_TYPE_MIDI_SEQUENCE = "application/x-notenaga-midi-sequence";
+
+/**
+ * @brief Custom delegate for drawing MIDI sequence items with note preview
+ */
+class SequenceItemDelegate : public QStyledItemDelegate
+{
+    Q_OBJECT
+    
+public:
+    explicit SequenceItemDelegate(NoteNagaEngine *engine, QObject *parent = nullptr);
+    
+    void paint(QPainter *painter, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override;
+    QSize sizeHint(const QStyleOptionViewItem &option,
+                   const QModelIndex &index) const override;
+
+private:
+    NoteNagaEngine *m_engine;
+    
+    void drawNotePreview(QPainter *painter, const QRect &rect, NoteNagaMidiSeq *seq, const QColor &color) const;
+};
 
 /**
  * @brief Custom list widget that handles drag with proper MIME data

@@ -80,6 +80,7 @@ private:
     ArrangementMinimapWidget *m_minimap;
     ArrangementTempoTrackEditor *m_tempoTrackEditor;
     QScrollBar *m_timelineScrollBar;
+    QWidget *m_timelineTitleWidget = nullptr;
     
     // Splitter and helper widgets
     QSplitter *m_headerTimelineSplitter = nullptr;
@@ -98,6 +99,7 @@ private:
     void updateScrollBarRange();
     void updateMinimapVisibleRange();
     void autoScrollToPlayhead(int tick);
+    QWidget* createTimelineTitleWidget();
     
 protected:
     void showEvent(QShowEvent *event) override;

@@ -685,6 +685,7 @@ void NoteNagaProjectSerializer::serializeArrangement(std::ofstream &out, NoteNag
 {
     if (!arrangement) {
         writeInt32(out, 0);
+        writeBool(out, false);  // No tempo track
         return;
     }
     
@@ -693,6 +694,23 @@ void NoteNagaProjectSerializer::serializeArrangement(std::ofstream &out, NoteNag
     
     for (auto* track : tracks) {
         serializeArrangementTrack(out, track);
+    }
+    
+    // Serialize tempo track (v7+)
+    bool hasTempoTrack = arrangement->hasTempoTrack();
+    writeBool(out, hasTempoTrack);
+    if (hasTempoTrack) {
+        NoteNagaTrack* tempoTrack = arrangement->getTempoTrack();
+        writeBool(out, tempoTrack->isTempoTrackActive());
+        
+        // Write tempo events
+        const std::vector<NN_TempoEvent_t>& tempoEvents = tempoTrack->getTempoEvents();
+        writeInt32(out, static_cast<int32_t>(tempoEvents.size()));
+        for (const NN_TempoEvent_t& te : tempoEvents) {
+            writeInt32(out, te.tick);
+            writeFloat(out, static_cast<float>(te.bpm));
+            writeInt32(out, static_cast<int32_t>(te.interpolation));
+        }
     }
 }
 
@@ -714,6 +732,39 @@ bool NoteNagaProjectSerializer::deserializeArrangement(std::ifstream &in, NoteNa
         if (!deserializeArrangementTrack(in, track)) {
             NOTE_NAGA_LOG_ERROR("Failed to deserialize arrangement track " + std::to_string(i));
             return false;
+        }
+    }
+    
+    // Deserialize tempo track (v7+)
+    if (m_loadingVersion >= 7) {
+        bool hasTempoTrack = readBool(in);
+        if (hasTempoTrack) {
+            bool tempoTrackActive = readBool(in);
+            
+            // Read tempo events
+            int32_t numEvents = readInt32(in);
+            if (numEvents < 0 || numEvents > 100000) {
+                NOTE_NAGA_LOG_ERROR("Invalid tempo event count: " + std::to_string(numEvents));
+                return false;
+            }
+            
+            std::vector<NN_TempoEvent_t> tempoEvents;
+            tempoEvents.reserve(numEvents);
+            for (int32_t i = 0; i < numEvents; ++i) {
+                NN_TempoEvent_t te;
+                te.tick = readInt32(in);
+                te.bpm = static_cast<double>(readFloat(in));
+                te.interpolation = static_cast<TempoInterpolation>(readInt32(in));
+                tempoEvents.push_back(te);
+            }
+            
+            // Create tempo track with first BPM or 120 default
+            double defaultBpm = tempoEvents.empty() ? 120.0 : tempoEvents[0].bpm;
+            NoteNagaTrack* tempoTrack = arrangement->createTempoTrack(defaultBpm);
+            if (tempoTrack) {
+                tempoTrack->setTempoEvents(tempoEvents);
+                tempoTrack->setTempoTrackActive(tempoTrackActive);
+            }
         }
     }
     

@@ -16,7 +16,7 @@ class NoteNagaEngine;
  * @brief Binary file format magic number and version.
  */
 constexpr uint32_t NNPROJ_MAGIC = 0x4E4E5052;  // "NNPR" in little endian
-constexpr uint32_t NNPROJ_VERSION = 6;  // Version 6: Added Arrangement support
+constexpr uint32_t NNPROJ_VERSION = 7;  // Version 7: Added Arrangement tempo track support
 
 /**
  * @brief Handles serialization and deserialization of Note Naga project files.

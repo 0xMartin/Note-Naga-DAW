@@ -8,15 +8,19 @@
 #include "../editor/arrangement_timeline_ruler.h"
 #include "../editor/arrangement_minimap_widget.h"
 #include "../editor/arrangement_tempo_track_editor.h"
+#include "../nn_gui_utils.h"
 
 #include <QGridLayout>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QFrame>
 #include <QDockWidget>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QTimer>
 #include <QColorDialog>
+#include <QLabel>
+#include <QPushButton>
 
 ArrangementSection::ArrangementSection(NoteNagaEngine *engine, QWidget *parent)
     : QMainWindow(parent), m_engine(engine)
@@ -259,10 +263,13 @@ void ArrangementSection::setupDockLayout()
     editorLayout->addWidget(m_mainVerticalSplitter);
     editorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
+    // Create timeline title widget with buttons
+    m_timelineTitleWidget = createTimelineTitleWidget();
+
     auto *timelineDock = new AdvancedDockWidget(
         tr("Timeline"),
         QIcon(":/icons/timeline.svg"),
-        nullptr,
+        m_timelineTitleWidget,
         this
     );
     timelineDock->setWidget(editorContainer);
@@ -724,4 +731,129 @@ void ArrangementSection::refreshMinimap()
         m_minimap->update();
     }
     updateMinimapVisibleRange();
+}
+
+QWidget* ArrangementSection::createTimelineTitleWidget()
+{
+    QWidget *titleWidget = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(titleWidget);
+    layout->setContentsMargins(4, 0, 4, 0);
+    layout->setSpacing(4);
+    
+    // Add Track button
+    QPushButton *btnAddTrack = create_small_button(
+        ":/icons/add.svg", tr("Add New Track"), "AddTrackBtn", 22);
+    connect(btnAddTrack, &QPushButton::clicked, this, [this]() {
+        if (m_trackHeaders) {
+            emit m_trackHeaders->addTrackRequested();
+        }
+    });
+    
+    // Add Tempo Track button
+    QPushButton *btnAddTempoTrack = create_small_button(
+        ":/icons/tempo.svg", tr("Add/Toggle Tempo Track"), "AddTempoTrackBtn", 22);
+    connect(btnAddTempoTrack, &QPushButton::clicked, this, [this]() {
+        if (!m_engine || !m_engine->getRuntimeData()) return;
+        NoteNagaArrangement *arr = m_engine->getRuntimeData()->getArrangement();
+        if (!arr) return;
+        
+        if (arr->hasTempoTrack()) {
+            // Toggle tempo track active state
+            NoteNagaTrack* tempoTrack = arr->getTempoTrack();
+            if (tempoTrack) {
+                tempoTrack->setTempoTrackActive(!tempoTrack->isTempoTrackActive());
+                emit arr->tempoTrackChanged();
+            }
+        } else {
+            // Create tempo track with current BPM
+            double projectBpm = 120.0;
+            int projectTempo = m_engine->getRuntimeData()->getTempo();
+            if (projectTempo > 0) {
+                projectBpm = 60'000'000.0 / double(projectTempo);
+            }
+            arr->createTempoTrack(projectBpm);
+            emit arr->tempoTrackChanged();
+        }
+    });
+    
+    // Horizontal zoom buttons
+    QPushButton *btnZoomIn = create_small_button(
+        ":/icons/zoom-in-horizontal.svg", tr("Zoom In"), "ZoomInBtn", 22);
+    connect(btnZoomIn, &QPushButton::clicked, this, [this]() {
+        if (m_timeline) {
+            m_timeline->setPixelsPerTick(m_timeline->getPixelsPerTick() * 1.2);
+            updateScrollBarRange();
+            updateMinimapVisibleRange();
+        }
+    });
+    
+    QPushButton *btnZoomOut = create_small_button(
+        ":/icons/zoom-out-horizontal.svg", tr("Zoom Out"), "ZoomOutBtn", 22);
+    connect(btnZoomOut, &QPushButton::clicked, this, [this]() {
+        if (m_timeline) {
+            m_timeline->setPixelsPerTick(m_timeline->getPixelsPerTick() / 1.2);
+            updateScrollBarRange();
+            updateMinimapVisibleRange();
+        }
+    });
+    
+    // Vertical zoom buttons
+    QPushButton *btnVZoomIn = create_small_button(
+        ":/icons/zoom-in-vertical.svg", tr("Increase Track Height"), "VZoomInBtn", 22);
+    connect(btnVZoomIn, &QPushButton::clicked, this, [this]() {
+        if (m_timeline) {
+            int currentHeight = m_timeline->getTrackHeight();
+            m_timeline->setTrackHeight(qMin(120, int(currentHeight * 1.2)));
+            if (m_trackHeaders) {
+                m_trackHeaders->setTrackHeight(m_timeline->getTrackHeight());
+            }
+        }
+    });
+    
+    QPushButton *btnVZoomOut = create_small_button(
+        ":/icons/zoom-out-vertical.svg", tr("Decrease Track Height"), "VZoomOutBtn", 22);
+    connect(btnVZoomOut, &QPushButton::clicked, this, [this]() {
+        if (m_timeline) {
+            int currentHeight = m_timeline->getTrackHeight();
+            m_timeline->setTrackHeight(qMax(40, int(currentHeight / 1.2)));
+            if (m_trackHeaders) {
+                m_trackHeaders->setTrackHeight(m_timeline->getTrackHeight());
+            }
+        }
+    });
+    
+    // Snap toggle button
+    QPushButton *btnSnap = create_small_button(
+        ":/icons/magnet.svg", tr("Toggle Snap to Grid"), "SnapBtn", 22);
+    btnSnap->setCheckable(true);
+    btnSnap->setChecked(true);
+    connect(btnSnap, &QPushButton::clicked, this, [this](bool checked) {
+        if (m_timeline) {
+            m_timeline->setSnapEnabled(checked);
+        }
+    });
+    
+    // Auto-scroll toggle button
+    QPushButton *btnAutoScroll = create_small_button(
+        ":/icons/follow-from-center.svg", tr("Auto-scroll during playback"), "AutoScrollBtn", 22);
+    btnAutoScroll->setCheckable(true);
+    btnAutoScroll->setChecked(m_autoScrollEnabled);
+    connect(btnAutoScroll, &QPushButton::clicked, this, [this](bool checked) {
+        m_autoScrollEnabled = checked;
+    });
+    
+    // Add widgets to layout
+    layout->addWidget(btnAddTrack);
+    layout->addWidget(btnAddTempoTrack);
+    layout->addWidget(create_separator());
+    layout->addWidget(btnZoomIn);
+    layout->addWidget(btnZoomOut);
+    layout->addWidget(btnVZoomIn);
+    layout->addWidget(btnVZoomOut);
+    layout->addWidget(create_separator());
+    layout->addWidget(btnSnap);
+    layout->addWidget(btnAutoScroll);
+    layout->addStretch();
+    
+    return titleWidget;
 }

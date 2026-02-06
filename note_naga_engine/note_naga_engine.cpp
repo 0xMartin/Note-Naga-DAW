@@ -171,8 +171,15 @@ bool NoteNagaEngine::stopPlayback() {
         stopped = playback_worker->stop();
     }
     
-    // ALWAYS stop all notes on ALL sequences, even if playback wasn't running
-    // This ensures no hanging notes when switching modes or stopping playback
+    // ALWAYS stop all notes on ALL synthesizers directly
+    // This ensures no hanging notes even in arrangement mode with multiple clips
+    for (NoteNagaSynthesizer *synth : synthesizers) {
+        if (synth) {
+            synth->stopAllNotes();  // Stop all notes on all channels
+        }
+    }
+    
+    // Also iterate all sequences/tracks to clear their playing notes state
     if (runtime_data) {
         for (NoteNagaMidiSeq *seq : runtime_data->getSequences()) {
             if (seq) {

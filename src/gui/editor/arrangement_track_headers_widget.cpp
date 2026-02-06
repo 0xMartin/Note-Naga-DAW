@@ -226,7 +226,8 @@ void ArrangementTrackHeadersWidget::updateTrackMeters()
 
 int ArrangementTrackHeadersWidget::contentHeight() const
 {
-    return m_headerWidgets.size() * m_trackHeight;
+    // Add extra padding at bottom for context menu
+    return m_headerWidgets.size() * m_trackHeight + 100;
 }
 
 int ArrangementTrackHeadersWidget::trackIndexAtY(int y) const

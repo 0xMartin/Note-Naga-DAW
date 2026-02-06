@@ -72,8 +72,8 @@ void ArrangementTimelineWidget::setVerticalOffset(int offset)
         }
     }
     
-    // Calculate max offset (don't scroll past all tracks)
-    int totalTracksHeight = trackCount * m_trackHeight;
+    // Calculate max offset - add extra 100px for context menu area at bottom
+    int totalTracksHeight = trackCount * m_trackHeight + 100;
     int maxOffset = qMax(0, totalTracksHeight - height());
     offset = qBound(0, offset, maxOffset);
     
