@@ -217,11 +217,6 @@ void ArrangementResourcePanel::initUI()
     layout->setContentsMargins(8, 8, 8, 8);
     layout->setSpacing(8);
 
-    // Header
-    QLabel *header = new QLabel(tr("MIDI Sequences"), this);
-    header->setStyleSheet("font-weight: bold; color: #cccccc; font-size: 12px;");
-    layout->addWidget(header);
-
     // Sequence list - using custom draggable list with item delegate
     m_sequenceList = new DraggableSequenceList(this);
     m_sequenceList->setItemDelegate(new SequenceItemDelegate(m_engine, m_sequenceList));
