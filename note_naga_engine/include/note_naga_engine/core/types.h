@@ -1473,9 +1473,51 @@ public:
      */
     bool hasValidLoopRegion() const { return loopEndTick_ > loopStartTick_; }
 
+    // TEMPO TRACK
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Checks if the arrangement has a tempo track.
+     * @return True if tempo track exists.
+     */
+    bool hasTempoTrack() const { return tempoTrack_ != nullptr; }
+
+    /**
+     * @brief Gets the tempo track.
+     * @return Pointer to the tempo track, or nullptr if not present.
+     */
+    NoteNagaTrack* getTempoTrack() const { return tempoTrack_; }
+
+    /**
+     * @brief Creates a tempo track for the arrangement.
+     * @param defaultBpm Default BPM to initialize the tempo track with.
+     * @return Pointer to the created tempo track.
+     */
+    NoteNagaTrack* createTempoTrack(double defaultBpm = 120.0);
+
+    /**
+     * @brief Removes the tempo track from the arrangement.
+     */
+    void removeTempoTrack();
+
+    /**
+     * @brief Gets the effective tempo at a given tick.
+     * @param tick The tick to check.
+     * @return Tempo in microseconds per quarter note.
+     */
+    int getEffectiveTempoAtTick(int tick) const;
+
+    /**
+     * @brief Gets the effective BPM at a given tick.
+     * @param tick The tick to check.
+     * @return BPM value.
+     */
+    double getEffectiveBPMAtTick(int tick) const;
+
 protected:
     std::vector<NoteNagaArrangementTrack*> tracks_;  ///< All arrangement tracks
     int maxTick_;                                     ///< Cached max tick value
+    NoteNagaTrack* tempoTrack_ = nullptr;            ///< Arrangement tempo track
     
     // Loop region
     int64_t loopStartTick_ = 0;    ///< Loop start tick
@@ -1507,5 +1549,10 @@ Q_SIGNALS:
      * @param enabled Is loop enabled.
      */
     void loopRegionChanged(int64_t startTick, int64_t endTick, bool enabled);
+
+    /**
+     * @brief Signal emitted when tempo track changes.
+     */
+    void tempoTrackChanged();
 #endif
 };

@@ -235,10 +235,48 @@ void ArrangementLayerManager::showContextMenu(const QPoint& pos)
 {
     QListWidgetItem *item = m_trackList->itemAt(pos);
     
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
     QMenu menu(this);
     
     QAction *addAction = menu.addAction(tr("Add Track"));
     connect(addAction, &QAction::triggered, this, &ArrangementLayerManager::onAddTrack);
+    
+    // Tempo track option
+    menu.addSeparator();
+    if (arrangement->hasTempoTrack()) {
+        QAction *removeTempoAction = menu.addAction(tr("Remove Tempo Track"));
+        connect(removeTempoAction, &QAction::triggered, this, [this, arrangement]() {
+            int ret = QMessageBox::question(this, tr("Remove Tempo Track"),
+                                             tr("Are you sure you want to remove the arrangement tempo track?"),
+                                             QMessageBox::Yes | QMessageBox::No);
+            if (ret == QMessageBox::Yes) {
+                arrangement->removeTempoTrack();
+                emit tracksReordered();  // Signal that arrangement changed
+            }
+        });
+        
+        // Toggle tempo track active
+        NoteNagaTrack* tempoTrack = arrangement->getTempoTrack();
+        if (tempoTrack) {
+            QString toggleText = tempoTrack->isTempoTrackActive() ? 
+                tr("Disable Tempo Track (Use Fixed Tempo)") : 
+                tr("Enable Tempo Track");
+            QAction *toggleTempoAction = menu.addAction(toggleText);
+            connect(toggleTempoAction, &QAction::triggered, this, [this, tempoTrack]() {
+                tempoTrack->setTempoTrackActive(!tempoTrack->isTempoTrackActive());
+                emit tracksReordered();  // Signal that arrangement changed
+            });
+        }
+    } else {
+        QAction *addTempoAction = menu.addAction(tr("Add Tempo Track"));
+        connect(addTempoAction, &QAction::triggered, this, [this, arrangement]() {
+            arrangement->createTempoTrack();
+            emit tracksReordered();  // Signal that arrangement changed
+        });
+    }
     
     if (item) {
         menu.addSeparator();

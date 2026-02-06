@@ -474,11 +474,12 @@ void PlaybackThreadWorker::runArrangementMode() {
         this->project->setCurrentArrangementTick(0);
     }
 
-    // Get project tempo
-    int projectTempo = this->project->getTempo();
+    // Get project settings
     int projectPPQ = this->project->getPPQ();
-    double us_per_tick = static_cast<double>(projectTempo) / projectPPQ;
-    double ms_per_tick = us_per_tick / 1000.0;
+    
+    // Check if arrangement has active tempo track
+    bool hasArrangementTempoTrack = arrangement->hasTempoTrack() && 
+                                     arrangement->getTempoTrack()->isTempoTrackActive();
 
     using clock = std::chrono::high_resolution_clock;
     auto last_iteration_time = clock::now();
@@ -495,6 +496,24 @@ void PlaybackThreadWorker::runArrangementMode() {
         auto now = clock::now();
         double elapsed_ms = std::chrono::duration<double, std::milli>(now - last_iteration_time).count();
         last_iteration_time = now;
+
+        // Get effective tempo (dynamic from tempo track or fixed from project)
+        int effectiveTempo;
+        if (hasArrangementTempoTrack) {
+            effectiveTempo = arrangement->getEffectiveTempoAtTick(current_tick);
+            
+            // Emit BPM change for UI update (throttled to avoid spam)
+            static int bpmEmitCounter = 0;
+            if (++bpmEmitCounter % 10 == 0) {
+                double currentBPM = 60'000'000.0 / effectiveTempo;
+                NN_QT_EMIT(project->currentTempoChanged(currentBPM));
+            }
+        } else {
+            effectiveTempo = this->project->getTempo();
+        }
+        
+        double us_per_tick = static_cast<double>(effectiveTempo) / projectPPQ;
+        double ms_per_tick = us_per_tick / 1000.0;
 
         // Accumulate ticks
         fractional_ticks += elapsed_ms / ms_per_tick;

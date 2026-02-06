@@ -291,11 +291,18 @@ void GlobalTransportBar::updateCurrentTempo(double bpm)
     if (!m_isPlaying) return;
 
     m_currentDisplayBPM = bpm;
+    
+    bool hasActiveTempoTrack = false;
+    
+    if (m_playbackMode == PlaybackMode::Arrangement) {
+        NoteNagaArrangement* arr = m_engine->getRuntimeData()->getArrangement();
+        hasActiveTempoTrack = arr && arr->hasTempoTrack() && arr->getTempoTrack()->isTempoTrackActive();
+    } else {
+        NoteNagaMidiSeq* seq = m_engine->getRuntimeData()->getActiveSequence();
+        hasActiveTempoTrack = seq && seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive();
+    }
 
-    NoteNagaMidiSeq* seq = m_engine->getRuntimeData()->getActiveSequence();
-    bool hasTempoTrack = seq && seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive();
-
-    if (hasTempoTrack) {
+    if (hasActiveTempoTrack) {
         m_tempoLabel->setText(QString("♪ %1 BPM").arg(bpm, 0, 'f', 1));
     } else {
         m_tempoLabel->setText(QString("%1 BPM").arg(bpm, 0, 'f', 1));
@@ -305,17 +312,34 @@ void GlobalTransportBar::updateCurrentTempo(double bpm)
 void GlobalTransportBar::updateBPM()
 {
     NoteNagaRuntimeData* project = m_engine->getRuntimeData();
-    NoteNagaMidiSeq* seq = project->getActiveSequence();
-
-    bool hasActiveTempoTrack = seq && seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive();
-
-    double bpm;
-    if (hasActiveTempoTrack && m_isPlaying) {
-        bpm = m_currentDisplayBPM;
-    } else if (hasActiveTempoTrack) {
-        bpm = seq->getEffectiveBPMAtTick(project->getCurrentTick());
+    
+    bool hasActiveTempoTrack = false;
+    double bpm = 120.0;
+    
+    if (m_playbackMode == PlaybackMode::Arrangement) {
+        // Arrangement mode - check arrangement tempo track
+        NoteNagaArrangement* arr = project->getArrangement();
+        hasActiveTempoTrack = arr && arr->hasTempoTrack() && arr->getTempoTrack()->isTempoTrackActive();
+        
+        if (hasActiveTempoTrack && m_isPlaying) {
+            bpm = m_currentDisplayBPM;
+        } else if (hasActiveTempoTrack) {
+            bpm = arr->getEffectiveBPMAtTick(project->getCurrentArrangementTick());
+        } else {
+            bpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 120.0;
+        }
     } else {
-        bpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 120.0;
+        // Sequence mode - check sequence tempo track
+        NoteNagaMidiSeq* seq = project->getActiveSequence();
+        hasActiveTempoTrack = seq && seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive();
+
+        if (hasActiveTempoTrack && m_isPlaying) {
+            bpm = m_currentDisplayBPM;
+        } else if (hasActiveTempoTrack) {
+            bpm = seq->getEffectiveBPMAtTick(project->getCurrentTick());
+        } else {
+            bpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 120.0;
+        }
     }
 
     m_currentDisplayBPM = bpm;
@@ -324,10 +348,6 @@ void GlobalTransportBar::updateBPM()
         m_tempoLabel->setText(QString("♪ %1 BPM").arg(bpm, 0, 'f', 1));
         m_tempoLabel->setToolTip(tr("Tempo Track Active - Dynamic tempo control enabled"));
         m_tempoLabel->setCursor(Qt::ArrowCursor);
-    } else if (seq && seq->hasTempoTrack()) {
-        m_tempoLabel->setText(QString("%1 BPM").arg(bpm, 0, 'f', 1));
-        m_tempoLabel->setToolTip(tr("Tempo Track Inactive - Click to change fixed tempo"));
-        m_tempoLabel->setCursor(Qt::PointingHandCursor);
     } else {
         m_tempoLabel->setText(QString("%1 BPM").arg(bpm, 0, 'f', 1));
         m_tempoLabel->setToolTip(tr("Click to change tempo"));
@@ -450,32 +470,67 @@ void GlobalTransportBar::setAllowedPlaybackModes(int allowedModes)
 
 void GlobalTransportBar::editTempo(QMouseEvent* event)
 {
-    NoteNagaMidiSeq* seq = m_engine->getRuntimeData()->getActiveSequence();
-    if (!seq) return;
+    NoteNagaRuntimeData* project = m_engine->getRuntimeData();
+    if (!project) return;
+    
+    if (m_playbackMode == PlaybackMode::Arrangement) {
+        // Arrangement mode - check arrangement tempo track
+        NoteNagaArrangement* arrangement = project->getArrangement();
+        if (!arrangement) return;
+        
+        // Don't allow editing if arrangement tempo track is active
+        if (arrangement->hasTempoTrack() && arrangement->getTempoTrack()->isTempoTrackActive()) {
+            return;
+        }
+        
+        double curBpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 120.0;
+        
+        QString dialogTitle = tr("Change Tempo");
+        QString dialogLabel = tr("New Tempo (BPM):");
+        if (arrangement->hasTempoTrack()) {
+            dialogTitle = tr("Change Fixed Tempo");
+            dialogLabel = tr("Fixed Tempo (BPM) - Tempo track is inactive:");
+        }
+        
+        bool ok = false;
+        double bpm = QInputDialog::getDouble(this, dialogTitle, dialogLabel, curBpm, 5, 500, 2, &ok);
+        if (ok) {
+            int newTempo = 60'000'000.0 / bpm;
+            project->setTempo(newTempo);
+            updateBPM();
+            updateProgressBar();
+            m_engine->changeTempo(newTempo);
+            emit tempoChanged(newTempo);
+        }
+    } else {
+        // Sequence mode - check sequence tempo track
+        NoteNagaMidiSeq* seq = project->getActiveSequence();
+        if (!seq) return;
 
-    // Don't allow editing if tempo track is active
-    if (seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive()) {
-        return;
-    }
+        // Don't allow editing if tempo track is active
+        if (seq->hasTempoTrack() && seq->getTempoTrack()->isTempoTrackActive()) {
+            return;
+        }
 
-    double curBpm = seq->getTempo() ? (60'000'000.0 / double(seq->getTempo())) : 120.0;
+        double curBpm = seq->getTempo() ? (60'000'000.0 / double(seq->getTempo())) : 120.0;
 
-    QString dialogTitle = tr("Change Tempo");
-    QString dialogLabel = tr("New Tempo (BPM):");
-    if (seq->hasTempoTrack()) {
-        dialogTitle = tr("Change Fixed Tempo");
-        dialogLabel = tr("Fixed Tempo (BPM) - Tempo track is inactive:");
-    }
+        QString dialogTitle = tr("Change Tempo");
+        QString dialogLabel = tr("New Tempo (BPM):");
+        if (seq->hasTempoTrack()) {
+            dialogTitle = tr("Change Fixed Tempo");
+            dialogLabel = tr("Fixed Tempo (BPM) - Tempo track is inactive:");
+        }
 
-    bool ok = false;
-    double bpm = QInputDialog::getDouble(this, dialogTitle, dialogLabel, curBpm, 5, 500, 2, &ok);
-    if (ok) {
-        int newTempo = 60'000'000.0 / bpm;
-        seq->setTempo(newTempo);
-        updateBPM();
-        updateProgressBar();
-        m_engine->changeTempo(newTempo);
-        emit tempoChanged(newTempo);
+        bool ok = false;
+        double bpm = QInputDialog::getDouble(this, dialogTitle, dialogLabel, curBpm, 5, 500, 2, &ok);
+        if (ok) {
+            int newTempo = 60'000'000.0 / bpm;
+            seq->setTempo(newTempo);
+            updateBPM();
+            updateProgressBar();
+            m_engine->changeTempo(newTempo);
+            emit tempoChanged(newTempo);
+        }
     }
 }
 

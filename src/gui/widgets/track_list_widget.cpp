@@ -162,7 +162,14 @@ void TrackListWidget::reloadTracks(NoteNagaMidiSeq *seq) {
     track_widgets.push_back(widget);
     vbox->addWidget(widget);
   }
+  
+  // Add spacer at the end for context menu access when list is full
+  QWidget *spacer = new QWidget();
+  spacer->setMinimumHeight(150);
+  spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+  vbox->addWidget(spacer);
   vbox->addStretch();
+  
   updateSelection(seq, track_widgets.empty() ? -1 : 0);
 }
 

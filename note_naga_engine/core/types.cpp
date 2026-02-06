@@ -1786,10 +1786,15 @@ NoteNagaArrangement::NoteNagaArrangement()
 #endif
 {
     maxTick_ = 0;
+    tempoTrack_ = nullptr;
 }
 
 NoteNagaArrangement::~NoteNagaArrangement() {
     clear();
+    if (tempoTrack_) {
+        delete tempoTrack_;
+        tempoTrack_ = nullptr;
+    }
 }
 
 void NoteNagaArrangement::clear() {
@@ -1798,6 +1803,7 @@ void NoteNagaArrangement::clear() {
     }
     tracks_.clear();
     maxTick_ = 0;
+    // Note: tempo track is NOT cleared here, only in destructor or removeTempoTrack()
     NN_QT_EMIT(tracksChanged());
     NN_QT_EMIT(maxTickChanged(0));
 }
@@ -1904,4 +1910,51 @@ void NoteNagaArrangement::setLoopEnabled(bool enabled) {
         loopEnabled_ = enabled;
         NN_QT_EMIT(loopRegionChanged(loopStartTick_, loopEndTick_, loopEnabled_));
     }
+}
+
+/*******************************************************************************************************/
+// NoteNagaArrangement - Tempo Track Methods
+/*******************************************************************************************************/
+
+NoteNagaTrack* NoteNagaArrangement::createTempoTrack(double defaultBpm) {
+    if (tempoTrack_) {
+        NOTE_NAGA_LOG_WARNING("Arrangement tempo track already exists");
+        return tempoTrack_;
+    }
+    
+    // Create tempo track (not part of any sequence - nullptr parent)
+    tempoTrack_ = new NoteNagaTrack(-1, nullptr, "Arrangement Tempo");
+    tempoTrack_->setTempoTrack(true);
+    tempoTrack_->resetTempoEvents(defaultBpm);
+    
+#ifndef QT_DEACTIVATED
+    connect(tempoTrack_, &NoteNagaTrack::tempoEventsChanged, this,
+            [this](NoteNagaTrack*) { NN_QT_EMIT(tempoTrackChanged()); });
+#endif
+    
+    NOTE_NAGA_LOG_INFO("Created arrangement tempo track with default BPM: " + std::to_string(defaultBpm));
+    NN_QT_EMIT(tempoTrackChanged());
+    return tempoTrack_;
+}
+
+void NoteNagaArrangement::removeTempoTrack() {
+    if (tempoTrack_) {
+        delete tempoTrack_;
+        tempoTrack_ = nullptr;
+        NOTE_NAGA_LOG_INFO("Removed arrangement tempo track");
+        NN_QT_EMIT(tempoTrackChanged());
+    }
+}
+
+int NoteNagaArrangement::getEffectiveTempoAtTick(int tick) const {
+    if (tempoTrack_ && tempoTrack_->isTempoTrackActive()) {
+        return tempoTrack_->getTempoAtTick(tick);
+    }
+    // Return default tempo (120 BPM = 500000 microseconds per quarter note)
+    return 500000;
+}
+
+double NoteNagaArrangement::getEffectiveBPMAtTick(int tick) const {
+    int tempo = getEffectiveTempoAtTick(tick);
+    return 60'000'000.0 / tempo;
 }
