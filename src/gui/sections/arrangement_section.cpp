@@ -7,6 +7,7 @@
 #include "../editor/arrangement_resource_panel.h"
 #include "../editor/arrangement_timeline_ruler.h"
 #include "../editor/arrangement_minimap_widget.h"
+#include "../editor/arrangement_tempo_track_editor.h"
 
 #include <QGridLayout>
 #include <QVBoxLayout>
@@ -153,6 +154,10 @@ void ArrangementSection::setupDockLayout()
         m_headerCorner->setFixedWidth(pos + handleWidth);
         m_scrollbarSpacer->setFixedWidth(pos + handleWidth);
         m_minimapSpacer->setFixedWidth(pos + handleWidth);
+        // Update tempo track editor header width
+        if (m_tempoTrackEditor) {
+            m_tempoTrackEditor->setHeaderWidth(pos + handleWidth);
+        }
     });
     
     timelineLayout->addWidget(m_headerTimelineSplitter, 1);
@@ -215,6 +220,35 @@ void ArrangementSection::setupDockLayout()
     minimapRowLayout->addWidget(m_minimap, 1);
     
     timelineLayout->addWidget(minimapRow);
+    
+    // === Tempo track editor (at bottom with splitter) ===
+    m_tempoTrackEditor = new ArrangementTempoTrackEditor(m_engine, this);
+    m_tempoTrackEditor->setMinimumHeight(24);
+    m_tempoTrackEditor->setMaximumHeight(200);
+    
+    // === Vertical splitter for main content and tempo track ===
+    m_mainVerticalSplitter = new QSplitter(Qt::Vertical, this);
+    m_mainVerticalSplitter->setHandleWidth(4);
+    m_mainVerticalSplitter->setStyleSheet(R"(
+        QSplitter::handle {
+            background-color: #3a3a42;
+        }
+        QSplitter::handle:hover {
+            background-color: #5a5a65;
+        }
+    )");
+    m_mainVerticalSplitter->addWidget(timelineContainer);
+    m_mainVerticalSplitter->addWidget(m_tempoTrackEditor);
+    m_mainVerticalSplitter->setStretchFactor(0, 1);  // Timeline takes most space
+    m_mainVerticalSplitter->setStretchFactor(1, 0);  // Tempo track has fixed size
+    m_mainVerticalSplitter->setSizes({600, 60});     // Initial sizes
+    
+    // Connect to hide/show tempo track editor based on tempo track existence
+    connect(m_tempoTrackEditor, &ArrangementTempoTrackEditor::expandedChanged, this, [this](bool expanded) {
+        if (!expanded) {
+            m_mainVerticalSplitter->setSizes({m_mainVerticalSplitter->sizes()[0] + m_mainVerticalSplitter->sizes()[1] - 24, 24});
+        }
+    });
 
     QFrame *editorContainer = new QFrame();
     editorContainer->setObjectName("TimelineContainer");
@@ -222,7 +256,7 @@ void ArrangementSection::setupDockLayout()
     QVBoxLayout *editorLayout = new QVBoxLayout(editorContainer);
     editorLayout->setContentsMargins(0, 0, 0, 0);
     editorLayout->setSpacing(0);
-    editorLayout->addWidget(timelineContainer);
+    editorLayout->addWidget(m_mainVerticalSplitter);
     editorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     auto *timelineDock = new AdvancedDockWidget(
@@ -415,6 +449,19 @@ void ArrangementSection::connectSignals()
         connect(m_timelineScrollBar, &QScrollBar::valueChanged,
                 m_timelineRuler, &ArrangementTimelineRuler::setHorizontalOffset);
     }
+    
+    // Connect tempo track editor to timeline and scrollbar
+    if (m_tempoTrackEditor && m_timeline) {
+        m_tempoTrackEditor->setTimelineWidget(m_timeline);
+        
+        // Sync scroll
+        connect(m_timelineScrollBar, &QScrollBar::valueChanged,
+                m_tempoTrackEditor, &ArrangementTempoTrackEditor::setHorizontalOffset);
+        
+        // Sync zoom
+        connect(m_timeline, &ArrangementTimelineWidget::zoomChanged,
+                m_tempoTrackEditor, &ArrangementTempoTrackEditor::setPixelsPerTick);
+    }
 
     // Connect resource panel edit requests
     if (m_resourcePanel) {
@@ -606,6 +653,9 @@ void ArrangementSection::onPlaybackPositionChanged(int tick)
     }
     if (m_minimap) {
         m_minimap->setPlayheadTick(tick);
+    }
+    if (m_tempoTrackEditor) {
+        m_tempoTrackEditor->setPlayheadTick(tick);
     }
     
     // Auto-scroll to follow playhead

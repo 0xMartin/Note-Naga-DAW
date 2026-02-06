@@ -565,6 +565,26 @@ void TempoTrackEditor::mousePressEvent(QMouseEvent *event)
             m_dragStartTick = hit->tick;
             hit->selected = true;
             update();
+        } else if (event->pos().x() > m_leftMargin) {
+            // Left click on empty area - add new tempo point
+            int newTick = tickFromX(event->pos().x());
+            double newBPM = bpmFromY(event->pos().y());
+            newBPM = std::round(newBPM * 10) / 10;
+            newBPM = std::max(m_minBPM, std::min(newBPM, m_maxBPM));
+            
+            // Snap to grid
+            int ppq = 480;
+            if (m_midiEditor) {
+                auto *seq = m_midiEditor->getSequence();
+                if (seq) ppq = seq->getPPQ();
+            }
+            int gridStep = ppq / 4;
+            newTick = ((newTick + gridStep/2) / gridStep) * gridStep;
+            newTick = std::max(1, newTick);  // Don't add at tick 0
+            
+            NN_TempoEvent_t newEvent(newTick, newBPM, TempoInterpolation::Step);
+            m_tempoTrack->addTempoEvent(newEvent);
+            update();
         }
     }
 }
@@ -644,6 +664,19 @@ void TempoTrackEditor::mouseReleaseEvent(QMouseEvent *event)
             pt.selected = false;
         }
         update();
+    }
+    
+    // Right click on tempo point - delete it (except first point)
+    if (event->button() == Qt::RightButton && m_tempoTrack) {
+        TempoPoint *hit = hitTest(event->pos());
+        if (hit && hit->eventIndex > 0) {  // Can't delete first event (index 0)
+            const auto& events = m_tempoTrack->getTempoEvents();
+            if (hit->eventIndex < static_cast<int>(events.size())) {
+                m_tempoTrack->removeTempoEventAtTick(events[hit->eventIndex].tick);
+                update();
+                return;
+            }
+        }
     }
     
     QWidget::mouseReleaseEvent(event);

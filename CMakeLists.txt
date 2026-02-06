@@ -160,6 +160,7 @@ set(SOURCE_FILES
     src/gui/editor/arrangement_track_header_widget.cpp
     src/gui/editor/arrangement_track_headers_widget.cpp
     src/gui/editor/arrangement_minimap_widget.cpp
+    src/gui/editor/arrangement_tempo_track_editor.cpp
     # gui/undo
     src/gui/undo/undo_manager.cpp
     src/gui/undo/midi_note_commands.cpp

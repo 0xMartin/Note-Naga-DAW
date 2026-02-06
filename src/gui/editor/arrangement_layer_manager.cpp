@@ -265,15 +265,22 @@ void ArrangementLayerManager::showContextMenu(const QPoint& pos)
                 tr("Disable Tempo Track (Use Fixed Tempo)") : 
                 tr("Enable Tempo Track");
             QAction *toggleTempoAction = menu.addAction(toggleText);
-            connect(toggleTempoAction, &QAction::triggered, this, [this, tempoTrack]() {
+            connect(toggleTempoAction, &QAction::triggered, this, [this, tempoTrack, arrangement]() {
                 tempoTrack->setTempoTrackActive(!tempoTrack->isTempoTrackActive());
+                emit arrangement->tempoTrackChanged();  // Notify global transport bar
                 emit tracksReordered();  // Signal that arrangement changed
             });
         }
     } else {
         QAction *addTempoAction = menu.addAction(tr("Add Tempo Track"));
         connect(addTempoAction, &QAction::triggered, this, [this, arrangement]() {
-            arrangement->createTempoTrack();
+            // Get current project tempo in BPM
+            double projectBpm = 120.0;
+            int projectTempo = m_engine->getRuntimeData()->getTempo();
+            if (projectTempo > 0) {
+                projectBpm = 60'000'000.0 / projectTempo;
+            }
+            arrangement->createTempoTrack(projectBpm);
             emit tracksReordered();  // Signal that arrangement changed
         });
     }

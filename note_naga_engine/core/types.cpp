@@ -1948,7 +1948,13 @@ void NoteNagaArrangement::removeTempoTrack() {
 
 int NoteNagaArrangement::getEffectiveTempoAtTick(int tick) const {
     if (tempoTrack_ && tempoTrack_->isTempoTrackActive()) {
-        return tempoTrack_->getTempoAtTick(tick);
+        double bpm = tempoTrack_->getTempoAtTick(tick);
+        return static_cast<int>(60'000'000.0 / bpm);
+    }
+    // If tempo track exists but is disabled, still use its first event as base tempo
+    if (tempoTrack_ && !tempoTrack_->getTempoEvents().empty()) {
+        double bpm = tempoTrack_->getTempoEvents().front().bpm;
+        return static_cast<int>(60'000'000.0 / bpm);
     }
     // Return default tempo (120 BPM = 500000 microseconds per quarter note)
     return 500000;

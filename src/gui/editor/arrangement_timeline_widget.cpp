@@ -1259,12 +1259,49 @@ void ArrangementTimelineWidget::showEmptyAreaContextMenu(const QPoint &globalPos
     
     QAction *addTrackAction = menu.addAction(tr("Add New Track"));
     
+    // Tempo track options
+    menu.addSeparator();
+    QAction *addTempoTrackAction = nullptr;
+    QAction *removeTempoTrackAction = nullptr;
+    QAction *toggleTempoTrackAction = nullptr;
+    
+    if (arrangement->hasTempoTrack()) {
+        removeTempoTrackAction = menu.addAction(tr("Remove Tempo Track"));
+        NoteNagaTrack* tempoTrack = arrangement->getTempoTrack();
+        if (tempoTrack) {
+            QString toggleText = tempoTrack->isTempoTrackActive() ?
+                tr("Disable Tempo Track") : tr("Enable Tempo Track");
+            toggleTempoTrackAction = menu.addAction(toggleText);
+        }
+    } else {
+        addTempoTrackAction = menu.addAction(tr("Add Tempo Track"));
+    }
+    
     QAction *selected = menu.exec(globalPos);
     
     if (selected == addTrackAction) {
         QString name = tr("Track %1").arg(arrangement->getTrackCount() + 1);
         arrangement->addTrack(name.toStdString());
         update();
+    } else if (addTempoTrackAction && selected == addTempoTrackAction) {
+        // Get current project tempo in BPM
+        double projectBpm = 120.0;
+        int projectTempo = m_engine->getRuntimeData()->getTempo();
+        if (projectTempo > 0) {
+            projectBpm = 60'000'000.0 / projectTempo;
+        }
+        arrangement->createTempoTrack(projectBpm);
+        update();
+    } else if (removeTempoTrackAction && selected == removeTempoTrackAction) {
+        arrangement->removeTempoTrack();
+        update();
+    } else if (toggleTempoTrackAction && selected == toggleTempoTrackAction) {
+        NoteNagaTrack* tempoTrack = arrangement->getTempoTrack();
+        if (tempoTrack) {
+            tempoTrack->setTempoTrackActive(!tempoTrack->isTempoTrackActive());
+            emit arrangement->tempoTrackChanged();  // Notify global transport bar
+            update();
+        }
     }
 }
 

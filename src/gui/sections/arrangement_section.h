@@ -17,6 +17,7 @@ class ArrangementTrackHeadersWidget;
 class ArrangementResourcePanel;
 class ArrangementTimelineRuler;
 class ArrangementMinimapWidget;
+class ArrangementTempoTrackEditor;
 
 // Track header width constant (must match arrangement_timeline_widget.h)
 static const int TRACK_HEADER_WIDTH = 160;
@@ -77,10 +78,12 @@ private:
     ArrangementResourcePanel *m_resourcePanel;
     ArrangementTimelineRuler *m_timelineRuler;
     ArrangementMinimapWidget *m_minimap;
+    ArrangementTempoTrackEditor *m_tempoTrackEditor;
     QScrollBar *m_timelineScrollBar;
     
     // Splitter and helper widgets
     QSplitter *m_headerTimelineSplitter = nullptr;
+    QSplitter *m_mainVerticalSplitter = nullptr;
     QWidget *m_headerCorner = nullptr;
     QWidget *m_scrollbarSpacer = nullptr;
     QWidget *m_minimapSpacer = nullptr;

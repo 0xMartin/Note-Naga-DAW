@@ -257,6 +257,13 @@ void GlobalTransportBar::setupConnections()
                     updateProgressBar();
                 }
             });
+    
+    // Listen to arrangement tempo track changes
+    NoteNagaArrangement* arrangement = runtimeData->getArrangement();
+    if (arrangement) {
+        connect(arrangement, &NoteNagaArrangement::tempoTrackChanged, this,
+                [this]() { updateBPM(); });
+    }
 
     connect(runtimeData, &NoteNagaRuntimeData::currentTempoChanged, this,
             [this](double bpm) { updateCurrentTempo(bpm); });

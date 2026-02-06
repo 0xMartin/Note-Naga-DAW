@@ -708,25 +708,43 @@ void TrackListWidget::onSplitTracksToSequences() {
     return;
   }
   
-  // Count non-tempo tracks
-  int nonTempoTracks = 0;
+  // Count non-tempo tracks that have notes
+  int tracksWithNotes = 0;
   for (auto *track : tracks) {
-    if (track && !track->isTempoTrack()) {
-      nonTempoTracks++;
+    if (track && !track->isTempoTrack() && !track->getNotes().empty()) {
+      tracksWithNotes++;
     }
   }
   
-  if (nonTempoTracks <= 1) {
-    QMessageBox::information(this, tr("Only One Track"),
-                             tr("There is only one non-tempo track in this sequence. Nothing to split."));
+  if (tracksWithNotes == 0) {
+    QMessageBox::information(this, tr("No Notes"),
+                             tr("No tracks with notes found. Nothing to split."));
+    return;
+  }
+  
+  if (tracksWithNotes == 1) {
+    QMessageBox::information(this, tr("Only One Track With Notes"),
+                             tr("There is only one track with notes in this sequence. Nothing to split."));
+    return;
+  }
+  
+  // Ask for prefix
+  bool ok = false;
+  QString prefix = QInputDialog::getText(this, tr("Sequence Name Prefix"),
+                                          tr("Enter a prefix for the new sequence names:"),
+                                          QLineEdit::Normal,
+                                          tr("Track"),
+                                          &ok);
+  if (!ok || prefix.isEmpty()) {
     return;
   }
   
   // Confirm action
   if (QMessageBox::question(this, tr("Split Tracks to Sequences"),
-                            tr("This will create %1 new MIDI sequences, one for each track.\n\n"
+                            tr("This will create %1 new MIDI sequences, one for each track with notes.\n\n"
+                               "Sequences will be named: %2_1, %2_2, ...\n\n"
                                "The original sequence will remain unchanged.\n\n"
-                               "Continue?").arg(nonTempoTracks),
+                               "Continue?").arg(tracksWithNotes).arg(prefix),
                             QMessageBox::Yes | QMessageBox::No,
                             QMessageBox::No) != QMessageBox::Yes) {
     return;
@@ -742,14 +760,20 @@ void TrackListWidget::onSplitTracksToSequences() {
   // Block signals during bulk operation
   engine->getRuntimeData()->blockSignals(true);
   
+  int trackNumber = 1;
   for (auto *srcTrack : tracks) {
-    if (!srcTrack || srcTrack->isTempoTrack()) continue;
+    // Skip tempo tracks and empty tracks
+    if (!srcTrack || srcTrack->isTempoTrack() || srcTrack->getNotes().empty()) continue;
     
-    // Create new sequence
+    // Create new sequence with name
     NoteNagaMidiSeq *newSeq = new NoteNagaMidiSeq();
     newSeq->blockSignals(true);
     newSeq->setTempo(seq->getTempo());
     newSeq->setPPQ(seq->getPPQ());
+    
+    // Set sequence name using file path (used as display name): prefix_trackNumber
+    QString seqName = QString("%1_%2").arg(prefix).arg(trackNumber++);
+    newSeq->setFilePath(seqName.toStdString());
     
     // Add to runtime data (signals blocked)
     engine->getRuntimeData()->addSequence(newSeq);
