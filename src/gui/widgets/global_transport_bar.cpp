@@ -333,7 +333,9 @@ void GlobalTransportBar::updateBPM()
         } else if (hasActiveTempoTrack) {
             bpm = arr->getEffectiveBPMAtTick(project->getCurrentArrangementTick());
         } else {
-            bpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 120.0;
+            // Use project base tempo (not sequence tempo) for arrangement mode
+            int projectTempo = project->getProjectTempo();
+            bpm = projectTempo ? (60'000'000.0 / double(projectTempo)) : 120.0;
         }
     } else {
         // Sequence mode - check sequence tempo track
@@ -490,7 +492,9 @@ void GlobalTransportBar::editTempo(QMouseEvent* event)
             return;
         }
         
-        double curBpm = project->getTempo() ? (60'000'000.0 / double(project->getTempo())) : 120.0;
+        // Use project base tempo (not sequence tempo) for arrangement mode
+        int projectTempo = project->getProjectTempo();
+        double curBpm = projectTempo ? (60'000'000.0 / double(projectTempo)) : 120.0;
         
         QString dialogTitle = tr("Change Tempo");
         QString dialogLabel = tr("New Tempo (BPM):");

@@ -479,7 +479,7 @@ void ArrangementTempoTrackEditor::drawPlayhead(QPainter &painter)
     int x = tickToX(m_playheadTick);
     if (x < m_headerWidth || x > width()) return;
     
-    painter.setPen(QPen(QColor("#00ff00"), 1));
+    painter.setPen(QPen(QColor("#ff0000"), 1));
     painter.drawLine(x, 0, x, height());
 }
 

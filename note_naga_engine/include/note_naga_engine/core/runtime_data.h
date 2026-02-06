@@ -66,6 +66,12 @@ public:
      * @note int bpm = 60'000'000.0 / project->getTempo(); // Convert to BPM
      */
     int getTempo() const;
+    
+    /**
+     * @brief Returns the project's base tempo (not from active sequence).
+     * @return Tempo in microseconds per quarter note.
+     */
+    int getProjectTempo() const { return tempo; }
 
     /**
      * @brief Returns the current tick of the project.

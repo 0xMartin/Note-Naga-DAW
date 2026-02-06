@@ -79,6 +79,7 @@ private:
     void updateHeaderPositions();
     void clearHeaders();
     int trackIndexAtY(int y) const;
+    void handleSoloToggled(int trackIndex);
 };
 
 #endif // ARRANGEMENT_TRACK_HEADERS_WIDGET_H

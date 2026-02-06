@@ -69,7 +69,7 @@ void ArrangementTrackHeadersWidget::refreshFromArrangement()
             connect(headerWidget, &ArrangementTrackHeaderWidget::muteToggled,
                     this, &ArrangementTrackHeadersWidget::trackMuteToggled);
             connect(headerWidget, &ArrangementTrackHeaderWidget::soloToggled,
-                    this, &ArrangementTrackHeadersWidget::trackSoloToggled);
+                    this, &ArrangementTrackHeadersWidget::handleSoloToggled);
             connect(headerWidget, &ArrangementTrackHeaderWidget::colorChangeRequested,
                     this, &ArrangementTrackHeadersWidget::trackColorChangeRequested);
             connect(headerWidget, &ArrangementTrackHeaderWidget::trackSelected,
@@ -237,6 +237,44 @@ int ArrangementTrackHeadersWidget::contentHeight() const
 int ArrangementTrackHeadersWidget::trackIndexAtY(int y) const
 {
     return (y + m_verticalOffset) / m_trackHeight;
+}
+
+void ArrangementTrackHeadersWidget::handleSoloToggled(int trackIndex)
+{
+    // Exclusive solo - if this track has solo enabled, disable solo on all other tracks
+    if (trackIndex >= 0 && trackIndex < m_headerWidgets.size()) {
+        NoteNagaArrangementTrack *track = m_headerWidgets[trackIndex]->getTrack();
+        if (track && track->isSolo()) {
+            // This track was just soloed - unsolo all others and stop their notes
+            NoteNagaRuntimeData *runtimeData = m_engine ? m_engine->getRuntimeData() : nullptr;
+            
+            for (int i = 0; i < m_headerWidgets.size(); ++i) {
+                if (i != trackIndex) {
+                    NoteNagaArrangementTrack *otherTrack = m_headerWidgets[i]->getTrack();
+                    if (otherTrack && otherTrack->isSolo()) {
+                        otherTrack->setSolo(false);
+                        m_headerWidgets[i]->updateFromTrack();
+                        
+                        // Stop all notes in clips of this track that lost solo
+                        if (runtimeData) {
+                            for (const auto& clip : otherTrack->getClips()) {
+                                NoteNagaMidiSeq* seq = runtimeData->getSequenceById(clip.sequenceId);
+                                if (seq) {
+                                    for (auto* midiTrack : seq->getTracks()) {
+                                        if (midiTrack && !midiTrack->isTempoTrack()) {
+                                            midiTrack->stopAllNotes();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    emit trackSoloToggled(trackIndex);
 }
 
 void ArrangementTrackHeadersWidget::paintEvent(QPaintEvent *event)
