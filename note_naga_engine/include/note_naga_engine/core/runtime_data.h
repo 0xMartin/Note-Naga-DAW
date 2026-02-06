@@ -205,6 +205,11 @@ Q_SIGNALS:
     void activeSequenceChanged(NoteNagaMidiSeq *seq);
 
     /**
+     * @brief Signal emitted when a sequence is added or removed.
+     */
+    void sequenceListChanged();
+
+    /**
      * @brief Signal emitted when the track list changes.
      * @param track Pointer to the track.
      */

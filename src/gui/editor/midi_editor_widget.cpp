@@ -141,8 +141,11 @@ void MidiEditorWidget::setupConnections() {
 
     connect(project, &NoteNagaRuntimeData::sequenceMetadataChanged, this,
             [this](NoteNagaMidiSeq *seq, const std::string &) {
-                this->last_seq = seq;
-                refreshAll();
+                // Only refresh if this is the active sequence
+                if (seq == engine->getRuntimeData()->getActiveSequence()) {
+                    this->last_seq = seq;
+                    refreshAll();
+                }
             });
 
     connect(project, &NoteNagaRuntimeData::trackMetaChanged, this,

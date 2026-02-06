@@ -57,6 +57,12 @@ public slots:
     void showHideDock(const QString &name, bool checked);
     void onArrangementChanged();
     void onPlaybackPositionChanged(int tick);
+    
+    /// Scroll to a specific tick (used by go to start/end)
+    void scrollToTick(int64_t tick);
+    
+    /// Force refresh of minimap (clips changed, etc.)
+    void refreshMinimap();
 
 private:
     NoteNagaEngine *m_engine;

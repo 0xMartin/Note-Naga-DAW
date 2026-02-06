@@ -483,6 +483,10 @@ void MainWindow::goto_start() {
         if (engine->getRuntimeData()) {
             engine->getRuntimeData()->setCurrentArrangementTick(0);
         }
+        // Scroll timeline to start
+        if (m_arrangementSection) {
+            m_arrangementSection->scrollToTick(0);
+        }
     } else {
         // Set sequence position to 0
         this->engine->setPlaybackPosition(0);
@@ -504,6 +508,10 @@ void MainWindow::goto_end() {
             if (arrangement) {
                 int maxTick = arrangement->getMaxTick();
                 engine->getRuntimeData()->setCurrentArrangementTick(maxTick);
+                // Scroll timeline to end
+                if (m_arrangementSection) {
+                    m_arrangementSection->scrollToTick(maxTick);
+                }
             }
         }
     } else {

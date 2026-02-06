@@ -107,12 +107,9 @@ void MidiSequenceSelector::setupConnections()
         connect(runtime, &NoteNagaRuntimeData::activeSequenceChanged,
                 this, &MidiSequenceSelector::onEngineSequenceChanged);
         
-        // Also refresh list when active sequence changes (might be a new sequence)
-        connect(runtime, &NoteNagaRuntimeData::activeSequenceChanged,
-                this, [this](NoteNagaMidiSeq*) {
-            // Refresh list in case new sequences were added
-            refreshSequenceList();
-        });
+        // Refresh list when sequences are added or removed
+        connect(runtime, &NoteNagaRuntimeData::sequenceListChanged,
+                this, &MidiSequenceSelector::refreshSequenceList);
         
         // Refresh when project is loaded
         connect(runtime, &NoteNagaRuntimeData::projectFileLoaded,

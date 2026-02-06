@@ -168,11 +168,16 @@ bool NoteNagaEngine::startPlayback() {
 bool NoteNagaEngine::stopPlayback() {
     if (playback_worker) {
         if (playback_worker->stop()) {
-            // Stop all notes on all tracks
-            if (runtime_data && runtime_data->getActiveSequence()) {
-                for (NoteNagaTrack *track : runtime_data->getActiveSequence()->getTracks()) {
-                    if (track) {
-                        track->stopAllNotes();
+            // Stop all notes on ALL sequences (important for arrangement mode
+            // where multiple sequences may be playing simultaneously)
+            if (runtime_data) {
+                for (NoteNagaMidiSeq *seq : runtime_data->getSequences()) {
+                    if (seq) {
+                        for (NoteNagaTrack *track : seq->getTracks()) {
+                            if (track) {
+                                track->stopAllNotes();
+                            }
+                        }
                     }
                 }
             }

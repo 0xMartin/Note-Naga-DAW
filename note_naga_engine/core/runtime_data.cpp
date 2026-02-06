@@ -77,10 +77,16 @@ void NoteNagaRuntimeData::addSequence(NoteNagaMidiSeq *sequence) {
                 &NoteNagaRuntimeData::sequenceMetadataChanged);
         connect(sequence, &NoteNagaMidiSeq::trackMetadataChanged, this,
                 &NoteNagaRuntimeData::trackMetaChanged);
+        // Only emit activeSequenceTrackListChanged if this is the active sequence
         connect(sequence, &NoteNagaMidiSeq::trackListChanged, this, [this, sequence](){
-            this->activeSequenceTrackListChanged(sequence);
+            if (this->active_sequence == sequence) {
+                this->activeSequenceTrackListChanged(sequence);
+            }
         });
 #endif
+        
+        // Emit signal for sequence list change
+        NN_QT_EMIT(sequenceListChanged());
         
         if (!this->active_sequence) {
             this->active_sequence = sequence;
@@ -95,6 +101,10 @@ void NoteNagaRuntimeData::removeSequence(NoteNagaMidiSeq *sequence) {
         auto it = std::remove(sequences.begin(), sequences.end(), sequence);
         if (it != sequences.end()) {
             sequences.erase(it, sequences.end());
+            
+            // Emit signal for sequence list change
+            NN_QT_EMIT(sequenceListChanged());
+            
             // Reset active sequence if it was removed
             if (active_sequence == sequence) {
                 active_sequence = nullptr;

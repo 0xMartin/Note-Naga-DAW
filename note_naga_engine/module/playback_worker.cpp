@@ -483,6 +483,10 @@ void PlaybackThreadWorker::runArrangementMode() {
     using clock = std::chrono::high_resolution_clock;
     auto last_iteration_time = clock::now();
     double fractional_ticks = 0.0;
+    
+    // Track last processed tick - initialize to -1 so first iteration processes starting tick
+    int last_tick = current_tick - 1;
+    bool firstIteration = true;
 
     // Simple approach: for each tick range, iterate ALL tracks and ALL clips
     // and check if any notes should be played or stopped
@@ -497,13 +501,19 @@ void PlaybackThreadWorker::runArrangementMode() {
         int tick_advance = static_cast<int>(fractional_ticks);
         fractional_ticks -= tick_advance;
 
-        if (tick_advance < 1) {
-            std::this_thread::sleep_for(std::chrono::microseconds(100));
-            continue;
+        // On first iteration, process the starting tick immediately (even if tick_advance is 0)
+        if (firstIteration) {
+            firstIteration = false;
+            // last_tick is already current_tick - 1, so we'll process from last_tick+1 = current_tick
+            // Don't update last_tick or current_tick here, just fall through to process
+        } else {
+            if (tick_advance < 1) {
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+                continue;
+            }
+            last_tick = current_tick;
+            current_tick += tick_advance;
         }
-
-        int last_tick = current_tick;
-        current_tick += tick_advance;
         this->project->setCurrentArrangementTick(current_tick);
 
         // Check loop region in arrangement

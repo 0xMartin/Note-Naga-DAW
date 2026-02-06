@@ -56,6 +56,12 @@ void ArrangementSection::onSectionActivated()
     if (m_timeline) {
         m_timeline->refreshFromArrangement();
     }
+    
+    // Update minimap visible range after layout is calculated
+    QTimer::singleShot(50, this, [this]() {
+        refreshMinimap();
+        updateScrollBarRange();
+    });
 }
 
 void ArrangementSection::onSectionDeactivated()
@@ -564,6 +570,9 @@ void ArrangementSection::onArrangementChanged()
         m_timelineRuler->update();
     }
     updateScrollBarRange();
+    
+    // Also refresh the minimap to show new/modified clips
+    refreshMinimap();
 }
 
 void ArrangementSection::updateScrollBarRange()
@@ -638,4 +647,31 @@ void ArrangementSection::autoScrollToPlayhead(int tick)
         newOffset = qMax(0, newOffset);
         m_timelineScrollBar->setValue(newOffset);
     }
+}
+void ArrangementSection::scrollToTick(int64_t tick)
+{
+    if (!m_timeline || !m_timelineScrollBar) return;
+    
+    int viewportWidth = m_timeline->contentRect().width();
+    int leftMargin = viewportWidth / 5;
+    
+    // Calculate new offset to show the tick with some margin
+    int newOffset = static_cast<int>(tick * m_timeline->getPixelsPerTick()) - leftMargin;
+    newOffset = qMax(0, newOffset);
+    
+    // For start, just go to 0
+    if (tick <= 0) {
+        newOffset = 0;
+    }
+    
+    m_timelineScrollBar->setValue(newOffset);
+    updateMinimapVisibleRange();
+}
+
+void ArrangementSection::refreshMinimap()
+{
+    if (m_minimap) {
+        m_minimap->update();
+    }
+    updateMinimapVisibleRange();
 }

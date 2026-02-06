@@ -547,6 +547,9 @@ void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoin
         }
       }
       
+      // Recalculate max tick for proper duration
+      newSeq->computeMaxTick();
+      
       // Ask if user wants to switch to the new sequence
       if (QMessageBox::question(this, tr("Sequence Created"), 
                                 tr("New sequence has been created with track '%1'.\n\nSwitch to it now?").arg(seqName),
