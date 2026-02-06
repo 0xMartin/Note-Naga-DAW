@@ -301,6 +301,12 @@ public:
     void addNote(const NN_Note_t &note);
 
     /**
+     * @brief Adds multiple MIDI notes to the track in bulk (optimized, no signal per note).
+     * @param notes Vector of MIDI notes to add.
+     */
+    void addNotesBulk(const std::vector<NN_Note_t> &notes);
+
+    /**
      * @brief Removes a MIDI note from the track.
      * @param note The MIDI note to remove.
      */

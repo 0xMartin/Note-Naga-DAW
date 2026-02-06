@@ -135,6 +135,26 @@ void NoteNagaTrack::addNote(const NN_Note_t &note) {
     NN_QT_EMIT(metadataChanged(this, "notes"));
 }
 
+void NoteNagaTrack::addNotesBulk(const std::vector<NN_Note_t> &notes) {
+    // Reserve space for efficiency
+    this->midi_notes.reserve(this->midi_notes.size() + notes.size());
+    
+    // Add all notes
+    for (const auto &note : notes) {
+        int noteStart = note.start.value_or(0);
+        auto it = std::lower_bound(
+            this->midi_notes.begin(), this->midi_notes.end(), noteStart,
+            [](const NN_Note_t &n, int start) {
+                return n.start.value_or(0) < start;
+            }
+        );
+        this->midi_notes.insert(it, note);
+    }
+    
+    // Emit signal only once at the end
+    NN_QT_EMIT(metadataChanged(this, "notes"));
+}
+
 void NoteNagaTrack::removeNote(const NN_Note_t &note) {
     auto it = std::find_if(midi_notes.begin(), midi_notes.end(),
                            [&note](const NN_Note_t &n) { return n.id == note.id; });

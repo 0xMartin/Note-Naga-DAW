@@ -76,6 +76,10 @@ private slots:
     void onDuplicateTrack();
     void onMoveTrackUp();
     void onMoveTrackDown();
+    void onSplitTracksToSequences();
+
+protected:
+    void contextMenuEvent(QContextMenuEvent *event) override;
     
 signals:
     /**

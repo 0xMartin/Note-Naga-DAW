@@ -123,6 +123,11 @@ public:
      */
     bool setActiveSequence(NoteNagaMidiSeq *sequence);
 
+    /**
+     * @brief Manually emit sequenceListChanged signal (for bulk operations).
+     */
+    void emitSequenceListChanged() { NN_QT_EMIT(sequenceListChanged()); }
+
     // ARRANGEMENT METHODS
     // ///////////////////////////////////////////////////////////////////////////////
 

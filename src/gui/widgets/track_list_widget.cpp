@@ -4,6 +4,8 @@
 #include "../nn_gui_utils.h"
 #include "note_naga_engine/core/types.h"
 #include "note_naga_engine/synth/synth_fluidsynth.h"
+#include <QApplication>
+#include <QContextMenuEvent>
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QMessageBox>
@@ -58,12 +60,16 @@ void TrackListWidget::initTitleUI() {
   QPushButton *btn_reload_sf = create_small_button(
       ":/icons/audio-signal.svg", "Set SoundFont for all tracks", "SetGlobalSFButton");
 
+  QPushButton *btn_split = create_small_button(
+      ":/icons/split-tracks.svg", "Split Tracks to Sequences", "SplitButton");
+
   layout->addWidget(btn_add, 0, Qt::AlignRight);
   layout->addWidget(btn_add_tempo, 0, Qt::AlignRight);
   layout->addWidget(btn_remove, 0, Qt::AlignRight);
   layout->addWidget(btn_clear, 0, Qt::AlignRight);
   layout->addWidget(btn_reload, 0, Qt::AlignRight);
   layout->addWidget(btn_reload_sf, 0, Qt::AlignRight);
+  layout->addWidget(btn_split, 0, Qt::AlignRight);
 
   connect(btn_add, &QPushButton::clicked, this, &TrackListWidget::onAddTrack);
   connect(btn_add_tempo, &QPushButton::clicked, this, &TrackListWidget::onAddTempoTrack);
@@ -75,6 +81,8 @@ void TrackListWidget::initTitleUI() {
           &TrackListWidget::onReloadTracks);
   connect(btn_reload_sf, &QPushButton::clicked, this,
           &TrackListWidget::onReloadAllSoundFonts);
+  connect(btn_split, &QPushButton::clicked, this,
+          &TrackListWidget::onSplitTracksToSequences);
 }
 
 void TrackListWidget::initUI() {
@@ -641,4 +649,137 @@ void TrackListWidget::updateTrackMeters() {
       meter->setVolumesDb(rms.first, rms.second);
     }
   }
+}
+
+void TrackListWidget::contextMenuEvent(QContextMenuEvent *event) {
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
+  if (!seq) {
+    QWidget::contextMenuEvent(event);
+    return;
+  }
+  
+  QMenu menu(this);
+  
+  // Add Track
+  QAction *addTrackAction = menu.addAction(QIcon(":/icons/add.svg"), tr("Add Track"));
+  connect(addTrackAction, &QAction::triggered, this, &TrackListWidget::onAddTrack);
+  
+  // Add Tempo Track
+  QAction *addTempoAction = menu.addAction(QIcon(":/icons/tempo.svg"), tr("Add Tempo Track"));
+  connect(addTempoAction, &QAction::triggered, this, &TrackListWidget::onAddTempoTrack);
+  
+  menu.addSeparator();
+  
+  // Clear All Tracks (keep one empty)
+  QAction *clearAction = menu.addAction(QIcon(":/icons/clear.svg"), tr("Clear All Tracks"));
+  clearAction->setToolTip(tr("Remove all tracks and create one empty track"));
+  connect(clearAction, &QAction::triggered, this, &TrackListWidget::onClearTracks);
+  
+  menu.addSeparator();
+  
+  // Split Tracks to Sequences
+  QAction *splitAction = menu.addAction(QIcon(":/icons/split-tracks.svg"), tr("Split Tracks to Sequences"));
+  splitAction->setToolTip(tr("Create a new MIDI sequence for each track"));
+  splitAction->setEnabled(seq->getTracks().size() > 1);
+  connect(splitAction, &QAction::triggered, this, &TrackListWidget::onSplitTracksToSequences);
+  
+  menu.exec(event->globalPos());
+}
+
+void TrackListWidget::onSplitTracksToSequences() {
+  NoteNagaMidiSeq *seq = engine->getRuntimeData()->getActiveSequence();
+  if (!seq) {
+    QMessageBox::warning(this, tr("No Active Sequence"),
+                         tr("Please load a MIDI file first."));
+    return;
+  }
+  
+  auto tracks = seq->getTracks();
+  if (tracks.size() <= 1) {
+    QMessageBox::information(this, tr("Only One Track"),
+                             tr("There is only one track in this sequence. Nothing to split."));
+    return;
+  }
+  
+  // Count non-tempo tracks
+  int nonTempoTracks = 0;
+  for (auto *track : tracks) {
+    if (track && !track->isTempoTrack()) {
+      nonTempoTracks++;
+    }
+  }
+  
+  if (nonTempoTracks <= 1) {
+    QMessageBox::information(this, tr("Only One Track"),
+                             tr("There is only one non-tempo track in this sequence. Nothing to split."));
+    return;
+  }
+  
+  // Confirm action
+  if (QMessageBox::question(this, tr("Split Tracks to Sequences"),
+                            tr("This will create %1 new MIDI sequences, one for each track.\n\n"
+                               "The original sequence will remain unchanged.\n\n"
+                               "Continue?").arg(nonTempoTracks),
+                            QMessageBox::Yes | QMessageBox::No,
+                            QMessageBox::No) != QMessageBox::Yes) {
+    return;
+  }
+  
+  // Show progress
+  QApplication::setOverrideCursor(Qt::WaitCursor);
+  QApplication::processEvents();
+  
+  int createdCount = 0;
+  std::vector<NoteNagaMidiSeq*> newSequences;
+  
+  // Block signals during bulk operation
+  engine->getRuntimeData()->blockSignals(true);
+  
+  for (auto *srcTrack : tracks) {
+    if (!srcTrack || srcTrack->isTempoTrack()) continue;
+    
+    // Create new sequence
+    NoteNagaMidiSeq *newSeq = new NoteNagaMidiSeq();
+    newSeq->blockSignals(true);
+    newSeq->setTempo(seq->getTempo());
+    newSeq->setPPQ(seq->getPPQ());
+    
+    // Add to runtime data (signals blocked)
+    engine->getRuntimeData()->addSequence(newSeq);
+    
+    // Copy track to new sequence
+    NoteNagaTrack *newTrack = newSeq->addTrack(srcTrack->getInstrument().value_or(0));
+    if (newTrack) {
+      // Use original track name
+      newTrack->setName(srcTrack->getName());
+      newTrack->setVisible(srcTrack->isVisible());
+      newTrack->setColor(srcTrack->getColor());
+      newTrack->setChannel(srcTrack->getChannel());
+      
+      // Copy notes in bulk (much faster - single signal at end)
+      newTrack->addNotesBulk(srcTrack->getNotes());
+    }
+    
+    // Recalculate max tick
+    newSeq->computeMaxTick();
+    newSeq->blockSignals(false);
+    createdCount++;
+    newSequences.push_back(newSeq);
+  }
+  
+  // Unblock signals and emit once
+  engine->getRuntimeData()->blockSignals(false);
+  
+  // Emit signals for created sequences
+  for (auto *newSeq : newSequences) {
+    emit newSequenceCreated(newSeq);
+  }
+  
+  // Notify about sequence list change
+  engine->getRuntimeData()->emitSequenceListChanged();
+  
+  QApplication::restoreOverrideCursor();
+  
+  QMessageBox::information(this, tr("Split Complete"),
+                           tr("Created %1 new MIDI sequences from tracks.").arg(createdCount));
 }
