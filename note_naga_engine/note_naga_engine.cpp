@@ -166,27 +166,30 @@ bool NoteNagaEngine::startPlayback() {
 }
 
 bool NoteNagaEngine::stopPlayback() {
+    bool stopped = false;
     if (playback_worker) {
-        if (playback_worker->stop()) {
-            // Stop all notes on ALL sequences (important for arrangement mode
-            // where multiple sequences may be playing simultaneously)
-            if (runtime_data) {
-                for (NoteNagaMidiSeq *seq : runtime_data->getSequences()) {
-                    if (seq) {
-                        for (NoteNagaTrack *track : seq->getTracks()) {
-                            if (track) {
-                                track->stopAllNotes();
-                            }
-                        }
+        stopped = playback_worker->stop();
+    }
+    
+    // ALWAYS stop all notes on ALL sequences, even if playback wasn't running
+    // This ensures no hanging notes when switching modes or stopping playback
+    if (runtime_data) {
+        for (NoteNagaMidiSeq *seq : runtime_data->getSequences()) {
+            if (seq) {
+                for (NoteNagaTrack *track : seq->getTracks()) {
+                    if (track) {
+                        track->stopAllNotes();
                     }
                 }
             }
-            // playbackStopped is emitted from thread finished callback
-            return true;
         }
     }
-    NOTE_NAGA_LOG_WARNING("Failed to stop playback");
-    return false;
+    
+    if (!stopped) {
+        NOTE_NAGA_LOG_WARNING("Playback worker was not playing");
+    }
+    // playbackStopped is emitted from thread finished callback
+    return stopped;
 }
 
 void NoteNagaEngine::playSingleNote(const NN_Note_t &midi_note) {
