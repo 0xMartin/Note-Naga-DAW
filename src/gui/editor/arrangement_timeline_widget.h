@@ -172,7 +172,7 @@ private:
     double m_pixelsPerTick = 0.1;
     int m_horizontalOffset = 0;
     int m_verticalOffset = 0;
-    int m_trackHeight = 60;
+    int m_trackHeight = 80;
     
     // Snap settings
     bool m_snapEnabled = true;

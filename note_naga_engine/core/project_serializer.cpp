@@ -787,6 +787,7 @@ void NoteNagaProjectSerializer::serializeArrangementTrack(std::ofstream &out, No
     writeBool(out, track->isMuted());
     writeBool(out, track->isSolo());
     writeFloat(out, track->getVolume());
+    writeFloat(out, track->getPan());  // Version 8+
     writeInt32(out, track->getChannelOffset());
     
     // Clips
@@ -816,6 +817,14 @@ bool NoteNagaProjectSerializer::deserializeArrangementTrack(std::ifstream &in, N
     track->setMuted(readBool(in));
     track->setSolo(readBool(in));
     track->setVolume(readFloat(in));
+    
+    // Version 8+: Pan support
+    if (m_loadingVersion >= 8) {
+        track->setPan(readFloat(in));
+    } else {
+        track->setPan(0.0f);  // Default to center
+    }
+    
     track->setChannelOffset(readInt32(in));
     
     // Clips

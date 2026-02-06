@@ -13,12 +13,24 @@ TrackStereoMeter::TrackStereoMeter(QWidget* parent, int minDb, int maxDb)
 }
 
 void TrackStereoMeter::setVolumesDb(float leftDb, float rightDb) {
+    // Skip updates when inactive to save CPU
+    if (!m_active) return;
+    
     if (std::abs(leftDb - leftDb_) < 0.1f && std::abs(rightDb - rightDb_) < 0.1f)
         return;
     leftDb_ = leftDb;
     rightDb_ = rightDb;
     updatePeakValues(leftDb, rightDb);
     update();
+}
+
+void TrackStereoMeter::setActive(bool active) {
+    if (m_active != active) {
+        m_active = active;
+        if (!active) {
+            reset();  // Reset meter when deactivated
+        }
+    }
 }
 
 void TrackStereoMeter::reset() {

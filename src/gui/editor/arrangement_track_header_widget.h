@@ -10,10 +10,12 @@
 
 class NoteNagaArrangementTrack;
 class TrackStereoMeter;
+class AudioHorizontalSlider;
+class AudioDialCentered;
 
 /**
  * @brief Widget representing a single track header in the arrangement view.
- * Contains track name, mute/solo buttons, color indicator, and stereo meter.
+ * Contains track name, mute/solo buttons, color indicator, volume/pan controls, and stereo meter.
  */
 class ArrangementTrackHeaderWidget : public QWidget
 {
@@ -40,6 +42,8 @@ signals:
     void colorChangeRequested(int trackIndex);
     void trackSelected(int trackIndex);
     void nameChanged(int trackIndex, const QString &newName);
+    void volumeChanged(int trackIndex, float volume);
+    void panChanged(int trackIndex, float pan);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -60,6 +64,8 @@ private:
     QPushButton *m_soloButton = nullptr;
     QPushButton *m_colorButton = nullptr;
     TrackStereoMeter *m_stereoMeter = nullptr;
+    AudioHorizontalSlider *m_volumeSlider = nullptr;
+    AudioDialCentered *m_panDial = nullptr;
     
     void setupUI();
     void updateButtonStyles();

@@ -1,5 +1,7 @@
 #include "arrangement_track_header_widget.h"
 #include "../components/track_stereo_meter.h"
+#include "../components/audio_horizontal_slider.h"
+#include "../components/audio_dial_centered.h"
 #include "../nn_gui_utils.h"
 
 #include <note_naga_engine/core/types.h>
@@ -17,20 +19,24 @@ ArrangementTrackHeaderWidget::ArrangementTrackHeaderWidget(NoteNagaArrangementTr
 
 void ArrangementTrackHeaderWidget::setupUI()
 {
-    setFixedHeight(60);
-    setMinimumWidth(160);
+    setFixedHeight(80);  // Reduced height for smaller controls
+    setMinimumWidth(200);
     
-    // Main layout
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(6, 4, 4, 4);
+    // Main horizontal layout: left column (name+controls) + right column (pan dial centered)
+    QHBoxLayout *mainLayout = new QHBoxLayout(this);
+    mainLayout->setContentsMargins(6, 3, 4, 3);
     mainLayout->setSpacing(2);
     
-    // Top row: name and buttons
+    // LEFT COLUMN: everything except pan dial
+    QVBoxLayout *leftColumn = new QVBoxLayout();
+    leftColumn->setContentsMargins(0, 0, 0, 0);
+    leftColumn->setSpacing(2);
+    
+    // Top row: editable name + buttons on same line
     QHBoxLayout *topRow = new QHBoxLayout();
     topRow->setContentsMargins(0, 0, 0, 0);
     topRow->setSpacing(2);
     
-    // Editable track name
     m_nameEdit = new QLineEdit(this);
     m_nameEdit->setFrame(false);
     m_nameEdit->setStyleSheet(
@@ -52,10 +58,10 @@ void ArrangementTrackHeaderWidget::setupUI()
     connect(m_nameEdit, &QLineEdit::editingFinished, this, &ArrangementTrackHeaderWidget::onNameEditFinished);
     topRow->addWidget(m_nameEdit);
     
-    // Button size for square buttons (1:1 aspect ratio)
-    const int BTN_SIZE = 18;
+    // Button size (reduced by 30% from 14 to 10)
+    const int BTN_SIZE = 10;
     
-    // Color button - square with rounded corners, shows track color
+    // Color button
     m_colorButton = new QPushButton(this);
     m_colorButton->setFixedSize(BTN_SIZE, BTN_SIZE);
     m_colorButton->setCursor(Qt::PointingHandCursor);
@@ -65,8 +71,8 @@ void ArrangementTrackHeaderWidget::setupUI()
     });
     topRow->addWidget(m_colorButton);
     
-    // Mute button - square with icon (same style as TrackWidget)
-    m_muteButton = create_small_button(":/icons/sound-on.svg", tr("Toggle Track Mute/Play"), "MuteButton", 14, this);
+    // Mute button
+    m_muteButton = create_small_button(":/icons/sound-on.svg", tr("Toggle Track Mute/Play"), "MuteButton", 8, this);
     m_muteButton->setCheckable(true);
     m_muteButton->setFixedSize(BTN_SIZE, BTN_SIZE);
     connect(m_muteButton, &QPushButton::clicked, this, [this]() {
@@ -78,8 +84,8 @@ void ArrangementTrackHeaderWidget::setupUI()
     });
     topRow->addWidget(m_muteButton);
     
-    // Solo button - square with icon (same style as TrackWidget)
-    m_soloButton = create_small_button(":/icons/solo.svg", tr("Toggle Solo Mode"), "SoloButton", 14, this);
+    // Solo button
+    m_soloButton = create_small_button(":/icons/solo.svg", tr("Toggle Solo Mode"), "SoloButton", 8, this);
     m_soloButton->setCheckable(true);
     m_soloButton->setFixedSize(BTN_SIZE, BTN_SIZE);
     connect(m_soloButton, &QPushButton::clicked, this, [this]() {
@@ -91,15 +97,65 @@ void ArrangementTrackHeaderWidget::setupUI()
     });
     topRow->addWidget(m_soloButton);
     
-    mainLayout->addLayout(topRow);
+    leftColumn->addLayout(topRow);
     
-    // Spacer to push meter to bottom
-    mainLayout->addStretch(1);
+    // Volume slider (horizontal)
+    m_volumeSlider = new AudioHorizontalSlider(this);
+    m_volumeSlider->setRange(0.0f, 100.0f);
+    m_volumeSlider->setValue(80.0f);
+    m_volumeSlider->setDefaultValue(80.0f);
+    m_volumeSlider->setValuePostfix("%");
+    m_volumeSlider->setLabelText("Vol");
+    m_volumeSlider->setLabelVisible(false);
+    m_volumeSlider->setValueVisible(true);
+    m_volumeSlider->setValueDecimals(0);
+    m_volumeSlider->setMinimumHeight(11);
+    m_volumeSlider->setToolTip(tr("Volume (Right-click to reset)"));
+    connect(m_volumeSlider, &AudioHorizontalSlider::valueChanged, this, [this](float volume) {
+        if (m_track) {
+            m_track->setVolume(volume / 100.0f);  // Convert from 0..100 to 0..1
+            emit volumeChanged(m_trackIndex, volume / 100.0f);
+        }
+    });
+    leftColumn->addWidget(m_volumeSlider);
     
-    // Stereo meter at bottom (50% taller)
+    // Stereo meter below slider
     m_stereoMeter = new TrackStereoMeter(this, -70, 0);
-    m_stereoMeter->setFixedHeight(21);
-    mainLayout->addWidget(m_stereoMeter);
+    m_stereoMeter->setFixedHeight(18);
+    leftColumn->addWidget(m_stereoMeter);
+    
+    leftColumn->addStretch();
+    mainLayout->addLayout(leftColumn, 1);
+    
+    // RIGHT COLUMN: Pan dial centered vertically (default size 40x60)
+    QVBoxLayout *rightColumn = new QVBoxLayout();
+    rightColumn->setContentsMargins(0, 0, 0, 0);
+    rightColumn->addStretch();
+    
+    m_panDial = new AudioDialCentered(this);
+    // Use default minimum size (40x60) - no setFixedSize needed
+    m_panDial->setRange(-100.0f, 100.0f);
+    m_panDial->setValue(0.0f);
+    m_panDial->setDefaultValue(0.0f);
+    m_panDial->showLabel(false);
+    m_panDial->setLabel("Pan");
+    m_panDial->showValue(true);
+    m_panDial->setToolTip(tr("Pan (Right-click to center)"));
+    m_panDial->setValuePrefix("");
+    m_panDial->setValuePostfix("");
+    m_panDial->setValueDecimals(0);
+    m_panDial->bg_color = QColor("#2a2f35");
+    m_panDial->arc_bg_color = QColor("#1e1e20");
+    connect(m_panDial, &AudioDialCentered::valueChanged, this, [this](float pan) {
+        if (m_track) {
+            m_track->setPan(pan / 100.0f);  // Convert from -100..100 to -1..1
+            emit panChanged(m_trackIndex, pan / 100.0f);
+        }
+    });
+    rightColumn->addWidget(m_panDial, 0, Qt::AlignCenter);
+    
+    rightColumn->addStretch();
+    mainLayout->addLayout(rightColumn);
     
     updateButtonStyles();
 }
@@ -122,6 +178,20 @@ void ArrangementTrackHeaderWidget::updateFromTrack()
         name = tr("Track %1").arg(m_trackIndex + 1);
     }
     m_nameEdit->setText(name);
+    
+    // Sync volume slider (convert from 0..1 to 0..100)
+    if (m_volumeSlider) {
+        m_volumeSlider->blockSignals(true);
+        m_volumeSlider->setValue(m_track->getVolume() * 100.0f);
+        m_volumeSlider->blockSignals(false);
+    }
+    
+    // Sync pan dial (convert from -1..1 to -100..100)
+    if (m_panDial) {
+        m_panDial->blockSignals(true);
+        m_panDial->setValue(m_track->getPan() * 100.0f);
+        m_panDial->blockSignals(false);
+    }
     
     updateButtonStyles();
     update();
@@ -204,9 +274,9 @@ void ArrangementTrackHeaderWidget::paintEvent(QPaintEvent *event)
     
     // Background
     if (m_selected) {
-        painter.fillRect(rect(), QColor("#2a2a35"));
+        painter.fillRect(rect(), QColor("#32323d"));
     } else {
-        painter.fillRect(rect(), QColor("#1e1e24"));
+        painter.fillRect(rect(), QColor("#26262c"));
     }
     
     // Track color indicator on the left

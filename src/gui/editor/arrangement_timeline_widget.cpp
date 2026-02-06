@@ -692,6 +692,13 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
     setFocus();
     m_dragStartPos = event->pos();
     
+    // Block editing when playback is active
+    if (m_engine && m_engine->isPlaying()) {
+        // Allow only seeking by clicking (handled elsewhere), but block all editing
+        QWidget::mousePressEvent(event);
+        return;
+    }
+    
     if (event->button() == Qt::LeftButton) {
         // If in paste mode, finalize paste at this position
         if (m_interactionMode == PastingClips) {
@@ -847,6 +854,12 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
 
 void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    // Block editing when playback is active
+    if (m_engine && m_engine->isPlaying()) {
+        QWidget::mouseMoveEvent(event);
+        return;
+    }
+    
     // Update cursor based on hover
     if (m_interactionMode == None) {
         int trackIndex;
@@ -1082,6 +1095,12 @@ void ArrangementTimelineWidget::wheelEvent(QWheelEvent *event)
 
 void ArrangementTimelineWidget::keyPressEvent(QKeyEvent *event)
 {
+    // Block editing when playback is active (allow Escape for cancel)
+    if (m_engine && m_engine->isPlaying() && event->key() != Qt::Key_Escape) {
+        QWidget::keyPressEvent(event);
+        return;
+    }
+    
     switch (event->key()) {
         case Qt::Key_Delete:
         case Qt::Key_Backspace:

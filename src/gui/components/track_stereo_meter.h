@@ -26,6 +26,19 @@ public:
      */
     void setDbRange(int minDb, int maxDb);
 
+    /**
+     * @brief Sets whether the meter is active and should update.
+     * When inactive, setVolumesDb() will skip updates to save CPU.
+     * @param active True to enable updates, false to disable.
+     */
+    void setActive(bool active);
+    
+    /**
+     * @brief Gets whether the meter is currently active.
+     * @return True if active, false otherwise.
+     */
+    bool isActive() const { return m_active; }
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     QSize minimumSizeHint() const override;
@@ -36,6 +49,7 @@ private:
     float rightDb_ = -100.0f;
     int minDb_ = -70;
     int maxDb_ = 0;
+    bool m_active = true;
 
     // Peak hold
     float leftPeakDb_ = -100.0f;

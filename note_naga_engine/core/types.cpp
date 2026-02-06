@@ -1647,6 +1647,7 @@ NoteNagaArrangementTrack::NoteNagaArrangementTrack()
     muted_ = false;
     solo_ = false;
     volume_ = 1.0f;
+    pan_ = 0.0f;
     channelOffset_ = 0;
 }
 
@@ -1661,6 +1662,7 @@ NoteNagaArrangementTrack::NoteNagaArrangementTrack(int id, const std::string &na
     muted_ = false;
     solo_ = false;
     volume_ = 1.0f;
+    pan_ = 0.0f;
     channelOffset_ = 0;
 }
 
@@ -1776,6 +1778,11 @@ void NoteNagaArrangementTrack::setSolo(bool solo) {
 void NoteNagaArrangementTrack::setVolume(float volume) {
     volume_ = std::clamp(volume, 0.0f, 1.0f);
     NN_QT_EMIT(metadataChanged(this, "volume"));
+}
+
+void NoteNagaArrangementTrack::setPan(float pan) {
+    pan_ = std::clamp(pan, -1.0f, 1.0f);
+    NN_QT_EMIT(metadataChanged(this, "pan"));
 }
 
 // --- NoteNagaArrangement ---

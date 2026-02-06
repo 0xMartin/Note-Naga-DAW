@@ -65,7 +65,7 @@ private:
     NoteNagaEngine *m_engine = nullptr;
     QList<ArrangementTrackHeaderWidget*> m_headerWidgets;
     
-    int m_trackHeight = 60;
+    int m_trackHeight = 80;
     int m_verticalOffset = 0;
     int m_selectedTrackIndex = -1;
     

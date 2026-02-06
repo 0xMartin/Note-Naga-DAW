@@ -1295,6 +1295,7 @@ public:
     bool isMuted() const { return muted_; }
     bool isSolo() const { return solo_; }
     float getVolume() const { return volume_; }
+    float getPan() const { return pan_; }
 
     // SETTERS
     // ///////////////////////////////////////////////////////////////////////////////
@@ -1305,6 +1306,7 @@ public:
     void setMuted(bool muted);
     void setSolo(bool solo);
     void setVolume(float volume);
+    void setPan(float pan);
 
 protected:
     int id_;                              ///< Unique arrangement track ID
@@ -1313,6 +1315,7 @@ protected:
     bool muted_;                          ///< Mute state
     bool solo_;                           ///< Solo state
     float volume_;                        ///< Volume (0.0 - 1.0)
+    float pan_;                           ///< Pan (-1.0 to 1.0, 0.0 = center)
     int channelOffset_;                   ///< MIDI channel offset for remapping
     std::vector<NN_MidiClip_t> clips_;    ///< All clips on this track
 

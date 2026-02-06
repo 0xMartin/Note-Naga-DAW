@@ -36,13 +36,13 @@ ArrangementSection::ArrangementSection(NoteNagaEngine *engine, QWidget *parent)
     connectSignals();
     
     // Timer for updating track stereo meters
+    // Timer starts when section is activated (onSectionActivated)
     m_meterUpdateTimer = new QTimer(this);
     connect(m_meterUpdateTimer, &QTimer::timeout, this, [this]() {
         if (m_timeline) {
             m_timeline->updateTrackMeters();
         }
     });
-    m_meterUpdateTimer->start(30); // ~33 Hz update rate
 }
 
 ArrangementSection::~ArrangementSection()
@@ -62,6 +62,11 @@ void ArrangementSection::onSectionActivated()
         m_timeline->refreshFromArrangement();
     }
     
+    // Start meter updates when section is active
+    if (m_meterUpdateTimer && !m_meterUpdateTimer->isActive()) {
+        m_meterUpdateTimer->start(50);  // 20 fps - same as MIDI editor
+    }
+    
     // Update minimap visible range after layout is calculated
     QTimer::singleShot(50, this, [this]() {
         refreshMinimap();
@@ -71,7 +76,10 @@ void ArrangementSection::onSectionActivated()
 
 void ArrangementSection::onSectionDeactivated()
 {
-    // Cleanup if needed
+    // Stop meter updates when section is inactive to save CPU
+    if (m_meterUpdateTimer && m_meterUpdateTimer->isActive()) {
+        m_meterUpdateTimer->stop();
+    }
 }
 
 void ArrangementSection::setupDockLayout()
@@ -797,30 +805,7 @@ QWidget* ArrangementSection::createTimelineTitleWidget()
         }
     });
     
-    // Vertical zoom buttons
-    QPushButton *btnVZoomIn = create_small_button(
-        ":/icons/zoom-in-vertical.svg", tr("Increase Track Height"), "VZoomInBtn", 22);
-    connect(btnVZoomIn, &QPushButton::clicked, this, [this]() {
-        if (m_timeline) {
-            int currentHeight = m_timeline->getTrackHeight();
-            m_timeline->setTrackHeight(qMin(120, int(currentHeight * 1.2)));
-            if (m_trackHeaders) {
-                m_trackHeaders->setTrackHeight(m_timeline->getTrackHeight());
-            }
-        }
-    });
-    
-    QPushButton *btnVZoomOut = create_small_button(
-        ":/icons/zoom-out-vertical.svg", tr("Decrease Track Height"), "VZoomOutBtn", 22);
-    connect(btnVZoomOut, &QPushButton::clicked, this, [this]() {
-        if (m_timeline) {
-            int currentHeight = m_timeline->getTrackHeight();
-            m_timeline->setTrackHeight(qMax(40, int(currentHeight / 1.2)));
-            if (m_trackHeaders) {
-                m_trackHeaders->setTrackHeight(m_timeline->getTrackHeight());
-            }
-        }
-    });
+
     
     // Snap toggle button
     QPushButton *btnSnap = create_small_button(
@@ -848,8 +833,6 @@ QWidget* ArrangementSection::createTimelineTitleWidget()
     layout->addWidget(create_separator());
     layout->addWidget(btnZoomIn);
     layout->addWidget(btnZoomOut);
-    layout->addWidget(btnVZoomIn);
-    layout->addWidget(btnVZoomOut);
     layout->addWidget(create_separator());
     layout->addWidget(btnSnap);
     layout->addWidget(btnAutoScroll);

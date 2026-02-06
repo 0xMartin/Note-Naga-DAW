@@ -488,6 +488,9 @@ void PlaybackThreadWorker::runArrangementMode() {
     // Track last processed tick - initialize to -1 so first iteration processes starting tick
     int last_tick = current_tick - 1;
     bool firstIteration = true;
+    
+    // Track solo state to detect changes and stop notes on non-solo tracks
+    bool lastHadSoloTrack = false;
 
     // Simple approach: for each tick range, iterate ALL tracks and ALL clips
     // and check if any notes should be played or stopped
@@ -575,9 +578,43 @@ void PlaybackThreadWorker::runArrangementMode() {
         }
 
         // Iterate ALL arrangement tracks
+        // First, check if any track has solo enabled
+        bool hasSoloTrack = false;
+        for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
+            NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
+            if (arrTrack && arrTrack->isSolo()) {
+                hasSoloTrack = true;
+                break;
+            }
+        }
+        
+        // Detect solo state change - stop all notes on non-solo tracks when solo is activated
+        if (hasSoloTrack && !lastHadSoloTrack) {
+            // Solo just activated - stop all notes on non-solo arrangement tracks
+            for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
+                NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
+                if (!arrTrack || arrTrack->isSolo()) continue;
+                
+                // Stop notes in all clips of this non-solo track
+                for (const auto& clip : arrTrack->getClips()) {
+                    NoteNagaMidiSeq* seq = this->project->getSequenceById(clip.sequenceId);
+                    if (!seq) continue;
+                    for (auto* midiTrack : seq->getTracks()) {
+                        if (midiTrack && !midiTrack->isTempoTrack()) {
+                            midiTrack->stopAllNotes();
+                        }
+                    }
+                }
+            }
+        }
+        lastHadSoloTrack = hasSoloTrack;
+        
         for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
             NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
             if (!arrTrack || arrTrack->isMuted()) continue;
+            
+            // If any track is soloed, only play soloed tracks
+            if (hasSoloTrack && !arrTrack->isSolo()) continue;
 
             // Iterate ALL clips in this track
             for (const auto& clip : arrTrack->getClips()) {

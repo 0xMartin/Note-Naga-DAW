@@ -58,6 +58,7 @@ set(HEADER_FILES
     src/gui/components/audio_dial.h
     src/gui/components/audio_dial_centered.h
     src/gui/components/audio_dial_grid_widget.h
+    src/gui/components/audio_horizontal_slider.h
     src/gui/components/audio_vertical_slider.h
     src/gui/components/button_group_widget.h
     src/gui/components/indicator_led_widget.h
@@ -125,6 +126,7 @@ set(SOURCE_FILES
     src/gui/components/audio_dial.cpp
     src/gui/components/audio_dial_centered.cpp
     src/gui/components/audio_dial_grid_widget.cpp
+    src/gui/components/audio_horizontal_slider.cpp
     src/gui/components/audio_vertical_slider.cpp
     src/gui/components/button_group_widget.cpp
     src/gui/components/indicator_led_widget.cpp

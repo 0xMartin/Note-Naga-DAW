@@ -189,6 +189,9 @@ void ArrangementTrackHeadersWidget::updateTrackMeters()
             // Calculate current sequence tick for this clip
             int seqTick = clip.toSequenceTickLooped(static_cast<int>(currentTick), seqLength);
             
+            // NOTE: Active notes check disabled - was causing low fps/choppy meters
+            // The meter now shows RMS for any active clip regardless of note activity
+            /*
             // Check if any notes are currently playing in this clip's sequence tick
             bool hasActiveNotes = false;
             for (NoteNagaTrack *midiTrack : seq->getTracks()) {
@@ -209,6 +212,7 @@ void ArrangementTrackHeadersWidget::updateTrackMeters()
             
             // Only show RMS if this clip has active notes
             if (!hasActiveNotes) continue;
+            */
             
             // Get RMS from all tracks in this sequence
             for (NoteNagaTrack *midiTrack : seq->getTracks()) {
