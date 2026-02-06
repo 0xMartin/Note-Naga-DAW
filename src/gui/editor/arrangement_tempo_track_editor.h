@@ -70,6 +70,11 @@ public slots:
      * @brief Called when current tempo changes during playback
      */
     void onCurrentTempoChanged(double bpm);
+    
+    /**
+     * @brief Import tempo track from active MIDI sequence
+     */
+    void importTempoFromSequence();
 
 signals:
     /**
@@ -129,6 +134,7 @@ private:
 
     // UI controls
     QPushButton *m_toggleButton = nullptr;
+    QPushButton *m_importButton = nullptr;
     QLabel *m_bpmLabel = nullptr;
     QLabel *m_activeIndicator = nullptr;
 

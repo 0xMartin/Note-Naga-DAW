@@ -9,6 +9,7 @@
 #include <QWheelEvent>
 #include <QMenu>
 #include <QInputDialog>
+#include <QMessageBox>
 #include <QHBoxLayout>
 
 ArrangementTempoTrackEditor::ArrangementTempoTrackEditor(NoteNagaEngine *engine, QWidget *parent)
@@ -47,6 +48,29 @@ ArrangementTempoTrackEditor::ArrangementTempoTrackEditor(NoteNagaEngine *engine,
     m_bpmLabel = new QLabel("120.0", this);
     m_bpmLabel->setStyleSheet("color: #ff9800; font-size: 11px; font-weight: bold;");
     m_bpmLabel->setAlignment(Qt::AlignCenter);
+    
+    // Create import button
+    m_importButton = new QPushButton("⬇", this);
+    m_importButton->setToolTip(tr("Import tempo track from active MIDI sequence"));
+    m_importButton->setStyleSheet(R"(
+        QPushButton {
+            background: #2a4a2a;
+            border: 1px solid #4a6a4a;
+            border-radius: 3px;
+            color: #8c8;
+            font-size: 10px;
+            min-width: 18px;
+            max-width: 18px;
+            min-height: 18px;
+            max-height: 18px;
+            padding: 0px;
+        }
+        QPushButton:hover {
+            background: #3a5a3a;
+            color: #afa;
+        }
+    )");
+    connect(m_importButton, &QPushButton::clicked, this, &ArrangementTempoTrackEditor::importTempoFromSequence);
     
     // Create active indicator LED
     m_activeIndicator = new QLabel(this);
@@ -143,6 +167,60 @@ void ArrangementTempoTrackEditor::onCurrentTempoChanged(double bpm)
     if (m_bpmLabel) {
         m_bpmLabel->setText(QString::number(bpm, 'f', 1));
     }
+    update();
+}
+
+void ArrangementTempoTrackEditor::importTempoFromSequence()
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaMidiSeq* activeSeq = m_engine->getRuntimeData()->getActiveSequence();
+    if (!activeSeq) {
+        QMessageBox::warning(this, tr("Import Tempo Track"), 
+                             tr("No active MIDI sequence. Please select a sequence first."));
+        return;
+    }
+    
+    NoteNagaTrack* seqTempoTrack = activeSeq->getTempoTrack();
+    if (!seqTempoTrack || seqTempoTrack->getTempoEvents().empty()) {
+        QMessageBox::warning(this, tr("Import Tempo Track"), 
+                             tr("The active MIDI sequence does not have a tempo track."));
+        return;
+    }
+    
+    const auto& seqEvents = seqTempoTrack->getTempoEvents();
+    
+    // Ask for confirmation
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, 
+        tr("Import Tempo Track"),
+        tr("Import tempo track from the active sequence?\n\n"
+           "This will replace the current arrangement tempo track with %1 tempo event(s) from the MIDI sequence.")
+            .arg(seqEvents.size()),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+    );
+    
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+    
+    // Import tempo events
+    NoteNagaArrangement* arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    // Create tempo track if it doesn't exist
+    if (!arrangement->hasTempoTrack()) {
+        arrangement->createTempoTrack(seqEvents.front().bpm);
+    }
+    
+    NoteNagaTrack* arrTempoTrack = arrangement->getTempoTrack();
+    if (arrTempoTrack) {
+        arrTempoTrack->setTempoEvents(seqEvents);
+        arrTempoTrack->setTempoTrackActive(true);
+        emit arrangement->tempoTrackChanged();
+    }
+    
     update();
 }
 
@@ -413,6 +491,10 @@ void ArrangementTempoTrackEditor::drawHeaderLabel(QPainter &painter)
     
     // Position active indicator LED next to toggle button
     m_activeIndicator->move(28, 9);
+    
+    // Position import button next to LED
+    m_importButton->move(45, 5);
+    m_importButton->raise();
     
     // Position BPM label at top-right corner of header area
     m_bpmLabel->setGeometry(m_headerWidth - 55, 5, 50, 18);
