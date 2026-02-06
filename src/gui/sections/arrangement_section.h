@@ -16,6 +16,7 @@ class ArrangementTimelineWidget;
 class ArrangementTrackHeadersWidget;
 class ArrangementResourcePanel;
 class ArrangementTimelineRuler;
+class ArrangementMinimapWidget;
 
 // Track header width constant (must match arrangement_timeline_widget.h)
 static const int TRACK_HEADER_WIDTH = 160;
@@ -25,6 +26,7 @@ static const int TRACK_HEADER_WIDTH = 160;
  *        - Layer manager (left panel) - manage arrangement tracks
  *        - Timeline with clips (center) - main editing area
  *        - Resource panel (right) - list of MIDI sequences for drag & drop
+ *        - Minimap (bottom) - overview of entire arrangement
  *        All components wrapped in AdvancedDockWidget.
  */
 class ArrangementSection : public QMainWindow, public ISection {
@@ -68,20 +70,25 @@ private:
     ArrangementTrackHeadersWidget *m_trackHeaders;
     ArrangementResourcePanel *m_resourcePanel;
     ArrangementTimelineRuler *m_timelineRuler;
+    ArrangementMinimapWidget *m_minimap;
     QScrollBar *m_timelineScrollBar;
     
     // Splitter and helper widgets
     QSplitter *m_headerTimelineSplitter = nullptr;
     QWidget *m_headerCorner = nullptr;
     QWidget *m_scrollbarSpacer = nullptr;
+    QWidget *m_minimapSpacer = nullptr;
     
     // State
     bool m_layoutInitialized = false;
     QTimer *m_meterUpdateTimer = nullptr;
+    bool m_autoScrollEnabled = true;
     
     void setupDockLayout();
     void connectSignals();
     void updateScrollBarRange();
+    void updateMinimapVisibleRange();
+    void autoScrollToPlayhead(int tick);
     
 protected:
     void showEvent(QShowEvent *event) override;

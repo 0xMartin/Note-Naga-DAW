@@ -6,6 +6,7 @@
 #include "../editor/arrangement_track_headers_widget.h"
 #include "../editor/arrangement_resource_panel.h"
 #include "../editor/arrangement_timeline_ruler.h"
+#include "../editor/arrangement_minimap_widget.h"
 
 #include <QGridLayout>
 #include <QVBoxLayout>
@@ -145,6 +146,7 @@ void ArrangementSection::setupDockLayout()
         int handleWidth = m_headerTimelineSplitter->handleWidth();
         m_headerCorner->setFixedWidth(pos + handleWidth);
         m_scrollbarSpacer->setFixedWidth(pos + handleWidth);
+        m_minimapSpacer->setFixedWidth(pos + handleWidth);
     });
     
     timelineLayout->addWidget(m_headerTimelineSplitter, 1);
@@ -188,6 +190,25 @@ void ArrangementSection::setupDockLayout()
     bottomRowLayout->addWidget(m_timelineScrollBar, 1);
     
     timelineLayout->addWidget(bottomRow);
+    
+    // === Minimap row: spacer + minimap ===
+    QWidget *minimapRow = new QWidget(this);
+    QHBoxLayout *minimapRowLayout = new QHBoxLayout(minimapRow);
+    minimapRowLayout->setContentsMargins(0, 0, 0, 0);
+    minimapRowLayout->setSpacing(0);
+    
+    m_minimapSpacer = new QWidget(this);
+    m_minimapSpacer->setFixedWidth(TRACK_HEADER_WIDTH + 4);  // +4 for splitter handle
+    m_minimapSpacer->setFixedHeight(40);
+    m_minimapSpacer->setStyleSheet("background-color: #1e1e24;");
+    minimapRowLayout->addWidget(m_minimapSpacer);
+    
+    // Minimap widget
+    m_minimap = new ArrangementMinimapWidget(m_engine, this);
+    m_minimap->setFixedHeight(40);
+    minimapRowLayout->addWidget(m_minimap, 1);
+    
+    timelineLayout->addWidget(minimapRow);
 
     QFrame *editorContainer = new QFrame();
     editorContainer->setObjectName("TimelineContainer");
@@ -293,6 +314,76 @@ void ArrangementSection::connectSignals()
                 onArrangementChanged();
             }
         });
+        
+        // Connect track reordering
+        connect(m_trackHeaders, &ArrangementTrackHeadersWidget::tracksReordered, this, [this](int, int) {
+            onArrangementChanged();
+        });
+    }
+    
+    // Connect loop region between ruler and timeline
+    if (m_timelineRuler && m_timeline) {
+        connect(m_timelineRuler, &ArrangementTimelineRuler::loopRegionChanged,
+                m_timeline, &ArrangementTimelineWidget::setLoopRegion);
+        connect(m_timelineRuler, &ArrangementTimelineRuler::loopEnabledChanged,
+                m_timeline, &ArrangementTimelineWidget::setLoopEnabled);
+        
+        // Sync loop from timeline back to ruler
+        connect(m_timeline, &ArrangementTimelineWidget::loopRegionChanged,
+                m_timelineRuler, &ArrangementTimelineRuler::setLoopRegion);
+        connect(m_timeline, &ArrangementTimelineWidget::loopEnabledChanged,
+                m_timelineRuler, &ArrangementTimelineRuler::setLoopEnabled);
+        
+        // Sync loop region to engine arrangement
+        connect(m_timelineRuler, &ArrangementTimelineRuler::loopRegionChanged, this, [this](int64_t start, int64_t end) {
+            if (!m_engine || !m_engine->getRuntimeData()) return;
+            NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+            if (arrangement) {
+                arrangement->setLoopRegion(start, end);
+            }
+        });
+        connect(m_timelineRuler, &ArrangementTimelineRuler::loopEnabledChanged, this, [this](bool enabled) {
+            if (!m_engine || !m_engine->getRuntimeData()) return;
+            NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+            if (arrangement) {
+                arrangement->setLoopEnabled(enabled);
+            }
+        });
+    }
+    
+    // Connect minimap
+    if (m_minimap && m_timeline) {
+        // Minimap seek -> timeline
+        connect(m_minimap, &ArrangementMinimapWidget::seekRequested, this, [this](int64_t tick) {
+            if (!m_engine || !m_engine->getRuntimeData()) return;
+            m_engine->getRuntimeData()->setCurrentArrangementTick(static_cast<int>(tick));
+        });
+        
+        // Minimap visible range change -> scrollbar
+        connect(m_minimap, &ArrangementMinimapWidget::visibleRangeChangeRequested, this, [this](int64_t startTick) {
+            if (!m_timeline) return;
+            int offset = static_cast<int>(startTick * m_timeline->getPixelsPerTick());
+            m_timelineScrollBar->setValue(offset);
+        });
+        
+        // Update minimap when timeline scrolls/zooms
+        connect(m_timeline, &ArrangementTimelineWidget::horizontalOffsetChanged, this, [this](int) {
+            updateMinimapVisibleRange();
+        });
+        connect(m_timeline, &ArrangementTimelineWidget::zoomChanged, this, [this](double) {
+            updateMinimapVisibleRange();
+        });
+        
+        // Sync loop region to minimap
+        if (m_timelineRuler) {
+            connect(m_timelineRuler, &ArrangementTimelineRuler::loopRegionChanged, this, [this](int64_t start, int64_t end) {
+                m_minimap->setLoopRegion(start, end, m_timelineRuler->isLoopEnabled());
+            });
+            connect(m_timelineRuler, &ArrangementTimelineRuler::loopEnabledChanged, this, [this](bool enabled) {
+                m_minimap->setLoopRegion(m_timelineRuler->getLoopStartTick(), 
+                                         m_timelineRuler->getLoopEndTick(), enabled);
+            });
+        }
     }
     
     // Connect scrollbar to timeline
@@ -503,5 +594,48 @@ void ArrangementSection::onPlaybackPositionChanged(int tick)
     }
     if (m_timelineRuler) {
         m_timelineRuler->setPlayheadTick(tick);
+    }
+    if (m_minimap) {
+        m_minimap->setPlayheadTick(tick);
+    }
+    
+    // Auto-scroll to follow playhead
+    if (m_autoScrollEnabled && m_engine && m_engine->isPlaying()) {
+        autoScrollToPlayhead(tick);
+    }
+}
+
+void ArrangementSection::updateMinimapVisibleRange()
+{
+    if (!m_minimap || !m_timeline) return;
+    
+    int64_t startTick = m_timeline->getVisibleStartTick();
+    int64_t endTick = m_timeline->getVisibleEndTick();
+    m_minimap->setVisibleTickRange(startTick, endTick);
+}
+
+void ArrangementSection::autoScrollToPlayhead(int tick)
+{
+    if (!m_timeline || !m_timelineScrollBar) return;
+    
+    int playheadX = static_cast<int>(tick * m_timeline->getPixelsPerTick()) - m_timeline->getHorizontalOffset();
+    int viewportWidth = m_timeline->contentRect().width();
+    
+    // Define scroll margins (20% from edges)
+    int leftMargin = viewportWidth / 5;
+    int rightMargin = viewportWidth - viewportWidth / 5;
+    
+    // Scroll if playhead is near the right edge
+    if (playheadX > rightMargin) {
+        // Scroll to put playhead at left margin
+        int newOffset = static_cast<int>(tick * m_timeline->getPixelsPerTick()) - leftMargin;
+        newOffset = qMax(0, newOffset);
+        m_timelineScrollBar->setValue(newOffset);
+    }
+    // Scroll if playhead is before the left edge (e.g., after loop)
+    else if (playheadX < 0) {
+        int newOffset = static_cast<int>(tick * m_timeline->getPixelsPerTick()) - leftMargin;
+        newOffset = qMax(0, newOffset);
+        m_timelineScrollBar->setValue(newOffset);
     }
 }

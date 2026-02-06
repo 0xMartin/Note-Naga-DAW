@@ -677,6 +677,8 @@ void ArrangementTimelineWidget::paintEvent(QPaintEvent *event)
     // Draw content area (track lanes, clips, etc.)
     // Note: Track headers are now in a separate ArrangementTrackHeadersWidget
     drawTrackLanes(painter);
+    drawGridLines(painter);
+    drawLoopRegion(painter);
     drawClips(painter);
     drawSelectionRect(painter);
     drawDropPreview(painter);
@@ -1564,4 +1566,105 @@ void ArrangementTimelineWidget::cancelTrackNameEdit()
     }
     m_editingTrackIndex = -1;
     update();
+}
+
+void ArrangementTimelineWidget::setLoopRegion(int64_t startTick, int64_t endTick)
+{
+    if (m_loopStartTick != startTick || m_loopEndTick != endTick) {
+        m_loopStartTick = startTick;
+        m_loopEndTick = endTick;
+        update();
+        emit loopRegionChanged(startTick, endTick);
+    }
+}
+
+void ArrangementTimelineWidget::setLoopEnabled(bool enabled)
+{
+    if (m_loopEnabled != enabled) {
+        m_loopEnabled = enabled;
+        update();
+        emit loopEnabledChanged(enabled);
+    }
+}
+
+void ArrangementTimelineWidget::setShowGrid(bool show)
+{
+    if (m_showGrid != show) {
+        m_showGrid = show;
+        update();
+    }
+}
+
+void ArrangementTimelineWidget::drawGridLines(QPainter &painter)
+{
+    if (!m_showGrid) return;
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    // Get PPQ and time signature info
+    int ppq = m_engine->getRuntimeData()->getPPQ();
+    if (ppq <= 0) ppq = 480;
+    
+    int64_t ticksPerBeat = ppq;  // Quarter note = 1 beat
+    int64_t ticksPerBar = ticksPerBeat * 4;  // 4/4 time signature
+    
+    // Calculate visible tick range
+    int64_t startTick = xToTick(0);
+    int64_t endTick = xToTick(width());
+    
+    // Determine grid spacing based on zoom level
+    double pixelsPerBar = ticksPerBar * m_pixelsPerTick;
+    
+    int64_t majorStep = ticksPerBar;
+    int64_t minorStep = ticksPerBeat;
+    
+    // Adjust spacing if too dense
+    while (pixelsPerBar < 30) {
+        majorStep *= 2;
+        minorStep *= 2;
+        pixelsPerBar *= 2;
+    }
+    
+    // Draw minor grid lines (beats)
+    if (pixelsPerBar > 60) {  // Only show beat lines if zoomed in enough
+        painter.setPen(QPen(QColor("#2a2a32"), 1));
+        int64_t tick = (startTick / minorStep) * minorStep;
+        while (tick <= endTick) {
+            if (tick >= 0 && tick % majorStep != 0) {
+                int x = tickToX(tick);
+                painter.drawLine(x, 0, x, height());
+            }
+            tick += minorStep;
+        }
+    }
+    
+    // Draw major grid lines (bars)
+    painter.setPen(QPen(QColor("#3a3a45"), 1));
+    int64_t tick = (startTick / majorStep) * majorStep;
+    while (tick <= endTick) {
+        if (tick >= 0) {
+            int x = tickToX(tick);
+            painter.drawLine(x, 0, x, height());
+        }
+        tick += majorStep;
+    }
+}
+
+void ArrangementTimelineWidget::drawLoopRegion(QPainter &painter)
+{
+    if (!m_loopEnabled || m_loopEndTick <= m_loopStartTick) return;
+    
+    int loopStartX = tickToX(m_loopStartTick);
+    int loopEndX = tickToX(m_loopEndTick);
+    
+    // Skip if completely outside visible area
+    if (loopEndX < 0 || loopStartX > width()) return;
+    
+    // Draw semi-transparent overlay
+    painter.fillRect(loopStartX, 0, loopEndX - loopStartX, height(),
+                     QColor(34, 197, 94, 25)); // Green with transparency
+    
+    // Draw loop markers
+    painter.setPen(QPen(QColor("#22c55e"), 2));
+    painter.drawLine(loopStartX, 0, loopStartX, height());
+    painter.drawLine(loopEndX, 0, loopEndX, height());
 }

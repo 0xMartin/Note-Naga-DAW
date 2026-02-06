@@ -74,6 +74,12 @@ void SectionSwitcher::setupUi()
     if (m_engine && m_engine->getPlaybackWorker()) {
         connect(m_transportBar, &GlobalTransportBar::playbackModeChanged, this, 
                 [this](PlaybackMode mode) {
+            // Stop playback before changing mode to prevent audio glitches
+            bool wasPlaying = m_engine->getPlaybackWorker()->isPlaying();
+            if (wasPlaying) {
+                m_engine->stopPlayback();
+            }
+            
             m_engine->getPlaybackWorker()->setPlaybackMode(mode);
             // Also update DSP engine so it renders the correct sequences
             if (m_engine->getDSPEngine()) {

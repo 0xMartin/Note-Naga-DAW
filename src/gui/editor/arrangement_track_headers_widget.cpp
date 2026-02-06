@@ -21,6 +21,7 @@ ArrangementTrackHeadersWidget::ArrangementTrackHeadersWidget(NoteNagaEngine *eng
     setMinimumWidth(120);
     setMinimumHeight(100);
     setFocusPolicy(Qt::StrongFocus);  // Enable keyboard focus for Delete key
+    setMouseTracking(true);  // Enable mouse tracking for drag-to-reorder
 }
 
 void ArrangementTrackHeadersWidget::setEngine(NoteNagaEngine *engine)
@@ -228,6 +229,11 @@ int ArrangementTrackHeadersWidget::contentHeight() const
     return m_headerWidgets.size() * m_trackHeight;
 }
 
+int ArrangementTrackHeadersWidget::trackIndexAtY(int y) const
+{
+    return (y + m_verticalOffset) / m_trackHeight;
+}
+
 void ArrangementTrackHeadersWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
@@ -239,6 +245,46 @@ void ArrangementTrackHeadersWidget::paintEvent(QPaintEvent *event)
     // Right border
     painter.setPen(QColor("#3a3a42"));
     painter.drawLine(width() - 1, 0, width() - 1, height());
+    
+    // Draw drag-to-reorder indicator
+    if (m_isDraggingTrack && m_dragTargetIndex >= 0) {
+        int targetY = m_dragTargetIndex * m_trackHeight - m_verticalOffset;
+        
+        // Draw glowing line effect (multi-layer for glow)
+        // Outer glow
+        painter.setPen(QPen(QColor(34, 197, 94, 60), 8));
+        painter.drawLine(0, targetY, width(), targetY);
+        
+        // Middle glow
+        painter.setPen(QPen(QColor(34, 197, 94, 120), 4));
+        painter.drawLine(0, targetY, width(), targetY);
+        
+        // Inner bright line
+        painter.setPen(QPen(QColor("#22c55e"), 2));
+        painter.drawLine(0, targetY, width(), targetY);
+        
+        // Draw larger triangles at edges for visibility
+        painter.setBrush(QColor("#22c55e"));
+        painter.setPen(Qt::NoPen);
+        
+        // Left triangle
+        QPolygon leftTriangle;
+        leftTriangle << QPoint(0, targetY - 8) << QPoint(12, targetY) << QPoint(0, targetY + 8);
+        painter.drawPolygon(leftTriangle);
+        
+        // Right triangle
+        QPolygon rightTriangle;
+        rightTriangle << QPoint(width(), targetY - 8) << QPoint(width() - 12, targetY) << QPoint(width(), targetY + 8);
+        painter.drawPolygon(rightTriangle);
+        
+        // Highlight the source track being dragged
+        if (m_dragSourceIndex >= 0 && m_dragSourceIndex < m_headerWidgets.size()) {
+            int sourceY = m_dragSourceIndex * m_trackHeight - m_verticalOffset;
+            painter.fillRect(0, sourceY, width(), m_trackHeight, QColor(34, 197, 94, 30));
+            painter.setPen(QPen(QColor(34, 197, 94, 100), 1, Qt::DashLine));
+            painter.drawRect(0, sourceY, width() - 1, m_trackHeight - 1);
+        }
+    }
 }
 
 void ArrangementTrackHeadersWidget::wheelEvent(QWheelEvent *event)
@@ -296,4 +342,89 @@ void ArrangementTrackHeadersWidget::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
     // Update header widget widths when splitter is moved
     updateHeaderPositions();
+}
+
+void ArrangementTrackHeadersWidget::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        int trackIndex = trackIndexAtY(event->pos().y());
+        
+        if (trackIndex >= 0 && trackIndex < m_headerWidgets.size()) {
+            m_dragStartPos = event->pos();
+            m_dragSourceIndex = trackIndex;
+            m_dragOffsetY = event->pos().y() - (trackIndex * m_trackHeight - m_verticalOffset);
+            
+            // Select the track
+            setSelectedTrack(trackIndex);
+            emit trackSelected(trackIndex);
+        }
+    }
+    QWidget::mousePressEvent(event);
+}
+
+void ArrangementTrackHeadersWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if (m_dragSourceIndex >= 0 && (event->buttons() & Qt::LeftButton)) {
+        // Check if we've moved enough to start dragging
+        if (!m_isDraggingTrack) {
+            int distance = (event->pos() - m_dragStartPos).manhattanLength();
+            if (distance > 10) {
+                m_isDraggingTrack = true;
+                setCursor(Qt::ClosedHandCursor);
+            }
+        }
+        
+        if (m_isDraggingTrack) {
+            // Calculate target index based on mouse position
+            int mouseY = event->pos().y();
+            int targetIndex = trackIndexAtY(mouseY);
+            
+            // Clamp to valid range
+            targetIndex = qBound(0, targetIndex, m_headerWidgets.size());
+            
+            // Adjust: if dragging down, insert after the target
+            if (targetIndex > m_dragSourceIndex) {
+                // We're dragging down - insert after the track under cursor
+            }
+            
+            if (m_dragTargetIndex != targetIndex) {
+                m_dragTargetIndex = targetIndex;
+                update();
+            }
+        }
+    }
+    QWidget::mouseMoveEvent(event);
+}
+
+void ArrangementTrackHeadersWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        if (m_isDraggingTrack && m_dragSourceIndex >= 0 && m_dragTargetIndex >= 0 
+            && m_dragSourceIndex != m_dragTargetIndex) {
+            // Perform the reorder
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement) {
+                    // Adjust target index if dragging down (because source will be removed first)
+                    int adjustedTarget = m_dragTargetIndex;
+                    if (m_dragTargetIndex > m_dragSourceIndex) {
+                        adjustedTarget--;
+                    }
+                    
+                    if (arrangement->moveTrack(m_dragSourceIndex, adjustedTarget)) {
+                        emit tracksReordered(m_dragSourceIndex, adjustedTarget);
+                        refreshFromArrangement();
+                        setSelectedTrack(adjustedTarget);
+                    }
+                }
+            }
+        }
+        
+        m_isDraggingTrack = false;
+        m_dragSourceIndex = -1;
+        m_dragTargetIndex = -1;
+        setCursor(Qt::ArrowCursor);
+        update();
+    }
+    QWidget::mouseReleaseEvent(event);
 }

@@ -234,9 +234,39 @@ private:
     // Track headers widget (separate widget containing all track headers with meters)
     ArrangementTrackHeadersWidget *m_trackHeadersWidget = nullptr;
     
+    // Grid settings
+    bool m_showGrid = true;
+    
+    // Loop region (mirrors ruler settings for drawing)
+    int64_t m_loopStartTick = 0;
+    int64_t m_loopEndTick = 0;
+    bool m_loopEnabled = false;
+    
     void startTrackNameEdit(int trackIndex);
     void finishTrackNameEdit();
     void cancelTrackNameEdit();
+    void drawGridLines(QPainter &painter);
+    void drawLoopRegion(QPainter &painter);
+    
+public:
+    // Loop region
+    void setLoopRegion(int64_t startTick, int64_t endTick);
+    void setLoopEnabled(bool enabled);
+    bool isLoopEnabled() const { return m_loopEnabled; }
+    int64_t getLoopStartTick() const { return m_loopStartTick; }
+    int64_t getLoopEndTick() const { return m_loopEndTick; }
+    
+    // Grid
+    void setShowGrid(bool show);
+    bool isShowGrid() const { return m_showGrid; }
+    
+    // Visible tick range (for minimap)
+    int64_t getVisibleStartTick() const { return xToTick(0); }
+    int64_t getVisibleEndTick() const { return xToTick(width()); }
+    
+signals:
+    void loopRegionChanged(int64_t startTick, int64_t endTick);
+    void loopEnabledChanged(bool enabled);
 };
 
 #endif // ARRANGEMENT_TIMELINE_WIDGET_H

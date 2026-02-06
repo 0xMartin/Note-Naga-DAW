@@ -84,4 +84,10 @@ signals:
      * @param enabled True to show only this track, false to show all.
      */
     void soloViewToggled(NoteNagaTrack *track, bool enabled);
+    
+    /**
+     * @brief Signal emitted when a new sequence is created from a track.
+     * @param sequence Pointer to the newly created sequence.
+     */
+    void newSequenceCreated(NoteNagaMidiSeq *sequence);
 };

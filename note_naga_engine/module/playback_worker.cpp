@@ -506,8 +506,27 @@ void PlaybackThreadWorker::runArrangementMode() {
         current_tick += tick_advance;
         this->project->setCurrentArrangementTick(current_tick);
 
-        // Check for end of arrangement
-        if (current_tick >= arrangement_max_tick) {
+        // Check loop region in arrangement
+        bool hasLoopRegion = arrangement->isLoopEnabled() && arrangement->hasValidLoopRegion();
+        int64_t loopStart = arrangement->getLoopStartTick();
+        int64_t loopEnd = arrangement->getLoopEndTick();
+
+        // Check for loop region end
+        if (hasLoopRegion && current_tick >= loopEnd) {
+            // Stop all notes before looping
+            for (auto* seq : this->project->getSequences()) {
+                for (auto* track : seq->getTracks()) {
+                    if (track && !track->isTempoTrack()) {
+                        track->stopAllNotes();
+                    }
+                }
+            }
+            current_tick = static_cast<int>(loopStart);
+            last_tick = current_tick - 1; // Force re-processing from loop start
+            this->project->setCurrentArrangementTick(current_tick);
+        }
+        // Check for end of arrangement (when no loop region or loop region disabled)
+        else if (current_tick >= arrangement_max_tick) {
             if (!this->looping) {
                 this->should_stop = true;
                 current_tick = arrangement_max_tick;

@@ -409,10 +409,42 @@ void GlobalTransportBar::setPlaybackMode(PlaybackMode mode)
 
 void GlobalTransportBar::onPlaybackModeToggled()
 {
+    // Check if toggling is allowed based on current section constraints
     if (m_playbackMode == PlaybackMode::Sequence) {
+        // Trying to switch to Arrangement mode
+        if (!(m_allowedPlaybackModes & 2)) {
+            // Arrangement mode not allowed in this section
+            return;
+        }
         setPlaybackMode(PlaybackMode::Arrangement);
     } else {
+        // Trying to switch to Sequence mode
+        if (!(m_allowedPlaybackModes & 1)) {
+            // Sequence mode not allowed in this section
+            return;
+        }
         setPlaybackMode(PlaybackMode::Sequence);
+    }
+}
+
+void GlobalTransportBar::setAllowedPlaybackModes(int allowedModes)
+{
+    m_allowedPlaybackModes = allowedModes;
+    
+    // Update button enabled state based on allowed modes
+    if (m_playbackModeBtn) {
+        // If only one mode is allowed, disable the toggle button
+        bool canToggle = (allowedModes == 3);
+        m_playbackModeBtn->setEnabled(canToggle);
+        
+        if (!canToggle) {
+            // Force to the allowed mode
+            if ((allowedModes & 1) && m_playbackMode != PlaybackMode::Sequence) {
+                setPlaybackMode(PlaybackMode::Sequence);
+            } else if ((allowedModes & 2) && m_playbackMode != PlaybackMode::Arrangement) {
+                setPlaybackMode(PlaybackMode::Arrangement);
+            }
+        }
     }
 }
 

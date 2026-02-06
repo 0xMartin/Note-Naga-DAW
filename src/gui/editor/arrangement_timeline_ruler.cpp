@@ -5,6 +5,8 @@
 
 #include <QWheelEvent>
 #include <QPainterPath>
+#include <QMenu>
+#include <QContextMenuEvent>
 #include <cmath>
 
 ArrangementTimelineRuler::ArrangementTimelineRuler(NoteNagaEngine *engine, QWidget *parent)
@@ -64,6 +66,25 @@ void ArrangementTimelineRuler::setTimeSignature(int numerator, int denominator)
         m_timeSignatureNumerator = numerator;
         m_timeSignatureDenominator = denominator;
         update();
+    }
+}
+
+void ArrangementTimelineRuler::setLoopRegion(int64_t startTick, int64_t endTick)
+{
+    if (m_loopStartTick != startTick || m_loopEndTick != endTick) {
+        m_loopStartTick = startTick;
+        m_loopEndTick = endTick;
+        update();
+        emit loopRegionChanged(startTick, endTick);
+    }
+}
+
+void ArrangementTimelineRuler::setLoopEnabled(bool enabled)
+{
+    if (m_loopEnabled != enabled) {
+        m_loopEnabled = enabled;
+        update();
+        emit loopEnabledChanged(enabled);
     }
 }
 
@@ -198,7 +219,7 @@ void ArrangementTimelineRuler::paintEvent(QPaintEvent *event)
     }
     
     // Draw hover indicator (before playhead so playhead is on top)
-    if (m_isHovered && m_hoverX >= 0) {
+    if (m_isHovered && m_hoverX >= 0 && m_dragMode == DragNone) {
         // Draw semi-transparent hint area
         painter.fillRect(QRect(m_hoverX - 1, 0, 3, height()), QColor("#ff585840"));
         
@@ -213,6 +234,31 @@ void ArrangementTimelineRuler::paintEvent(QPaintEvent *event)
         hoverPath.lineTo(m_hoverX, 6);
         hoverPath.closeSubpath();
         painter.fillPath(hoverPath, QColor("#ff5858"));
+    }
+    
+    // Draw loop region
+    if (m_loopEnabled && m_loopEndTick > m_loopStartTick) {
+        int loopStartX = tickToX(m_loopStartTick);
+        int loopEndX = tickToX(m_loopEndTick);
+        
+        // Loop region background
+        painter.fillRect(loopStartX, 0, loopEndX - loopStartX, height(),
+                         QColor(34, 197, 94, 60)); // Green with transparency
+        
+        // Loop start marker
+        painter.setPen(QPen(QColor("#22c55e"), 2));
+        painter.drawLine(loopStartX, 0, loopStartX, height());
+        
+        // Loop start bracket
+        painter.drawLine(loopStartX, 0, loopStartX + 8, 0);
+        painter.drawLine(loopStartX, height() - 1, loopStartX + 8, height() - 1);
+        
+        // Loop end marker
+        painter.drawLine(loopEndX, 0, loopEndX, height());
+        
+        // Loop end bracket
+        painter.drawLine(loopEndX, 0, loopEndX - 8, 0);
+        painter.drawLine(loopEndX, height() - 1, loopEndX - 8, height() - 1);
     }
     
     // Draw playhead
@@ -234,9 +280,49 @@ void ArrangementTimelineRuler::paintEvent(QPaintEvent *event)
 void ArrangementTimelineRuler::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
-        m_isDragging = true;
-        int64_t tick = xToTick(event->pos().x());
+        int x = event->pos().x();
+        int64_t tick = xToTick(x);
         tick = qMax(static_cast<int64_t>(0), tick);
+        
+        // Check if clicking on loop markers (if loop is enabled)
+        if (m_loopEnabled && m_loopEndTick > m_loopStartTick) {
+            int loopStartX = tickToX(m_loopStartTick);
+            int loopEndX = tickToX(m_loopEndTick);
+            
+            // Check loop start handle (6px tolerance)
+            if (qAbs(x - loopStartX) < 6) {
+                m_dragMode = DragLoopStart;
+                m_dragStartX = x;
+                m_dragStartLoopStart = m_loopStartTick;
+                m_dragStartLoopEnd = m_loopEndTick;
+                setCursor(Qt::SizeHorCursor);
+                return;
+            }
+            
+            // Check loop end handle
+            if (qAbs(x - loopEndX) < 6) {
+                m_dragMode = DragLoopEnd;
+                m_dragStartX = x;
+                m_dragStartLoopStart = m_loopStartTick;
+                m_dragStartLoopEnd = m_loopEndTick;
+                setCursor(Qt::SizeHorCursor);
+                return;
+            }
+            
+            // Check if inside loop region (drag entire loop)
+            if (x > loopStartX + 6 && x < loopEndX - 6) {
+                m_dragMode = DragLoopBody;
+                m_dragStartX = x;
+                m_dragStartLoopStart = m_loopStartTick;
+                m_dragStartLoopEnd = m_loopEndTick;
+                setCursor(Qt::SizeAllCursor);
+                return;
+            }
+        }
+        
+        // Regular seek
+        m_dragMode = DragSeek;
+        m_isDragging = true;
         emit seekRequested(tick);
     }
     QWidget::mousePressEvent(event);
@@ -244,15 +330,63 @@ void ArrangementTimelineRuler::mousePressEvent(QMouseEvent *event)
 
 void ArrangementTimelineRuler::mouseMoveEvent(QMouseEvent *event)
 {
+    int x = event->pos().x();
+    
+    // Update cursor based on position when not dragging
+    if (m_dragMode == DragNone && m_loopEnabled && m_loopEndTick > m_loopStartTick) {
+        int loopStartX = tickToX(m_loopStartTick);
+        int loopEndX = tickToX(m_loopEndTick);
+        
+        if (qAbs(x - loopStartX) < 6 || qAbs(x - loopEndX) < 6) {
+            setCursor(Qt::SizeHorCursor);
+        } else if (x > loopStartX + 6 && x < loopEndX - 6) {
+            setCursor(Qt::SizeAllCursor);
+        } else {
+            setCursor(Qt::PointingHandCursor);
+        }
+    }
+    
     // Update hover position for visual feedback
-    m_hoverX = event->pos().x();
+    m_hoverX = x;
     update();
     
-    if (m_isDragging) {
-        int64_t tick = xToTick(event->pos().x());
-        tick = qMax(static_cast<int64_t>(0), tick);
-        emit seekRequested(tick);
+    switch (m_dragMode) {
+        case DragSeek: {
+            int64_t tick = xToTick(x);
+            tick = qMax(static_cast<int64_t>(0), tick);
+            emit seekRequested(tick);
+            break;
+        }
+        case DragLoopStart: {
+            int64_t tick = xToTick(x);
+            tick = qMax(static_cast<int64_t>(0), tick);
+            tick = qMin(tick, m_loopEndTick - getTicksPerBeat()); // Minimum 1 beat
+            setLoopRegion(tick, m_loopEndTick);
+            break;
+        }
+        case DragLoopEnd: {
+            int64_t tick = xToTick(x);
+            tick = qMax(m_loopStartTick + getTicksPerBeat(), tick); // Minimum 1 beat
+            setLoopRegion(m_loopStartTick, tick);
+            break;
+        }
+        case DragLoopBody: {
+            int64_t deltaTick = xToTick(x) - xToTick(m_dragStartX);
+            int64_t newStart = m_dragStartLoopStart + deltaTick;
+            int64_t newEnd = m_dragStartLoopEnd + deltaTick;
+            
+            // Keep in valid range
+            if (newStart < 0) {
+                newEnd -= newStart;
+                newStart = 0;
+            }
+            setLoopRegion(newStart, newEnd);
+            break;
+        }
+        default:
+            break;
     }
+    
     QWidget::mouseMoveEvent(event);
 }
 
@@ -260,8 +394,28 @@ void ArrangementTimelineRuler::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         m_isDragging = false;
+        m_dragMode = DragNone;
+        setCursor(Qt::PointingHandCursor);
     }
     QWidget::mouseReleaseEvent(event);
+}
+
+void ArrangementTimelineRuler::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        int x = event->pos().x();
+        int64_t tick = xToTick(x);
+        tick = qMax(static_cast<int64_t>(0), tick);
+        
+        // Double-click to set loop region (snap to bar)
+        int64_t ticksPerBar = getTicksPerBar();
+        int64_t barStart = (tick / ticksPerBar) * ticksPerBar;
+        int64_t barEnd = barStart + ticksPerBar * 4; // 4 bars default loop
+        
+        setLoopRegion(barStart, barEnd);
+        setLoopEnabled(true);
+    }
+    QWidget::mouseDoubleClickEvent(event);
 }
 
 void ArrangementTimelineRuler::enterEvent(QEnterEvent *event)
@@ -292,4 +446,59 @@ void ArrangementTimelineRuler::wheelEvent(QWheelEvent *event)
         setHorizontalOffset(m_horizontalOffset - delta);
         event->accept();
     }
+}
+void ArrangementTimelineRuler::contextMenuEvent(QContextMenuEvent *event)
+{
+    QMenu menu(this);
+    
+    if (m_loopEnabled) {
+        QAction *disableLoopAction = menu.addAction(tr("Disable Loop"));
+        connect(disableLoopAction, &QAction::triggered, this, [this]() {
+            setLoopEnabled(false);
+        });
+        
+        QAction *clearLoopAction = menu.addAction(tr("Clear Loop Region"));
+        connect(clearLoopAction, &QAction::triggered, this, [this]() {
+            setLoopEnabled(false);
+            setLoopRegion(0, 0);
+        });
+    } else {
+        if (m_loopEndTick > m_loopStartTick) {
+            QAction *enableLoopAction = menu.addAction(tr("Enable Loop"));
+            connect(enableLoopAction, &QAction::triggered, this, [this]() {
+                setLoopEnabled(true);
+            });
+        }
+        
+        // Create loop at clicked position
+        int64_t clickTick = xToTick(event->pos().x());
+        int64_t ticksPerBar = getTicksPerBar();
+        int64_t barStart = (clickTick / ticksPerBar) * ticksPerBar;
+        
+        QAction *createLoopAction = menu.addAction(tr("Create Loop Here (4 bars)"));
+        connect(createLoopAction, &QAction::triggered, this, [this, barStart, ticksPerBar]() {
+            setLoopRegion(barStart, barStart + ticksPerBar * 4);
+            setLoopEnabled(true);
+        });
+    }
+    
+    menu.addSeparator();
+    
+    // Time format options
+    QMenu *formatMenu = menu.addMenu(tr("Time Format"));
+    QAction *barsAction = formatMenu->addAction(tr("Bars:Beats"));
+    barsAction->setCheckable(true);
+    barsAction->setChecked(m_timeFormat == BarsBeats);
+    connect(barsAction, &QAction::triggered, this, [this]() {
+        setTimeFormat(BarsBeats);
+    });
+    
+    QAction *secondsAction = formatMenu->addAction(tr("Time (Seconds)"));
+    secondsAction->setCheckable(true);
+    secondsAction->setChecked(m_timeFormat == Seconds);
+    connect(secondsAction, &QAction::triggered, this, [this]() {
+        setTimeFormat(Seconds);
+    });
+    
+    menu.exec(event->globalPos());
 }

@@ -513,6 +513,51 @@ void TrackListWidget::showTrackContextMenu(TrackWidget *trackWidget, const QPoin
   duplicateAction->setEnabled(!track->isTempoTrack());  // Can't duplicate tempo track
   connect(duplicateAction, &QAction::triggered, this, &TrackListWidget::onDuplicateTrack);
   
+  // Create new sequence with this track
+  if (!track->isTempoTrack()) {
+    QAction *createSeqAction = menu.addAction(QIcon(":/icons/add.svg"), "Create New Sequence with This Track...");
+    connect(createSeqAction, &QAction::triggered, this, [this, seq, track]() {
+      bool ok;
+      QString seqName = QInputDialog::getText(this, tr("New Sequence"), 
+                                              tr("Sequence name:"),
+                                              QLineEdit::Normal, 
+                                              QString::fromStdString(track->getName()) + " Seq", &ok);
+      if (!ok || seqName.isEmpty()) return;
+      
+      // Create new sequence with tempo from original sequence
+      NoteNagaMidiSeq *newSeq = new NoteNagaMidiSeq();
+      newSeq->setTempo(seq->getTempo());
+      newSeq->setPPQ(seq->getPPQ());
+      
+      // Add to runtime data
+      engine->getRuntimeData()->addSequence(newSeq);
+      
+      // Copy track to new sequence
+      NoteNagaTrack *newTrack = newSeq->addTrack(track->getInstrument().value_or(0));
+      if (newTrack) {
+        // Use the entered sequence name for the track
+        newTrack->setName(seqName.toStdString());
+        newTrack->setVisible(track->isVisible());
+        newTrack->setColor(track->getColor());
+        newTrack->setChannel(track->getChannel());
+        
+        // Copy notes
+        for (const auto &note : track->getNotes()) {
+          newTrack->addNote(note);
+        }
+      }
+      
+      // Ask if user wants to switch to the new sequence
+      if (QMessageBox::question(this, tr("Sequence Created"), 
+                                tr("New sequence has been created with track '%1'.\n\nSwitch to it now?").arg(seqName),
+                                QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+        engine->getRuntimeData()->setActiveSequence(newSeq);
+      }
+      
+      emit newSequenceCreated(newSeq);
+    });
+  }
+  
   menu.addSeparator();
   
   // Move up/down

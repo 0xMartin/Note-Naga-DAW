@@ -363,29 +363,47 @@ void MainWindow::onSectionChanged(AppSection section) {
     switch (section) {
         case AppSection::Project:
             m_projectSection->onSectionActivated();
+            // Project section - allow both modes
+            if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setAllowedPlaybackModes(3); // Both
+            }
             break;
         case AppSection::MidiEditor:
             m_midiEditorSection->onSectionActivated();
-            // Auto-switch to Sequence playback mode
+            // MIDI Editor - only Sequence mode allowed
             if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setAllowedPlaybackModes(1); // Sequence only
                 m_sectionSwitcher->getTransportBar()->setPlaybackMode(PlaybackMode::Sequence);
             }
             break;
         case AppSection::DspEditor:
             m_dspEditorSection->onSectionActivated();
+            // DSP Editor - allow both modes
+            if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setAllowedPlaybackModes(3); // Both
+            }
             break;
         case AppSection::Arrangement:
             m_arrangementSection->onSectionActivated();
-            // Auto-switch to Arrangement playback mode
+            // Arrangement - only Arrangement mode allowed
             if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setAllowedPlaybackModes(2); // Arrangement only
                 m_sectionSwitcher->getTransportBar()->setPlaybackMode(PlaybackMode::Arrangement);
             }
             break;
         case AppSection::Notation:
             m_notationSection->onSectionActivated();
+            // Notation section - only Sequence mode (for playing a single sequence)
+            if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setAllowedPlaybackModes(1); // Sequence only
+            }
             break;
         case AppSection::MediaExport:
             m_mediaExportSection->onSectionActivated();
+            // Media Export - allow both modes
+            if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setAllowedPlaybackModes(3); // Both
+            }
             break;
     }
 }

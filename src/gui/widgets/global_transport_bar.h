@@ -50,6 +50,12 @@ public:
     void setPlaybackMode(PlaybackMode mode);
 
     /**
+     * @brief Set allowed playback modes.
+     * @param allowedModes Bitmask of allowed modes: 1=Sequence, 2=Arrangement, 3=Both
+     */
+    void setAllowedPlaybackModes(int allowedModes);
+
+    /**
      * @brief Get the stereo meter widget for external updates.
      * @return Pointer to the TrackStereoMeter widget.
      */
@@ -127,6 +133,7 @@ private:
     double m_currentDisplayBPM;
     bool m_isPlaying;
     PlaybackMode m_playbackMode;
+    int m_allowedPlaybackModes = 3;  // 1=Sequence, 2=Arrangement, 3=Both
 
     // UI Components
     ButtonGroupWidget* m_transportBtnGroup;

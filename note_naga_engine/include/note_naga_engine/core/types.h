@@ -1427,9 +1427,54 @@ public:
      */
     void updateMaxTick();
 
+    // LOOP REGION
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Sets the loop region.
+     * @param startTick Start tick of the loop.
+     * @param endTick End tick of the loop.
+     */
+    void setLoopRegion(int64_t startTick, int64_t endTick);
+
+    /**
+     * @brief Gets the loop start tick.
+     * @return Loop start tick.
+     */
+    int64_t getLoopStartTick() const { return loopStartTick_; }
+
+    /**
+     * @brief Gets the loop end tick.
+     * @return Loop end tick.
+     */
+    int64_t getLoopEndTick() const { return loopEndTick_; }
+
+    /**
+     * @brief Enables or disables loop region playback.
+     * @param enabled True to enable looping.
+     */
+    void setLoopEnabled(bool enabled);
+
+    /**
+     * @brief Checks if loop region is enabled.
+     * @return True if looping is enabled.
+     */
+    bool isLoopEnabled() const { return loopEnabled_; }
+
+    /**
+     * @brief Checks if loop region is valid (has positive length).
+     * @return True if valid.
+     */
+    bool hasValidLoopRegion() const { return loopEndTick_ > loopStartTick_; }
+
 protected:
     std::vector<NoteNagaArrangementTrack*> tracks_;  ///< All arrangement tracks
     int maxTick_;                                     ///< Cached max tick value
+    
+    // Loop region
+    int64_t loopStartTick_ = 0;    ///< Loop start tick
+    int64_t loopEndTick_ = 0;      ///< Loop end tick
+    bool loopEnabled_ = false;     ///< Is loop enabled
 
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
@@ -1448,5 +1493,13 @@ Q_SIGNALS:
      * @param maxTick New max tick value.
      */
     void maxTickChanged(int maxTick);
+
+    /**
+     * @brief Signal emitted when loop region changes.
+     * @param startTick Loop start tick.
+     * @param endTick Loop end tick.
+     * @param enabled Is loop enabled.
+     */
+    void loopRegionChanged(int64_t startTick, int64_t endTick, bool enabled);
 #endif
 };

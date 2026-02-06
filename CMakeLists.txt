@@ -90,6 +90,7 @@ set(HEADER_FILES
     src/gui/editor/arrangement_resource_panel.h
     src/gui/editor/arrangement_track_header_widget.h
     src/gui/editor/arrangement_track_headers_widget.h
+    src/gui/editor/arrangement_minimap_widget.h
     # gui/widgets
     src/gui/widgets/verovio_widget.h
     src/gui/widgets/dsp_block_widget.h
@@ -158,6 +159,7 @@ set(SOURCE_FILES
     src/gui/editor/arrangement_resource_panel.cpp
     src/gui/editor/arrangement_track_header_widget.cpp
     src/gui/editor/arrangement_track_headers_widget.cpp
+    src/gui/editor/arrangement_minimap_widget.cpp
     # gui/undo
     src/gui/undo/undo_manager.cpp
     src/gui/undo/midi_note_commands.cpp

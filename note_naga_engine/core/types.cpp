@@ -1870,3 +1870,18 @@ void NoteNagaArrangement::updateMaxTick() {
         NN_QT_EMIT(maxTickChanged(maxTick_));
     }
 }
+
+void NoteNagaArrangement::setLoopRegion(int64_t startTick, int64_t endTick) {
+    if (loopStartTick_ != startTick || loopEndTick_ != endTick) {
+        loopStartTick_ = startTick;
+        loopEndTick_ = endTick;
+        NN_QT_EMIT(loopRegionChanged(loopStartTick_, loopEndTick_, loopEnabled_));
+    }
+}
+
+void NoteNagaArrangement::setLoopEnabled(bool enabled) {
+    if (loopEnabled_ != enabled) {
+        loopEnabled_ = enabled;
+        NN_QT_EMIT(loopRegionChanged(loopStartTick_, loopEndTick_, loopEnabled_));
+    }
+}
