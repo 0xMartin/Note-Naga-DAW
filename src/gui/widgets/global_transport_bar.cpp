@@ -566,24 +566,25 @@ void GlobalTransportBar::onProgressBarPositionPressed(float seconds)
     m_wasPlaying = m_engine->isPlaying();
     if (m_wasPlaying) m_engine->stopPlayback();
     
+    int tickPosition = 0;
     if (m_playbackMode == PlaybackMode::Arrangement) {
         // In arrangement mode, use project tempo/ppq for tick calculation
         int projectTempo = project->getTempo();
         int projectPpq = project->getPPQ();
         if (projectTempo == 0 || projectPpq == 0) return;
         
-        int tickPosition = nn_seconds_to_ticks(seconds, projectPpq, projectTempo);
+        tickPosition = nn_seconds_to_ticks(seconds, projectPpq, projectTempo);
         project->setCurrentArrangementTick(tickPosition);
     } else {
         // Sequence mode
         if (m_ppq == 0 || m_tempo == 0) return;
-        int tickPosition = nn_seconds_to_ticks(seconds, m_ppq, m_tempo);
+        tickPosition = nn_seconds_to_ticks(seconds, m_ppq, m_tempo);
         project->setCurrentTick(tickPosition);
     }
 
     updateProgressBar();
 
-    emit playPositionChanged(seconds, 0);
+    emit playPositionChanged(seconds, tickPosition);
 }
 
 void GlobalTransportBar::onProgressBarPositionDragged(float seconds)
@@ -591,24 +592,25 @@ void GlobalTransportBar::onProgressBarPositionDragged(float seconds)
     NoteNagaRuntimeData* project = m_engine->getRuntimeData();
     if (!project) return;
 
+    int tickPosition = 0;
     if (m_playbackMode == PlaybackMode::Arrangement) {
         // In arrangement mode, use project tempo/ppq for tick calculation
         int projectTempo = project->getTempo();
         int projectPpq = project->getPPQ();
         if (projectTempo == 0 || projectPpq == 0) return;
         
-        int tickPosition = nn_seconds_to_ticks(seconds, projectPpq, projectTempo);
+        tickPosition = nn_seconds_to_ticks(seconds, projectPpq, projectTempo);
         project->setCurrentArrangementTick(tickPosition);
     } else {
         // Sequence mode
         if (m_ppq == 0 || m_tempo == 0) return;
-        int tickPosition = nn_seconds_to_ticks(seconds, m_ppq, m_tempo);
+        tickPosition = nn_seconds_to_ticks(seconds, m_ppq, m_tempo);
         project->setCurrentTick(tickPosition);
     }
 
     updateProgressBar();
 
-    emit playPositionChanged(seconds, 0);
+    emit playPositionChanged(seconds, tickPosition);
 }
 
 void GlobalTransportBar::onProgressBarPositionReleased(float seconds)

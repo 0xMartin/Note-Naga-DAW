@@ -525,15 +525,27 @@ void MainWindow::goto_end() {
 }
 
 void MainWindow::onControlBarPositionClicked(float seconds, int tick_position) {
-    MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
-    MidiTactRuler *midi_tact_ruler = m_midiEditorSection->getTactRuler();
-    if (midi_editor && midi_tact_ruler) {
-        int marker_x = int(tick_position * midi_editor->getConfig()->time_scale);
-        int width = midi_editor->viewport()->width();
-        int margin = width / 2;
-        int value = std::max(0, marker_x - margin);
-        midi_editor->horizontalScrollBar()->setValue(value);
-        midi_tact_ruler->setHorizontalScroll(value);
+    // Check current playback mode
+    GlobalTransportBar *transportBar = m_sectionSwitcher->getTransportBar();
+    PlaybackMode mode = transportBar ? transportBar->getPlaybackMode() : PlaybackMode::Sequence;
+    
+    if (mode == PlaybackMode::Arrangement) {
+        // Scroll arrangement timeline to the new position
+        if (m_arrangementSection) {
+            m_arrangementSection->scrollToTick(tick_position);
+        }
+    } else {
+        // Sequence mode - scroll MIDI editor
+        MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
+        MidiTactRuler *midi_tact_ruler = m_midiEditorSection->getTactRuler();
+        if (midi_editor && midi_tact_ruler) {
+            int marker_x = int(tick_position * midi_editor->getConfig()->time_scale);
+            int width = midi_editor->viewport()->width();
+            int margin = width / 2;
+            int value = std::max(0, marker_x - margin);
+            midi_editor->horizontalScrollBar()->setValue(value);
+            midi_tact_ruler->setHorizontalScroll(value);
+        }
     }
 }
 

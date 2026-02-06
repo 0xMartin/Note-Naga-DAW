@@ -192,6 +192,7 @@ void NoteNagaSynthFluidSynth::stopAllNotes(NoteNagaMidiSeq *seq,
         stopAllNotes(nullptr, tr);
     }
   } else {
+    // Stop all tracked notes first
     for (auto &[track, notes] : playing_notes_) {
       for (const auto &[id, pn] : notes) {
         if (fluidsynth_) {
@@ -199,6 +200,14 @@ void NoteNagaSynthFluidSynth::stopAllNotes(NoteNagaMidiSeq *seq,
         }
       }
       notes.clear();
+    }
+    
+    // Also send "All Notes Off" (CC 123) to all 16 MIDI channels
+    // This ensures no hanging notes even if they weren't tracked properly
+    if (fluidsynth_) {
+      for (int channel = 0; channel < 16; ++channel) {
+        fluid_synth_cc(fluidsynth_, channel, 123, 0);  // CC 123 = All Notes Off
+      }
     }
   }
 }
