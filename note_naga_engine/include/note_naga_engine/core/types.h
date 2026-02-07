@@ -2,6 +2,7 @@
 
 #include <note_naga_engine/io/midi_file.h>
 #include <note_naga_engine/note_naga_api.h>
+#include <note_naga_engine/audio/audio_resource.h>
 
 #ifndef QT_DEACTIVATED
 #include <QColor>
@@ -1245,6 +1246,63 @@ public:
     const std::vector<NN_MidiClip_t>& getClips() const { return clips_; }
     std::vector<NN_MidiClip_t>& getClips() { return clips_; }
 
+    // AUDIO CLIPS
+    // ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Adds an audio clip to this track.
+     * @param audioResourceId ID of the audio resource.
+     * @param startTick Start position in ticks.
+     * @param durationTicks Duration in ticks.
+     * @param looping Whether the clip should loop.
+     * @return Reference to the created clip.
+     */
+    NN_AudioClip_t& addAudioClip(int audioResourceId, int startTick, int durationTicks, bool looping = false);
+
+    /**
+     * @brief Adds an existing audio clip to this track.
+     * @param clip The audio clip to add.
+     */
+    void addAudioClip(const NN_AudioClip_t& clip);
+
+    /**
+     * @brief Removes an audio clip by ID.
+     * @param clipId The clip ID.
+     * @return True if successful.
+     */
+    bool removeAudioClip(int clipId);
+
+    /**
+     * @brief Gets an audio clip by ID.
+     * @param clipId The clip ID.
+     * @return Pointer to the clip, or nullptr if not found.
+     */
+    NN_AudioClip_t* getAudioClipById(int clipId);
+    const NN_AudioClip_t* getAudioClipById(int clipId) const;
+
+    /**
+     * @brief Gets all audio clips in this track.
+     * @return Reference to the audio clips vector.
+     */
+    const std::vector<NN_AudioClip_t>& getAudioClips() const { return audioClips_; }
+    std::vector<NN_AudioClip_t>& getAudioClips() { return audioClips_; }
+
+    /**
+     * @brief Moves an audio clip to a new position.
+     * @param clipId The clip ID.
+     * @param newStartTick New start position.
+     * @return True if successful.
+     */
+    bool moveAudioClip(int clipId, int newStartTick);
+
+    /**
+     * @brief Resizes an audio clip.
+     * @param clipId The clip ID.
+     * @param newDuration New duration in ticks.
+     * @return True if successful.
+     */
+    bool resizeAudioClip(int clipId, int newDuration);
+
     /**
      * @brief Moves a clip to a new position.
      * @param clipId The clip ID.
@@ -1317,7 +1375,8 @@ protected:
     float volume_;                        ///< Volume (0.0 - 1.0)
     float pan_;                           ///< Pan (-1.0 to 1.0, 0.0 = center)
     int channelOffset_;                   ///< MIDI channel offset for remapping
-    std::vector<NN_MidiClip_t> clips_;    ///< All clips on this track
+    std::vector<NN_MidiClip_t> clips_;    ///< All MIDI clips on this track
+    std::vector<NN_AudioClip_t> audioClips_;  ///< All audio clips on this track
 
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
@@ -1332,6 +1391,11 @@ Q_SIGNALS:
      * @brief Signal emitted when clips change.
      */
     void clipsChanged();
+    
+    /**
+     * @brief Signal emitted when audio clips change.
+     */
+    void audioClipsChanged();
 #endif
 };
 

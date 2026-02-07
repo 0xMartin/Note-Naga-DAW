@@ -10,6 +10,10 @@
 #include "../editor/arrangement_tempo_track_editor.h"
 #include "../nn_gui_utils.h"
 
+#include <note_naga_engine/audio/audio_manager.h>
+#include <note_naga_engine/audio/audio_resource.h>
+#include <note_naga_engine/core/runtime_data.h>
+
 #include <QGridLayout>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -291,7 +295,7 @@ void ArrangementSection::setupDockLayout()
     m_resourcePanel->setMaximumWidth(350);
 
     auto *resourceDock = new AdvancedDockWidget(
-        tr("MIDI Sequences"),
+        tr("Resources"),
         QIcon(":/icons/music-note.svg"),
         nullptr,
         this
@@ -548,6 +552,57 @@ void ArrangementSection::connectSignals()
             onArrangementChanged();
             
             // Refresh layer manager to show new tracks
+            if (m_layerManager) {
+                m_layerManager->refreshFromArrangement();
+            }
+        });
+        
+        // Connect audio clip drop
+        connect(m_timeline, &ArrangementTimelineWidget::audioClipDropped,
+                this, [this](int trackIndex, int64_t tick, int audioResourceId) {
+            if (!m_engine || !m_engine->getRuntimeData()) return;
+            
+            NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+            if (!arrangement) return;
+            
+            NoteNagaAudioManager& audioManager = m_engine->getRuntimeData()->getAudioManager();
+            NoteNagaAudioResource* resource = audioManager.getResource(audioResourceId);
+            if (!resource) return;
+            
+            // Auto-create tracks if needed
+            while (trackIndex >= 0 && trackIndex >= static_cast<int>(arrangement->getTrackCount())) {
+                QString trackName = tr("Track %1").arg(arrangement->getTrackCount() + 1);
+                arrangement->addTrack(trackName.toStdString());
+            }
+            
+            if (trackIndex < 0) trackIndex = 0;
+            if (trackIndex >= static_cast<int>(arrangement->getTrackCount())) return;
+            
+            // Convert audio duration to ticks
+            // Use current tempo from arrangement or default 120 BPM
+            double sampleRate = resource->getSampleRate();
+            int64_t totalSamples = resource->getTotalSamples();
+            double seconds = static_cast<double>(totalSamples) / sampleRate;
+            int ppq = 480;
+            double bpm = 120.0;  // TODO: Get from arrangement tempo track
+            double ticksPerSecond = (bpm / 60.0) * ppq;
+            int durationTicks = static_cast<int>(seconds * ticksPerSecond);
+            
+            // Create audio clip
+            NN_AudioClip_t clip;
+            clip.audioResourceId = audioResourceId;
+            clip.startTick = static_cast<int>(tick);
+            clip.durationTicks = durationTicks;
+            clip.offsetSamples = 0;
+            clip.clipLengthSamples = static_cast<int>(totalSamples);
+            clip.gain = 1.0f;
+            clip.muted = false;
+            clip.looping = false;
+            
+            arrangement->getTracks()[trackIndex]->addAudioClip(clip);
+            onArrangementChanged();
+            
+            // Refresh layer manager
             if (m_layerManager) {
                 m_layerManager->refreshFromArrangement();
             }

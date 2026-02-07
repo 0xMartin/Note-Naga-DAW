@@ -100,6 +100,12 @@ public:
     PlaybackMode getPlaybackMode() const { return playback_mode_; }
 
     /**
+     * @brief Sets the DSP engine for audio sample position synchronization.
+     * @param dsp Pointer to the DSP engine.
+     */
+    void setDSPEngine(class NoteNagaDSPEngine* dsp) { dsp_engine_ = dsp; }
+
+    /**
      * @brief Adds a callback for the finished event.
      * @param cb Callback function.
      * @return Unique callback ID.
@@ -140,6 +146,7 @@ public:
 
 private:
     NoteNagaRuntimeData *project; ///< Pointer to project data (not owned)
+    class NoteNagaDSPEngine* dsp_engine_ = nullptr; ///< DSP engine for audio sync
 
     // Internal State
     // ////////////////////////////////////////////////////////////////////////////////
@@ -310,8 +317,15 @@ public:
 
     std::atomic<bool> should_stop{false}; ///< Flag to signal worker thread should stop
 
+    /**
+     * @brief Sets the DSP engine for audio sample position synchronization.
+     * @param dsp Pointer to the DSP engine.
+     */
+    void setDSPEngine(class NoteNagaDSPEngine* dsp) { dsp_engine_ = dsp; }
+
 private:
     NoteNagaRuntimeData *project; ///< Pointer to project data (not owned)
+    class NoteNagaDSPEngine* dsp_engine_ = nullptr; ///< DSP engine for audio sync
 
     // Timing
     // ////////////////////////////////////////////////////////////////////////////////

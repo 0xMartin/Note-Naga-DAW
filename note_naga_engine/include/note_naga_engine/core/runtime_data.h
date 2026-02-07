@@ -1,6 +1,7 @@
 #pragma once
 
 #include <note_naga_engine/core/types.h>
+#include <note_naga_engine/audio/audio_manager.h>
 #include <note_naga_engine/note_naga_api.h>
 
 #ifndef QT_DEACTIVATED
@@ -162,10 +163,18 @@ public:
      */
     int getArrangementMaxTick() const;
 
+    /**
+     * @brief Gets the audio manager for this project.
+     * @return Reference to the audio manager.
+     */
+    NoteNagaAudioManager& getAudioManager() { return audioManager_; }
+    const NoteNagaAudioManager& getAudioManager() const { return audioManager_; }
+
 protected:
     std::vector<NoteNagaMidiSeq *> sequences; ///< All MIDI sequences in the project
     NoteNagaMidiSeq *active_sequence; ///< Pointer to the currently active sequence
     NoteNagaArrangement *arrangement_; ///< The arrangement/composition timeline
+    NoteNagaAudioManager audioManager_; ///< Manages all audio resources
 
     int ppq;                       ///< Pulses per quarter note (PPQ)
     int tempo;                     ///< Tempo of the project (BPM)
@@ -236,5 +245,10 @@ Q_SIGNALS:
      * @brief Signal emitted when arrangement tracks/clips change.
      */
     void arrangementChanged();
+
+    /**
+     * @brief Signal emitted when audio resources list changes.
+     */
+    void audioResourceListChanged();
 #endif
 };

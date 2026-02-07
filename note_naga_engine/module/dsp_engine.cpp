@@ -111,6 +111,9 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames, bool compute_rm
         }
     }
 
+    // Render audio clips from arrangement tracks (in Arrangement mode)
+    renderAudioClips(num_frames);
+
     // Master DSP blocks processing
     if (this->enable_dsp_) {
         for (NoteNagaDSPBlockBase *block : this->dsp_blocks_) {
@@ -317,6 +320,199 @@ void NoteNagaDSPEngine::resetAllBlocks() {
     for (auto &pair : synth_dsp_blocks_) {
         for (NoteNagaDSPBlockBase *block : pair.second) {
             if (block) block->resetState();
+        }
+    }
+    
+    // Reset audio sample position
+    audioSamplePosition_.store(0, std::memory_order_relaxed);
+}
+
+int64_t NoteNagaDSPEngine::tickToSamples(int tick, int tempo, int ppq) const {
+    // tempo is in microseconds per quarter note
+    // samples = ticks * (samples_per_quarter_note)
+    // samples_per_quarter_note = sampleRate * (tempo_us / 1000000)
+    double usPerTick = static_cast<double>(tempo) / ppq;
+    double secondsPerTick = usPerTick / 1000000.0;
+    return static_cast<int64_t>(tick * secondsPerTick * sampleRate_);
+}
+
+int NoteNagaDSPEngine::sampleToTicks(int64_t sample, int tempo, int ppq) const {
+    double usPerTick = static_cast<double>(tempo) / ppq;
+    double secondsPerTick = usPerTick / 1000000.0;
+    double samplesPerTick = secondsPerTick * sampleRate_;
+    return static_cast<int>(sample / samplesPerTick);
+}
+
+void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
+    if (!runtime_data_ || playback_mode_ != PlaybackMode::Arrangement) {
+        return;
+    }
+    
+    // Don't render or advance if playback is not active
+    if (!audioPlaybackActive_.load(std::memory_order_relaxed)) {
+        return;
+    }
+    
+    NoteNagaArrangement* arrangement = runtime_data_->getArrangement();
+    if (!arrangement) {
+        return;
+    }
+    
+    // Get current sample position and advance it for next callback
+    int64_t currentSamplePos = audioSamplePosition_.fetch_add(static_cast<int64_t>(numFrames), 
+                                                               std::memory_order_relaxed);
+    
+    // Get tempo and PPQ for tick-to-sample conversion
+    // Use getTempo() which gets tempo from active sequence, not getProjectTempo()
+    int tempo = runtime_data_->getTempo();
+    int ppq = runtime_data_->getPPQ();
+    
+    // Fallback to default tempo if not set (120 BPM = 500000 us per quarter)
+    if (tempo <= 0) {
+        tempo = 500000;
+    }
+    
+    NoteNagaAudioManager& audioManager = runtime_data_->getAudioManager();
+    
+    // DEBUG: Log basic info periodically
+    static int debugCounter = 0;
+    int totalAudioClips = 0;
+    for (size_t i = 0; i < arrangement->getTrackCount(); ++i) {
+        if (arrangement->getTracks()[i]) {
+            totalAudioClips += static_cast<int>(arrangement->getTracks()[i]->getAudioClips().size());
+        }
+    }
+    if (++debugCounter % 500 == 1) {
+        NOTE_NAGA_LOG_INFO("[AudioClip DEBUG] samplePos=" + std::to_string(currentSamplePos) +
+                          " tempo=" + std::to_string(tempo) +
+                          " ppq=" + std::to_string(ppq) +
+                          " tracks=" + std::to_string(arrangement->getTrackCount()) +
+                          " totalAudioClips=" + std::to_string(totalAudioClips) +
+                          " resourceCount=" + std::to_string(audioManager.getResourceCount()));
+    }
+    
+    // Check if any track has solo enabled
+    bool hasSoloTrack = false;
+    for (size_t i = 0; i < arrangement->getTrackCount(); ++i) {
+        NoteNagaArrangementTrack* track = arrangement->getTracks()[i];
+        if (track && track->isSolo()) {
+            hasSoloTrack = true;
+            break;
+        }
+    }
+    
+    // Ensure audio clip buffer is sized
+    if (audioClipBuffer_.size() < numFrames * 2) {
+        audioClipBuffer_.resize(numFrames * 2);
+    }
+    
+    // Iterate all arrangement tracks
+    for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
+        NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
+        if (!arrTrack || arrTrack->isMuted()) continue;
+        if (hasSoloTrack && !arrTrack->isSolo()) continue;
+        
+        // Get track's volume and pan
+        float trackVolume = arrTrack->getVolume();
+        float trackPan = arrTrack->getPan();
+        
+        // Calculate pan gains (constant power)
+        float panAngle = (trackPan + 1.0f) * 0.25f * 3.14159265f; // 0 to pi/2
+        float panL = cosf(panAngle);
+        float panR = sinf(panAngle);
+        
+        // Iterate audio clips on this track
+        for (const auto& clip : arrTrack->getAudioClips()) {
+            if (clip.muted) continue;
+            
+            // Get audio resource
+            NoteNagaAudioResource* resource = audioManager.getResource(clip.audioResourceId);
+            
+            // DEBUG: Log clip info
+            if (debugCounter % 500 == 1) {
+                NOTE_NAGA_LOG_INFO("[AudioClip DEBUG] clip id=" + std::to_string(clip.id) +
+                                  " resourceId=" + std::to_string(clip.audioResourceId) +
+                                  " startTick=" + std::to_string(clip.startTick) +
+                                  " durationTicks=" + std::to_string(clip.durationTicks) +
+                                  " resource=" + (resource ? "found" : "NULL") +
+                                  " loaded=" + (resource && resource->isLoaded() ? "yes" : "no"));
+            }
+            
+            if (!resource || !resource->isLoaded()) continue;
+            
+            // Calculate clip's start and end in samples
+            int64_t clipStartSample = tickToSamples(clip.startTick, tempo, ppq);
+            int64_t clipDurationSamples = tickToSamples(clip.durationTicks, tempo, ppq);
+            int64_t clipEndSample = clipStartSample + clipDurationSamples;
+            
+            // DEBUG: Log sample positions
+            if (debugCounter % 500 == 1) {
+                NOTE_NAGA_LOG_INFO("[AudioClip DEBUG] clipStartSample=" + std::to_string(clipStartSample) +
+                                  " clipEndSample=" + std::to_string(clipEndSample) +
+                                  " currentSamplePos=" + std::to_string(currentSamplePos) +
+                                  " inRange=" + ((currentSamplePos >= clipStartSample && currentSamplePos < clipEndSample) ? "YES" : "NO"));
+            }
+            
+            // Skip if completely outside current render window
+            if (currentSamplePos + static_cast<int64_t>(numFrames) <= clipStartSample ||
+                currentSamplePos >= clipEndSample) {
+                continue;
+            }
+            
+            // Calculate overlap with current render window
+            int64_t renderStart = std::max(currentSamplePos, clipStartSample);
+            int64_t renderEnd = std::min(currentSamplePos + static_cast<int64_t>(numFrames), clipEndSample);
+            int64_t samplesToRender = renderEnd - renderStart;
+            
+            if (samplesToRender <= 0) continue;
+            
+            // Calculate offset in the output buffer
+            size_t bufferOffset = static_cast<size_t>(renderStart - currentSamplePos);
+            
+            // Calculate position in the audio resource
+            int64_t resourceOffset = clip.offsetSamples + (renderStart - clipStartSample);
+            
+            // Handle looping
+            if (clip.looping) {
+                int64_t resourceLength = resource->getTotalSamples();
+                if (resourceLength > 0) {
+                    resourceOffset = resourceOffset % resourceLength;
+                }
+            }
+            
+            // Prepare separate L/R buffers for audio clip samples
+            if (audioClipBuffer_.size() < numFrames * 2) {
+                audioClipBuffer_.resize(numFrames * 2);
+            }
+            float* clipLeft = audioClipBuffer_.data();
+            float* clipRight = audioClipBuffer_.data() + numFrames;
+            std::fill(clipLeft, clipLeft + samplesToRender, 0.0f);
+            std::fill(clipRight, clipRight + samplesToRender, 0.0f);
+            
+            // Get samples from resource (returns number of samples read)
+            int gotSamples = resource->getSamples(resourceOffset, static_cast<int>(samplesToRender), 
+                                                   clipLeft, clipRight);
+            
+            // DEBUG: Log rendering info
+            if (debugCounter % 500 == 1 || gotSamples > 0) {
+                static int renderLogCounter = 0;
+                if (++renderLogCounter % 500 == 1) {
+                    NOTE_NAGA_LOG_INFO("[AudioClip DEBUG] RENDERING! resourceOffset=" + std::to_string(resourceOffset) +
+                                      " samplesToRender=" + std::to_string(samplesToRender) +
+                                      " gotSamples=" + std::to_string(gotSamples) +
+                                      " bufferOffset=" + std::to_string(bufferOffset));
+                }
+            }
+            
+            // Apply clip gain, track volume, and pan, then add to mix
+            float combinedGain = clip.gain * trackVolume;
+            float gainL = combinedGain * panL;
+            float gainR = combinedGain * panR;
+            
+            for (int i = 0; i < gotSamples; ++i) {
+                mix_left_[bufferOffset + i] += clipLeft[i] * gainL;
+                mix_right_[bufferOffset + i] += clipRight[i] * gainR;
+            }
         }
     }
 }

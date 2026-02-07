@@ -15,6 +15,8 @@ NoteNagaRuntimeData::NoteNagaRuntimeData()
     current_tick = 0;
     current_arrangement_tick_ = 0;
     max_tick = 0;
+    ppq = 480;           // Default PPQ
+    tempo = 500000;      // Default 120 BPM = 500000 microseconds per quarter note
     
 #ifndef QT_DEACTIVATED
     // Connect arrangement signals

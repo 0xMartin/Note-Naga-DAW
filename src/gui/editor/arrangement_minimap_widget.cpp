@@ -119,6 +119,18 @@ void ArrangementMinimapWidget::paintEvent(QPaintEvent *event)
             painter.fillRect(clipX, trackY, clipWidth, trackHeight - 1, fillColor);
         }
         
+        // Also draw audio clips
+        for (const auto &audioClip : track->getAudioClips()) {
+            if (audioClip.muted) continue;
+            
+            int clipX = tickToX(audioClip.startTick);
+            int clipWidth = std::max(2, tickToX(audioClip.startTick + audioClip.durationTicks) - clipX);
+            
+            // Audio clip - slightly different shade
+            QColor fillColor = trackColor.lighter(110);
+            painter.fillRect(clipX, trackY, clipWidth, trackHeight - 1, fillColor);
+        }
+        
         ++trackIndex;
     }
     

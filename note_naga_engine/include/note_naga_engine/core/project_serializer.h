@@ -16,7 +16,7 @@ class NoteNagaEngine;
  * @brief Binary file format magic number and version.
  */
 constexpr uint32_t NNPROJ_MAGIC = 0x4E4E5052;  // "NNPR" in little endian
-constexpr uint32_t NNPROJ_VERSION = 8;  // Version 8: Added Arrangement track pan support
+constexpr uint32_t NNPROJ_VERSION = 9;  // Version 9: Added Audio resources and clips
 
 /**
  * @brief Handles serialization and deserialization of Note Naga project files.
@@ -123,6 +123,13 @@ private:
     
     void serializeMidiClip(std::ofstream &out, const NN_MidiClip_t &clip);
     bool deserializeMidiClip(std::ifstream &in, NN_MidiClip_t &clip);
+    
+    // Audio resources serialization (v9+)
+    void serializeAudioResources(std::ofstream &out, NoteNagaRuntimeData *runtime);
+    bool deserializeAudioResources(std::ifstream &in, NoteNagaRuntimeData *runtime);
+    
+    void serializeAudioClip(std::ofstream &out, const NN_AudioClip_t &clip);
+    bool deserializeAudioClip(std::ifstream &in, NN_AudioClip_t &clip);
     
     // DSP block factory
     NoteNagaDSPBlockBase *createDSPBlockByName(const std::string &name);

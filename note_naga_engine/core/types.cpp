@@ -1785,6 +1785,79 @@ void NoteNagaArrangementTrack::setPan(float pan) {
     NN_QT_EMIT(metadataChanged(this, "pan"));
 }
 
+// Audio clip methods
+static int s_nextAudioClipId = 1;
+
+NN_AudioClip_t& NoteNagaArrangementTrack::addAudioClip(int audioResourceId, int startTick, 
+                                                        int durationTicks, bool looping) {
+    NN_AudioClip_t clip;
+    clip.id = s_nextAudioClipId++;
+    clip.audioResourceId = audioResourceId;
+    clip.startTick = startTick;
+    clip.durationTicks = durationTicks;
+    clip.looping = looping;
+    clip.muted = false;
+    clip.gain = 1.0f;
+    
+    audioClips_.push_back(clip);
+    NN_QT_EMIT(clipsChanged());
+    return audioClips_.back();
+}
+
+void NoteNagaArrangementTrack::addAudioClip(const NN_AudioClip_t& clip) {
+    NN_AudioClip_t newClip = clip;
+    // Assign ID if not set
+    if (newClip.id < 0) {
+        newClip.id = s_nextAudioClipId++;
+    } else if (newClip.id >= s_nextAudioClipId) {
+        s_nextAudioClipId = newClip.id + 1;
+    }
+    audioClips_.push_back(newClip);
+    NN_QT_EMIT(clipsChanged());
+    NN_QT_EMIT(audioClipsChanged());
+}
+
+bool NoteNagaArrangementTrack::removeAudioClip(int clipId) {
+    for (auto it = audioClips_.begin(); it != audioClips_.end(); ++it) {
+        if (it->id == clipId) {
+            audioClips_.erase(it);
+            NN_QT_EMIT(clipsChanged());
+            return true;
+        }
+    }
+    return false;
+}
+
+NN_AudioClip_t* NoteNagaArrangementTrack::getAudioClipById(int clipId) {
+    for (auto& clip : audioClips_) {
+        if (clip.id == clipId) return &clip;
+    }
+    return nullptr;
+}
+
+const NN_AudioClip_t* NoteNagaArrangementTrack::getAudioClipById(int clipId) const {
+    for (const auto& clip : audioClips_) {
+        if (clip.id == clipId) return &clip;
+    }
+    return nullptr;
+}
+
+bool NoteNagaArrangementTrack::moveAudioClip(int clipId, int newStartTick) {
+    NN_AudioClip_t* clip = getAudioClipById(clipId);
+    if (!clip) return false;
+    clip->startTick = newStartTick;
+    NN_QT_EMIT(clipsChanged());
+    return true;
+}
+
+bool NoteNagaArrangementTrack::resizeAudioClip(int clipId, int newDuration) {
+    NN_AudioClip_t* clip = getAudioClipById(clipId);
+    if (!clip) return false;
+    clip->durationTicks = newDuration;
+    NN_QT_EMIT(clipsChanged());
+    return true;
+}
+
 // --- NoteNagaArrangement ---
 
 NoteNagaArrangement::NoteNagaArrangement()
@@ -1822,6 +1895,11 @@ NoteNagaArrangementTrack* NoteNagaArrangement::addTrack(const std::string &name)
 #ifndef QT_DEACTIVATED
     // Connect clip changes to arrangement signals
     connect(track, &NoteNagaArrangementTrack::clipsChanged, this, [this]() {
+        updateMaxTick();
+        emit clipsChanged();
+    });
+    // Connect audio clip changes
+    connect(track, &NoteNagaArrangementTrack::audioClipsChanged, this, [this]() {
         updateMaxTick();
         emit clipsChanged();
     });
@@ -1889,8 +1967,14 @@ NoteNagaArrangement::getActiveClipsAtTick(int tick) const {
 int NoteNagaArrangement::computeMaxTick() const {
     int maxTick = 0;
     for (const auto *track : tracks_) {
+        // MIDI clips
         for (const auto &clip : track->getClips()) {
             maxTick = std::max(maxTick, clip.getEndTick());
+        }
+        // Audio clips
+        for (const auto &audioClip : track->getAudioClips()) {
+            int endTick = audioClip.startTick + audioClip.durationTicks;
+            maxTick = std::max(maxTick, endTick);
         }
     }
     return maxTick;

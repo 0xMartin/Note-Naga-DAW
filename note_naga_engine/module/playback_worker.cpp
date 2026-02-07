@@ -1,4 +1,5 @@
 #include <note_naga_engine/module/playback_worker.h>
+#include <note_naga_engine/module/dsp_engine.h>
 
 #include <algorithm>
 #include <map>
@@ -131,6 +132,7 @@ bool NoteNagaPlaybackWorker::play() {
     should_stop = false;
     worker = new PlaybackThreadWorker(project, timer_interval, playback_mode_);
     worker->enableLooping(this->looping);
+    worker->setDSPEngine(this->dsp_engine_);
 
     // Forward events from thread worker to this worker
     worker->addPositionChangedCallback([this](int tick) { emitPositionChanged(tick); });
@@ -144,6 +146,11 @@ bool NoteNagaPlaybackWorker::play() {
 
     playing = true;
     emitPlayingState(true);
+    
+    // Enable audio clip rendering in DSP engine
+    if (dsp_engine_ && playback_mode_ == PlaybackMode::Arrangement) {
+        dsp_engine_->setAudioPlaybackActive(true);
+    }
 
     worker_thread = std::thread(&PlaybackThreadWorker::run, worker);
 
@@ -155,6 +162,11 @@ bool NoteNagaPlaybackWorker::stop() {
     if (!playing && !pending_cleanup) {
         NOTE_NAGA_LOG_WARNING("Playback worker not currently playing");
         return false;
+    }
+    
+    // Disable audio clip rendering immediately
+    if (dsp_engine_) {
+        dsp_engine_->setAudioPlaybackActive(false);
     }
 
     should_stop = true;
@@ -184,6 +196,11 @@ void NoteNagaPlaybackWorker::setPlaybackMode(PlaybackMode mode) {
 }
 
 void NoteNagaPlaybackWorker::cleanupThread() {
+    // Disable audio clip rendering
+    if (dsp_engine_) {
+        dsp_engine_->setAudioPlaybackActive(false);
+    }
+    
     if (worker) {
         delete worker;
         worker = nullptr;
@@ -476,6 +493,13 @@ void PlaybackThreadWorker::runArrangementMode() {
 
     // Get project settings
     int projectPPQ = this->project->getPPQ();
+    int projectTempo = this->project->getProjectTempo();
+    
+    // Synchronize audio sample position with tick position
+    if (dsp_engine_) {
+        int64_t startSamplePos = dsp_engine_->tickToSamples(current_tick, projectTempo, projectPPQ);
+        dsp_engine_->setAudioSamplePosition(startSamplePos);
+    }
     
     // Check if arrangement has active tempo track
     bool hasArrangementTempoTrack = arrangement->hasTempoTrack() && 
@@ -537,6 +561,9 @@ void PlaybackThreadWorker::runArrangementMode() {
             current_tick += tick_advance;
         }
         this->project->setCurrentArrangementTick(current_tick);
+        
+        // Note: audioSamplePosition is managed by DSP engine in renderAudioClips()
+        // It advances automatically each render callback. Only set on seek/loop.
 
         // Check loop region in arrangement
         bool hasLoopRegion = arrangement->isLoopEnabled() && arrangement->hasValidLoopRegion();
@@ -556,6 +583,12 @@ void PlaybackThreadWorker::runArrangementMode() {
             current_tick = static_cast<int>(loopStart);
             last_tick = current_tick - 1; // Force re-processing from loop start
             this->project->setCurrentArrangementTick(current_tick);
+            
+            // Sync audio sample position for loop
+            if (dsp_engine_) {
+                int64_t samplePos = dsp_engine_->tickToSamples(current_tick, effectiveTempo, projectPPQ);
+                dsp_engine_->setAudioSamplePosition(samplePos);
+            }
         }
         // Check for end of arrangement (when no loop region or loop region disabled)
         else if (current_tick >= arrangement_max_tick) {
@@ -574,6 +607,11 @@ void PlaybackThreadWorker::runArrangementMode() {
                 current_tick = 0;
                 last_tick = -1; // Force re-processing from start
                 this->project->setCurrentArrangementTick(current_tick);
+                
+                // Sync audio sample position for loop
+                if (dsp_engine_) {
+                    dsp_engine_->setAudioSamplePosition(0);
+                }
             }
         }
 

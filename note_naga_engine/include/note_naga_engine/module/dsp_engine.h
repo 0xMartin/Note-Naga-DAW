@@ -4,6 +4,7 @@
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/core/note_naga_synthesizer.h>
 #include <note_naga_engine/core/dsp_block_base.h>
+#include <note_naga_engine/audio/audio_resource.h>
 #include <note_naga_engine/module/metronome.h>
 #include <note_naga_engine/module/spectrum_analyzer.h>
 #include <note_naga_engine/module/pan_analyzer.h>
@@ -202,6 +203,68 @@ public:
      */
     void resetAllBlocks();
 
+    /**
+     * @brief Set the sample rate for audio calculations.
+     * @param sampleRate Sample rate in Hz.
+     */
+    void setSampleRate(int sampleRate) { sampleRate_ = sampleRate; }
+
+    /**
+     * @brief Get the current sample rate.
+     * @return Sample rate in Hz.
+     */
+    int getSampleRate() const { return sampleRate_; }
+
+    /**
+     * @brief Set the current audio sample position (called by playback worker).
+     * @param samplePosition Current sample position in the arrangement/sequence.
+     */
+    void setAudioSamplePosition(int64_t samplePosition) { 
+        audioSamplePosition_.store(samplePosition, std::memory_order_relaxed); 
+    }
+
+    /**
+     * @brief Get the current audio sample position.
+     * @return Current sample position.
+     */
+    int64_t getAudioSamplePosition() const { 
+        return audioSamplePosition_.load(std::memory_order_relaxed); 
+    }
+    
+    /**
+     * @brief Set audio playback active state. When false, audio clips won't advance.
+     * @param active True if playback is active.
+     */
+    void setAudioPlaybackActive(bool active) {
+        audioPlaybackActive_.store(active, std::memory_order_relaxed);
+    }
+    
+    /**
+     * @brief Check if audio playback is active.
+     * @return True if playback is active.
+     */
+    bool isAudioPlaybackActive() const {
+        return audioPlaybackActive_.load(std::memory_order_relaxed);
+    }
+
+    /**
+     * @brief Convert tick position to sample position.
+     * @param tick Tick position.
+     * @param tempo Tempo in microseconds per quarter note.
+     * @param ppq Pulses per quarter note.
+     * @return Sample position.
+     */
+    int64_t tickToSamples(int tick, int tempo, int ppq) const;
+
+    /**
+     * @brief Convert sample position to tick position.
+     * @param sample Sample position.
+     * @param tempo Tempo in microseconds per quarter note.
+     * @param ppq Pulses per quarter note.
+     * @return Tick position.
+     */
+    int sampleToTicks(int64_t sample, int tempo, int ppq) const;
+
 private:
     std::mutex dsp_engine_mutex_;
     std::vector<INoteNagaSoftSynth*> synths_;
@@ -233,6 +296,18 @@ private:
     NoteNagaSpectrumAnalyzer* spectrum_analyzer_ = nullptr;
     NoteNagaPanAnalyzer* pan_analyzer_ = nullptr;
     
+    // Audio rendering state
+    int sampleRate_ = 44100;
+    std::atomic<int64_t> audioSamplePosition_{0}; ///< Current sample position in arrangement
+    std::atomic<bool> audioPlaybackActive_{false}; ///< True when playback is active
+    std::vector<float> audioClipBuffer_; ///< Temporary buffer for audio clip samples
+    
     void calculateRMS(float *left, float *right, size_t numFrames);
     std::pair<float, float> calculateTrackRMS(float *left, float *right, size_t numFrames);
+    
+    /**
+     * @brief Render audio clips from arrangement tracks into the mix buffers.
+     * @param numFrames Number of frames to render.
+     */
+    void renderAudioClips(size_t numFrames);
 };

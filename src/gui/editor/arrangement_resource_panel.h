@@ -13,12 +13,16 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QStyledItemDelegate>
+#include <QTabWidget>
+#include <QFileDialog>
 
 class NoteNagaEngine;
 class NoteNagaMidiSeq;
+class NoteNagaAudioResource;
 
-// Custom MIME type for MIDI sequences
+// Custom MIME types for drag&drop
 static const char* RESOURCE_MIME_TYPE_MIDI_SEQUENCE = "application/x-notenaga-midi-sequence";
+static const char* RESOURCE_MIME_TYPE_AUDIO_CLIP = "application/x-notenaga-audio-clip";
 
 /**
  * @brief Custom delegate for drawing MIDI sequence items with note preview
@@ -42,7 +46,29 @@ private:
 };
 
 /**
- * @brief Custom list widget that handles drag with proper MIME data
+ * @brief Custom delegate for drawing Audio resource items with waveform preview
+ */
+class AudioItemDelegate : public QStyledItemDelegate
+{
+    Q_OBJECT
+    
+public:
+    explicit AudioItemDelegate(NoteNagaEngine *engine, QObject *parent = nullptr);
+    
+    void paint(QPainter *painter, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override;
+    QSize sizeHint(const QStyleOptionViewItem &option,
+                   const QModelIndex &index) const override;
+
+private:
+    NoteNagaEngine *m_engine;
+    
+    void drawWaveformPreview(QPainter *painter, const QRect &rect, 
+                             NoteNagaAudioResource *resource, const QColor &color) const;
+};
+
+/**
+ * @brief Custom list widget that handles drag with proper MIME data for MIDI sequences
  */
 class DraggableSequenceList : public QListWidget
 {
@@ -56,48 +82,31 @@ public:
     }
     
 protected:
-    void startDrag(Qt::DropActions supportedActions) override {
-        Q_UNUSED(supportedActions);
-        
-        QListWidgetItem *item = currentItem();
-        if (!item) return;
-        
-        int sequenceIndex = item->data(Qt::UserRole).toInt();
-        int64_t duration = item->data(Qt::UserRole + 1).toLongLong();
-        
-        // Create mime data
-        QMimeData *mimeData = new QMimeData();
-        QByteArray encodedData;
-        QDataStream stream(&encodedData, QIODevice::WriteOnly);
-        stream << sequenceIndex << duration;
-        mimeData->setData(RESOURCE_MIME_TYPE_MIDI_SEQUENCE, encodedData);
-        mimeData->setText(item->text().split('\n').first());
-        
-        // Create drag
-        QDrag *drag = new QDrag(this);
-        drag->setMimeData(mimeData);
-        
-        // Create drag pixmap
-        QPixmap pixmap(120, 40);
-        pixmap.fill(QColor("#3a3a42"));
-        QPainter painter(&pixmap);
-        painter.setPen(QColor("#2563eb"));
-        painter.drawRect(0, 0, pixmap.width() - 1, pixmap.height() - 1);
-        painter.setPen(Qt::white);
-        painter.drawText(pixmap.rect(), Qt::AlignCenter, item->text().split('\n').first());
-        painter.end();
-        
-        drag->setPixmap(pixmap);
-        drag->setHotSpot(QPoint(pixmap.width() / 2, pixmap.height() / 2));
-        
-        drag->exec(Qt::CopyAction);
-    }
+    void startDrag(Qt::DropActions supportedActions) override;
 };
 
 /**
- * @brief Panel displaying available MIDI sequences for the Arrangement
+ * @brief Custom list widget for dragging audio resources
+ */
+class DraggableAudioList : public QListWidget
+{
+    Q_OBJECT
+    
+public:
+    explicit DraggableAudioList(QWidget *parent = nullptr) : QListWidget(parent) {
+        setDragEnabled(true);
+        setDragDropMode(QAbstractItemView::DragOnly);
+        setSelectionMode(QAbstractItemView::SingleSelection);
+    }
+    
+protected:
+    void startDrag(Qt::DropActions supportedActions) override;
+};
+
+/**
+ * @brief Panel displaying available resources (MIDI sequences and Audio) for the Arrangement
  * 
- * Lists all MIDI sequences in the project that can be dragged onto
+ * Contains tabs for MIDI sequences and Audio files that can be dragged onto
  * the arrangement timeline to create clips.
  */
 class ArrangementResourcePanel : public QWidget
@@ -107,7 +116,7 @@ class ArrangementResourcePanel : public QWidget
 public:
     explicit ArrangementResourcePanel(NoteNagaEngine *engine, QWidget *parent = nullptr);
 
-    /// Refresh the list from project data
+    /// Refresh the lists from project data
     void refreshFromProject();
 
 signals:
@@ -118,20 +127,38 @@ signals:
     void createSequenceRequested();
 
 private slots:
-    void onItemDoubleClicked(QListWidgetItem *item);
+    void onSequenceDoubleClicked(QListWidgetItem *item);
+    void onAudioDoubleClicked(QListWidgetItem *item);
     void onCreateSequence();
-    void showContextMenu(const QPoint &pos);
+    void onImportAudio();
+    void showSequenceContextMenu(const QPoint &pos);
+    void showAudioContextMenu(const QPoint &pos);
 
 private:
     void initUI();
+    void initMidiTab(QWidget *tab);
+    void initAudioTab(QWidget *tab);
+    
+    void refreshMidiList();
+    void refreshAudioList();
+    
     void renameSequence(int sequenceIndex);
     void deleteSequence(int sequenceIndex);
+    void removeAudioResource(int resourceId);
 
     NoteNagaEngine *m_engine;
     
+    QTabWidget *m_tabWidget;
+    
+    // MIDI tab
     DraggableSequenceList *m_sequenceList;
-    QPushButton *m_createBtn;
-    QLabel *m_infoLabel;
+    QPushButton *m_createSeqBtn;
+    QLabel *m_midiInfoLabel;
+    
+    // Audio tab
+    DraggableAudioList *m_audioList;
+    QPushButton *m_importAudioBtn;
+    QLabel *m_audioInfoLabel;
 };
 
 #endif // ARRANGEMENT_RESOURCE_PANEL_H

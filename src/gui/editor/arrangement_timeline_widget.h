@@ -18,7 +18,9 @@
 class NoteNagaEngine;
 class NoteNagaArrangement;
 class NoteNagaArrangementTrack;
+class NoteNagaAudioResource;
 struct NN_MidiClip_t;
+struct NN_AudioClip_t;
 class ArrangementTimelineRuler;
 class ArrangementTrackHeadersWidget;
 
@@ -96,6 +98,7 @@ signals:
     void clipMoved(int clipId, int64_t newStartTick);
     void clipResized(int clipId, int64_t newDuration);
     void clipDropped(int trackIndex, int64_t tick, int midiSequenceIndex);
+    void audioClipDropped(int trackIndex, int64_t tick, int audioResourceId);
     void selectionChanged();
     void seekRequested(int64_t tick);
     void zoomChanged(double ppTick);
@@ -140,13 +143,18 @@ private:
     
     // Hit testing
     NN_MidiClip_t* clipAtPosition(const QPoint &pos, int &outTrackIndex);
+    NN_AudioClip_t* audioClipAtPosition(const QPoint &pos, int &outTrackIndex);
     enum HitZone { NoHit, BodyHit, LeftEdgeHit, RightEdgeHit };
     HitZone hitTestClip(NN_MidiClip_t *clip, int trackIndex, const QPoint &pos);
+    HitZone hitTestAudioClip(NN_AudioClip_t *clip, int trackIndex, const QPoint &pos);
     
     // Drawing helpers
     void drawTrackHeaders(QPainter &painter);
     void drawTrackLanes(QPainter &painter);
     void drawClips(QPainter &painter);
+    void drawAudioClipWaveform(QPainter &painter, const QRect &clipRect, 
+                               NoteNagaAudioResource *resource, const NN_AudioClip_t &audioClip,
+                               const QColor &color);
     void drawPlayhead(QPainter &painter);
     void drawSelectionRect(QPainter &painter);
     void drawDropPreview(QPainter &painter);
@@ -183,14 +191,17 @@ private:
     
     // Selection
     QSet<int> m_selectedClipIds;
+    QSet<int> m_selectedAudioClipIds;
     int m_selectedTrackIndex = -1;
     
     // Interaction state
-    enum InteractionMode { None, Selecting, MovingClip, ResizingClipLeft, ResizingClipRight, PastingClips };
+    enum InteractionMode { None, Selecting, MovingClip, ResizingClipLeft, ResizingClipRight, PastingClips,
+                           MovingAudioClip, ResizingAudioClipLeft, ResizingAudioClipRight };
     InteractionMode m_interactionMode = None;
     QPoint m_dragStartPos;
     int64_t m_dragStartTick = 0;
     int m_dragClipId = -1;
+    int m_dragAudioClipId = -1;  // For audio clip dragging
     int m_dragTrackIndex = -1;
     int64_t m_originalClipStart = 0;
     int64_t m_originalClipDuration = 0;

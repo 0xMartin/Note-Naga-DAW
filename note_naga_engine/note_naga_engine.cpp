@@ -114,6 +114,12 @@ bool NoteNagaEngine::initialize() {
         this->dsp_engine = new NoteNagaDSPEngine(this->metronome, this->spectrum_analyzer, this->pan_analyzer);
         // Set runtime data for track-based rendering
         this->dsp_engine->setRuntimeData(this->runtime_data);
+        this->dsp_engine->setSampleRate(44100);
+    }
+    
+    // Set DSP engine on playback worker for audio synchronization
+    if (this->playback_worker) {
+        this->playback_worker->setDSPEngine(this->dsp_engine);
     }
 
     // audio worker - start asynchronously to avoid blocking UI on slow devices (e.g. Bluetooth)
@@ -121,6 +127,9 @@ bool NoteNagaEngine::initialize() {
         this->audio_worker = new NoteNagaAudioWorker(this->dsp_engine);
         this->audio_worker->startAsync(44100, 512);
     }
+    
+    // Set audio manager sample rate
+    this->runtime_data->getAudioManager().setSampleRate(44100);
 
     bool status = this->runtime_data && this->playback_worker &&
                   this->audio_worker && this->dsp_engine;

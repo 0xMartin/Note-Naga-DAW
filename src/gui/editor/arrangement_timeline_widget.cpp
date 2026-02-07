@@ -7,6 +7,8 @@
 #include <note_naga_engine/core/runtime_data.h>
 #include <note_naga_engine/core/types.h>
 #include <note_naga_engine/module/dsp_engine.h>
+#include <note_naga_engine/audio/audio_manager.h>
+#include <note_naga_engine/audio/audio_resource.h>
 
 #include <QDragEnterEvent>
 #include <QMimeData>
@@ -21,6 +23,7 @@ static const int RESIZE_HANDLE_WIDTH = 6;
 static const int HEADER_BUTTON_SIZE = 20;
 static const int HEADER_BUTTON_PADDING = 4;
 static const char* MIME_TYPE_MIDI_SEQUENCE = "application/x-notenaga-midi-sequence";
+static const char* MIME_TYPE_AUDIO_CLIP = "application/x-notenaga-audio-clip";
 
 ArrangementTimelineWidget::ArrangementTimelineWidget(NoteNagaEngine *engine, QWidget *parent)
     : QWidget(parent), m_engine(engine)
@@ -309,8 +312,61 @@ NN_MidiClip_t* ArrangementTimelineWidget::clipAtPosition(const QPoint &pos, int 
     return nullptr;
 }
 
+NN_AudioClip_t* ArrangementTimelineWidget::audioClipAtPosition(const QPoint &pos, int &outTrackIndex)
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return nullptr;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return nullptr;
+
+    outTrackIndex = yToTrackIndex(pos.y());
+    if (outTrackIndex < 0 || outTrackIndex >= static_cast<int>(arrangement->getTrackCount())) {
+        return nullptr;
+    }
+
+    auto *track = arrangement->getTracks()[outTrackIndex];
+    if (!track) return nullptr;
+
+    int64_t tick = xToTick(pos.x());
+    
+    // Search audio clips in reverse order (top clips have priority)
+    for (auto &clip : track->getAudioClips()) {
+        if (tick >= clip.startTick && tick < clip.startTick + clip.durationTicks) {
+            return &clip;
+        }
+    }
+    
+    return nullptr;
+}
+
 ArrangementTimelineWidget::HitZone ArrangementTimelineWidget::hitTestClip(
     NN_MidiClip_t *clip, int trackIndex, const QPoint &pos)
+{
+    if (!clip) return NoHit;
+    
+    int clipX = tickToX(clip->startTick);
+    int clipWidth = static_cast<int>(clip->durationTicks * m_pixelsPerTick);
+    int clipY = trackIndexToY(trackIndex);
+    
+    QRect clipRect(clipX, clipY, clipWidth, m_trackHeight);
+    
+    if (!clipRect.contains(pos)) {
+        return NoHit;
+    }
+    
+    // Check resize handles
+    if (pos.x() - clipX < RESIZE_HANDLE_WIDTH) {
+        return LeftEdgeHit;
+    }
+    if (clipX + clipWidth - pos.x() < RESIZE_HANDLE_WIDTH) {
+        return RightEdgeHit;
+    }
+    
+    return BodyHit;
+}
+
+ArrangementTimelineWidget::HitZone ArrangementTimelineWidget::hitTestAudioClip(
+    NN_AudioClip_t *clip, int trackIndex, const QPoint &pos)
 {
     if (!clip) return NoHit;
     
@@ -480,6 +536,9 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
     
     // Get sequences for lookup
     auto sequences = m_engine->getRuntimeData()->getSequences();
+    
+    // Get audio manager for audio clips
+    NoteNagaAudioManager& audioManager = m_engine->getRuntimeData()->getAudioManager();
 
     int trackIndex = 0;
     for (auto *track : arrangement->getTracks()) {
@@ -491,6 +550,7 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
         int trackY = trackIndexToY(trackIndex);
         QColor trackColor = track->getColor().toQColor();
         
+        // Draw MIDI clips
         for (const auto &clip : track->getClips()) {
             int clipX = tickToX(clip.startTick);
             int clipWidth = static_cast<int>(clip.durationTicks * m_pixelsPerTick);
@@ -628,8 +688,119 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
             painter.setFont(font);
         }
         
+        // Draw Audio clips
+        for (const auto &audioClip : track->getAudioClips()) {
+            int clipX = tickToX(audioClip.startTick);
+            int clipWidth = static_cast<int>(audioClip.durationTicks * m_pixelsPerTick);
+            
+            // Skip clips outside visible area
+            if (clipX + clipWidth < 0 || clipX > width()) {
+                continue;
+            }
+            
+            QRect clipRect(clipX + 1, trackY + 4, clipWidth - 2, m_trackHeight - 8);
+            
+            // Audio clip uses green color
+            QColor audioColor("#10b981");
+            bool isSelected = m_selectedAudioClipIds.contains(audioClip.id);
+            QColor fillColor = isSelected ? audioColor.lighter(130) : audioColor.darker(120);
+            painter.fillRect(clipRect, fillColor);
+            
+            // Get audio resource for waveform
+            NoteNagaAudioResource* resource = audioManager.getResource(audioClip.audioResourceId);
+            if (resource && resource->isLoaded()) {
+                drawAudioClipWaveform(painter, clipRect, resource, audioClip, audioColor.lighter(160));
+            }
+            
+            // Clip border
+            painter.setPen(QPen(isSelected ? QColor("#ffffff") : audioColor.lighter(150), isSelected ? 2 : 1));
+            painter.drawRect(clipRect);
+            
+            // Clip name (use audio file name)
+            QString clipName;
+            if (resource) {
+                clipName = QString::fromStdString(resource->getFileName());
+            } else {
+                clipName = tr("Audio %1").arg(audioClip.audioResourceId);
+            }
+            
+            painter.setPen(Qt::white);
+            QFont font = painter.font();
+            font.setPixelSize(11);
+            font.setBold(true);
+            painter.setFont(font);
+            
+            QRect textRect = clipRect.adjusted(4, 2, -4, -clipRect.height() + 16);
+            painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop, 
+                           painter.fontMetrics().elidedText(clipName, Qt::ElideRight, textRect.width()));
+            font.setBold(false);
+            painter.setFont(font);
+        }
+        
         ++trackIndex;
     }
+}
+
+void ArrangementTimelineWidget::drawAudioClipWaveform(QPainter &painter, const QRect &clipRect,
+                                                       NoteNagaAudioResource *resource,
+                                                       const NN_AudioClip_t &audioClip,
+                                                       const QColor &color)
+{
+    if (!resource || !resource->isLoaded()) return;
+    
+    const auto& peaks = resource->getWaveformPeaks();
+    if (peaks.empty()) return;
+    
+    // Apply clipping to prevent drawing outside the clip rect
+    painter.setClipRect(clipRect);
+    
+    // Calculate waveform drawing area (below the title)
+    QRect waveRect = clipRect.adjusted(2, 16, -2, -2);
+    int centerY = waveRect.center().y();
+    int halfHeight = waveRect.height() / 2 - 1;
+    
+    // Calculate how many samples/peaks we need per pixel
+    int samplesPerPeak = resource->getSamplesPerPeak();
+    int totalPeaks = static_cast<int>(peaks.size());
+    
+    // Map clip offset and length to peak indices
+    int startPeak = audioClip.offsetSamples / samplesPerPeak;
+    int totalClipSamples = audioClip.clipLengthSamples > 0 ? audioClip.clipLengthSamples : resource->getTotalSamples();
+    int endPeak = (audioClip.offsetSamples + totalClipSamples) / samplesPerPeak;
+    endPeak = std::min(endPeak, totalPeaks);
+    int peakCount = endPeak - startPeak;
+    
+    if (peakCount <= 0) {
+        painter.setClipping(false);
+        return;
+    }
+    
+    // Calculate peaks per pixel
+    float peaksPerPixel = static_cast<float>(peakCount) / waveRect.width();
+    
+    painter.setPen(color);
+    
+    for (int x = 0; x < waveRect.width(); ++x) {
+        int peakStart = startPeak + static_cast<int>(x * peaksPerPixel);
+        int peakEnd = startPeak + static_cast<int>((x + 1) * peaksPerPixel);
+        peakEnd = std::min(peakEnd, endPeak);
+        
+        if (peakStart >= totalPeaks) break;
+        
+        // Find min/max across this range
+        float minVal = 0, maxVal = 0;
+        for (int p = peakStart; p < peakEnd && p < totalPeaks; ++p) {
+            minVal = std::min(minVal, std::min(peaks[p].minLeft, peaks[p].minRight));
+            maxVal = std::max(maxVal, std::max(peaks[p].maxLeft, peaks[p].maxRight));
+        }
+        
+        int y1 = centerY - static_cast<int>(maxVal * halfHeight);
+        int y2 = centerY - static_cast<int>(minVal * halfHeight);
+        
+        painter.drawLine(waveRect.left() + x, y1, waveRect.left() + x, y2);
+    }
+    
+    painter.setClipping(false);
 }
 
 void ArrangementTimelineWidget::drawPlayhead(QPainter &painter)
@@ -757,6 +928,12 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
         // Handle clip interactions in content area
         int trackIndex;
         NN_MidiClip_t *clip = clipAtPosition(event->pos(), trackIndex);
+        NN_AudioClip_t *audioClip = nullptr;
+        
+        // If no MIDI clip found, check for audio clip
+        if (!clip) {
+            audioClip = audioClipAtPosition(event->pos(), trackIndex);
+        }
         
         if (clip) {
             HitZone zone = hitTestClip(clip, trackIndex, event->pos());
@@ -767,6 +944,7 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
             }
             
             m_dragClipId = clip->id;
+            m_dragAudioClipId = -1;
             m_dragTrackIndex = trackIndex;
             m_dragStartTick = xToTick(event->pos().x());
             m_dragStartTrackIndex = trackIndex;
@@ -805,6 +983,40 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
             }
             
             emit clipSelected(clip);
+        } else if (audioClip) {
+            // Handle audio clip selection and dragging
+            HitZone zone = hitTestAudioClip(audioClip, trackIndex, event->pos());
+            
+            bool addToSelection = event->modifiers() & Qt::ShiftModifier;
+            if (!m_selectedAudioClipIds.contains(audioClip->id)) {
+                if (!addToSelection) {
+                    m_selectedClipIds.clear();
+                    m_selectedAudioClipIds.clear();
+                }
+                m_selectedAudioClipIds.insert(audioClip->id);
+                emit selectionChanged();
+            }
+            
+            m_dragClipId = -1;
+            m_dragAudioClipId = audioClip->id;
+            m_dragTrackIndex = trackIndex;
+            m_dragStartTick = xToTick(event->pos().x());
+            m_dragStartTrackIndex = trackIndex;
+            m_originalClipStart = audioClip->startTick;
+            m_originalClipDuration = audioClip->durationTicks;
+            
+            if (zone == LeftEdgeHit) {
+                m_interactionMode = ResizingAudioClipLeft;
+                setCursor(Qt::SizeHorCursor);
+            } else if (zone == RightEdgeHit) {
+                m_interactionMode = ResizingAudioClipRight;
+                setCursor(Qt::SizeHorCursor);
+            } else {
+                m_interactionMode = MovingAudioClip;
+                setCursor(Qt::ClosedHandCursor);
+            }
+            
+            update();
         } else {
             // Start selection rectangle
             m_interactionMode = Selecting;
@@ -872,7 +1084,18 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
                 setCursor(Qt::OpenHandCursor);
             }
         } else {
-            setCursor(Qt::ArrowCursor);
+            // Check for audio clip hover
+            NN_AudioClip_t *audioClip = audioClipAtPosition(event->pos(), trackIndex);
+            if (audioClip) {
+                HitZone zone = hitTestAudioClip(audioClip, trackIndex, event->pos());
+                if (zone == LeftEdgeHit || zone == RightEdgeHit) {
+                    setCursor(Qt::SizeHorCursor);
+                } else {
+                    setCursor(Qt::OpenHandCursor);
+                }
+            } else {
+                setCursor(Qt::ArrowCursor);
+            }
         }
     }
     
@@ -978,6 +1201,85 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
             break;
         }
         
+        case MovingAudioClip: {
+            int64_t currentTick = xToTick(event->pos().x());
+            int64_t tickDelta = currentTick - m_dragStartTick;
+            int currentTrack = yToTrackIndex(event->pos().y());
+            int trackDelta = currentTrack - m_dragStartTrackIndex;
+            
+            int64_t newStart = snapTick(m_originalClipStart + tickDelta);
+            newStart = qMax(static_cast<int64_t>(0), newStart);
+            int newTrackIdx = qBound(0, m_dragTrackIndex + trackDelta, 
+                                     static_cast<int>(arrangement->getTrackCount()) - 1);
+            
+            // Find and move the audio clip
+            for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+                auto *track = arrangement->getTracks()[tIdx];
+                if (!track) continue;
+                
+                for (auto &clip : track->getAudioClips()) {
+                    if (clip.id == m_dragAudioClipId) {
+                        // If track changed, move clip to new track
+                        if (tIdx != newTrackIdx) {
+                            NN_AudioClip_t clipCopy = clip;
+                            clipCopy.startTick = newStart;
+                            track->removeAudioClip(clip.id);
+                            arrangement->getTracks()[newTrackIdx]->addAudioClip(clipCopy);
+                        } else {
+                            clip.startTick = newStart;
+                        }
+                        update();
+                        return;
+                    }
+                }
+            }
+            break;
+        }
+        
+        case ResizingAudioClipLeft: {
+            int64_t currentTick = xToTick(event->pos().x());
+            int64_t newStart = snapTick(currentTick);
+            newStart = qMax(static_cast<int64_t>(0), newStart);
+            
+            int64_t maxStart = m_originalClipStart + m_originalClipDuration - 480;
+            newStart = qMin(newStart, maxStart);
+            
+            for (auto *track : arrangement->getTracks()) {
+                for (auto &clip : track->getAudioClips()) {
+                    if (clip.id == m_dragAudioClipId) {
+                        int64_t endTick = m_originalClipStart + m_originalClipDuration;
+                        int64_t startDelta = newStart - m_originalClipStart;
+                        
+                        clip.startTick = newStart;
+                        clip.durationTicks = endTick - newStart;
+                        // Adjust offset in samples when trimming from left
+                        // (This is approximate - would need tempo for perfect calculation)
+                        clip.offsetSamples += static_cast<int>(startDelta * 44100.0 / (120.0 / 60.0 * 480.0));
+                        update();
+                        return;
+                    }
+                }
+            }
+            break;
+        }
+        
+        case ResizingAudioClipRight: {
+            int64_t currentTick = xToTick(event->pos().x());
+            int64_t newDuration = snapTick(currentTick) - m_originalClipStart;
+            newDuration = qMax(static_cast<int64_t>(480), newDuration);
+            
+            for (auto *track : arrangement->getTracks()) {
+                for (auto &clip : track->getAudioClips()) {
+                    if (clip.id == m_dragAudioClipId) {
+                        clip.durationTicks = newDuration;
+                        update();
+                        return;
+                    }
+                }
+            }
+            break;
+        }
+        
         case Selecting: {
             m_selectionRect = QRect(m_dragStartPos, event->pos()).normalized();
             
@@ -1031,10 +1333,21 @@ void ArrangementTimelineWidget::mouseReleaseEvent(QMouseEvent *event)
                     arrangement->updateMaxTick();
                 }
             }
+        } else if (m_interactionMode == MovingAudioClip ||
+                   m_interactionMode == ResizingAudioClipLeft ||
+                   m_interactionMode == ResizingAudioClipRight) {
+            // Update arrangement max tick after audio clip move/resize
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement) {
+                    arrangement->updateMaxTick();
+                }
+            }
         }
         
         m_interactionMode = None;
         m_dragClipId = -1;
+        m_dragAudioClipId = -1;
         m_selectionRect = QRect();
         setCursor(Qt::ArrowCursor);
         update();
@@ -1161,7 +1474,8 @@ void ArrangementTimelineWidget::keyPressEvent(QKeyEvent *event)
 // Drag & Drop
 void ArrangementTimelineWidget::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (event->mimeData()->hasFormat(MIME_TYPE_MIDI_SEQUENCE)) {
+    if (event->mimeData()->hasFormat(MIME_TYPE_MIDI_SEQUENCE) ||
+        event->mimeData()->hasFormat(MIME_TYPE_AUDIO_CLIP)) {
         event->acceptProposedAction();
         m_showDropPreview = true;
     }
@@ -1183,6 +1497,37 @@ void ArrangementTimelineWidget::dragMoveEvent(QDragMoveEvent *event)
         
         update();
         event->acceptProposedAction();
+    } else if (event->mimeData()->hasFormat(MIME_TYPE_AUDIO_CLIP)) {
+        m_dropPreviewTrack = yToTrackIndex(event->position().toPoint().y());
+        m_dropPreviewTick = snapTick(xToTick(event->position().toPoint().x()));
+        
+        // Get audio duration from mime data
+        QByteArray data = event->mimeData()->data(MIME_TYPE_AUDIO_CLIP);
+        QDataStream stream(&data, QIODevice::ReadOnly);
+        int resourceId;
+        int64_t durationSamples;
+        stream >> resourceId >> durationSamples;
+        
+        // Convert samples to ticks (approximate, depends on tempo)
+        // Use rough estimate: 44100 samples/sec at 120 BPM = 44100 / (120/60) / 480 = 91.875 samples/tick
+        // But for preview, just use a reasonable default
+        if (m_engine && m_engine->getRuntimeData()) {
+            NoteNagaAudioManager& audioManager = m_engine->getRuntimeData()->getAudioManager();
+            NoteNagaAudioResource* resource = audioManager.getResource(resourceId);
+            if (resource) {
+                // Convert samples to ticks using current tempo
+                double sampleRate = resource->getSampleRate();
+                double seconds = durationSamples / sampleRate;
+                // At 120 BPM, 480 PPQ: 2 beats/second, 960 ticks/second
+                int ppq = 480;
+                double bpm = 120.0;  // Default assumption for preview
+                double ticksPerSecond = (bpm / 60.0) * ppq;
+                m_dropPreviewDuration = static_cast<int64_t>(seconds * ticksPerSecond);
+            }
+        }
+        
+        update();
+        event->acceptProposedAction();
     }
 }
 
@@ -1199,6 +1544,21 @@ void ArrangementTimelineWidget::dropEvent(QDropEvent *event)
         int64_t tick = snapTick(xToTick(event->position().toPoint().x()));
         
         emit clipDropped(trackIndex, tick, sequenceIndex);
+        
+        m_showDropPreview = false;
+        update();
+        event->acceptProposedAction();
+    } else if (event->mimeData()->hasFormat(MIME_TYPE_AUDIO_CLIP)) {
+        QByteArray data = event->mimeData()->data(MIME_TYPE_AUDIO_CLIP);
+        QDataStream stream(&data, QIODevice::ReadOnly);
+        int resourceId;
+        int64_t durationSamples;
+        stream >> resourceId >> durationSamples;
+        
+        int trackIndex = yToTrackIndex(event->position().toPoint().y());
+        int64_t tick = snapTick(xToTick(event->position().toPoint().x()));
+        
+        emit audioClipDropped(trackIndex, tick, resourceId);
         
         m_showDropPreview = false;
         update();

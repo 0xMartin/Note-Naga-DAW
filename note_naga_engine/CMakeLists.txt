@@ -57,6 +57,9 @@ set(PUBLIC_HEADER_FILES
     # include/note_naga_engine/synth
     ./include/note_naga_engine/synth/synth_fluidsynth.h
     ./include/note_naga_engine/synth/synth_external_midi.h
+    # include/note_naga_engine/audio
+    ./include/note_naga_engine/audio/audio_resource.h
+    ./include/note_naga_engine/audio/audio_manager.h
     # include/note_naga_engine/dsp
     ./include/note_naga_engine/dsp/dsp_block_gain.h
     ./include/note_naga_engine/dsp/dsp_block_pan.h
@@ -111,6 +114,9 @@ set(SOURCE_FILES
     # synth
     ./synth/synth_fluidsynth.cpp
     ./synth/synth_external_midi.cpp
+    # audio
+    ./audio/audio_resource.cpp
+    ./audio/audio_manager.cpp
     # dsp
     ./dsp/dsp_block_gain.cpp
     ./dsp/dsp_block_pan.cpp

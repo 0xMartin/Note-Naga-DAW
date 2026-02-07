@@ -181,6 +181,13 @@ bool NoteNagaProjectSerializer::saveProject(const std::string &filePath, const N
         writeInt32(file, 0);  // No arrangement tracks
     }
     
+    // Write Audio Resources (v9+)
+    if (runtime) {
+        serializeAudioResources(file, runtime);
+    } else {
+        writeInt32(file, 0);  // No audio resources
+    }
+    
     file.close();
     NOTE_NAGA_LOG_INFO("Project saved: " + filePath);
     return true;
@@ -283,6 +290,13 @@ bool NoteNagaProjectSerializer::loadProject(const std::string &filePath, NoteNag
     if (m_loadingVersion >= 6 && runtime && runtime->getArrangement()) {
         if (!deserializeArrangement(file, runtime->getArrangement())) {
             NOTE_NAGA_LOG_WARNING("Failed to load arrangement data, continuing with empty arrangement");
+        }
+    }
+    
+    // Read Audio Resources (v9+)
+    if (m_loadingVersion >= 9 && runtime) {
+        if (!deserializeAudioResources(file, runtime)) {
+            NOTE_NAGA_LOG_WARNING("Failed to load audio resources, continuing without audio");
         }
     }
     
@@ -790,11 +804,18 @@ void NoteNagaProjectSerializer::serializeArrangementTrack(std::ofstream &out, No
     writeFloat(out, track->getPan());  // Version 8+
     writeInt32(out, track->getChannelOffset());
     
-    // Clips
+    // MIDI Clips
     const auto& clips = track->getClips();
     writeInt32(out, static_cast<int32_t>(clips.size()));
     for (const auto& clip : clips) {
         serializeMidiClip(out, clip);
+    }
+    
+    // Audio Clips (v9+)
+    const auto& audioClips = track->getAudioClips();
+    writeInt32(out, static_cast<int32_t>(audioClips.size()));
+    for (const auto& clip : audioClips) {
+        serializeAudioClip(out, clip);
     }
 }
 
@@ -843,6 +864,24 @@ bool NoteNagaProjectSerializer::deserializeArrangementTrack(std::ifstream &in, N
         track->addClip(clip);
     }
     
+    // Audio Clips (v9+)
+    if (m_loadingVersion >= 9) {
+        int32_t numAudioClips = readInt32(in);
+        if (numAudioClips < 0 || numAudioClips > 100000) {
+            NOTE_NAGA_LOG_ERROR("Invalid audio clip count: " + std::to_string(numAudioClips));
+            return false;
+        }
+        
+        for (int32_t i = 0; i < numAudioClips; ++i) {
+            NN_AudioClip_t clip;
+            if (!deserializeAudioClip(in, clip)) {
+                NOTE_NAGA_LOG_ERROR("Failed to deserialize audio clip " + std::to_string(i));
+                return false;
+            }
+            track->addAudioClip(clip);
+        }
+    }
+    
     return true;
 }
 
@@ -877,6 +916,92 @@ bool NoteNagaProjectSerializer::deserializeMidiClip(std::ifstream &in, NN_MidiCl
     uint8_t g = readUInt8(in);
     uint8_t b = readUInt8(in);
     clip.color = NN_Color_t(r, g, b);
+    
+    return in.good();
+}
+
+/*******************************************************************************************************/
+// Audio Resources Serialization (v9+)
+/*******************************************************************************************************/
+
+void NoteNagaProjectSerializer::serializeAudioResources(std::ofstream &out, NoteNagaRuntimeData *runtime)
+{
+    if (!runtime) {
+        writeInt32(out, 0);
+        return;
+    }
+    
+    const NoteNagaAudioManager& audioManager = runtime->getAudioManager();
+    const auto& allResources = audioManager.getAllResources();
+    
+    writeInt32(out, static_cast<int32_t>(allResources.size()));
+    
+    for (const auto& resource : allResources) {
+        if (!resource) continue;
+        
+        // Write resource ID and file path (relative if possible)
+        writeInt32(out, resource->getId());
+        writeString(out, resource->getFilePath());
+    }
+}
+
+bool NoteNagaProjectSerializer::deserializeAudioResources(std::ifstream &in, NoteNagaRuntimeData *runtime)
+{
+    if (!runtime) return false;
+    
+    int32_t numResources = readInt32(in);
+    if (numResources < 0 || numResources > 10000) {
+        NOTE_NAGA_LOG_ERROR("Invalid audio resource count: " + std::to_string(numResources));
+        return false;
+    }
+    
+    NoteNagaAudioManager& audioManager = runtime->getAudioManager();
+    audioManager.clear();
+    
+    for (int32_t i = 0; i < numResources; ++i) {
+        int32_t resourceId = readInt32(in);
+        std::string filePath = readString(in);
+        
+        // Try to import the audio file
+        NoteNagaAudioResource* resource = audioManager.importAudio(filePath);
+        if (resource) {
+            // Update the resource ID to match saved ID for clip references
+            // Must use updateResourceId to also update the lookup map
+            audioManager.updateResourceId(resource, resourceId);
+            NOTE_NAGA_LOG_INFO("Loaded audio resource: " + filePath);
+        } else {
+            NOTE_NAGA_LOG_WARNING("Failed to load audio resource: " + filePath);
+            // Continue loading - missing audio files shouldn't break project
+        }
+    }
+    
+    return in.good();
+}
+
+void NoteNagaProjectSerializer::serializeAudioClip(std::ofstream &out, const NN_AudioClip_t &clip)
+{
+    writeInt32(out, clip.id);
+    writeInt32(out, clip.audioResourceId);
+    writeInt32(out, clip.startTick);
+    writeInt32(out, clip.durationTicks);
+    writeInt32(out, clip.offsetSamples);
+    writeInt32(out, clip.clipLengthSamples);
+    writeBool(out, clip.muted);
+    writeBool(out, clip.looping);
+    writeFloat(out, clip.gain);
+}
+
+bool NoteNagaProjectSerializer::deserializeAudioClip(std::ifstream &in, NN_AudioClip_t &clip)
+{
+    clip.id = readInt32(in);
+    clip.audioResourceId = readInt32(in);
+    clip.startTick = readInt32(in);
+    clip.durationTicks = readInt32(in);
+    clip.offsetSamples = readInt32(in);
+    clip.clipLengthSamples = readInt32(in);
+    clip.muted = readBool(in);
+    clip.looping = readBool(in);
+    clip.gain = readFloat(in);
     
     return in.good();
 }
