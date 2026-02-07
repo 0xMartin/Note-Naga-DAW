@@ -175,6 +175,12 @@ void ArrangementTrackHeadersWidget::updateTrackMeters()
         float maxLeftDb = -100.0f;
         float maxRightDb = -100.0f;
         
+        // First, get RMS from audio clips on this arrangement track
+        auto audioRms = dspEngine->getArrangementTrackVolumeDb(arrTrack);
+        maxLeftDb = std::max(maxLeftDb, audioRms.first);
+        maxRightDb = std::max(maxRightDb, audioRms.second);
+        
+        // Then get RMS from MIDI clips
         for (const auto& clip : arrTrack->getClips()) {
             if (clip.muted) continue;
             if (!clip.containsTick(static_cast<int>(currentTick))) continue;

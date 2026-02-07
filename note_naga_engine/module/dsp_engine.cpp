@@ -308,6 +308,14 @@ std::pair<float, float> NoteNagaDSPEngine::getTrackVolumeDb(NoteNagaTrack* track
     return {-100.0f, -100.0f};
 }
 
+std::pair<float, float> NoteNagaDSPEngine::getArrangementTrackVolumeDb(NoteNagaArrangementTrack* track) const {
+    auto it = arr_track_rms_values_.find(track);
+    if (it != arr_track_rms_values_.end()) {
+        return it->second;
+    }
+    return {-100.0f, -100.0f};
+}
+
 void NoteNagaDSPEngine::resetAllBlocks() {
     std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
     
@@ -409,8 +417,18 @@ void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
     // Iterate all arrangement tracks
     for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
         NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
-        if (!arrTrack || arrTrack->isMuted()) continue;
-        if (hasSoloTrack && !arrTrack->isSolo()) continue;
+        if (!arrTrack) continue;
+        
+        // Track audio accumulation for RMS calculation
+        float trackSumLeft = 0.0f;
+        float trackSumRight = 0.0f;
+        int trackSampleCount = 0;
+        
+        if (arrTrack->isMuted() || (hasSoloTrack && !arrTrack->isSolo())) {
+            // Reset RMS for muted/non-solo tracks
+            arr_track_rms_values_[arrTrack] = {-100.0f, -100.0f};
+            continue;
+        }
         
         // Get track's volume and pan
         float trackVolume = arrTrack->getVolume();
@@ -510,9 +528,30 @@ void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
             float gainR = combinedGain * panR;
             
             for (int i = 0; i < gotSamples; ++i) {
-                mix_left_[bufferOffset + i] += clipLeft[i] * gainL;
-                mix_right_[bufferOffset + i] += clipRight[i] * gainR;
+                float sampleL = clipLeft[i] * gainL;
+                float sampleR = clipRight[i] * gainR;
+                mix_left_[bufferOffset + i] += sampleL;
+                mix_right_[bufferOffset + i] += sampleR;
+                
+                // Accumulate for RMS calculation
+                trackSumLeft += sampleL * sampleL;
+                trackSumRight += sampleR * sampleR;
             }
+            trackSampleCount += gotSamples;
+        }
+        
+        // Calculate and store RMS for this arrangement track
+        if (trackSampleCount > 0) {
+            float rmsLeft = sqrtf(trackSumLeft / trackSampleCount);
+            float rmsRight = sqrtf(trackSumRight / trackSampleCount);
+            float dbLeft = (rmsLeft > 0.000001f) ? 20.0f * log10f(rmsLeft) : -100.0f;
+            float dbRight = (rmsRight > 0.000001f) ? 20.0f * log10f(rmsRight) : -100.0f;
+            arr_track_rms_values_[arrTrack] = {dbLeft, dbRight};
+        } else {
+            // No audio rendered - decay RMS
+            auto& rms = arr_track_rms_values_[arrTrack];
+            rms.first = std::max(-100.0f, rms.first - 1.0f);
+            rms.second = std::max(-100.0f, rms.second - 1.0f);
         }
     }
 }

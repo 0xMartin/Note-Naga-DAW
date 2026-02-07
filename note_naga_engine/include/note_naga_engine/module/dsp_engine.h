@@ -196,6 +196,13 @@ public:
      * @return std::pair<float, float> Current volume in dB (left, right).
      */
     std::pair<float, float> getTrackVolumeDb(NoteNagaTrack* track) const;
+    
+    /**
+     * @brief Get the volume in dB for a specific arrangement track.
+     * @param track Pointer to the arrangement track.
+     * @return Pair of (left_db, right_db).
+     */
+    std::pair<float, float> getArrangementTrackVolumeDb(NoteNagaArrangementTrack* track) const;
 
     /**
      * @brief Reset internal state of all DSP blocks.
@@ -237,6 +244,9 @@ public:
      */
     void setAudioPlaybackActive(bool active) {
         audioPlaybackActive_.store(active, std::memory_order_relaxed);
+        if (!active) {
+            resetArrangementTrackRMS();
+        }
     }
     
     /**
@@ -245,6 +255,13 @@ public:
      */
     bool isAudioPlaybackActive() const {
         return audioPlaybackActive_.load(std::memory_order_relaxed);
+    }
+    
+    /**
+     * @brief Reset all arrangement track RMS values to silence.
+     */
+    void resetArrangementTrackRMS() {
+        arr_track_rms_values_.clear();
     }
 
     /**
@@ -290,6 +307,7 @@ private:
     float last_rms_left_ = -100.0f;
     float last_rms_right_ = -100.0f;
     std::map<NoteNagaTrack*, std::pair<float, float>> track_rms_values_; ///< Per-track RMS in dB
+    std::map<NoteNagaArrangementTrack*, std::pair<float, float>> arr_track_rms_values_; ///< Per-arrangement-track RMS in dB
     bool enable_dsp_ = true;
     
     NoteNagaMetronome* metronome_ = nullptr;
