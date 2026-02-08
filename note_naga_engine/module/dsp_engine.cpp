@@ -5,6 +5,8 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <set>
+#include <map>
 
 NoteNagaDSPEngine::NoteNagaDSPEngine(NoteNagaMetronome* metronome, NoteNagaSpectrumAnalyzer * spectrum_analyzer, NoteNagaPanAnalyzer* pan_analyzer) {
     this->metronome_ = metronome;
@@ -30,84 +32,49 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames, bool compute_rm
     
     // Render audio from tracks based on playback mode
     if (runtime_data_) {
-        std::vector<NoteNagaMidiSeq*> sequencesToRender;
-        
         if (playback_mode_ == PlaybackMode::Arrangement) {
-            // In Arrangement mode, render ALL sequences
-            sequencesToRender = runtime_data_->getSequences();
+            // In Arrangement mode, render based on arrangement tracks
+            // Each arrangement track has its own volume/pan settings
+            renderArrangementTracks(num_frames);
         } else {
             // In Sequence mode, only render the active sequence
             NoteNagaMidiSeq* activeSeq = runtime_data_->getActiveSequence();
             if (activeSeq) {
-                sequencesToRender.push_back(activeSeq);
-            }
-        }
-        
-        for (NoteNagaMidiSeq* seq : sequencesToRender) {
-            if (!seq) continue;
-            
-            for (NoteNagaTrack* track : seq->getTracks()) {
-                if (!track || track->isMuted() || track->isTempoTrack()) continue;
-                
-                INoteNagaSoftSynth* softSynth = track->getSoftSynth();
-                if (!softSynth) continue;
-                
-                // Clear track buffers
-                std::fill(track_left_.begin(), track_left_.begin() + num_frames, 0.0f);
-                std::fill(track_right_.begin(), track_right_.begin() + num_frames, 0.0f);
-                
-                // Render this track (applies its own volume internally)
-                track->renderAudio(track_left_.data(), track_right_.data(), num_frames);
-                
-                // Apply track's synth DSP blocks if DSP is enabled
-                if (this->enable_dsp_) {
-                    auto it = synth_dsp_blocks_.find(softSynth);
-                    if (it != synth_dsp_blocks_.end()) {
-                        for (NoteNagaDSPBlockBase *block : it->second) {
-                            if (block->isActive()) {
-                                block->process(track_left_.data(), track_right_.data(), num_frames);
+                for (NoteNagaTrack* track : activeSeq->getTracks()) {
+                    if (!track || track->isMuted() || track->isTempoTrack()) continue;
+                    
+                    INoteNagaSoftSynth* softSynth = track->getSoftSynth();
+                    if (!softSynth) continue;
+                    
+                    // Clear track buffers
+                    std::fill(track_left_.begin(), track_left_.begin() + num_frames, 0.0f);
+                    std::fill(track_right_.begin(), track_right_.begin() + num_frames, 0.0f);
+                    
+                    // Render this track (applies its own volume internally)
+                    track->renderAudio(track_left_.data(), track_right_.data(), num_frames);
+                    
+                    // Apply track's synth DSP blocks if DSP is enabled
+                    if (this->enable_dsp_) {
+                        auto it = synth_dsp_blocks_.find(softSynth);
+                        if (it != synth_dsp_blocks_.end()) {
+                            for (NoteNagaDSPBlockBase *block : it->second) {
+                                if (block->isActive()) {
+                                    block->process(track_left_.data(), track_right_.data(), num_frames);
+                                }
                             }
                         }
                     }
-                }
-                
-                // Calculate and store per-track RMS
-                track_rms_values_[track] = calculateTrackRMS(track_left_.data(), track_right_.data(), num_frames);
-                
-                // Add to mix buffers
-                for (size_t i = 0; i < num_frames; i++) {
-                    mix_left_[i] += track_left_[i];
-                    mix_right_[i] += track_right_[i];
-                }
-            }
-        }
-    }
-    
-    // Also render global synths (for backwards compatibility / master synth)
-    for (INoteNagaSoftSynth *synth : this->synths_) {
-        // Clear temporary buffers
-        std::fill(temp_left_.begin(), temp_left_.begin() + num_frames, 0.0f);
-        std::fill(temp_right_.begin(), temp_right_.begin() + num_frames, 0.0f);
-        
-        // Render this synth to temporary buffers
-        synth->renderAudio(temp_left_.data(), temp_right_.data(), num_frames);
-        
-        // Apply synth-specific DSP blocks if DSP is enabled
-        if (this->enable_dsp_) {
-            auto it = synth_dsp_blocks_.find(synth);
-            if (it != synth_dsp_blocks_.end()) {
-                for (NoteNagaDSPBlockBase *block : it->second) {
-                    if (block->isActive()) {
-                        block->process(temp_left_.data(), temp_right_.data(), num_frames);
+                    
+                    // Calculate and store per-track RMS
+                    track_rms_values_[track] = calculateTrackRMS(track_left_.data(), track_right_.data(), num_frames);
+                    
+                    // Add to mix buffers
+                    for (size_t i = 0; i < num_frames; i++) {
+                        mix_left_[i] += track_left_[i];
+                        mix_right_[i] += track_right_[i];
                     }
                 }
             }
-        }
-        
-        // Add to mix buffers
-        for (size_t i = 0; i < num_frames; i++) {
-            mix_left_[i] += temp_left_[i];
-            mix_right_[i] += temp_right_[i];
         }
     }
 
@@ -186,19 +153,6 @@ void NoteNagaDSPEngine::render(float *output, size_t num_frames, bool compute_rm
 void NoteNagaDSPEngine::setEnableDSP(bool enable) {
     std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
     this->enable_dsp_ = enable;
-}
-
-void NoteNagaDSPEngine::addSynth(INoteNagaSoftSynth *synth) {
-    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
-    synths_.push_back(synth);
-}
-
-void NoteNagaDSPEngine::removeSynth(INoteNagaSoftSynth *synth) {
-    std::lock_guard<std::mutex> lock(dsp_engine_mutex_);
-    synths_.erase(std::remove(synths_.begin(), synths_.end(), synth), synths_.end());
-    
-    // Also remove any DSP blocks for this synth
-    synth_dsp_blocks_.erase(synth);
 }
 
 void NoteNagaDSPEngine::addDSPBlock(NoteNagaDSPBlockBase *block) {
@@ -351,6 +305,137 @@ int NoteNagaDSPEngine::sampleToTicks(int64_t sample, int tempo, int ppq) const {
     return static_cast<int>(sample / samplesPerTick);
 }
 
+void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
+    if (!runtime_data_) return;
+    
+    NoteNagaArrangement* arrangement = runtime_data_->getArrangement();
+    if (!arrangement) return;
+    
+    // Check if any arrangement track has solo enabled
+    bool hasSoloTrack = false;
+    for (size_t i = 0; i < arrangement->getTrackCount(); ++i) {
+        NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[i];
+        if (arrTrack && arrTrack->isSolo()) {
+            hasSoloTrack = true;
+            break;
+        }
+    }
+    
+    // First pass: Build a map of synth -> arrangement track
+    // Each synth is assigned to ONE arrangement track (based on which track has clips referencing it)
+    // If multiple arrangement tracks reference the same synth, the first one wins
+    std::map<INoteNagaSoftSynth*, NoteNagaArrangementTrack*> synthToArrTrack;
+    
+    for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
+        NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
+        if (!arrTrack) continue;
+        
+        // Skip muted tracks for ownership (but still allow them to be rendered if another track owns the synth)
+        if (arrTrack->isMuted()) continue;
+        if (hasSoloTrack && !arrTrack->isSolo()) continue;
+        
+        // Iterate ALL clips in this arrangement track (not just active ones)
+        for (const auto& clip : arrTrack->getClips()) {
+            if (clip.muted) continue;
+            
+            NoteNagaMidiSeq* seq = runtime_data_->getSequenceById(clip.sequenceId);
+            if (!seq) continue;
+            
+            for (NoteNagaTrack* midiTrack : seq->getTracks()) {
+                if (!midiTrack || midiTrack->isTempoTrack()) continue;
+                
+                INoteNagaSoftSynth* softSynth = midiTrack->getSoftSynth();
+                if (softSynth && synthToArrTrack.find(softSynth) == synthToArrTrack.end()) {
+                    // First arrangement track to claim this synth
+                    synthToArrTrack[softSynth] = arrTrack;
+                }
+            }
+        }
+    }
+    
+    // Reset RMS for all arrangement tracks first
+    for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
+        NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
+        if (arrTrack) {
+            arr_track_rms_values_[arrTrack] = {-100.0f, -100.0f};
+        }
+    }
+    
+    // Track RMS accumulation per arrangement track
+    std::map<NoteNagaArrangementTrack*, std::pair<float, float>> arrTrackRmsSum;
+    std::map<NoteNagaArrangementTrack*, int> arrTrackSampleCount;
+    
+    // Second pass: Render each synth with its owning arrangement track's volume/pan
+    for (const auto& [synth, arrTrack] : synthToArrTrack) {
+        if (!synth || !arrTrack) continue;
+        
+        // Get arrangement track volume and pan
+        float arrVolume = arrTrack->getVolume();
+        float arrPan = arrTrack->getPan();
+        
+        // Calculate pan gains (constant power)
+        float panAngle = (arrPan + 1.0f) * 0.25f * 3.14159265f; // 0 to pi/2
+        float panL = cosf(panAngle);
+        float panR = sinf(panAngle);
+        
+        // Clear track buffers
+        std::fill(track_left_.begin(), track_left_.begin() + numFrames, 0.0f);
+        std::fill(track_right_.begin(), track_right_.begin() + numFrames, 0.0f);
+        
+        // Render synth directly (no MIDI track volume/pan - we apply arr track settings)
+        synth->renderAudio(track_left_.data(), track_right_.data(), numFrames);
+        
+        // Apply synth-specific DSP blocks if DSP is enabled
+        if (this->enable_dsp_) {
+            auto it = synth_dsp_blocks_.find(synth);
+            if (it != synth_dsp_blocks_.end()) {
+                for (NoteNagaDSPBlockBase *block : it->second) {
+                    if (block->isActive()) {
+                        block->process(track_left_.data(), track_right_.data(), numFrames);
+                    }
+                }
+            }
+        }
+        
+        // Apply arrangement track volume and pan, then add to mix
+        float gainL = arrVolume * panL;
+        float gainR = arrVolume * panR;
+        
+        float sumL = 0.0f, sumR = 0.0f;
+        
+        for (size_t i = 0; i < numFrames; i++) {
+            // Convert stereo to mono for pan processing
+            float mono = (track_left_[i] + track_right_[i]) * 0.5f;
+            float sampleL = mono * gainL;
+            float sampleR = mono * gainR;
+            
+            mix_left_[i] += sampleL;
+            mix_right_[i] += sampleR;
+            
+            // Accumulate for RMS calculation
+            sumL += sampleL * sampleL;
+            sumR += sampleR * sampleR;
+        }
+        
+        // Accumulate RMS for this arrangement track
+        arrTrackRmsSum[arrTrack].first += sumL;
+        arrTrackRmsSum[arrTrack].second += sumR;
+        arrTrackSampleCount[arrTrack] += static_cast<int>(numFrames);
+    }
+    
+    // Calculate and store RMS for each arrangement track
+    for (const auto& [arrTrack, sums] : arrTrackRmsSum) {
+        int count = arrTrackSampleCount[arrTrack];
+        if (count > 0) {
+            float rmsLeft = sqrtf(sums.first / count);
+            float rmsRight = sqrtf(sums.second / count);
+            float dbLeft = (rmsLeft > 0.0f) ? 20.0f * log10f(rmsLeft) : -100.0f;
+            float dbRight = (rmsRight > 0.0f) ? 20.0f * log10f(rmsRight) : -100.0f;
+            arr_track_rms_values_[arrTrack] = {dbLeft, dbRight};
+        }
+    }
+}
+
 void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
     if (!runtime_data_ || playback_mode_ != PlaybackMode::Arrangement) {
         return;
@@ -383,22 +468,6 @@ void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
     NoteNagaAudioManager& audioManager = runtime_data_->getAudioManager();
     
     // DEBUG: Log basic info periodically
-    static int debugCounter = 0;
-    int totalAudioClips = 0;
-    for (size_t i = 0; i < arrangement->getTrackCount(); ++i) {
-        if (arrangement->getTracks()[i]) {
-            totalAudioClips += static_cast<int>(arrangement->getTracks()[i]->getAudioClips().size());
-        }
-    }
-    if (++debugCounter % 500 == 1) {
-        NOTE_NAGA_LOG_INFO("[AudioClip DEBUG] samplePos=" + std::to_string(currentSamplePos) +
-                          " tempo=" + std::to_string(tempo) +
-                          " ppq=" + std::to_string(ppq) +
-                          " tracks=" + std::to_string(arrangement->getTrackCount()) +
-                          " totalAudioClips=" + std::to_string(totalAudioClips) +
-                          " resourceCount=" + std::to_string(audioManager.getResourceCount()));
-    }
-    
     // Check if any track has solo enabled
     bool hasSoloTrack = false;
     for (size_t i = 0; i < arrangement->getTrackCount(); ++i) {
@@ -446,30 +515,12 @@ void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
             // Get audio resource
             NoteNagaAudioResource* resource = audioManager.getResource(clip.audioResourceId);
             
-            // DEBUG: Log clip info
-            if (debugCounter % 500 == 1) {
-                NOTE_NAGA_LOG_INFO("[AudioClip DEBUG] clip id=" + std::to_string(clip.id) +
-                                  " resourceId=" + std::to_string(clip.audioResourceId) +
-                                  " startTick=" + std::to_string(clip.startTick) +
-                                  " durationTicks=" + std::to_string(clip.durationTicks) +
-                                  " resource=" + (resource ? "found" : "NULL") +
-                                  " loaded=" + (resource && resource->isLoaded() ? "yes" : "no"));
-            }
-            
             if (!resource || !resource->isLoaded()) continue;
             
             // Calculate clip's start and end in samples
             int64_t clipStartSample = tickToSamples(clip.startTick, tempo, ppq);
             int64_t clipDurationSamples = tickToSamples(clip.durationTicks, tempo, ppq);
             int64_t clipEndSample = clipStartSample + clipDurationSamples;
-            
-            // DEBUG: Log sample positions
-            if (debugCounter % 500 == 1) {
-                NOTE_NAGA_LOG_INFO("[AudioClip DEBUG] clipStartSample=" + std::to_string(clipStartSample) +
-                                  " clipEndSample=" + std::to_string(clipEndSample) +
-                                  " currentSamplePos=" + std::to_string(currentSamplePos) +
-                                  " inRange=" + ((currentSamplePos >= clipStartSample && currentSamplePos < clipEndSample) ? "YES" : "NO"));
-            }
             
             // Skip if completely outside current render window
             if (currentSamplePos + static_cast<int64_t>(numFrames) <= clipStartSample ||
@@ -510,17 +561,6 @@ void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
             // Get samples from resource (returns number of samples read)
             int gotSamples = resource->getSamples(resourceOffset, static_cast<int>(samplesToRender), 
                                                    clipLeft, clipRight);
-            
-            // DEBUG: Log rendering info
-            if (debugCounter % 500 == 1 || gotSamples > 0) {
-                static int renderLogCounter = 0;
-                if (++renderLogCounter % 500 == 1) {
-                    NOTE_NAGA_LOG_INFO("[AudioClip DEBUG] RENDERING! resourceOffset=" + std::to_string(resourceOffset) +
-                                      " samplesToRender=" + std::to_string(samplesToRender) +
-                                      " gotSamples=" + std::to_string(gotSamples) +
-                                      " bufferOffset=" + std::to_string(bufferOffset));
-                }
-            }
             
             // Apply clip gain, track volume, and pan, then add to mix
             float combinedGain = clip.gain * trackVolume;

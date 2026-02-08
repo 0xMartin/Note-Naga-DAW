@@ -71,8 +71,5 @@ private slots:
     void removeAllDSPClicked();
     void toggleDSPEnabled();
     void onSynthesizerSelected(int index);
-    void onSynthAdded(NoteNagaSynthesizer *synth);
-    void onSynthRemoved(NoteNagaSynthesizer *synth);
-    void onSynthUpdated(NoteNagaSynthesizer *synth);
     void updateSynthesizerSelector();
 };

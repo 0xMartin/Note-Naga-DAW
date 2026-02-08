@@ -22,13 +22,8 @@ DSPEngineWidget::DSPEngineWidget(NoteNagaEngine *engine, QWidget *parent)
     // Ensure widget fills available space
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
-    // Connect to synthesizer signals
+    // Connect to runtime data for sequence/track changes (synth per track)
 #ifndef QT_DEACTIVATED
-    connect(engine, &NoteNagaEngine::synthAdded, this, &DSPEngineWidget::onSynthAdded);
-    connect(engine, &NoteNagaEngine::synthRemoved, this, &DSPEngineWidget::onSynthRemoved);
-    connect(engine, &NoteNagaEngine::synthUpdated, this, &DSPEngineWidget::onSynthUpdated);
-    
-    // Connect to runtime data for sequence/track changes
     if (auto* runtimeData = engine->getRuntimeData()) {
         connect(runtimeData, &NoteNagaRuntimeData::activeSequenceChanged, 
                 this, [this](NoteNagaMidiSeq*) { 
@@ -154,22 +149,6 @@ void DSPEngineWidget::onSynthesizerSelected(int index) {
     
     // Update UI
     refreshDSPWidgets();
-}
-
-void DSPEngineWidget::onSynthAdded(NoteNagaSynthesizer *synth) {
-    updateSynthesizerSelector();
-}
-
-void DSPEngineWidget::onSynthRemoved(NoteNagaSynthesizer *synth) {
-    // If removed synth is selected, switch to master
-    if (current_synth && dynamic_cast<NoteNagaSynthesizer*>(current_synth) == synth) {
-        synth_selector->setCurrentIndex(0); // Master
-    }
-    updateSynthesizerSelector();
-}
-
-void DSPEngineWidget::onSynthUpdated(NoteNagaSynthesizer *synth) {
-    updateSynthesizerSelector();
 }
 
 void DSPEngineWidget::clearDSPWidgets() {
@@ -469,8 +448,8 @@ void DSPEngineWidget::contextMenuEvent(QContextMenuEvent *event)
         synth_selector->setCurrentIndex(0);
     });
     
-    // Add available synthesizers
-    int synthCount = static_cast<int>(engine->getSynthesizers().size()) + 1;  // +1 for Master
+    // Add available synthesizers from combo box (tracks)
+    int synthCount = synth_selector->count();  // All items including Master
     for (int i = 1; i < synthCount; ++i) {
         QString synthName = synth_selector->itemText(i);
         QAction *synthAction = targetMenu->addAction(synthName);

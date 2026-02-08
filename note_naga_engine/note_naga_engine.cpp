@@ -39,11 +39,6 @@ NoteNagaEngine::~NoteNagaEngine() {
         playback_worker = nullptr;
     }
 
-    // Global synthesizers (for master DSP) - track synths are deleted with tracks
-    for (auto *synth : this->synthesizers) {
-        delete synth;
-    }
-
     if (runtime_data) {
         delete runtime_data;
         runtime_data = nullptr;
@@ -180,15 +175,8 @@ bool NoteNagaEngine::stopPlayback() {
         stopped = playback_worker->stop();
     }
     
-    // ALWAYS stop all notes on ALL synthesizers directly
+    // Stop all notes on all track synthesizers
     // This ensures no hanging notes even in arrangement mode with multiple clips
-    for (NoteNagaSynthesizer *synth : synthesizers) {
-        if (synth) {
-            synth->stopAllNotes();  // Stop all notes on all channels
-        }
-    }
-    
-    // Also iterate all sequences/tracks to clear their playing notes state
     if (runtime_data) {
         for (NoteNagaMidiSeq *seq : runtime_data->getSequences()) {
             if (seq) {
@@ -291,32 +279,6 @@ void NoteNagaEngine::enableLooping(bool enabled) {
         playback_worker->enableLooping(enabled);
     } else {
         NOTE_NAGA_LOG_ERROR("Failed to enable looping: Playback worker is not initialized");
-    }
-}
-
-/*******************************************************************************************************/
-// Synthesizer Control (Global/Master synths for backwards compatibility)
-/*******************************************************************************************************/
-
-void NoteNagaEngine::addSynthesizer(NoteNagaSynthesizer *synth) {
-#ifndef QT_DEACTIVATED
-    connect(synth, &NoteNagaSynthesizer::synthUpdated, this, &NoteNagaEngine::synthUpdated);
-#endif
-    this->synthesizers.push_back(synth);
-    if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
-        this->dsp_engine->addSynth(softSynth);
-    }
-    NN_QT_EMIT(this->synthAdded(synth));
-}
-
-void NoteNagaEngine::removeSynthesizer(NoteNagaSynthesizer *synth) {
-    auto it = std::find(this->synthesizers.begin(), this->synthesizers.end(), synth);
-    if (it != this->synthesizers.end()) {
-        this->synthesizers.erase(it);
-        if (auto *softSynth = dynamic_cast<INoteNagaSoftSynth *>(synth)) {
-            this->dsp_engine->removeSynth(softSynth);
-            NN_QT_EMIT(this->synthRemoved(synth));
-        }
     }
 }
 

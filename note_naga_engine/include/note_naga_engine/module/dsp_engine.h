@@ -17,8 +17,8 @@
 
 /** 
  * @brief NoteNagaDSPEngine is the main DSP engine for the Note Naga project.
- * It manages audio rendering, synthesizers, and the metronome.
- * It provides methods to add/remove synthesizers and render audio blocks.
+ * It manages audio rendering, DSP blocks, and the metronome.
+ * Track synthesizers are managed per-track, not globally.
  */
 class NOTE_NAGA_ENGINE_API NoteNagaDSPEngine {
 public:
@@ -40,20 +40,6 @@ public:
      * @param compute_rms Whether to compute RMS levels for volume metering.
      */
     void render(float *output, size_t num_frames, bool compute_rms = true);
-
-    /**
-     * @brief Add a synthesizer to the DSP engine.
-     * 
-     * @param synth Pointer to the synthesizer to add.
-     */
-    void addSynth(INoteNagaSoftSynth *synth);
-
-    /**
-     * @brief Remove a synthesizer from the DSP engine.
-     * 
-     * @param synth Pointer to the synthesizer to remove.
-     */
-    void removeSynth(INoteNagaSoftSynth *synth);
 
     /**
      * @brief Add a DSP block to the master channel.
@@ -130,13 +116,6 @@ public:
      * @return True if DSP is enabled, false otherwise.
      */
     bool isDSPEnabled() const { return enable_dsp_; }
-
-    /**
-     * @brief Get all synthesizers managed by this DSP engine.
-     * 
-     * @return std::vector<INoteNagaSoftSynth*> List of synthesizers.
-     */
-    std::vector<INoteNagaSoftSynth*> getAllSynths() const { return synths_; }
 
     /**
      * @brief Set the runtime data for track-based rendering.
@@ -284,7 +263,6 @@ public:
 
 private:
     std::mutex dsp_engine_mutex_;
-    std::vector<INoteNagaSoftSynth*> synths_;
     std::vector<NoteNagaDSPBlockBase*> dsp_blocks_;
     
     // Mapping from synth to its DSP blocks (for per-track synths)
@@ -322,6 +300,13 @@ private:
     
     void calculateRMS(float *left, float *right, size_t numFrames);
     std::pair<float, float> calculateTrackRMS(float *left, float *right, size_t numFrames);
+    
+    /**
+     * @brief Render MIDI tracks based on arrangement tracks with their volume/pan settings.
+     * In Arrangement mode, each arrangement track's clips determine which synths to render.
+     * @param numFrames Number of frames to render.
+     */
+    void renderArrangementTracks(size_t numFrames);
     
     /**
      * @brief Render audio clips from arrangement tracks into the mix buffers.

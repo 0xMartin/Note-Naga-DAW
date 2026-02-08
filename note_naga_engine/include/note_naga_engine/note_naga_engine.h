@@ -152,28 +152,6 @@ public:
     void enableLooping(bool enabled);
 
     /*******************************************************************************************************/
-    // Synthesizer Control
-    /*******************************************************************************************************/
-
-    /**
-     * @brief Gets the list of available synthesizers.
-     * @return Vector of pointers to NoteNagaSynthesizer instances.
-     */
-    std::vector<NoteNagaSynthesizer *> getSynthesizers() { return this->synthesizers; }
-
-    /**
-     * @brief Adds a synthesizer to the engine.
-     * @param synth Pointer to the NoteNagaSynthesizer to add.
-     */
-    void addSynthesizer(NoteNagaSynthesizer *synth);
-
-    /**
-     * @brief Removes a synthesizer from the engine.
-     * @param synth Pointer to the NoteNagaSynthesizer to remove.
-     */
-    void removeSynthesizer(NoteNagaSynthesizer *synth);
-
-    /*******************************************************************************************************/
     // DSP Engine Control
     /*******************************************************************************************************/
 
@@ -254,21 +232,6 @@ Q_SIGNALS:
     void playbackStopped();
 
     /**
-     * @brief Signal emitted when a synthesizer is added.
-     */
-    void synthAdded(NoteNagaSynthesizer *synth);
-
-    /**
-     * @brief Signal emitted when a synthesizer is removed.
-     */
-    void synthRemoved(NoteNagaSynthesizer *synth);
-
-    /**
-     * @brief Signal emitted when a synthesizer is updated.
-     */
-    void synthUpdated(NoteNagaSynthesizer *synth);
-
-    /**
      * @brief Signal emitted when a note is played (from single note or playback).
      * @param note The note that was played.
      */
@@ -283,5 +246,4 @@ protected:
     NoteNagaSpectrumAnalyzer *spectrum_analyzer;     ///< Pointer to the spectrum analyzer instance
     NoteNagaPanAnalyzer *pan_analyzer;               ///< Pointer to the pan analyzer instance
     NoteNagaMetronome *metronome;                    ///< Pointer to the metronome instance
-    std::vector<NoteNagaSynthesizer *> synthesizers; ///< List of global synthesizers (for master DSP)
 };

@@ -67,6 +67,8 @@
     <file>icons/arrow-down.svg</file>
     <file>icons/playback-sequence.svg</file>
     <file>icons/playback-compose.svg</file>
+    <file>icons/magnet.svg</file>
+    <file>icons/chevron-down.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>
