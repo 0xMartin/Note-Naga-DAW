@@ -157,7 +157,7 @@ private:
     // Hit testing
     NN_MidiClip_t* clipAtPosition(const QPoint &pos, int &outTrackIndex);
     NN_AudioClip_t* audioClipAtPosition(const QPoint &pos, int &outTrackIndex);
-    enum HitZone { NoHit, BodyHit, LeftEdgeHit, RightEdgeHit };
+    enum HitZone { NoHit, BodyHit, LeftEdgeHit, RightEdgeHit, FadeInHit, FadeOutHit };
     HitZone hitTestClip(NN_MidiClip_t *clip, int trackIndex, const QPoint &pos);
     HitZone hitTestAudioClip(NN_AudioClip_t *clip, int trackIndex, const QPoint &pos);
     
@@ -165,6 +165,8 @@ private:
     void drawTrackHeaders(QPainter &painter);
     void drawTrackLanes(QPainter &painter);
     void drawClips(QPainter &painter);
+    void drawClipFades(QPainter &painter, const QRect &clipRect,
+                       int fadeInTicks, int fadeOutTicks, int durationTicks);
     void drawAudioClipWaveform(QPainter &painter, const QRect &clipRect, 
                                NoteNagaAudioResource *resource, const NN_AudioClip_t &audioClip,
                                const QColor &color);
@@ -187,6 +189,11 @@ private:
     void drawPastePreview(QPainter &painter);
     void drawForbiddenZones(QPainter &painter);
     int getActiveSequenceIdForDrag() const;
+    
+    // Clip editing operations
+    void splitClipAtPlayhead();
+    void showFadeDialog(bool isFadeIn);
+    void clearClipFades();
 
     NoteNagaEngine *m_engine;
     UndoManager *m_undoManager = nullptr;
@@ -212,7 +219,9 @@ private:
     
     // Interaction state
     enum InteractionMode { None, Selecting, MovingClip, ResizingClipLeft, ResizingClipRight, PastingClips,
-                           MovingAudioClip, ResizingAudioClipLeft, ResizingAudioClipRight };
+                           MovingAudioClip, ResizingAudioClipLeft, ResizingAudioClipRight,
+                           AdjustingFadeIn, AdjustingFadeOut,
+                           AdjustingAudioFadeIn, AdjustingAudioFadeOut };
     InteractionMode m_interactionMode = None;
     QPoint m_dragStartPos;
     int64_t m_dragStartTick = 0;
@@ -221,6 +230,9 @@ private:
     int m_dragTrackIndex = -1;
     int64_t m_originalClipStart = 0;
     int64_t m_originalClipDuration = 0;
+    int64_t m_originalOffsetTicks = 0;  // For audio clip left resize (waveform offset)
+    int64_t m_originalFadeInTicks = 0;  // For fade adjustment
+    int64_t m_originalFadeOutTicks = 0; // For fade adjustment
     QRect m_selectionRect;
     
     // Multi-clip movement: store original positions for all selected clips

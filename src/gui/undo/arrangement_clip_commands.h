@@ -232,8 +232,8 @@ private:
 class ResizeAudioClipCommand : public ArrangementClipCommandBase {
 public:
     ResizeAudioClipCommand(ArrangementTimelineWidget *timeline, int clipId,
-                           int64_t oldStartTick, int64_t oldDuration,
-                           int64_t newStartTick, int64_t newDuration,
+                           int64_t oldStartTick, int64_t oldDuration, int64_t oldOffsetTicks,
+                           int64_t newStartTick, int64_t newDuration, int64_t newOffsetTicks,
                            int resourceId = -1);
     
     void execute() override;
@@ -245,8 +245,10 @@ private:
     int m_clipId;
     int64_t m_oldStartTick;
     int64_t m_oldDuration;
+    int64_t m_oldOffsetTicks;
     int64_t m_newStartTick;
     int64_t m_newDuration;
+    int64_t m_newOffsetTicks;
     int m_resourceId = -1;
 };
 
@@ -287,4 +289,104 @@ private:
     float m_pan = 0.0f;
     QList<NN_MidiClip_t> m_midiClips;
     QList<NN_AudioClip_t> m_audioClips;
+};
+
+/**
+ * @brief Command for changing fade in/out on a MIDI clip.
+ */
+class ChangeMidiClipFadeCommand : public ArrangementClipCommandBase {
+public:
+    ChangeMidiClipFadeCommand(ArrangementTimelineWidget *timeline, int clipId,
+                              int oldFadeIn, int oldFadeOut,
+                              int newFadeIn, int newFadeOut,
+                              int sequenceId = -1);
+    
+    void execute() override;
+    void undo() override;
+    QString description() const override { return QObject::tr("Change Fade"); }
+    bool isValid() const override;
+    
+private:
+    int m_clipId;
+    int m_oldFadeIn;
+    int m_oldFadeOut;
+    int m_newFadeIn;
+    int m_newFadeOut;
+    int m_sequenceId;
+};
+
+/**
+ * @brief Command for changing fade in/out on an audio clip.
+ */
+class ChangeAudioClipFadeCommand : public ArrangementClipCommandBase {
+public:
+    ChangeAudioClipFadeCommand(ArrangementTimelineWidget *timeline, int clipId,
+                               int oldFadeIn, int oldFadeOut,
+                               int newFadeIn, int newFadeOut,
+                               int resourceId = -1);
+    
+    void execute() override;
+    void undo() override;
+    QString description() const override { return QObject::tr("Change Fade"); }
+    bool isValid() const override;
+    
+private:
+    int m_clipId;
+    int m_oldFadeIn;
+    int m_oldFadeOut;
+    int m_newFadeIn;
+    int m_newFadeOut;
+    int m_resourceId;
+};
+
+/**
+ * @brief Command for cutting (splitting) an audio clip at a specific position.
+ */
+class CutAudioClipCommand : public ArrangementClipCommandBase {
+public:
+    CutAudioClipCommand(ArrangementTimelineWidget *timeline, int clipId, 
+                        int trackIndex, int64_t cutTick, int resourceId = -1);
+    
+    void execute() override;
+    void undo() override;
+    QString description() const override { return QObject::tr("Cut Audio Clip"); }
+    bool isValid() const override;
+    
+private:
+    int m_originalClipId;
+    int m_trackIndex;
+    int64_t m_cutTick;
+    int m_resourceId;
+    
+    // Original clip state for undo
+    NN_AudioClip_t m_originalClip;
+    
+    // Created second clip ID (for undo)
+    int m_secondClipId = -1;
+};
+
+/**
+ * @brief Command for cutting (splitting) a MIDI clip at a specific position.
+ */
+class CutMidiClipCommand : public ArrangementClipCommandBase {
+public:
+    CutMidiClipCommand(ArrangementTimelineWidget *timeline, int clipId, 
+                       int trackIndex, int64_t cutTick, int sequenceId = -1);
+    
+    void execute() override;
+    void undo() override;
+    QString description() const override { return QObject::tr("Cut Clip"); }
+    bool isValid() const override;
+    
+private:
+    int m_originalClipId;
+    int m_trackIndex;
+    int64_t m_cutTick;
+    int m_sequenceId;
+    
+    // Original clip state for undo
+    NN_MidiClip_t m_originalClip;
+    
+    // Created second clip ID (for undo)
+    int m_secondClipId = -1;
 };

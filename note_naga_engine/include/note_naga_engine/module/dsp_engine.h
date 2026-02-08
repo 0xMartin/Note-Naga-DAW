@@ -298,6 +298,10 @@ private:
     std::atomic<bool> audioPlaybackActive_{false}; ///< True when playback is active
     std::vector<float> audioClipBuffer_; ///< Temporary buffer for audio clip samples
     
+    /// Track fade out state for synths that played clips with fade out
+    /// Maps synth to (clipEndSample, fadeOutSamples) for continuing fade after clip ends
+    std::map<INoteNagaSoftSynth*, std::pair<int64_t, int64_t>> synthFadeOutState_;
+    
     void calculateRMS(float *left, float *right, size_t numFrames);
     std::pair<float, float> calculateTrackRMS(float *left, float *right, size_t numFrames);
     

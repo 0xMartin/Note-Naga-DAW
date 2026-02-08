@@ -619,15 +619,17 @@ bool MoveAudioClipsCommand::isValid() const
 // ==== ResizeAudioClipCommand ====
 
 ResizeAudioClipCommand::ResizeAudioClipCommand(ArrangementTimelineWidget *timeline, int clipId,
-                                               int64_t oldStartTick, int64_t oldDuration,
-                                               int64_t newStartTick, int64_t newDuration,
+                                               int64_t oldStartTick, int64_t oldDuration, int64_t oldOffsetTicks,
+                                               int64_t newStartTick, int64_t newDuration, int64_t newOffsetTicks,
                                                int resourceId)
     : ArrangementClipCommandBase(timeline)
     , m_clipId(clipId)
     , m_oldStartTick(oldStartTick)
     , m_oldDuration(oldDuration)
+    , m_oldOffsetTicks(oldOffsetTicks)
     , m_newStartTick(newStartTick)
     , m_newDuration(newDuration)
+    , m_newOffsetTicks(newOffsetTicks)
     , m_resourceId(resourceId)
 {
 }
@@ -643,6 +645,7 @@ void ResizeAudioClipCommand::execute()
             if (clip.id == m_clipId) {
                 clip.startTick = m_newStartTick;
                 clip.durationTicks = m_newDuration;
+                clip.offsetTicks = m_newOffsetTicks;
                 arr->updateMaxTick();
                 refreshTimeline();
                 return;
@@ -662,6 +665,7 @@ void ResizeAudioClipCommand::undo()
             if (clip.id == m_clipId) {
                 clip.startTick = m_oldStartTick;
                 clip.durationTicks = m_oldDuration;
+                clip.offsetTicks = m_oldOffsetTicks;
                 arr->updateMaxTick();
                 refreshTimeline();
                 return;
@@ -778,4 +782,320 @@ void DeleteTrackCommand::undo()
     
     arr->updateMaxTick();
     refreshTimeline();
+}
+
+// ==== ChangeMidiClipFadeCommand ====
+
+ChangeMidiClipFadeCommand::ChangeMidiClipFadeCommand(ArrangementTimelineWidget *timeline, int clipId,
+                                                     int oldFadeIn, int oldFadeOut,
+                                                     int newFadeIn, int newFadeOut,
+                                                     int sequenceId)
+    : ArrangementClipCommandBase(timeline)
+    , m_clipId(clipId)
+    , m_oldFadeIn(oldFadeIn)
+    , m_oldFadeOut(oldFadeOut)
+    , m_newFadeIn(newFadeIn)
+    , m_newFadeOut(newFadeOut)
+    , m_sequenceId(sequenceId)
+{
+}
+
+void ChangeMidiClipFadeCommand::execute()
+{
+    NoteNagaArrangement *arr = getArrangement();
+    if (!arr) return;
+    
+    for (auto *track : arr->getTracks()) {
+        if (!track) continue;
+        for (auto &clip : track->getClips()) {
+            if (clip.id == m_clipId) {
+                clip.fadeInTicks = m_newFadeIn;
+                clip.fadeOutTicks = m_newFadeOut;
+                refreshTimeline();
+                return;
+            }
+        }
+    }
+}
+
+void ChangeMidiClipFadeCommand::undo()
+{
+    NoteNagaArrangement *arr = getArrangement();
+    if (!arr) return;
+    
+    for (auto *track : arr->getTracks()) {
+        if (!track) continue;
+        for (auto &clip : track->getClips()) {
+            if (clip.id == m_clipId) {
+                clip.fadeInTicks = m_oldFadeIn;
+                clip.fadeOutTicks = m_oldFadeOut;
+                refreshTimeline();
+                return;
+            }
+        }
+    }
+}
+
+bool ChangeMidiClipFadeCommand::isValid() const
+{
+    if (m_sequenceId < 0) return true;
+    return sequenceExists(m_sequenceId);
+}
+
+// ==== ChangeAudioClipFadeCommand ====
+
+ChangeAudioClipFadeCommand::ChangeAudioClipFadeCommand(ArrangementTimelineWidget *timeline, int clipId,
+                                                       int oldFadeIn, int oldFadeOut,
+                                                       int newFadeIn, int newFadeOut,
+                                                       int resourceId)
+    : ArrangementClipCommandBase(timeline)
+    , m_clipId(clipId)
+    , m_oldFadeIn(oldFadeIn)
+    , m_oldFadeOut(oldFadeOut)
+    , m_newFadeIn(newFadeIn)
+    , m_newFadeOut(newFadeOut)
+    , m_resourceId(resourceId)
+{
+}
+
+void ChangeAudioClipFadeCommand::execute()
+{
+    NoteNagaArrangement *arr = getArrangement();
+    if (!arr) return;
+    
+    for (auto *track : arr->getTracks()) {
+        if (!track) continue;
+        for (auto &clip : track->getAudioClips()) {
+            if (clip.id == m_clipId) {
+                clip.fadeInTicks = m_newFadeIn;
+                clip.fadeOutTicks = m_newFadeOut;
+                refreshTimeline();
+                return;
+            }
+        }
+    }
+}
+
+void ChangeAudioClipFadeCommand::undo()
+{
+    NoteNagaArrangement *arr = getArrangement();
+    if (!arr) return;
+    
+    for (auto *track : arr->getTracks()) {
+        if (!track) continue;
+        for (auto &clip : track->getAudioClips()) {
+            if (clip.id == m_clipId) {
+                clip.fadeInTicks = m_oldFadeIn;
+                clip.fadeOutTicks = m_oldFadeOut;
+                refreshTimeline();
+                return;
+            }
+        }
+    }
+}
+
+bool ChangeAudioClipFadeCommand::isValid() const
+{
+    if (m_resourceId < 0) return true;
+    return audioResourceExists(m_resourceId);
+}
+
+// ==== CutAudioClipCommand ====
+
+CutAudioClipCommand::CutAudioClipCommand(ArrangementTimelineWidget *timeline, int clipId,
+                                         int trackIndex, int64_t cutTick, int resourceId)
+    : ArrangementClipCommandBase(timeline)
+    , m_originalClipId(clipId)
+    , m_trackIndex(trackIndex)
+    , m_cutTick(cutTick)
+    , m_resourceId(resourceId)
+{
+}
+
+void CutAudioClipCommand::execute()
+{
+    NoteNagaArrangement *arr = getArrangement();
+    if (!arr) return;
+    
+    if (m_trackIndex < 0 || m_trackIndex >= static_cast<int>(arr->getTrackCount())) return;
+    
+    NoteNagaArrangementTrack *track = arr->getTracks()[m_trackIndex];
+    if (!track) return;
+    
+    // Find the clip
+    NN_AudioClip_t *clip = nullptr;
+    for (auto &c : track->getAudioClips()) {
+        if (c.id == m_originalClipId) {
+            clip = &c;
+            break;
+        }
+    }
+    
+    if (!clip) return;
+    
+    // Save original clip for undo
+    m_originalClip = *clip;
+    
+    // Calculate split position
+    int64_t localCutTick = m_cutTick - clip->startTick;
+    if (localCutTick <= 0 || localCutTick >= clip->durationTicks) return;
+    
+    // Create second clip
+    NN_AudioClip_t secondClip;
+    secondClip.id = nn_generate_unique_clip_id();
+    secondClip.audioResourceId = clip->audioResourceId;
+    secondClip.startTick = m_cutTick;
+    secondClip.durationTicks = clip->durationTicks - localCutTick;
+    secondClip.offsetTicks = clip->offsetTicks + localCutTick;
+    secondClip.offsetSamples = clip->offsetSamples;  // Will be calculated from offsetTicks
+    secondClip.clipLengthSamples = clip->clipLengthSamples;
+    secondClip.muted = clip->muted;
+    secondClip.looping = clip->looping;
+    secondClip.gain = clip->gain;
+    secondClip.fadeInTicks = 0;
+    secondClip.fadeOutTicks = clip->fadeOutTicks;
+    
+    m_secondClipId = secondClip.id;
+    
+    // Modify first clip
+    clip->durationTicks = localCutTick;
+    clip->fadeOutTicks = 0;
+    
+    // Add second clip
+    track->addAudioClip(secondClip);
+    
+    arr->updateMaxTick();
+    refreshTimeline();
+}
+
+void CutAudioClipCommand::undo()
+{
+    NoteNagaArrangement *arr = getArrangement();
+    if (!arr) return;
+    
+    if (m_trackIndex < 0 || m_trackIndex >= static_cast<int>(arr->getTrackCount())) return;
+    
+    NoteNagaArrangementTrack *track = arr->getTracks()[m_trackIndex];
+    if (!track) return;
+    
+    // Remove second clip
+    if (m_secondClipId >= 0) {
+        track->removeAudioClip(m_secondClipId);
+    }
+    
+    // Restore original clip
+    for (auto &c : track->getAudioClips()) {
+        if (c.id == m_originalClipId) {
+            c = m_originalClip;
+            break;
+        }
+    }
+    
+    arr->updateMaxTick();
+    refreshTimeline();
+}
+
+bool CutAudioClipCommand::isValid() const
+{
+    if (m_resourceId < 0) return true;
+    return audioResourceExists(m_resourceId);
+}
+
+// ==== CutMidiClipCommand ====
+
+CutMidiClipCommand::CutMidiClipCommand(ArrangementTimelineWidget *timeline, int clipId,
+                                       int trackIndex, int64_t cutTick, int sequenceId)
+    : ArrangementClipCommandBase(timeline)
+    , m_originalClipId(clipId)
+    , m_trackIndex(trackIndex)
+    , m_cutTick(cutTick)
+    , m_sequenceId(sequenceId)
+{
+}
+
+void CutMidiClipCommand::execute()
+{
+    NoteNagaArrangement *arr = getArrangement();
+    if (!arr) return;
+    
+    if (m_trackIndex < 0 || m_trackIndex >= static_cast<int>(arr->getTrackCount())) return;
+    
+    NoteNagaArrangementTrack *track = arr->getTracks()[m_trackIndex];
+    if (!track) return;
+    
+    // Find the clip
+    NN_MidiClip_t *clip = nullptr;
+    for (auto &c : track->getClips()) {
+        if (c.id == m_originalClipId) {
+            clip = &c;
+            break;
+        }
+    }
+    
+    if (!clip) return;
+    
+    // Save original clip for undo
+    m_originalClip = *clip;
+    
+    // Calculate split position
+    int64_t localCutTick = m_cutTick - clip->startTick;
+    if (localCutTick <= 0 || localCutTick >= clip->durationTicks) return;
+    
+    // Create second clip
+    NN_MidiClip_t secondClip;
+    secondClip.id = nn_generate_unique_clip_id();
+    secondClip.sequenceId = clip->sequenceId;
+    secondClip.startTick = m_cutTick;
+    secondClip.durationTicks = clip->durationTicks - localCutTick;
+    secondClip.offsetTicks = clip->offsetTicks + localCutTick;
+    secondClip.muted = clip->muted;
+    secondClip.name = clip->name;
+    secondClip.color = clip->color;
+    secondClip.fadeInTicks = 0;
+    secondClip.fadeOutTicks = clip->fadeOutTicks;
+    
+    m_secondClipId = secondClip.id;
+    
+    // Modify first clip
+    clip->durationTicks = localCutTick;
+    clip->fadeOutTicks = 0;
+    
+    // Add second clip
+    track->addClip(secondClip);
+    
+    arr->updateMaxTick();
+    refreshTimeline();
+}
+
+void CutMidiClipCommand::undo()
+{
+    NoteNagaArrangement *arr = getArrangement();
+    if (!arr) return;
+    
+    if (m_trackIndex < 0 || m_trackIndex >= static_cast<int>(arr->getTrackCount())) return;
+    
+    NoteNagaArrangementTrack *track = arr->getTracks()[m_trackIndex];
+    if (!track) return;
+    
+    // Remove second clip
+    if (m_secondClipId >= 0) {
+        track->removeClip(m_secondClipId);
+    }
+    
+    // Restore original clip
+    for (auto &c : track->getClips()) {
+        if (c.id == m_originalClipId) {
+            c = m_originalClip;
+            break;
+        }
+    }
+    
+    arr->updateMaxTick();
+    refreshTimeline();
+}
+
+bool CutMidiClipCommand::isValid() const
+{
+    if (m_sequenceId < 0) return true;
+    return sequenceExists(m_sequenceId);
 }

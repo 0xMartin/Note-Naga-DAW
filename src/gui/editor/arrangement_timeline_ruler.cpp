@@ -308,16 +308,7 @@ void ArrangementTimelineRuler::mousePressEvent(QMouseEvent *event)
                 setCursor(Qt::SizeHorCursor);
                 return;
             }
-            
-            // Check if inside loop region (drag entire loop)
-            if (x > loopStartX + 6 && x < loopEndX - 6) {
-                m_dragMode = DragLoopBody;
-                m_dragStartX = x;
-                m_dragStartLoopStart = m_loopStartTick;
-                m_dragStartLoopEnd = m_loopEndTick;
-                setCursor(Qt::SizeAllCursor);
-                return;
-            }
+            // Loop body clicking now falls through to regular seek
         }
         
         // Regular seek
@@ -339,8 +330,6 @@ void ArrangementTimelineRuler::mouseMoveEvent(QMouseEvent *event)
         
         if (qAbs(x - loopStartX) < 6 || qAbs(x - loopEndX) < 6) {
             setCursor(Qt::SizeHorCursor);
-        } else if (x > loopStartX + 6 && x < loopEndX - 6) {
-            setCursor(Qt::SizeAllCursor);
         } else {
             setCursor(Qt::PointingHandCursor);
         }

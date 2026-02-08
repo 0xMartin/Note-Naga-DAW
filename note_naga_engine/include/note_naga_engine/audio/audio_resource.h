@@ -35,7 +35,10 @@ struct NOTE_NAGA_ENGINE_API NN_AudioClip_t {
     int startTick = 0;              ///< Start position in arrangement (ticks)
     int durationTicks = 0;          ///< Duration in ticks
     int offsetSamples = 0;          ///< Offset into audio file (samples)
+    int offsetTicks = 0;            ///< Offset into audio file (ticks) - for waveform display
     int clipLengthSamples = 0;      ///< Length of clip in samples (for looping calculation)
+    int fadeInTicks = 0;            ///< Fade in duration in ticks
+    int fadeOutTicks = 0;           ///< Fade out duration in ticks
     bool muted = false;             ///< Mute state
     bool looping = false;           ///< Enable looping within clip duration
     float gain = 1.0f;              ///< Clip-specific gain (0.0 - 1.0)

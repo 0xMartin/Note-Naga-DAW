@@ -892,6 +892,8 @@ void NoteNagaProjectSerializer::serializeMidiClip(std::ofstream &out, const NN_M
     writeInt32(out, clip.startTick);
     writeInt32(out, clip.durationTicks);
     writeInt32(out, clip.offsetTicks);
+    writeInt32(out, clip.fadeInTicks);
+    writeInt32(out, clip.fadeOutTicks);
     writeBool(out, clip.muted);
     writeString(out, clip.name);
     
@@ -908,6 +910,8 @@ bool NoteNagaProjectSerializer::deserializeMidiClip(std::ifstream &in, NN_MidiCl
     clip.startTick = readInt32(in);
     clip.durationTicks = readInt32(in);
     clip.offsetTicks = readInt32(in);
+    clip.fadeInTicks = readInt32(in);
+    clip.fadeOutTicks = readInt32(in);
     clip.muted = readBool(in);
     clip.name = readString(in);
     
@@ -985,7 +989,10 @@ void NoteNagaProjectSerializer::serializeAudioClip(std::ofstream &out, const NN_
     writeInt32(out, clip.startTick);
     writeInt32(out, clip.durationTicks);
     writeInt32(out, clip.offsetSamples);
+    writeInt32(out, clip.offsetTicks);
     writeInt32(out, clip.clipLengthSamples);
+    writeInt32(out, clip.fadeInTicks);
+    writeInt32(out, clip.fadeOutTicks);
     writeBool(out, clip.muted);
     writeBool(out, clip.looping);
     writeFloat(out, clip.gain);
@@ -998,7 +1005,10 @@ bool NoteNagaProjectSerializer::deserializeAudioClip(std::ifstream &in, NN_Audio
     clip.startTick = readInt32(in);
     clip.durationTicks = readInt32(in);
     clip.offsetSamples = readInt32(in);
+    clip.offsetTicks = readInt32(in);
     clip.clipLengthSamples = readInt32(in);
+    clip.fadeInTicks = readInt32(in);
+    clip.fadeOutTicks = readInt32(in);
     clip.muted = readBool(in);
     clip.looping = readBool(in);
     clip.gain = readFloat(in);

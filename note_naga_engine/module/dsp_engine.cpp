@@ -287,6 +287,9 @@ void NoteNagaDSPEngine::resetAllBlocks() {
     
     // Reset audio sample position
     audioSamplePosition_.store(0, std::memory_order_relaxed);
+    
+    // Clear fade out tracking state
+    synthFadeOutState_.clear();
 }
 
 int64_t NoteNagaDSPEngine::tickToSamples(int tick, int tempo, int ppq) const {
@@ -326,6 +329,7 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
     // Build a map of synth -> arrangement track based on ACTIVE clips at current tick
     // This ensures the synth uses the volume/pan of the track where the clip is currently playing
     std::map<INoteNagaSoftSynth*, NoteNagaArrangementTrack*> synthToArrTrack;
+    std::map<INoteNagaSoftSynth*, const NN_MidiClip_t*> synthToClip;  // For fade in/out
     
     for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
         NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
@@ -350,6 +354,7 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
                 if (softSynth) {
                     // Override previous assignment - the currently active clip wins
                     synthToArrTrack[softSynth] = arrTrack;
+                    synthToClip[softSynth] = clip;
                 }
             }
         }
@@ -387,9 +392,14 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
         
         // Find the arrangement track for this synth (if any)
         NoteNagaArrangementTrack* arrTrack = nullptr;
+        const NN_MidiClip_t* activeClip = nullptr;
         auto it = synthToArrTrack.find(synth);
         if (it != synthToArrTrack.end()) {
             arrTrack = it->second;
+        }
+        auto clipIt = synthToClip.find(synth);
+        if (clipIt != synthToClip.end()) {
+            activeClip = clipIt->second;
         }
         
         // Default volume/pan if no arrangement track owns this synth
@@ -430,10 +440,69 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
         // Pan crossfeed: pan affects how much of each channel goes to L/R output
         float sumL = 0.0f, sumR = 0.0f;
         
+        // Calculate fade parameters for MIDI clip (if any active clip)
+        int64_t clipFadeInSamples = 0;
+        int64_t clipFadeOutSamples = 0;
+        int64_t clipStartSample = 0;
+        int64_t clipEndSample = 0;
+        bool hasFadeOut = false;
+        
+        int tempo = runtime_data_->getTempo();
+        int ppq = runtime_data_->getPPQ();
+        
+        if (activeClip && (activeClip->fadeInTicks > 0 || activeClip->fadeOutTicks > 0)) {
+            clipFadeInSamples = tickToSamples(activeClip->fadeInTicks, tempo, ppq);
+            clipFadeOutSamples = tickToSamples(activeClip->fadeOutTicks, tempo, ppq);
+            clipStartSample = tickToSamples(activeClip->startTick, tempo, ppq);
+            clipEndSample = tickToSamples(activeClip->startTick + activeClip->durationTicks, tempo, ppq);
+            
+            // Store fade out state for this synth so we can continue fading after clip ends
+            if (activeClip->fadeOutTicks > 0) {
+                synthFadeOutState_[synth] = {clipEndSample, clipFadeOutSamples};
+            }
+            hasFadeOut = clipFadeOutSamples > 0;
+        } else if (!activeClip) {
+            // No active clip - check if this synth was playing a clip with fade out
+            auto fadeIt = synthFadeOutState_.find(synth);
+            if (fadeIt != synthFadeOutState_.end()) {
+                clipEndSample = fadeIt->second.first;
+                clipFadeOutSamples = fadeIt->second.second;
+                hasFadeOut = true;
+            }
+        }
+        
+        // Get current sample position for fade calculation
+        int64_t currentSamplePos = audioSamplePosition_.load(std::memory_order_relaxed);
+        
         for (size_t i = 0; i < numFrames; i++) {
+            // Calculate fade gain for MIDI clip
+            float fadeGain = 1.0f;
+            int64_t absSamplePos = currentSamplePos + static_cast<int64_t>(i);
+            
+            if (activeClip && clipFadeInSamples > 0) {
+                // Fade in (only when inside clip)
+                if (absSamplePos < clipStartSample + clipFadeInSamples) {
+                    int64_t fadePos = absSamplePos - clipStartSample;
+                    fadeGain = static_cast<float>(fadePos) / static_cast<float>(clipFadeInSamples);
+                    fadeGain = std::max(0.0f, std::min(1.0f, fadeGain));
+                }
+            }
+            
+            // Fade out - apply both during clip and after clip ends (for note release)
+            if (hasFadeOut && clipFadeOutSamples > 0) {
+                int64_t fadeOutStartSample = clipEndSample - clipFadeOutSamples;
+                if (absSamplePos >= fadeOutStartSample) {
+                    int64_t fadePos = clipEndSample - absSamplePos;
+                    float fadeOutGain = static_cast<float>(fadePos) / static_cast<float>(clipFadeOutSamples);
+                    // Clamp: after clip end, fadeOutGain becomes negative, so clamp to 0
+                    fadeOutGain = std::max(0.0f, std::min(1.0f, fadeOutGain));
+                    fadeGain *= fadeOutGain;
+                }
+            }
+            
             // Apply volume first, then pan crossfeed for stereo
-            float srcL = track_left_[i] * arrVolume;
-            float srcR = track_right_[i] * arrVolume;
+            float srcL = track_left_[i] * arrVolume * fadeGain;
+            float srcR = track_right_[i] * arrVolume * fadeGain;
             
             // Pan crossfeed: at pan=0, L goes 100% left, R goes 100% right
             // At pan=-1, both go left; at pan=+1, both go right
@@ -573,7 +642,10 @@ void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
             size_t bufferOffset = static_cast<size_t>(renderStart - currentSamplePos);
             
             // Calculate position in the audio resource
-            int64_t resourceOffset = clip.offsetSamples + (renderStart - clipStartSample);
+            // offsetTicks represents how much of the start is trimmed (in ticks)
+            // offsetSamples is an additional sample-level offset
+            int64_t offsetFromTicks = tickToSamples(clip.offsetTicks, tempo, ppq);
+            int64_t resourceOffset = clip.offsetSamples + offsetFromTicks + (renderStart - clipStartSample);
             
             // Handle looping
             if (clip.looping) {
@@ -596,14 +668,40 @@ void NoteNagaDSPEngine::renderAudioClips(size_t numFrames) {
             int gotSamples = resource->getSamples(resourceOffset, static_cast<int>(samplesToRender), 
                                                    clipLeft, clipRight);
             
-            // Apply clip gain, track volume, and pan, then add to mix
+            // Calculate fade in/out regions in samples
+            int64_t fadeInSamples = tickToSamples(clip.fadeInTicks, tempo, ppq);
+            int64_t fadeOutSamples = tickToSamples(clip.fadeOutTicks, tempo, ppq);
+            int64_t fadeOutStartSample = clipEndSample - fadeOutSamples;
+            
+            // Apply clip gain, track volume, pan, and fade, then add to mix
             float combinedGain = clip.gain * trackVolume;
             float gainL = combinedGain * panL;
             float gainR = combinedGain * panR;
             
             for (int i = 0; i < gotSamples; ++i) {
-                float sampleL = clipLeft[i] * gainL;
-                float sampleR = clipRight[i] * gainR;
+                // Calculate absolute sample position for this sample
+                int64_t absSamplePos = renderStart + i;
+                
+                // Calculate fade multiplier
+                float fadeGain = 1.0f;
+                
+                // Fade in: from clipStart to clipStart + fadeInSamples
+                if (fadeInSamples > 0 && absSamplePos < clipStartSample + fadeInSamples) {
+                    int64_t fadePos = absSamplePos - clipStartSample;
+                    fadeGain = static_cast<float>(fadePos) / static_cast<float>(fadeInSamples);
+                    fadeGain = std::max(0.0f, std::min(1.0f, fadeGain));
+                }
+                
+                // Fade out: from fadeOutStartSample to clipEndSample
+                if (fadeOutSamples > 0 && absSamplePos >= fadeOutStartSample) {
+                    int64_t fadePos = clipEndSample - absSamplePos;
+                    float fadeOutGain = static_cast<float>(fadePos) / static_cast<float>(fadeOutSamples);
+                    fadeOutGain = std::max(0.0f, std::min(1.0f, fadeOutGain));
+                    fadeGain *= fadeOutGain;  // Combine with fade in if overlapping
+                }
+                
+                float sampleL = clipLeft[i] * gainL * fadeGain;
+                float sampleR = clipRight[i] * gainR * fadeGain;
                 mix_left_[bufferOffset + i] += sampleL;
                 mix_right_[bufferOffset + i] += sampleR;
                 

@@ -501,6 +501,45 @@ void PlaybackThreadWorker::runArrangementMode() {
         dsp_engine_->setAudioSamplePosition(startSamplePos);
     }
     
+    // Prepare audio resources for playback - find upcoming audio clips and preload their buffers
+    // Look ahead by 5 seconds worth of ticks to preload audio that will play soon
+    {
+        NoteNagaAudioManager& audioManager = this->project->getAudioManager();
+        double usPerTick = static_cast<double>(projectTempo) / projectPPQ;
+        int64_t lookAheadTicks = static_cast<int64_t>(5.0 * 1'000'000.0 / usPerTick);  // 5 seconds ahead
+        int64_t lookAheadEnd = current_tick + lookAheadTicks;
+        
+        for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
+            NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
+            if (!arrTrack) continue;
+            
+            for (const auto& clip : arrTrack->getAudioClips()) {
+                // Check if clip starts within our look-ahead window or is currently playing
+                if (clip.startTick <= lookAheadEnd && 
+                    clip.startTick + clip.durationTicks > current_tick) {
+                    
+                    NoteNagaAudioResource* resource = audioManager.getResource(clip.audioResourceId);
+                    if (resource && resource->isLoaded()) {
+                        // Calculate the sample position this clip will start reading from
+                        // Taking into account offsetTicks for trimmed clips
+                        double tickToSecond = usPerTick / 1'000'000.0;
+                        int64_t clipOffsetSamples = clip.offsetSamples + 
+                            static_cast<int64_t>(clip.offsetTicks * tickToSecond * audioManager.getSampleRate());
+                        
+                        // If playback position is inside clip, calculate actual read position
+                        if (current_tick >= clip.startTick) {
+                            int64_t ticksIntoClip = current_tick - clip.startTick;
+                            int64_t samplesIntoClip = static_cast<int64_t>(ticksIntoClip * tickToSecond * audioManager.getSampleRate());
+                            clipOffsetSamples += samplesIntoClip;
+                        }
+                        
+                        resource->prepareForPosition(clipOffsetSamples);
+                    }
+                }
+            }
+        }
+    }
+    
     // Check if arrangement has active tempo track
     bool hasArrangementTempoTrack = arrangement->hasTempoTrack() && 
                                      arrangement->getTempoTrack()->isTempoTrackActive();

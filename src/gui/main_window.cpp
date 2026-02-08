@@ -22,6 +22,7 @@
 #include "widgets/global_transport_bar.h"
 #include "widgets/midi_tact_ruler.h"
 #include "editor/midi_editor_widget.h"
+#include "editor/arrangement_timeline_widget.h"
 #include "widgets/track_list_widget.h"
 #include "dialogs/project_wizard_dialog.h"
 #include "undo/undo_manager.h"
@@ -479,13 +480,21 @@ void MainWindow::goto_start() {
     PlaybackMode mode = transportBar ? transportBar->getPlaybackMode() : PlaybackMode::Sequence;
     
     if (mode == PlaybackMode::Arrangement) {
-        // Set arrangement position to 0
-        if (engine->getRuntimeData()) {
-            engine->getRuntimeData()->setCurrentArrangementTick(0);
-        }
-        // Scroll timeline to start
+        // Check if loop is enabled - if so, go to loop start
+        int64_t targetTick = 0;
         if (m_arrangementSection) {
-            m_arrangementSection->scrollToTick(0);
+            auto* timeline = m_arrangementSection->getTimeline();
+            if (timeline && timeline->isLoopEnabled()) {
+                targetTick = timeline->getLoopStartTick();
+            }
+        }
+        // Set arrangement position
+        if (engine->getRuntimeData()) {
+            engine->getRuntimeData()->setCurrentArrangementTick(targetTick);
+        }
+        // Scroll timeline to position
+        if (m_arrangementSection) {
+            m_arrangementSection->scrollToTick(targetTick);
         }
     } else {
         // Set sequence position to 0
@@ -502,17 +511,31 @@ void MainWindow::goto_end() {
     PlaybackMode mode = transportBar ? transportBar->getPlaybackMode() : PlaybackMode::Sequence;
     
     if (mode == PlaybackMode::Arrangement) {
-        // Set arrangement position to end
-        if (engine->getRuntimeData()) {
-            NoteNagaArrangement *arrangement = engine->getRuntimeData()->getArrangement();
-            if (arrangement) {
-                int maxTick = arrangement->getMaxTick();
-                engine->getRuntimeData()->setCurrentArrangementTick(maxTick);
-                // Scroll timeline to end
-                if (m_arrangementSection) {
-                    m_arrangementSection->scrollToTick(maxTick);
+        // Check if loop is enabled - if so, go to loop end
+        int64_t targetTick = 0;
+        if (m_arrangementSection) {
+            auto* timeline = m_arrangementSection->getTimeline();
+            if (timeline && timeline->isLoopEnabled()) {
+                targetTick = timeline->getLoopEndTick();
+            } else if (engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = engine->getRuntimeData()->getArrangement();
+                if (arrangement) {
+                    targetTick = arrangement->getMaxTick();
                 }
             }
+        } else if (engine->getRuntimeData()) {
+            NoteNagaArrangement *arrangement = engine->getRuntimeData()->getArrangement();
+            if (arrangement) {
+                targetTick = arrangement->getMaxTick();
+            }
+        }
+        // Set arrangement position
+        if (engine->getRuntimeData()) {
+            engine->getRuntimeData()->setCurrentArrangementTick(targetTick);
+        }
+        // Scroll timeline to position
+        if (m_arrangementSection) {
+            m_arrangementSection->scrollToTick(targetTick);
         }
     } else {
         // Set sequence position to end

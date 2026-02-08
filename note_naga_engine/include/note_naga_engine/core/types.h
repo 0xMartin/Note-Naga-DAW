@@ -1100,6 +1100,8 @@ struct NOTE_NAGA_ENGINE_API NN_MidiClip_t {
     int startTick;           ///< Position on the arrangement timeline (in ticks)
     int durationTicks;       ///< Duration of the clip (can be shorter than sequence)
     int offsetTicks;         ///< Offset within the sequence (for trimming start)
+    int fadeInTicks = 0;     ///< Fade in duration in ticks
+    int fadeOutTicks = 0;    ///< Fade out duration in ticks
     bool muted;              ///< Whether this clip is muted
     std::string name;        ///< Optional clip name (defaults to sequence name)
     NN_Color_t color;        ///< Clip color (defaults to sequence color)

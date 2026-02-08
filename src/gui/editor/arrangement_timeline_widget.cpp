@@ -491,7 +491,41 @@ ArrangementTimelineWidget::HitZone ArrangementTimelineWidget::hitTestClip(
         return NoHit;
     }
     
-    // Check resize handles
+    // Fade handle detection area (top corners)
+    const int fadeHandleHeight = m_trackHeight / 3;  // Top third of clip
+    const int fadeHandleWidth = 12;  // Width of the clickable area
+    
+    // Check fade in handle (top-left corner, where fade line ends)
+    if (clip->fadeInTicks > 0) {
+        int fadeInEndX = clipX + static_cast<int>(clip->fadeInTicks * m_pixelsPerTick);
+        if (pos.y() - clipY < fadeHandleHeight && 
+            std::abs(pos.x() - fadeInEndX) < fadeHandleWidth) {
+            return FadeInHit;
+        }
+    } else {
+        // Even if no fade, allow grabbing corner to create fade
+        if (pos.y() - clipY < fadeHandleHeight && 
+            pos.x() - clipX < fadeHandleWidth) {
+            return FadeInHit;
+        }
+    }
+    
+    // Check fade out handle (top-right corner, where fade line starts)
+    if (clip->fadeOutTicks > 0) {
+        int fadeOutStartX = clipX + clipWidth - static_cast<int>(clip->fadeOutTicks * m_pixelsPerTick);
+        if (pos.y() - clipY < fadeHandleHeight && 
+            std::abs(pos.x() - fadeOutStartX) < fadeHandleWidth) {
+            return FadeOutHit;
+        }
+    } else {
+        // Even if no fade, allow grabbing corner to create fade
+        if (pos.y() - clipY < fadeHandleHeight && 
+            clipX + clipWidth - pos.x() < fadeHandleWidth) {
+            return FadeOutHit;
+        }
+    }
+    
+    // Check resize handles (lower priority than fade handles)
     if (pos.x() - clipX < RESIZE_HANDLE_WIDTH) {
         return LeftEdgeHit;
     }
@@ -517,7 +551,41 @@ ArrangementTimelineWidget::HitZone ArrangementTimelineWidget::hitTestAudioClip(
         return NoHit;
     }
     
-    // Check resize handles
+    // Fade handle detection area (top corners)
+    const int fadeHandleHeight = m_trackHeight / 3;  // Top third of clip
+    const int fadeHandleWidth = 12;  // Width of the clickable area
+    
+    // Check fade in handle (top-left corner, where fade line ends)
+    if (clip->fadeInTicks > 0) {
+        int fadeInEndX = clipX + static_cast<int>(clip->fadeInTicks * m_pixelsPerTick);
+        if (pos.y() - clipY < fadeHandleHeight && 
+            std::abs(pos.x() - fadeInEndX) < fadeHandleWidth) {
+            return FadeInHit;
+        }
+    } else {
+        // Even if no fade, allow grabbing corner to create fade
+        if (pos.y() - clipY < fadeHandleHeight && 
+            pos.x() - clipX < fadeHandleWidth) {
+            return FadeInHit;
+        }
+    }
+    
+    // Check fade out handle (top-right corner, where fade line starts)
+    if (clip->fadeOutTicks > 0) {
+        int fadeOutStartX = clipX + clipWidth - static_cast<int>(clip->fadeOutTicks * m_pixelsPerTick);
+        if (pos.y() - clipY < fadeHandleHeight && 
+            std::abs(pos.x() - fadeOutStartX) < fadeHandleWidth) {
+            return FadeOutHit;
+        }
+    } else {
+        // Even if no fade, allow grabbing corner to create fade
+        if (pos.y() - clipY < fadeHandleHeight && 
+            clipX + clipWidth - pos.x() < fadeHandleWidth) {
+            return FadeOutHit;
+        }
+    }
+    
+    // Check resize handles (lower priority than fade handles)
     if (pos.x() - clipX < RESIZE_HANDLE_WIDTH) {
         return LeftEdgeHit;
     }
@@ -823,6 +891,9 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
                            painter.fontMetrics().elidedText(clipName, Qt::ElideRight, textRect.width()));
             font.setBold(false);
             painter.setFont(font);
+            
+            // Draw fade in/out overlays
+            drawClipFades(painter, clipRect, clip.fadeInTicks, clip.fadeOutTicks, clip.durationTicks);
         }
         
         // Draw Audio clips
@@ -872,10 +943,63 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
                            painter.fontMetrics().elidedText(clipName, Qt::ElideRight, textRect.width()));
             font.setBold(false);
             painter.setFont(font);
+            
+            // Draw fade in/out overlays
+            drawClipFades(painter, clipRect, audioClip.fadeInTicks, audioClip.fadeOutTicks, audioClip.durationTicks);
         }
         
         ++trackIndex;
     }
+}
+
+void ArrangementTimelineWidget::drawClipFades(QPainter &painter, const QRect &clipRect,
+                                               int fadeInTicks, int fadeOutTicks, int durationTicks)
+{
+    if (fadeInTicks <= 0 && fadeOutTicks <= 0) return;
+    
+    painter.setClipRect(clipRect);
+    
+    // Draw fade in (triangle from top-left to bottom-left to top at fadeInWidth)
+    if (fadeInTicks > 0) {
+        int fadeInWidth = static_cast<int>(fadeInTicks * m_pixelsPerTick);
+        fadeInWidth = std::min(fadeInWidth, clipRect.width());
+        
+        QPolygon fadeInPoly;
+        fadeInPoly << QPoint(clipRect.left(), clipRect.top())
+                   << QPoint(clipRect.left(), clipRect.bottom())
+                   << QPoint(clipRect.left() + fadeInWidth, clipRect.top());
+        
+        painter.setBrush(QColor(0, 0, 0, 100));
+        painter.setPen(Qt::NoPen);
+        painter.drawPolygon(fadeInPoly);
+        
+        // Draw fade line
+        painter.setPen(QPen(QColor("#ffffff"), 1));
+        painter.drawLine(clipRect.left(), clipRect.bottom(), 
+                        clipRect.left() + fadeInWidth, clipRect.top());
+    }
+    
+    // Draw fade out (triangle from top-right to bottom-right to top at fadeOutWidth from right)
+    if (fadeOutTicks > 0) {
+        int fadeOutWidth = static_cast<int>(fadeOutTicks * m_pixelsPerTick);
+        fadeOutWidth = std::min(fadeOutWidth, clipRect.width());
+        
+        QPolygon fadeOutPoly;
+        fadeOutPoly << QPoint(clipRect.right(), clipRect.top())
+                    << QPoint(clipRect.right(), clipRect.bottom())
+                    << QPoint(clipRect.right() - fadeOutWidth, clipRect.top());
+        
+        painter.setBrush(QColor(0, 0, 0, 100));
+        painter.setPen(Qt::NoPen);
+        painter.drawPolygon(fadeOutPoly);
+        
+        // Draw fade line
+        painter.setPen(QPen(QColor("#ffffff"), 1));
+        painter.drawLine(clipRect.right() - fadeOutWidth, clipRect.top(), 
+                        clipRect.right(), clipRect.bottom());
+    }
+    
+    painter.setClipping(false);
 }
 
 void ArrangementTimelineWidget::drawAudioClipWaveform(QPainter &painter, const QRect &clipRect,
@@ -899,11 +1023,29 @@ void ArrangementTimelineWidget::drawAudioClipWaveform(QPainter &painter, const Q
     // Calculate how many samples/peaks we need per pixel
     int samplesPerPeak = resource->getSamplesPerPeak();
     int totalPeaks = static_cast<int>(peaks.size());
+    int sampleRate = resource->getSampleRate();
     
-    // Map clip offset and length to peak indices
-    int startPeak = audioClip.offsetSamples / samplesPerPeak;
-    int totalClipSamples = audioClip.clipLengthSamples > 0 ? audioClip.clipLengthSamples : resource->getTotalSamples();
-    int endPeak = (audioClip.offsetSamples + totalClipSamples) / samplesPerPeak;
+    // Calculate the offset in samples based on offsetTicks
+    // This ensures waveform matches actual audio content when clip is trimmed
+    double ticksPerSecond = 480.0 * 2.0;  // Assuming 120 BPM, 480 PPQ
+    if (m_engine && m_engine->getRuntimeData()) {
+        // getTempo returns microseconds per beat, convert to BPM
+        double microsecondsPerBeat = m_engine->getRuntimeData()->getTempo();
+        double bpm = 60000000.0 / microsecondsPerBeat;
+        ticksPerSecond = 480.0 * (bpm / 60.0);
+    }
+    
+    // Convert offsetTicks to samples for waveform display
+    int64_t offsetSamplesFromTicks = static_cast<int64_t>((audioClip.offsetTicks / ticksPerSecond) * sampleRate);
+    int64_t totalOffsetSamples = audioClip.offsetSamples + offsetSamplesFromTicks;
+    
+    // Calculate duration in samples
+    int64_t durationSamples = static_cast<int64_t>((audioClip.durationTicks / ticksPerSecond) * sampleRate);
+    
+    // Map clip offset and duration to peak indices
+    int startPeak = static_cast<int>(totalOffsetSamples / samplesPerPeak);
+    int endPeak = static_cast<int>((totalOffsetSamples + durationSamples) / samplesPerPeak);
+    startPeak = std::max(0, startPeak);
     endPeak = std::min(endPeak, totalPeaks);
     int peakCount = endPeak - startPeak;
     
@@ -1115,6 +1257,14 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
             } else if (zone == RightEdgeHit) {
                 m_interactionMode = ResizingClipRight;
                 setCursor(Qt::SizeHorCursor);
+            } else if (zone == FadeInHit) {
+                m_interactionMode = AdjustingFadeIn;
+                m_originalFadeInTicks = clip->fadeInTicks;
+                setCursor(Qt::SizeHorCursor);
+            } else if (zone == FadeOutHit) {
+                m_interactionMode = AdjustingFadeOut;
+                m_originalFadeOutTicks = clip->fadeOutTicks;
+                setCursor(Qt::SizeHorCursor);
             } else {
                 m_interactionMode = MovingClip;
                 setCursor(Qt::ClosedHandCursor);
@@ -1142,12 +1292,21 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
             m_dragStartTrackIndex = trackIndex;
             m_originalClipStart = audioClip->startTick;
             m_originalClipDuration = audioClip->durationTicks;
+            m_originalOffsetTicks = audioClip->offsetTicks;
             
             if (zone == LeftEdgeHit) {
                 m_interactionMode = ResizingAudioClipLeft;
                 setCursor(Qt::SizeHorCursor);
             } else if (zone == RightEdgeHit) {
                 m_interactionMode = ResizingAudioClipRight;
+                setCursor(Qt::SizeHorCursor);
+            } else if (zone == FadeInHit) {
+                m_interactionMode = AdjustingAudioFadeIn;
+                m_originalFadeInTicks = audioClip->fadeInTicks;
+                setCursor(Qt::SizeHorCursor);
+            } else if (zone == FadeOutHit) {
+                m_interactionMode = AdjustingAudioFadeOut;
+                m_originalFadeOutTicks = audioClip->fadeOutTicks;
                 setCursor(Qt::SizeHorCursor);
             } else {
                 m_interactionMode = MovingAudioClip;
@@ -1216,7 +1375,8 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
         NN_MidiClip_t *clip = clipAtPosition(event->pos(), trackIndex);
         if (clip) {
             HitZone zone = hitTestClip(clip, trackIndex, event->pos());
-            if (zone == LeftEdgeHit || zone == RightEdgeHit) {
+            if (zone == LeftEdgeHit || zone == RightEdgeHit || 
+                zone == FadeInHit || zone == FadeOutHit) {
                 setCursor(Qt::SizeHorCursor);
             } else {
                 setCursor(Qt::OpenHandCursor);
@@ -1226,7 +1386,8 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
             NN_AudioClip_t *audioClip = audioClipAtPosition(event->pos(), trackIndex);
             if (audioClip) {
                 HitZone zone = hitTestAudioClip(audioClip, trackIndex, event->pos());
-                if (zone == LeftEdgeHit || zone == RightEdgeHit) {
+                if (zone == LeftEdgeHit || zone == RightEdgeHit ||
+                    zone == FadeInHit || zone == FadeOutHit) {
                     setCursor(Qt::SizeHorCursor);
                 } else {
                     setCursor(Qt::OpenHandCursor);
@@ -1390,9 +1551,8 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
                         
                         clip.startTick = newStart;
                         clip.durationTicks = endTick - newStart;
-                        // Adjust offset in samples when trimming from left
-                        // (This is approximate - would need tempo for perfect calculation)
-                        clip.offsetSamples += static_cast<int>(startDelta * 44100.0 / (120.0 / 60.0 * 480.0));
+                        // Adjust offset in ticks when trimming from left
+                        clip.offsetTicks = m_originalOffsetTicks + startDelta;
                         update();
                         return;
                     }
@@ -1410,6 +1570,77 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
                 for (auto &clip : track->getAudioClips()) {
                     if (clip.id == m_dragAudioClipId) {
                         clip.durationTicks = newDuration;
+                        update();
+                        return;
+                    }
+                }
+            }
+            break;
+        }
+        
+        case AdjustingFadeIn: {
+            // Adjust fade in duration based on mouse X relative to clip start
+            for (auto *track : arrangement->getTracks()) {
+                for (auto &clip : track->getClips()) {
+                    if (clip.id == m_dragClipId) {
+                        int clipX = tickToX(clip.startTick);
+                        int64_t fadeInTicks = xToTick(event->pos().x()) - clip.startTick;
+                        fadeInTicks = qMax(static_cast<int64_t>(0), fadeInTicks);
+                        fadeInTicks = qMin(fadeInTicks, clip.durationTicks - clip.fadeOutTicks);
+                        clip.fadeInTicks = fadeInTicks;
+                        update();
+                        return;
+                    }
+                }
+            }
+            break;
+        }
+        
+        case AdjustingFadeOut: {
+            // Adjust fade out duration based on mouse X relative to clip end
+            for (auto *track : arrangement->getTracks()) {
+                for (auto &clip : track->getClips()) {
+                    if (clip.id == m_dragClipId) {
+                        int64_t clipEnd = clip.startTick + clip.durationTicks;
+                        int64_t fadeOutTicks = clipEnd - xToTick(event->pos().x());
+                        fadeOutTicks = qMax(static_cast<int64_t>(0), fadeOutTicks);
+                        fadeOutTicks = qMin(fadeOutTicks, clip.durationTicks - clip.fadeInTicks);
+                        clip.fadeOutTicks = fadeOutTicks;
+                        update();
+                        return;
+                    }
+                }
+            }
+            break;
+        }
+        
+        case AdjustingAudioFadeIn: {
+            // Adjust fade in duration for audio clip
+            for (auto *track : arrangement->getTracks()) {
+                for (auto &clip : track->getAudioClips()) {
+                    if (clip.id == m_dragAudioClipId) {
+                        int64_t fadeInTicks = xToTick(event->pos().x()) - clip.startTick;
+                        fadeInTicks = qMax(static_cast<int64_t>(0), fadeInTicks);
+                        fadeInTicks = qMin(fadeInTicks, clip.durationTicks - clip.fadeOutTicks);
+                        clip.fadeInTicks = fadeInTicks;
+                        update();
+                        return;
+                    }
+                }
+            }
+            break;
+        }
+        
+        case AdjustingAudioFadeOut: {
+            // Adjust fade out duration for audio clip
+            for (auto *track : arrangement->getTracks()) {
+                for (auto &clip : track->getAudioClips()) {
+                    if (clip.id == m_dragAudioClipId) {
+                        int64_t clipEnd = clip.startTick + clip.durationTicks;
+                        int64_t fadeOutTicks = clipEnd - xToTick(event->pos().x());
+                        fadeOutTicks = qMax(static_cast<int64_t>(0), fadeOutTicks);
+                        fadeOutTicks = qMin(fadeOutTicks, clip.durationTicks - clip.fadeInTicks);
+                        clip.fadeOutTicks = fadeOutTicks;
                         update();
                         return;
                     }
@@ -1647,18 +1878,108 @@ void ArrangementTimelineWidget::mouseReleaseEvent(QMouseEvent *event)
                             if (clip.id == m_dragAudioClipId) {
                                 // Only create command if size/position changed
                                 if (clip.startTick != m_originalClipStart || 
-                                    clip.durationTicks != m_originalClipDuration) {
+                                    clip.durationTicks != m_originalClipDuration ||
+                                    clip.offsetTicks != m_originalOffsetTicks) {
                                     m_undoManager->addCommandWithoutExecute(
                                         new ResizeAudioClipCommand(
                                             this, m_dragAudioClipId,
-                                            m_originalClipStart, m_originalClipDuration,
-                                            clip.startTick, clip.durationTicks));
+                                            m_originalClipStart, m_originalClipDuration, m_originalOffsetTicks,
+                                            clip.startTick, clip.durationTicks, clip.offsetTicks,
+                                            clip.audioResourceId));
                                 }
                                 break;
                             }
                         }
                     }
                     arrangement->updateMaxTick();
+                }
+            }
+        } else if (m_interactionMode == AdjustingFadeIn) {
+            // Create undo command for fade in change
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement && m_undoManager && m_dragClipId >= 0) {
+                    for (auto *track : arrangement->getTracks()) {
+                        if (!track) continue;
+                        for (const auto &clip : track->getClips()) {
+                            if (clip.id == m_dragClipId) {
+                                if (clip.fadeInTicks != m_originalFadeInTicks) {
+                                    m_undoManager->addCommandWithoutExecute(
+                                        new ChangeMidiClipFadeCommand(
+                                            this, m_dragClipId,
+                                            m_originalFadeInTicks, clip.fadeOutTicks,
+                                            clip.fadeInTicks, clip.fadeOutTicks));
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (m_interactionMode == AdjustingFadeOut) {
+            // Create undo command for fade out change
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement && m_undoManager && m_dragClipId >= 0) {
+                    for (auto *track : arrangement->getTracks()) {
+                        if (!track) continue;
+                        for (const auto &clip : track->getClips()) {
+                            if (clip.id == m_dragClipId) {
+                                if (clip.fadeOutTicks != m_originalFadeOutTicks) {
+                                    m_undoManager->addCommandWithoutExecute(
+                                        new ChangeMidiClipFadeCommand(
+                                            this, m_dragClipId,
+                                            clip.fadeInTicks, m_originalFadeOutTicks,
+                                            clip.fadeInTicks, clip.fadeOutTicks));
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (m_interactionMode == AdjustingAudioFadeIn) {
+            // Create undo command for audio fade in change
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement && m_undoManager && m_dragAudioClipId >= 0) {
+                    for (auto *track : arrangement->getTracks()) {
+                        if (!track) continue;
+                        for (const auto &clip : track->getAudioClips()) {
+                            if (clip.id == m_dragAudioClipId) {
+                                if (clip.fadeInTicks != m_originalFadeInTicks) {
+                                    m_undoManager->addCommandWithoutExecute(
+                                        new ChangeAudioClipFadeCommand(
+                                            this, m_dragAudioClipId,
+                                            m_originalFadeInTicks, clip.fadeOutTicks,
+                                            clip.fadeInTicks, clip.fadeOutTicks));
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (m_interactionMode == AdjustingAudioFadeOut) {
+            // Create undo command for audio fade out change
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement && m_undoManager && m_dragAudioClipId >= 0) {
+                    for (auto *track : arrangement->getTracks()) {
+                        if (!track) continue;
+                        for (const auto &clip : track->getAudioClips()) {
+                            if (clip.id == m_dragAudioClipId) {
+                                if (clip.fadeOutTicks != m_originalFadeOutTicks) {
+                                    m_undoManager->addCommandWithoutExecute(
+                                        new ChangeAudioClipFadeCommand(
+                                            this, m_dragAudioClipId,
+                                            clip.fadeInTicks, m_originalFadeOutTicks,
+                                            clip.fadeInTicks, clip.fadeOutTicks));
+                                }
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -2070,8 +2391,10 @@ void ArrangementTimelineWidget::showClipContextMenu(const QPoint &globalPos)
     
     QMenu menu(this);
     
-    bool hasSelection = !m_selectedClipIds.isEmpty();
+    bool hasSelection = !m_selectedClipIds.isEmpty() || !m_selectedAudioClipIds.isEmpty();
     bool hasClipboard = !m_clipboardClips.isEmpty();
+    bool hasSingleSelection = (m_selectedClipIds.size() == 1 && m_selectedAudioClipIds.isEmpty()) ||
+                              (m_selectedAudioClipIds.size() == 1 && m_selectedClipIds.isEmpty());
     
     QAction *copyAction = menu.addAction(tr("Copy"));
     copyAction->setShortcut(QKeySequence::Copy);
@@ -2097,6 +2420,23 @@ void ArrangementTimelineWidget::showClipContextMenu(const QPoint &globalPos)
     
     menu.addSeparator();
     
+    // Split clip at playhead
+    QAction *splitAction = menu.addAction(tr("Split at Playhead"));
+    splitAction->setShortcut(QKeySequence(Qt::Key_S));
+    splitAction->setEnabled(hasSingleSelection);
+    
+    menu.addSeparator();
+    
+    // Fade submenu
+    QMenu *fadeMenu = menu.addMenu(tr("Fade"));
+    fadeMenu->setEnabled(hasSingleSelection);
+    
+    QAction *fadeInAction = fadeMenu->addAction(tr("Set Fade In..."));
+    QAction *fadeOutAction = fadeMenu->addAction(tr("Set Fade Out..."));
+    QAction *clearFadesAction = fadeMenu->addAction(tr("Clear Fades"));
+    
+    menu.addSeparator();
+    
     QAction *selectAllAction = menu.addAction(tr("Select All"));
     selectAllAction->setShortcut(QKeySequence::SelectAll);
     
@@ -2112,10 +2452,21 @@ void ArrangementTimelineWidget::showClipContextMenu(const QPoint &globalPos)
         duplicateSelectedClips();
     } else if (selected == deleteAction) {
         deleteSelectedClips();
+    } else if (selected == splitAction) {
+        splitClipAtPlayhead();
+    } else if (selected == fadeInAction) {
+        showFadeDialog(true);
+    } else if (selected == fadeOutAction) {
+        showFadeDialog(false);
+    } else if (selected == clearFadesAction) {
+        clearClipFades();
     } else if (selected == selectAllAction) {
         for (auto *track : arrangement->getTracks()) {
             for (const auto &clip : track->getClips()) {
                 m_selectedClipIds.insert(clip.id);
+            }
+            for (const auto &clip : track->getAudioClips()) {
+                m_selectedAudioClipIds.insert(clip.id);
             }
         }
         update();
@@ -2578,4 +2929,183 @@ void ArrangementTimelineWidget::drawLoopRegion(QPainter &painter)
     painter.setPen(QPen(QColor("#22c55e"), 2));
     painter.drawLine(loopStartX, 0, loopStartX, height());
     painter.drawLine(loopEndX, 0, loopEndX, height());
+}
+
+void ArrangementTimelineWidget::splitClipAtPlayhead()
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    if (!m_undoManager) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    int64_t cutTick = m_playheadTick;
+    
+    // Try to split selected MIDI clip
+    if (m_selectedClipIds.size() == 1) {
+        int clipId = *m_selectedClipIds.begin();
+        
+        for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+            auto *track = arrangement->getTracks()[tIdx];
+            if (!track) continue;
+            
+            for (const auto &clip : track->getClips()) {
+                if (clip.id == clipId) {
+                    // Check if playhead is inside clip
+                    if (cutTick > clip.startTick && cutTick < clip.startTick + clip.durationTicks) {
+                        m_undoManager->executeCommand(
+                            new CutMidiClipCommand(this, clipId, tIdx, cutTick, clip.sequenceId));
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Try to split selected audio clip
+    if (m_selectedAudioClipIds.size() == 1) {
+        int clipId = *m_selectedAudioClipIds.begin();
+        
+        for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+            auto *track = arrangement->getTracks()[tIdx];
+            if (!track) continue;
+            
+            for (const auto &clip : track->getAudioClips()) {
+                if (clip.id == clipId) {
+                    // Check if playhead is inside clip
+                    if (cutTick > clip.startTick && cutTick < clip.startTick + clip.durationTicks) {
+                        m_undoManager->executeCommand(
+                            new CutAudioClipCommand(this, clipId, tIdx, cutTick, clip.audioResourceId));
+                        return;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void ArrangementTimelineWidget::showFadeDialog(bool isFadeIn)
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    if (!m_undoManager) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    // Handle MIDI clip
+    if (m_selectedClipIds.size() == 1) {
+        int clipId = *m_selectedClipIds.begin();
+        
+        for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+            auto *track = arrangement->getTracks()[tIdx];
+            if (!track) continue;
+            
+            for (const auto &clip : track->getClips()) {
+                if (clip.id == clipId) {
+                    int currentValue = isFadeIn ? clip.fadeInTicks : clip.fadeOutTicks;
+                    int maxValue = clip.durationTicks / 2;
+                    
+                    bool ok;
+                    int newValue = QInputDialog::getInt(this, 
+                        isFadeIn ? tr("Set Fade In") : tr("Set Fade Out"),
+                        tr("Duration (ticks):"), 
+                        currentValue, 0, maxValue, 10, &ok);
+                    
+                    if (ok) {
+                        int newFadeIn = isFadeIn ? newValue : clip.fadeInTicks;
+                        int newFadeOut = isFadeIn ? clip.fadeOutTicks : newValue;
+                        
+                        m_undoManager->executeCommand(
+                            new ChangeMidiClipFadeCommand(this, clipId,
+                                clip.fadeInTicks, clip.fadeOutTicks,
+                                newFadeIn, newFadeOut, clip.sequenceId));
+                    }
+                    return;
+                }
+            }
+        }
+    }
+    
+    // Handle audio clip
+    if (m_selectedAudioClipIds.size() == 1) {
+        int clipId = *m_selectedAudioClipIds.begin();
+        
+        for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+            auto *track = arrangement->getTracks()[tIdx];
+            if (!track) continue;
+            
+            for (const auto &clip : track->getAudioClips()) {
+                if (clip.id == clipId) {
+                    int currentValue = isFadeIn ? clip.fadeInTicks : clip.fadeOutTicks;
+                    int maxValue = clip.durationTicks / 2;
+                    
+                    bool ok;
+                    int newValue = QInputDialog::getInt(this, 
+                        isFadeIn ? tr("Set Fade In") : tr("Set Fade Out"),
+                        tr("Duration (ticks):"), 
+                        currentValue, 0, maxValue, 10, &ok);
+                    
+                    if (ok) {
+                        int newFadeIn = isFadeIn ? newValue : clip.fadeInTicks;
+                        int newFadeOut = isFadeIn ? clip.fadeOutTicks : newValue;
+                        
+                        m_undoManager->executeCommand(
+                            new ChangeAudioClipFadeCommand(this, clipId,
+                                clip.fadeInTicks, clip.fadeOutTicks,
+                                newFadeIn, newFadeOut, clip.audioResourceId));
+                    }
+                    return;
+                }
+            }
+        }
+    }
+}
+
+void ArrangementTimelineWidget::clearClipFades()
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    if (!m_undoManager) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    // Handle MIDI clip
+    if (m_selectedClipIds.size() == 1) {
+        int clipId = *m_selectedClipIds.begin();
+        
+        for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+            auto *track = arrangement->getTracks()[tIdx];
+            if (!track) continue;
+            
+            for (const auto &clip : track->getClips()) {
+                if (clip.id == clipId && (clip.fadeInTicks > 0 || clip.fadeOutTicks > 0)) {
+                    m_undoManager->executeCommand(
+                        new ChangeMidiClipFadeCommand(this, clipId,
+                            clip.fadeInTicks, clip.fadeOutTicks,
+                            0, 0, clip.sequenceId));
+                    return;
+                }
+            }
+        }
+    }
+    
+    // Handle audio clip
+    if (m_selectedAudioClipIds.size() == 1) {
+        int clipId = *m_selectedAudioClipIds.begin();
+        
+        for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+            auto *track = arrangement->getTracks()[tIdx];
+            if (!track) continue;
+            
+            for (const auto &clip : track->getAudioClips()) {
+                if (clip.id == clipId && (clip.fadeInTicks > 0 || clip.fadeOutTicks > 0)) {
+                    m_undoManager->executeCommand(
+                        new ChangeAudioClipFadeCommand(this, clipId,
+                            clip.fadeInTicks, clip.fadeOutTicks,
+                            0, 0, clip.audioResourceId));
+                    return;
+                }
+            }
+        }
+    }
 }
