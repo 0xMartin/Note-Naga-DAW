@@ -786,8 +786,29 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
                 int seqDuration = sourceSeq->getMaxTick();
                 if (seqDuration <= 0) seqDuration = 480 * 4; // Fallback
                 
-                // Calculate number of loops
-                int numLoops = (clip.durationTicks + seqDuration - 1) / seqDuration;
+                // Calculate where the original sequence content is visible in the clip
+                // offsetTicks = how much of the beginning is trimmed off
+                int offsetTicks = clip.offsetTicks;
+                
+                // The "base" sequence area starts at offsetTicks from clip start
+                // and ends when the sequence ends (or clip ends, whichever is first)
+                int baseStartInClip = 0; // Where base sequence starts in clip's coordinate
+                int baseEndInClip = seqDuration - offsetTicks; // Where base sequence ends in clip's coordinate
+                if (baseEndInClip > clip.durationTicks) baseEndInClip = clip.durationTicks;
+                if (baseEndInClip < 0) baseEndInClip = 0;
+                
+                // Draw green highlight for the base sequence area
+                if (baseEndInClip > baseStartInClip) {
+                    int highlightX = clipX + 1 + static_cast<int>(baseStartInClip * m_pixelsPerTick);
+                    int highlightW = static_cast<int>((baseEndInClip - baseStartInClip) * m_pixelsPerTick);
+                    QRect highlightRect(highlightX, clipRect.top(), highlightW, clipRect.height());
+                    QColor highlightColor(0, 180, 80, 40); // Semi-transparent green
+                    painter.fillRect(highlightRect, highlightColor);
+                }
+                
+                // Calculate number of loops (considering offset)
+                int totalContentNeeded = clip.durationTicks + offsetTicks;
+                int numLoops = (totalContentNeeded + seqDuration - 1) / seqDuration;
                 
                 // Find note range for scaling
                 int minNote = 127, maxNote = 0;
@@ -812,12 +833,16 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
                 for (int loop = 0; loop < numLoops; ++loop) {
                     int loopOffset = loop * seqDuration;
                     
-                    // Draw loop separator line (except for first loop)
+                    // Draw loop separator line (when crossing original sequence boundaries)
                     if (loop > 0) {
-                        int separatorX = clipX + 1 + static_cast<int>(loopOffset * m_pixelsPerTick);
-                        if (separatorX < clipRect.right()) {
-                            painter.setPen(QPen(QColor("#ffffff"), 1, Qt::DashLine));
-                            painter.drawLine(separatorX, clipRect.top() + 2, separatorX, clipRect.bottom() - 2);
+                        // Separator is at loopOffset - offsetTicks in clip space
+                        int separatorTickInClip = loopOffset - offsetTicks;
+                        if (separatorTickInClip > 0 && separatorTickInClip < clip.durationTicks) {
+                            int separatorX = clipX + 1 + static_cast<int>(separatorTickInClip * m_pixelsPerTick);
+                            if (separatorX < clipRect.right()) {
+                                painter.setPen(QPen(QColor("#ffffff"), 1, Qt::DashLine));
+                                painter.drawLine(separatorX, clipRect.top() + 2, separatorX, clipRect.bottom() - 2);
+                            }
                         }
                     }
                     
@@ -827,19 +852,34 @@ void ArrangementTimelineWidget::drawClips(QPainter &painter)
                         for (const auto &n : t->getNotes()) {
                             if (!n.start.has_value()) continue;
                             
-                            int noteStart = n.start.value() + loopOffset;
+                            // Note position in the original sequence coordinate
+                            int noteStartInSeq = n.start.value() + loopOffset;
                             int noteLength = n.length.value_or(120);
                             int noteKey = n.note;
                             
-                            // Check if note is within clip duration
-                            if (noteStart >= clip.durationTicks) continue;
-                            if (noteStart + noteLength > clip.durationTicks) {
-                                noteLength = clip.durationTicks - noteStart;
+                            // Convert to clip coordinate by subtracting offset
+                            int noteStartInClip = noteStartInSeq - offsetTicks;
+                            
+                            // Skip notes that end before clip starts
+                            if (noteStartInClip + noteLength <= 0) continue;
+                            
+                            // Skip notes that start after clip ends
+                            if (noteStartInClip >= clip.durationTicks) continue;
+                            
+                            // Trim note to clip boundaries
+                            int visibleStart = noteStartInClip;
+                            int visibleLength = noteLength;
+                            if (visibleStart < 0) {
+                                visibleLength += visibleStart; // Reduce length by the amount cut off
+                                visibleStart = 0;
+                            }
+                            if (visibleStart + visibleLength > clip.durationTicks) {
+                                visibleLength = clip.durationTicks - visibleStart;
                             }
                             
                             // Calculate position
-                            int noteX = clipX + 1 + static_cast<int>(noteStart * m_pixelsPerTick);
-                            int noteW = std::max(2, static_cast<int>(noteLength * m_pixelsPerTick));
+                            int noteX = clipX + 1 + static_cast<int>(visibleStart * m_pixelsPerTick);
+                            int noteW = std::max(2, static_cast<int>(visibleLength * m_pixelsPerTick));
                             
                             // Vertical position (scaled)
                             float noteRelY = 1.0f - float(noteKey - minNote) / float(noteRange);
@@ -1253,6 +1293,7 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
             
             if (zone == LeftEdgeHit) {
                 m_interactionMode = ResizingClipLeft;
+                m_originalOffsetTicks = clip->offsetTicks;  // Store original offset for MIDI clip resize
                 setCursor(Qt::SizeHorCursor);
             } else if (zone == RightEdgeHit) {
                 m_interactionMode = ResizingClipRight;
@@ -1473,8 +1514,12 @@ void ArrangementTimelineWidget::mouseMoveEvent(QMouseEvent *event)
                 for (auto &clip : track->getClips()) {
                     if (clip.id == m_dragClipId) {
                         int64_t endTick = m_originalClipStart + m_originalClipDuration;
+                        int64_t startDelta = newStart - m_originalClipStart;
+                        
                         clip.startTick = newStart;
                         clip.durationTicks = endTick - newStart;
+                        // Adjust offset when trimming from left - shift into the sequence
+                        clip.offsetTicks = m_originalOffsetTicks + startDelta;
                         update();
                         break;
                     }
@@ -1804,6 +1849,7 @@ void ArrangementTimelineWidget::mouseReleaseEvent(QMouseEvent *event)
                                 if (clip.id == m_dragClipId) {
                                     clip.startTick = m_originalClipStart;
                                     clip.durationTicks = m_originalClipDuration;
+                                    clip.offsetTicks = m_originalOffsetTicks;
                                     break;
                                 }
                             }
@@ -1818,14 +1864,15 @@ void ArrangementTimelineWidget::mouseReleaseEvent(QMouseEvent *event)
                                 if (!track) continue;
                                 for (const auto& clip : track->getClips()) {
                                     if (clip.id == m_dragClipId) {
-                                        // Only create command if size/position changed
+                                        // Only create command if size/position/offset changed
                                         if (clip.startTick != m_originalClipStart || 
-                                            clip.durationTicks != m_originalClipDuration) {
+                                            clip.durationTicks != m_originalClipDuration ||
+                                            clip.offsetTicks != m_originalOffsetTicks) {
                                             m_undoManager->addCommandWithoutExecute(
                                                 new ResizeClipCommand(
                                                     this, m_dragClipId,
-                                                    m_originalClipStart, m_originalClipDuration,
-                                                    clip.startTick, clip.durationTicks));
+                                                    m_originalClipStart, m_originalClipDuration, m_originalOffsetTicks,
+                                                    clip.startTick, clip.durationTicks, clip.offsetTicks));
                                         }
                                         break;
                                     }

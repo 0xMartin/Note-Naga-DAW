@@ -248,15 +248,17 @@ bool MoveClipsCommand::isValid() const
 // ==== ResizeClipCommand ====
 
 ResizeClipCommand::ResizeClipCommand(ArrangementTimelineWidget *timeline, int clipId,
-                                     int64_t oldStartTick, int64_t oldDuration,
-                                     int64_t newStartTick, int64_t newDuration,
+                                     int64_t oldStartTick, int64_t oldDuration, int64_t oldOffsetTicks,
+                                     int64_t newStartTick, int64_t newDuration, int64_t newOffsetTicks,
                                      int sequenceId)
     : ArrangementClipCommandBase(timeline)
     , m_clipId(clipId)
     , m_oldStartTick(oldStartTick)
     , m_oldDuration(oldDuration)
+    , m_oldOffsetTicks(oldOffsetTicks)
     , m_newStartTick(newStartTick)
     , m_newDuration(newDuration)
+    , m_newOffsetTicks(newOffsetTicks)
     , m_sequenceId(sequenceId)
 {
 }
@@ -272,6 +274,7 @@ void ResizeClipCommand::execute()
             if (clip.id == m_clipId) {
                 clip.startTick = m_newStartTick;
                 clip.durationTicks = m_newDuration;
+                clip.offsetTicks = m_newOffsetTicks;
                 arr->updateMaxTick();
                 refreshTimeline();
                 return;
@@ -291,6 +294,7 @@ void ResizeClipCommand::undo()
             if (clip.id == m_clipId) {
                 clip.startTick = m_oldStartTick;
                 clip.durationTicks = m_oldDuration;
+                clip.offsetTicks = m_oldOffsetTicks;
                 arr->updateMaxTick();
                 refreshTimeline();
                 return;

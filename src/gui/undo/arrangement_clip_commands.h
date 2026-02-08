@@ -102,8 +102,8 @@ private:
 class ResizeClipCommand : public ArrangementClipCommandBase {
 public:
     ResizeClipCommand(ArrangementTimelineWidget *timeline, int clipId,
-                      int64_t oldStartTick, int64_t oldDuration,
-                      int64_t newStartTick, int64_t newDuration,
+                      int64_t oldStartTick, int64_t oldDuration, int64_t oldOffsetTicks,
+                      int64_t newStartTick, int64_t newDuration, int64_t newOffsetTicks,
                       int sequenceId = -1);
     
     void execute() override;
@@ -115,8 +115,10 @@ private:
     int m_clipId;
     int64_t m_oldStartTick;
     int64_t m_oldDuration;
+    int64_t m_oldOffsetTicks;
     int64_t m_newStartTick;
     int64_t m_newDuration;
+    int64_t m_newOffsetTicks;
     int m_sequenceId = -1;
 };
 
