@@ -9,6 +9,7 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QColorDialog>
+#include <cmath>
 
 ArrangementTrackHeaderWidget::ArrangementTrackHeaderWidget(NoteNagaArrangementTrack *track, int trackIndex, QWidget *parent)
     : QWidget(parent), m_track(track), m_trackIndex(trackIndex)
@@ -99,22 +100,25 @@ void ArrangementTrackHeaderWidget::setupUI()
     
     leftColumn->addLayout(topRow);
     
-    // Volume slider (horizontal)
+    // Volume slider (horizontal) - using dB scale
+    // Range: -60 dB to +6 dB (0 dB = 1.0 linear)
     m_volumeSlider = new AudioHorizontalSlider(this);
-    m_volumeSlider->setRange(0.0f, 100.0f);
-    m_volumeSlider->setValue(80.0f);
-    m_volumeSlider->setDefaultValue(80.0f);
-    m_volumeSlider->setValuePostfix("%");
+    m_volumeSlider->setRange(-60.0f, 6.0f);
+    m_volumeSlider->setValue(0.0f);  // 0 dB = unity gain
+    m_volumeSlider->setDefaultValue(0.0f);
+    m_volumeSlider->setValuePostfix(" dB");
     m_volumeSlider->setLabelText("Vol");
     m_volumeSlider->setLabelVisible(false);
     m_volumeSlider->setValueVisible(true);
-    m_volumeSlider->setValueDecimals(0);
+    m_volumeSlider->setValueDecimals(1);
     m_volumeSlider->setMinimumHeight(11);
-    m_volumeSlider->setToolTip(tr("Volume (Right-click to reset)"));
-    connect(m_volumeSlider, &AudioHorizontalSlider::valueChanged, this, [this](float volume) {
+    m_volumeSlider->setToolTip(tr("Volume in dB (Right-click to reset to 0 dB)"));
+    connect(m_volumeSlider, &AudioHorizontalSlider::valueChanged, this, [this](float dB) {
         if (m_track) {
-            m_track->setVolume(volume / 100.0f);  // Convert from 0..100 to 0..1
-            emit volumeChanged(m_trackIndex, volume / 100.0f);
+            // Convert dB to linear: linear = 10^(dB/20)
+            float linear = (dB <= -60.0f) ? 0.0f : std::pow(10.0f, dB / 20.0f);
+            m_track->setVolume(linear);
+            emit volumeChanged(m_trackIndex, linear);
         }
     });
     leftColumn->addWidget(m_volumeSlider);
@@ -179,10 +183,13 @@ void ArrangementTrackHeaderWidget::updateFromTrack()
     }
     m_nameEdit->setText(name);
     
-    // Sync volume slider (convert from 0..1 to 0..100)
+    // Sync volume slider (convert from linear 0..1+ to dB)
     if (m_volumeSlider) {
         m_volumeSlider->blockSignals(true);
-        m_volumeSlider->setValue(m_track->getVolume() * 100.0f);
+        float linear = m_track->getVolume();
+        float dB = (linear <= 0.0f) ? -60.0f : 20.0f * std::log10(linear);
+        dB = std::clamp(dB, -60.0f, 6.0f);
+        m_volumeSlider->setValue(dB);
         m_volumeSlider->blockSignals(false);
     }
     
