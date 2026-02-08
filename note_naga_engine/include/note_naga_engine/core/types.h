@@ -1437,11 +1437,26 @@ public:
     NoteNagaArrangementTrack* addTrack(const std::string &name = "Track");
 
     /**
+     * @brief Inserts a new arrangement track at a specific index.
+     * @param index The index at which to insert the track.
+     * @param name Track name.
+     * @return Pointer to the newly created track.
+     */
+    NoteNagaArrangementTrack* insertTrack(int index, const std::string &name = "Track");
+
+    /**
      * @brief Removes an arrangement track by ID.
      * @param trackId The track ID to remove.
      * @return True if track was found and removed.
      */
     bool removeTrack(int trackId);
+
+    /**
+     * @brief Removes an arrangement track by index.
+     * @param index The track index to remove.
+     * @return True if track was found and removed.
+     */
+    bool removeTrackByIndex(int index);
 
     /**
      * @brief Gets a track by ID.

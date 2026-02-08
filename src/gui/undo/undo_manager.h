@@ -27,6 +27,12 @@ public:
      * @return Description string for display in UI.
      */
     virtual QString description() const = 0;
+    
+    /**
+     * @brief Check if the command is still valid (resources still exist).
+     * @return true if command can be executed/undone, false if it should be skipped.
+     */
+    virtual bool isValid() const { return true; }
 };
 
 /**
@@ -38,6 +44,10 @@ public:
     
     void addCommand(std::unique_ptr<UndoCommand> cmd) {
         m_commands.push_back(std::move(cmd));
+    }
+    
+    void addCommand(UndoCommand *cmd) {
+        addCommand(std::unique_ptr<UndoCommand>(cmd));
     }
     
     void execute() override {
@@ -83,11 +93,27 @@ public:
     void executeCommand(std::unique_ptr<UndoCommand> command);
     
     /**
+     * @brief Execute a command and add it to the undo stack (raw pointer overload).
+     * @param command The command to execute. Ownership is transferred.
+     */
+    void executeCommand(UndoCommand *command) {
+        executeCommand(std::unique_ptr<UndoCommand>(command));
+    }
+    
+    /**
      * @brief Add a command to the undo stack WITHOUT executing it.
      *        Used when the action has already been performed (e.g., during drag).
      * @param command The command to add. Ownership is transferred.
      */
     void addCommandWithoutExecute(std::unique_ptr<UndoCommand> command);
+    
+    /**
+     * @brief Add a command to the undo stack WITHOUT executing it (raw pointer overload).
+     * @param command The command to add. Ownership is transferred.
+     */
+    void addCommandWithoutExecute(UndoCommand *command) {
+        addCommandWithoutExecute(std::unique_ptr<UndoCommand>(command));
+    }
     
     /**
      * @brief Undo the last command.

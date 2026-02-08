@@ -6,6 +6,7 @@
 #include <QSplitter>
 #include <QScrollBar>
 #include <QTimer>
+#include <QPushButton>
 
 #include <note_naga_engine/note_naga_engine.h>
 #include "section_interface.h"
@@ -18,6 +19,7 @@ class ArrangementResourcePanel;
 class ArrangementTimelineRuler;
 class ArrangementMinimapWidget;
 class ArrangementTempoTrackEditor;
+class UndoManager;
 
 // Track header width constant (must match arrangement_timeline_widget.h)
 static const int TRACK_HEADER_WIDTH = 160;
@@ -44,6 +46,7 @@ public:
     ArrangementLayerManager* getLayerManager() const { return m_layerManager; }
     ArrangementTimelineWidget* getTimeline() const { return m_timeline; }
     ArrangementResourcePanel* getResourcePanel() const { return m_resourcePanel; }
+    UndoManager* getUndoManager() const { return m_undoManager; }
 
     /**
      * @brief Resets the dock layout to default
@@ -94,13 +97,19 @@ private:
     QTimer *m_meterUpdateTimer = nullptr;
     bool m_autoScrollEnabled = true;
     
+    // Undo/Redo
+    UndoManager *m_undoManager = nullptr;
+    QPushButton *m_btnUndo = nullptr;
+    QPushButton *m_btnRedo = nullptr;
+    
     void setupDockLayout();
     void connectSignals();
     void updateScrollBarRange();
     void updateMinimapVisibleRange();
     void autoScrollToPlayhead(int tick);
     QWidget* createTimelineTitleWidget();
-    
+    void updateUndoRedoButtons();
+
 protected:
     void showEvent(QShowEvent *event) override;
 };

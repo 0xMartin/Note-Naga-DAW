@@ -125,6 +125,12 @@ signals:
     
     /// Emitted when user creates a new sequence
     void createSequenceRequested();
+    
+    /// Emitted when a MIDI sequence is deleted (for undo history cleanup)
+    void sequenceDeleted(int sequenceId);
+    
+    /// Emitted when an audio resource is deleted (for undo history cleanup)
+    void audioResourceDeleted(int resourceId);
 
 private slots:
     void onSequenceDoubleClicked(QListWidgetItem *item);

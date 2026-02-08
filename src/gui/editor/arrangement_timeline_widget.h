@@ -23,6 +23,7 @@ struct NN_MidiClip_t;
 struct NN_AudioClip_t;
 class ArrangementTimelineRuler;
 class ArrangementTrackHeadersWidget;
+class UndoManager;
 
 /**
  * @brief Main timeline widget for Arrangement section
@@ -48,6 +49,16 @@ public:
 
     // Track header width
     static constexpr int TRACK_HEADER_WIDTH = 160;
+
+    // Access to arrangement data
+    NoteNagaArrangement* getArrangement() const;
+    
+    // Access to engine
+    NoteNagaEngine* getEngine() const { return m_engine; }
+
+    // Undo manager
+    void setUndoManager(UndoManager *undoManager);
+    UndoManager* getUndoManager() const { return m_undoManager; }
 
     // Zoom & scroll
     void setPixelsPerTick(double ppTick);
@@ -178,6 +189,7 @@ private:
     int getActiveSequenceIdForDrag() const;
 
     NoteNagaEngine *m_engine;
+    UndoManager *m_undoManager = nullptr;
     ArrangementTimelineRuler *m_ruler = nullptr;
     
     // View parameters

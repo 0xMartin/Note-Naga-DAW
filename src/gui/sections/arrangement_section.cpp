@@ -8,6 +8,8 @@
 #include "../editor/arrangement_timeline_ruler.h"
 #include "../editor/arrangement_minimap_widget.h"
 #include "../editor/arrangement_tempo_track_editor.h"
+#include "../undo/undo_manager.h"
+#include "../undo/arrangement_clip_commands.h"
 #include "../nn_gui_utils.h"
 
 #include <note_naga_engine/audio/audio_manager.h>
@@ -36,6 +38,9 @@ ArrangementSection::ArrangementSection(NoteNagaEngine *engine, QWidget *parent)
     
     // Set background
     setStyleSheet("QMainWindow { background-color: #1a1a1f; }");
+    
+    // Initialize undo manager
+    m_undoManager = new UndoManager(this);
     
     setupDockLayout();
     connectSignals();
@@ -156,6 +161,7 @@ void ArrangementSection::setupDockLayout()
     m_timeline->setMinimumWidth(300);
     m_timeline->setMinimumHeight(200);
     m_timeline->setTrackHeadersWidget(m_trackHeaders);  // Connect headers widget
+    m_timeline->setUndoManager(m_undoManager);  // Connect undo manager
     m_headerTimelineSplitter->addWidget(m_timeline);
     
     // Set initial splitter sizes (headers: 160, timeline: stretch)
@@ -515,6 +521,27 @@ void ArrangementSection::connectSignals()
             // Refresh resource panel
             m_resourcePanel->refreshFromProject();
         });
+        
+        // Handle sequence deletion - refresh timeline (clips already removed in engine)
+        connect(m_resourcePanel, &ArrangementResourcePanel::sequenceDeleted,
+                this, [this](int /*sequenceId*/) {
+            // Refresh timeline to reflect removed clips
+            // Note: We don't clear undo history - orphaned commands will just have no effect
+            if (m_timeline) {
+                m_timeline->clearSelection();
+                m_timeline->refreshFromArrangement();
+            }
+        });
+        
+        // Handle audio resource deletion
+        connect(m_resourcePanel, &ArrangementResourcePanel::audioResourceDeleted,
+                this, [this](int /*resourceId*/) {
+            // Refresh timeline to reflect removed clips
+            if (m_timeline) {
+                m_timeline->clearSelection();
+                m_timeline->refreshFromArrangement();
+            }
+        });
     }
 
     // Connect timeline clip drop to arrangement
@@ -563,7 +590,14 @@ void ArrangementSection::connectSignals()
             clip.startTick = static_cast<int>(tick);
             clip.durationTicks = clipDuration;
             
-            arrangement->getTracks()[trackIndex]->addClip(clip);
+            // Use undo command if available
+            if (m_undoManager) {
+                m_undoManager->executeCommand(
+                    new AddClipCommand(m_timeline, clip, trackIndex));
+            } else {
+                arrangement->getTracks()[trackIndex]->addClip(clip);
+            }
+            
             onArrangementChanged();
             
             // Refresh layer manager to show new tracks
@@ -614,7 +648,14 @@ void ArrangementSection::connectSignals()
             clip.muted = false;
             clip.looping = false;
             
-            arrangement->getTracks()[trackIndex]->addAudioClip(clip);
+            // Use undo command if available
+            if (m_undoManager) {
+                m_undoManager->executeCommand(
+                    new AddAudioClipCommand(m_timeline, clip, trackIndex));
+            } else {
+                arrangement->getTracks()[trackIndex]->addAudioClip(clip);
+            }
+            
             onArrangementChanged();
             
             // Refresh layer manager
@@ -818,6 +859,26 @@ QWidget* ArrangementSection::createTimelineTitleWidget()
     layout->setContentsMargins(4, 0, 4, 0);
     layout->setSpacing(4);
     
+    // Undo/Redo buttons
+    m_btnUndo = create_small_button(":/icons/undo.svg", tr("Undo (Cmd+Z)"), "UndoBtn", 22);
+    m_btnUndo->setEnabled(false);
+    connect(m_btnUndo, &QPushButton::clicked, this, [this]() {
+        if (m_undoManager) {
+            m_undoManager->undo();
+        }
+    });
+    
+    m_btnRedo = create_small_button(":/icons/redo.svg", tr("Redo (Cmd+Shift+Z)"), "RedoBtn", 22);
+    m_btnRedo->setEnabled(false);
+    connect(m_btnRedo, &QPushButton::clicked, this, [this]() {
+        if (m_undoManager) {
+            m_undoManager->redo();
+        }
+    });
+    
+    // Connect undo manager state changes to button updates
+    connect(m_undoManager, &UndoManager::undoStateChanged, this, &ArrangementSection::updateUndoRedoButtons);
+    
     // Add Track button
     QPushButton *btnAddTrack = create_small_button(
         ":/icons/add.svg", tr("Add New Track"), "AddTrackBtn", 22);
@@ -898,6 +959,9 @@ QWidget* ArrangementSection::createTimelineTitleWidget()
     });
     
     // Add widgets to layout
+    layout->addWidget(m_btnUndo);
+    layout->addWidget(m_btnRedo);
+    layout->addWidget(create_separator());
     layout->addWidget(btnAddTrack);
     layout->addWidget(btnAddTempoTrack);
     layout->addWidget(create_separator());
@@ -909,4 +973,18 @@ QWidget* ArrangementSection::createTimelineTitleWidget()
     layout->addStretch();
     
     return titleWidget;
+}
+
+void ArrangementSection::updateUndoRedoButtons()
+{
+    if (m_undoManager) {
+        m_btnUndo->setEnabled(m_undoManager->canUndo());
+        m_btnRedo->setEnabled(m_undoManager->canRedo());
+        m_btnUndo->setToolTip(m_undoManager->canUndo() 
+            ? tr("Undo %1 (Cmd+Z)").arg(m_undoManager->undoDescription()) 
+            : tr("Undo (Cmd+Z)"));
+        m_btnRedo->setToolTip(m_undoManager->canRedo() 
+            ? tr("Redo %1 (Cmd+Shift+Z)").arg(m_undoManager->redoDescription()) 
+            : tr("Redo (Cmd+Shift+Z)"));
+    }
 }

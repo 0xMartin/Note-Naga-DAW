@@ -1909,6 +1909,32 @@ NoteNagaArrangementTrack* NoteNagaArrangement::addTrack(const std::string &name)
     return track;
 }
 
+NoteNagaArrangementTrack* NoteNagaArrangement::insertTrack(int index, const std::string &name) {
+    auto *track = new NoteNagaArrangementTrack(nn_generate_unique_arrangement_track_id(), name);
+    
+    // Clamp index to valid range
+    if (index < 0) index = 0;
+    if (index > static_cast<int>(tracks_.size())) index = static_cast<int>(tracks_.size());
+    
+    tracks_.insert(tracks_.begin() + index, track);
+    
+#ifndef QT_DEACTIVATED
+    // Connect clip changes to arrangement signals
+    connect(track, &NoteNagaArrangementTrack::clipsChanged, this, [this]() {
+        updateMaxTick();
+        emit clipsChanged();
+    });
+    // Connect audio clip changes
+    connect(track, &NoteNagaArrangementTrack::audioClipsChanged, this, [this]() {
+        updateMaxTick();
+        emit clipsChanged();
+    });
+#endif
+    
+    NN_QT_EMIT(tracksChanged());
+    return track;
+}
+
 bool NoteNagaArrangement::removeTrack(int trackId) {
     auto it = std::find_if(tracks_.begin(), tracks_.end(),
                            [trackId](NoteNagaArrangementTrack *t) { return t->getId() == trackId; });
@@ -1920,6 +1946,17 @@ bool NoteNagaArrangement::removeTrack(int trackId) {
         return true;
     }
     return false;
+}
+
+bool NoteNagaArrangement::removeTrackByIndex(int index) {
+    if (index < 0 || index >= static_cast<int>(tracks_.size())) {
+        return false;
+    }
+    delete tracks_[index];
+    tracks_.erase(tracks_.begin() + index);
+    updateMaxTick();
+    NN_QT_EMIT(tracksChanged());
+    return true;
 }
 
 NoteNagaArrangementTrack* NoteNagaArrangement::getTrackById(int trackId) {

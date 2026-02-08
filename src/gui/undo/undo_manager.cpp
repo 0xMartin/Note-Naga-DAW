@@ -47,41 +47,63 @@ void UndoManager::addCommandWithoutExecute(std::unique_ptr<UndoCommand> command)
 bool UndoManager::undo() {
     if (m_undoStack.empty()) return false;
     
-    // Pop from undo stack
-    auto command = std::move(m_undoStack.back());
-    m_undoStack.pop_back();
+    // Skip invalid commands and find the next valid one
+    while (!m_undoStack.empty()) {
+        auto command = std::move(m_undoStack.back());
+        m_undoStack.pop_back();
+        
+        if (!command->isValid()) {
+            // Command is no longer valid (e.g., sequence was deleted), discard it
+            continue;
+        }
+        
+        QString desc = command->description();
+        
+        // Undo the command
+        command->undo();
+        
+        // Push to redo stack
+        m_redoStack.push_back(std::move(command));
+        
+        emit undoPerformed(desc);
+        emit undoStateChanged();
+        return true;
+    }
     
-    QString desc = command->description();
-    
-    // Undo the command
-    command->undo();
-    
-    // Push to redo stack
-    m_redoStack.push_back(std::move(command));
-    
-    emit undoPerformed(desc);
+    // No valid command found
     emit undoStateChanged();
-    return true;
+    return false;
 }
 
 bool UndoManager::redo() {
     if (m_redoStack.empty()) return false;
     
-    // Pop from redo stack
-    auto command = std::move(m_redoStack.back());
-    m_redoStack.pop_back();
+    // Skip invalid commands and find the next valid one
+    while (!m_redoStack.empty()) {
+        auto command = std::move(m_redoStack.back());
+        m_redoStack.pop_back();
+        
+        if (!command->isValid()) {
+            // Command is no longer valid (e.g., sequence was deleted), discard it
+            continue;
+        }
+        
+        QString desc = command->description();
+        
+        // Re-execute the command
+        command->execute();
+        
+        // Push back to undo stack
+        m_undoStack.push_back(std::move(command));
+        
+        emit redoPerformed(desc);
+        emit undoStateChanged();
+        return true;
+    }
     
-    QString desc = command->description();
-    
-    // Re-execute the command
-    command->execute();
-    
-    // Push back to undo stack
-    m_undoStack.push_back(std::move(command));
-    
-    emit redoPerformed(desc);
+    // No valid command found
     emit undoStateChanged();
-    return true;
+    return false;
 }
 
 QString UndoManager::undoDescription() const {

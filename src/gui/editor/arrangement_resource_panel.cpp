@@ -817,7 +817,9 @@ void ArrangementResourcePanel::deleteSequence(int sequenceIndex)
         QMessageBox::Yes | QMessageBox::No);
     
     if (reply == QMessageBox::Yes) {
+        int sequenceId = seq->getId();
         m_engine->getRuntimeData()->removeSequence(seq);
+        emit sequenceDeleted(sequenceId);
         refreshMidiList();
     }
 }
@@ -834,6 +836,7 @@ void ArrangementResourcePanel::removeAudioResource(int resourceId)
     
     if (reply == QMessageBox::Yes) {
         m_engine->getRuntimeData()->getAudioManager().removeAudioResource(resourceId);
+        emit audioResourceDeleted(resourceId);
         refreshAudioList();
     }
 }

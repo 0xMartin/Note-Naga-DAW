@@ -2,6 +2,8 @@
 #include "arrangement_timeline_ruler.h"
 #include "arrangement_track_headers_widget.h"
 #include "../components/track_stereo_meter.h"
+#include "../undo/undo_manager.h"
+#include "../undo/arrangement_clip_commands.h"
 
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/core/runtime_data.h>
@@ -42,6 +44,11 @@ QRect ArrangementTimelineWidget::contentRect() const
     return rect();
 }
 
+void ArrangementTimelineWidget::setUndoManager(UndoManager *undoManager)
+{
+    m_undoManager = undoManager;
+}
+
 void ArrangementTimelineWidget::setPixelsPerTick(double ppTick)
 {
     if (m_pixelsPerTick != ppTick) {
@@ -52,6 +59,12 @@ void ArrangementTimelineWidget::setPixelsPerTick(double ppTick)
         update();
         emit zoomChanged(m_pixelsPerTick);
     }
+}
+
+NoteNagaArrangement* ArrangementTimelineWidget::getArrangement() const
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return nullptr;
+    return m_engine->getRuntimeData()->getArrangement();
 }
 
 void ArrangementTimelineWidget::setHorizontalOffset(int offset)
@@ -138,23 +151,74 @@ void ArrangementTimelineWidget::selectClip(int clipId, bool addToSelection)
 
 void ArrangementTimelineWidget::deleteSelectedClips()
 {
+    if (m_selectedClipIds.isEmpty() && m_selectedAudioClipIds.isEmpty()) return;
     if (!m_engine || !m_engine->getRuntimeData()) return;
     
     NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
     if (!arrangement) return;
 
-    for (int clipId : m_selectedClipIds) {
-        for (auto *track : arrangement->getTracks()) {
-            if (track->removeClip(clipId)) {
-                break;
+    if (m_undoManager) {
+        // Use undo command - collect clip data first
+        QList<DeleteClipsCommand::ClipData> clips;
+        for (int clipId : m_selectedClipIds) {
+            for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+                auto *track = arrangement->getTracks()[tIdx];
+                if (!track) continue;
+                for (const auto &clip : track->getClips()) {
+                    if (clip.id == clipId) {
+                        clips.append({clip, tIdx});
+                        break;
+                    }
+                }
             }
         }
+        
+        // Collect audio clips too
+        QList<DeleteAudioClipsCommand::AudioClipData> audioClips;
+        for (int clipId : m_selectedAudioClipIds) {
+            for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+                auto *track = arrangement->getTracks()[tIdx];
+                if (!track) continue;
+                for (const auto &clip : track->getAudioClips()) {
+                    if (clip.id == clipId) {
+                        audioClips.append({clip, tIdx});
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!clips.isEmpty() || !audioClips.isEmpty()) {
+            auto *compound = new CompoundCommand("Delete Clips");
+            if (!clips.isEmpty()) {
+                compound->addCommand(new DeleteClipsCommand(this, clips));
+            }
+            if (!audioClips.isEmpty()) {
+                compound->addCommand(new DeleteAudioClipsCommand(this, audioClips));
+            }
+            m_undoManager->executeCommand(compound);
+        }
+    } else {
+        // Direct deletion (fallback without undo)
+        for (int clipId : m_selectedClipIds) {
+            for (auto *track : arrangement->getTracks()) {
+                if (track->removeClip(clipId)) {
+                    break;
+                }
+            }
+        }
+        for (int clipId : m_selectedAudioClipIds) {
+            for (auto *track : arrangement->getTracks()) {
+                if (track->removeAudioClip(clipId)) {
+                    break;
+                }
+            }
+        }
+        arrangement->updateMaxTick();
     }
     
-    // Update arrangement max tick after deletion
-    arrangement->updateMaxTick();
-    
     m_selectedClipIds.clear();
+    m_selectedAudioClipIds.clear();
     update();
     emit selectionChanged();
 }
@@ -168,75 +232,66 @@ void ArrangementTimelineWidget::duplicateSelectedClips()
     if (!arrangement) return;
     
     // Collect all selected clips
-    struct ClipInfo {
-        NN_MidiClip_t clip;
-        int trackIndex;
-    };
-    std::vector<ClipInfo> clipsTodup;
+    QList<DuplicateClipsCommand::ClipData> clipsTodup;
     
     for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
         auto *track = arrangement->getTracks()[tIdx];
         if (!track) continue;
         for (const auto &clip : track->getClips()) {
             if (m_selectedClipIds.contains(clip.id)) {
-                clipsTodup.push_back({clip, tIdx});
+                // Preferred position: right after the original clip
+                int64_t preferredStart = clip.startTick + clip.durationTicks;
+                
+                // Find nearest safe position
+                int64_t safeStart = arrangement->findNearestSafePosition(
+                    clip.sequenceId, preferredStart, clip.durationTicks, -1);
+                
+                clipsTodup.append({clip, tIdx, safeStart});
             }
         }
     }
     
     if (clipsTodup.empty()) return;
     
-    // Clear selection - will select new clips
-    m_selectedClipIds.clear();
-    
-    int64_t lastClipEnd = 0;
-    
-    // Create duplicates with safe positions
-    for (const auto &info : clipsTodup) {
-        // Preferred position: right after the original clip
-        int64_t preferredStart = info.clip.startTick + info.clip.durationTicks;
+    if (m_undoManager) {
+        // Use undo command
+        m_undoManager->executeCommand(new DuplicateClipsCommand(this, clipsTodup));
+    } else {
+        // Fallback: direct duplication
+        m_selectedClipIds.clear();
+        int64_t lastClipEnd = 0;
         
-        // Find nearest safe position
-        int64_t safeStart = arrangement->findNearestSafePosition(
-            info.clip.sequenceId, preferredStart, info.clip.durationTicks, -1);
-        
-        // Create duplicate clip
-        NN_MidiClip_t newClip = info.clip;
-        newClip.id = 0;  // Will be assigned by addClip
-        newClip.startTick = safeStart;
-        
-        auto *targetTrack = arrangement->getTracks()[info.trackIndex];
-        if (targetTrack) {
-            targetTrack->addClip(newClip);
-            m_selectedClipIds.insert(newClip.id);
+        for (const auto &info : clipsTodup) {
+            NN_MidiClip_t newClip = info.clip;
+            newClip.id = 0;
+            newClip.startTick = info.newStartTick;
             
-            // Track the end of the last created clip for scrolling
-            int64_t clipEnd = safeStart + newClip.durationTicks;
-            if (clipEnd > lastClipEnd) {
-                lastClipEnd = clipEnd;
+            auto *targetTrack = arrangement->getTracks()[info.trackIndex];
+            if (targetTrack) {
+                targetTrack->addClip(newClip);
+                m_selectedClipIds.insert(newClip.id);
+                
+                int64_t clipEnd = info.newStartTick + newClip.durationTicks;
+                if (clipEnd > lastClipEnd) {
+                    lastClipEnd = clipEnd;
+                }
             }
         }
-    }
-    
-    // Update arrangement
-    arrangement->updateMaxTick();
-    
-    // Scroll to show the duplicated clips
-    if (lastClipEnd > 0) {
-        // Calculate the x position of the last clip end
-        int targetX = tickToX(lastClipEnd);
+        arrangement->updateMaxTick();
         
-        // If the clip end is outside the viewport, scroll to show it
-        if (targetX > width() - 100 || targetX < 100) {
-            // Center the view roughly around the new clips
-            int64_t centerTick = lastClipEnd - (width() / 2 / m_pixelsPerTick);
-            centerTick = qMax(static_cast<int64_t>(0), centerTick);
-            setHorizontalOffset(static_cast<int>(centerTick * m_pixelsPerTick));
+        // Scroll to show duplicated clips
+        if (lastClipEnd > 0) {
+            int targetX = tickToX(lastClipEnd);
+            if (targetX > width() - 100 || targetX < 100) {
+                int64_t centerTick = lastClipEnd - (width() / 2 / m_pixelsPerTick);
+                centerTick = qMax(static_cast<int64_t>(0), centerTick);
+                setHorizontalOffset(static_cast<int>(centerTick * m_pixelsPerTick));
+            }
         }
+        
+        update();
+        emit selectionChanged();
     }
-    
-    update();
-    emit selectionChanged();
 }
 
 void ArrangementTimelineWidget::refreshFromArrangement()
@@ -1453,6 +1508,37 @@ void ArrangementTimelineWidget::mouseReleaseEvent(QMouseEvent *event)
                         QMessageBox::warning(this, tr("Cannot Move"),
                             tr("Cannot move clip here - it would overlap with another instance of the same sequence."));
                     } else {
+                        // Move succeeded - create undo command if undo manager exists
+                        if (m_undoManager && !m_originalClipStates.isEmpty()) {
+                            QList<MoveClipsCommand::ClipMoveData> moveData;
+                            for (const auto& origState : m_originalClipStates) {
+                                // Find current clip position
+                                for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+                                    auto* track = arrangement->getTracks()[tIdx];
+                                    if (!track) continue;
+                                    for (const auto& clip : track->getClips()) {
+                                        if (clip.id == origState.clipId) {
+                                            // Only add if position actually changed
+                                            if (clip.startTick != origState.startTick || tIdx != origState.trackIndex) {
+                                                MoveClipsCommand::ClipMoveData data;
+                                                data.clipId = clip.id;
+                                                data.oldTrackIndex = origState.trackIndex;
+                                                data.newTrackIndex = tIdx;
+                                                data.oldStartTick = origState.startTick;
+                                                data.newStartTick = clip.startTick;
+                                                moveData.append(data);
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if (!moveData.isEmpty()) {
+                                // Add command without executing (already done via drag)
+                                m_undoManager->addCommandWithoutExecute(
+                                    new MoveClipsCommand(this, moveData));
+                            }
+                        }
                         arrangement->updateMaxTick();
                     }
                 }
@@ -1494,17 +1580,84 @@ void ArrangementTimelineWidget::mouseReleaseEvent(QMouseEvent *event)
                         QMessageBox::warning(this, tr("Cannot Resize"),
                             tr("Cannot resize clip - it would overlap with another instance of the same sequence."));
                     } else {
+                        // Resize succeeded - create undo command
+                        if (m_undoManager) {
+                            // Find new clip values
+                            for (const auto* track : arrangement->getTracks()) {
+                                if (!track) continue;
+                                for (const auto& clip : track->getClips()) {
+                                    if (clip.id == m_dragClipId) {
+                                        // Only create command if size/position changed
+                                        if (clip.startTick != m_originalClipStart || 
+                                            clip.durationTicks != m_originalClipDuration) {
+                                            m_undoManager->addCommandWithoutExecute(
+                                                new ResizeClipCommand(
+                                                    this, m_dragClipId,
+                                                    m_originalClipStart, m_originalClipDuration,
+                                                    clip.startTick, clip.durationTicks));
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         arrangement->updateMaxTick();
                     }
                 }
             }
-        } else if (m_interactionMode == MovingAudioClip ||
-                   m_interactionMode == ResizingAudioClipLeft ||
-                   m_interactionMode == ResizingAudioClipRight) {
-            // Update arrangement max tick after audio clip move/resize
+        } else if (m_interactionMode == MovingAudioClip) {
+            // Update arrangement max tick after audio clip move
             if (m_engine && m_engine->getRuntimeData()) {
                 NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
-                if (arrangement) {
+                if (arrangement && m_undoManager && m_dragAudioClipId >= 0) {
+                    // Find current audio clip position
+                    for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+                        auto *track = arrangement->getTracks()[tIdx];
+                        if (!track) continue;
+                        for (const auto &clip : track->getAudioClips()) {
+                            if (clip.id == m_dragAudioClipId) {
+                                // Only create command if position changed
+                                if (clip.startTick != m_originalClipStart || tIdx != m_dragStartTrackIndex) {
+                                    MoveAudioClipsCommand::AudioClipMoveData data;
+                                    data.clipId = clip.id;
+                                    data.oldTrackIndex = m_dragStartTrackIndex;
+                                    data.newTrackIndex = tIdx;
+                                    data.oldStartTick = m_originalClipStart;
+                                    data.newStartTick = clip.startTick;
+                                    m_undoManager->addCommandWithoutExecute(
+                                        new MoveAudioClipsCommand(this, {data}));
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    arrangement->updateMaxTick();
+                }
+            }
+        } else if (m_interactionMode == ResizingAudioClipLeft ||
+                   m_interactionMode == ResizingAudioClipRight) {
+            // Update arrangement max tick after audio clip resize
+            if (m_engine && m_engine->getRuntimeData()) {
+                NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+                if (arrangement && m_undoManager && m_dragAudioClipId >= 0) {
+                    // Find current audio clip 
+                    for (auto *track : arrangement->getTracks()) {
+                        if (!track) continue;
+                        for (const auto &clip : track->getAudioClips()) {
+                            if (clip.id == m_dragAudioClipId) {
+                                // Only create command if size/position changed
+                                if (clip.startTick != m_originalClipStart || 
+                                    clip.durationTicks != m_originalClipDuration) {
+                                    m_undoManager->addCommandWithoutExecute(
+                                        new ResizeAudioClipCommand(
+                                            this, m_dragAudioClipId,
+                                            m_originalClipStart, m_originalClipDuration,
+                                            clip.startTick, clip.durationTicks));
+                                }
+                                break;
+                            }
+                        }
+                    }
                     arrangement->updateMaxTick();
                 }
             }
@@ -1618,6 +1771,31 @@ void ArrangementTimelineWidget::keyPressEvent(QKeyEvent *event)
         case Qt::Key_V:
             if (event->modifiers() & Qt::ControlModifier) {
                 startPasteMode();
+            }
+            break;
+            
+        case Qt::Key_Z:
+            if (event->modifiers() & Qt::ControlModifier) {
+                if (event->modifiers() & Qt::ShiftModifier) {
+                    // Ctrl+Shift+Z = Redo
+                    if (m_undoManager && m_undoManager->canRedo()) {
+                        m_undoManager->redo();
+                    }
+                } else {
+                    // Ctrl+Z = Undo
+                    if (m_undoManager && m_undoManager->canUndo()) {
+                        m_undoManager->undo();
+                    }
+                }
+            }
+            break;
+            
+        case Qt::Key_Y:
+            if (event->modifiers() & Qt::ControlModifier) {
+                // Ctrl+Y = Redo (Windows style)
+                if (m_undoManager && m_undoManager->canRedo()) {
+                    m_undoManager->redo();
+                }
             }
             break;
             
@@ -1796,17 +1974,29 @@ void ArrangementTimelineWidget::showTrackContextMenu(int trackIndex, const QPoin
     } else if (selected == duplicateAction) {
         // TODO: Implement duplicate track
     } else if (selected == deleteAction) {
-        arrangement->removeTrack(track->getId());
-        update();
+        if (m_undoManager) {
+            m_undoManager->executeCommand(new DeleteTrackCommand(this, trackIndex));
+        } else {
+            arrangement->removeTrack(track->getId());
+            update();
+        }
     } else if (selected == addAboveAction) {
         QString name = tr("Track %1").arg(arrangement->getTrackCount() + 1);
-        arrangement->addTrack(name.toStdString());
-        // TODO: Move new track to correct position
-        update();
+        if (m_undoManager) {
+            m_undoManager->executeCommand(new AddTrackCommand(this, name));
+            // TODO: Move new track to correct position
+        } else {
+            arrangement->addTrack(name.toStdString());
+            update();
+        }
     } else if (selected == addBelowAction) {
         QString name = tr("Track %1").arg(arrangement->getTrackCount() + 1);
-        arrangement->addTrack(name.toStdString());
-        update();
+        if (m_undoManager) {
+            m_undoManager->executeCommand(new AddTrackCommand(this, name));
+        } else {
+            arrangement->addTrack(name.toStdString());
+            update();
+        }
     }
 }
 
@@ -1843,8 +2033,12 @@ void ArrangementTimelineWidget::showEmptyAreaContextMenu(const QPoint &globalPos
     
     if (selected == addTrackAction) {
         QString name = tr("Track %1").arg(arrangement->getTrackCount() + 1);
-        arrangement->addTrack(name.toStdString());
-        update();
+        if (m_undoManager) {
+            m_undoManager->executeCommand(new AddTrackCommand(this, name));
+        } else {
+            arrangement->addTrack(name.toStdString());
+            update();
+        }
     } else if (addTempoTrackAction && selected == addTempoTrackAction) {
         // Get current project tempo in BPM
         double projectBpm = 120.0;
@@ -2032,6 +2226,9 @@ void ArrangementTimelineWidget::finishPaste()
     // Clear selection for new clips
     m_selectedClipIds.clear();
     
+    // Collect clips to paste for undo command
+    QList<PasteClipsCommand::ClipData> clipsForUndo;
+    
     // Create new clips from clipboard
     for (const auto &clipState : m_clipboardClips) {
         // Calculate target track
@@ -2052,6 +2249,15 @@ void ArrangementTimelineWidget::finishPaste()
         
         targetTrack->addClip(newClip);
         m_selectedClipIds.insert(newClip.id);
+        
+        // Store for undo - use the new clip with assigned ID
+        clipsForUndo.append({newClip, targetTrackIdx});
+    }
+    
+    // Create undo command
+    if (m_undoManager && !clipsForUndo.isEmpty()) {
+        m_undoManager->addCommandWithoutExecute(
+            new PasteClipsCommand(this, clipsForUndo));
     }
     
     m_interactionMode = None;

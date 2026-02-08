@@ -100,6 +100,28 @@ void NoteNagaRuntimeData::addSequence(NoteNagaMidiSeq *sequence) {
 
 void NoteNagaRuntimeData::removeSequence(NoteNagaMidiSeq *sequence) {
     if (sequence) {
+        int sequenceId = sequence->getId();
+        
+        // Remove all clips referencing this sequence from the arrangement
+        if (arrangement_) {
+            for (auto *track : arrangement_->getTracks()) {
+                if (track) {
+                    // Collect clip IDs to remove (can't remove while iterating)
+                    std::vector<int> clipIdsToRemove;
+                    for (const auto &clip : track->getClips()) {
+                        if (clip.sequenceId == sequenceId) {
+                            clipIdsToRemove.push_back(clip.id);
+                        }
+                    }
+                    // Remove the clips
+                    for (int clipId : clipIdsToRemove) {
+                        track->removeClip(clipId);
+                    }
+                }
+            }
+            arrangement_->updateMaxTick();
+        }
+        
         auto it = std::remove(sequences.begin(), sequences.end(), sequence);
         if (it != sequences.end()) {
             sequences.erase(it, sequences.end());
@@ -112,7 +134,7 @@ void NoteNagaRuntimeData::removeSequence(NoteNagaMidiSeq *sequence) {
                 active_sequence = nullptr;
                 NN_QT_EMIT(activeSequenceChanged(nullptr));
             }
-            NOTE_NAGA_LOG_INFO("Removed MIDI sequence with ID: " + std::to_string(sequence->getId()));
+            NOTE_NAGA_LOG_INFO("Removed MIDI sequence with ID: " + std::to_string(sequenceId));
         } else {
             NOTE_NAGA_LOG_WARNING("Attempted to remove a sequence that does not exist in the project");
         }
