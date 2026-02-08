@@ -996,6 +996,11 @@ bool MainWindow::openProject(const QString &filePath) {
     m_projectSection->setProjectFilePath(m_currentProjectPath);
     m_projectSection->markAsSaved();
     
+    // Update arrangement section with project path (for audio recording)
+    if (m_arrangementSection) {
+        m_arrangementSection->setProjectFilePath(m_currentProjectPath);
+    }
+    
     // Update notation section with project metadata
     if (m_notationSection) {
         m_notationSection->setProjectMetadata(m_projectMetadata);
@@ -1061,6 +1066,11 @@ bool MainWindow::saveProjectAs() {
     
     m_currentProjectPath = filePath;
     m_projectSection->setProjectFilePath(m_currentProjectPath);
+    
+    // Update arrangement section with project path (for audio recording)
+    if (m_arrangementSection) {
+        m_arrangementSection->setProjectFilePath(m_currentProjectPath);
+    }
     
     // Update directory
     m_recentProjectsManager->setLastProjectDirectory(QFileInfo(filePath).absolutePath());

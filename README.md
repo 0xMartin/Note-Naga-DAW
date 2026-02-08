@@ -221,41 +221,15 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - **Articulation** - Apply legato or staccato
 
 ## 📋 Todo
-
-### 🔴 High Priority (v1.0)
-- [x] 🐛 **Fix**: Newly added notes not playing during playback
-- [x] 💾 **MIDI Export**: Save projects as standard MIDI files
-- [x] 💾 **Project Save/Load**: Complete project persistence
-- [x] 📁 **Project Explorer**: Dialog for new/open/recent projects
-- [x] **Dynamic Tempo**: Support for dynamic BPM, tempo track, tempo editing
-  
-### 🟡 UI/UX Improvements
-- [x] 🎨 **Section-based Layout**: Split app into dedicated sections
-  - MIDI Editor: Track list + Piano roll + Mixer
-  - DSP Editor: DSP blocks + Volume indicator + Spectrum analyzer + Track preview
-  - Export: Media export dialog
-- [x] 🖱️ **Context Menus**: Right-click menus for all major components
-- [x] 📊 **Velocity Editor**: Visual velocity editing panel
-- [x] ✏️ **Enhanced Note Editing**: Better manipulation and selection tools
-- [x] 🎯 **Apply to Selection**: MIDI utilities work on selected notes only (or all if none selected)
-- [x] **Project Settings and Info section**: BPM, time signature, location on disk, name, author, output devices
-- [x] **Project Wizard**: Guide for creating new projects with initial settings
-
-### 🟢 Advanced Features
-- [ ] 🎹 **MIDI Input**: Record notes from external MIDI devices
-- [x] ↩️ **Undo/Redo**: History system for MIDI editor and DSP
-- [ ] 🔌 **Plugin Support**: VST/AU plugin integration
-- [ ] 🎛️ **Automation**: Automate mixer and effect parameters over time
-- [x] 📝 **Notation View**: Traditional music notation display
-- [ ] 🎨 **Custom Themes**: User-configurable color schemes
-- [ ] 🎵 **Audio Import**: Mix audio tracks with MIDI
-
-### ⚙️ Technical Improvements
-- [ ] 🧪 **Unit Tests**: Comprehensive test coverage for engine
-- [ ] 📚 **Documentation**: Complete API documentation
-- [ ] 🔧 **Performance**: Optimize DSP processing for large projects
-- [ ] 🌐 **Localization**: Multi-language support
-- [ ] 📦 **Package Manager**: Simplified installation process
+- Optimaze and fix bugs in arrangement section
+- Implement support for MIDI/Arrangement mode for Media Export and Notation section
+- Implement support for MIDI/Arragement mode for MIDI file export
+- Implement MIDI import in project
+- Microphone recording: add playback function on dialog
+- Implement External MIDI section
+- Output device selection in project section
+- Implement tool bar (open project, save project, import MIDI, export MIDI, import audio, record audio, new MIDI sequence, new Track)
+- Implement menu bar
 
 ### 📊 Project Data Structure
 Current project stores:

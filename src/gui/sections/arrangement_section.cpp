@@ -988,3 +988,10 @@ void ArrangementSection::updateUndoRedoButtons()
             : tr("Redo (Cmd+Shift+Z)"));
     }
 }
+
+void ArrangementSection::setProjectFilePath(const QString &path)
+{
+    if (m_resourcePanel) {
+        m_resourcePanel->setProjectFilePath(path);
+    }
+}

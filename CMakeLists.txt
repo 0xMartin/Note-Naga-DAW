@@ -23,9 +23,9 @@ add_subdirectory(libs/verovio/cmake)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg SvgWidgets PrintSupport Xml)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg SvgWidgets PrintSupport Xml Multimedia)
 else()
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg PrintSupport Xml)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg PrintSupport Xml Multimedia)
 endif()
 
 find_package(OpenCV REQUIRED)
@@ -76,6 +76,7 @@ set(HEADER_FILES
     src/gui/dialogs/instrument_selector_dialog.h
     src/gui/dialogs/project_wizard_dialog.h
     src/gui/dialogs/track_settings_dialog.h
+    src/gui/dialogs/audio_recording_dialog.h
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.h
     src/gui/dock_system/dock_indicator_overlay.h
@@ -145,6 +146,7 @@ set(SOURCE_FILES
     src/gui/dialogs/instrument_selector_dialog.cpp
     src/gui/dialogs/project_wizard_dialog.cpp
     src/gui/dialogs/track_settings_dialog.cpp
+    src/gui/dialogs/audio_recording_dialog.cpp
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.cpp
     src/gui/dock_system/dock_indicator_overlay.cpp
@@ -207,6 +209,7 @@ target_link_libraries(NoteNaga PRIVATE
     Qt${QT_VERSION_MAJOR}::SvgWidgets
     Qt${QT_VERSION_MAJOR}::PrintSupport
     Qt${QT_VERSION_MAJOR}::Xml
+    Qt${QT_VERSION_MAJOR}::Multimedia
     ${OpenCV_LIBS}
     note_naga_engine
     verovio

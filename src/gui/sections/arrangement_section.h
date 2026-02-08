@@ -67,6 +67,9 @@ public slots:
     
     /// Force refresh of minimap (clips changed, etc.)
     void refreshMinimap();
+    
+    /// Set the project file path (for audio recording)
+    void setProjectFilePath(const QString &path);
 
 private:
     NoteNagaEngine *m_engine;

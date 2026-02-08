@@ -1,4 +1,5 @@
 #include "arrangement_resource_panel.h"
+#include "../dialogs/audio_recording_dialog.h"
 
 #include <note_naga_engine/note_naga_engine.h>
 #include <note_naga_engine/core/runtime_data.h>
@@ -525,10 +526,33 @@ void ArrangementResourcePanel::initAudioTab(QWidget *tab)
     m_audioInfoLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_audioInfoLabel);
     
+    // Button container for horizontal layout
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    buttonLayout->setSpacing(8);
+    
+    // Record button
+    m_recordAudioBtn = new QPushButton(tr("⏺ Record"), tab);
+    m_recordAudioBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #dc2626;
+            color: white;
+        }
+        QPushButton:hover {
+            background-color: #ef4444;
+        }
+        QPushButton:pressed {
+            background-color: #b91c1c;
+        }
+    )");
+    connect(m_recordAudioBtn, &QPushButton::clicked, this, &ArrangementResourcePanel::onRecordAudio);
+    buttonLayout->addWidget(m_recordAudioBtn);
+    
     // Import button
     m_importAudioBtn = new QPushButton(tr("+ Import Audio"), tab);
     connect(m_importAudioBtn, &QPushButton::clicked, this, &ArrangementResourcePanel::onImportAudio);
-    layout->addWidget(m_importAudioBtn);
+    buttonLayout->addWidget(m_importAudioBtn);
+    
+    layout->addLayout(buttonLayout);
 }
 
 void ArrangementResourcePanel::refreshFromProject()
@@ -691,6 +715,25 @@ void ArrangementResourcePanel::onImportAudio()
     if (importedCount > 0) {
         refreshAudioList();
     }
+}
+
+void ArrangementResourcePanel::onRecordAudio()
+{
+    if (m_projectFilePath.isEmpty()) {
+        QMessageBox::information(this, tr("Save Project First"),
+            tr("Please save your project before recording audio.\n"
+               "Audio files will be saved in a folder next to the project file."));
+        return;
+    }
+    
+    AudioRecordingDialog dialog(m_engine, m_projectFilePath, this);
+    
+    connect(&dialog, &AudioRecordingDialog::recordingSaved, this, [this](const QString &filePath) {
+        Q_UNUSED(filePath);
+        refreshAudioList();
+    });
+    
+    dialog.exec();
 }
 
 void ArrangementResourcePanel::showSequenceContextMenu(const QPoint &pos)

@@ -132,11 +132,16 @@ signals:
     /// Emitted when an audio resource is deleted (for undo history cleanup)
     void audioResourceDeleted(int resourceId);
 
+public:
+    /// Set the project file path (needed for audio recording)
+    void setProjectFilePath(const QString &path) { m_projectFilePath = path; }
+
 private slots:
     void onSequenceDoubleClicked(QListWidgetItem *item);
     void onAudioDoubleClicked(QListWidgetItem *item);
     void onCreateSequence();
     void onImportAudio();
+    void onRecordAudio();
     void showSequenceContextMenu(const QPoint &pos);
     void showAudioContextMenu(const QPoint &pos);
 
@@ -153,6 +158,7 @@ private:
     void removeAudioResource(int resourceId);
 
     NoteNagaEngine *m_engine;
+    QString m_projectFilePath;
     
     QTabWidget *m_tabWidget;
     
@@ -164,6 +170,7 @@ private:
     // Audio tab
     DraggableAudioList *m_audioList;
     QPushButton *m_importAudioBtn;
+    QPushButton *m_recordAudioBtn;
     QLabel *m_audioInfoLabel;
 };
 
