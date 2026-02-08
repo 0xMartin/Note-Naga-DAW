@@ -459,6 +459,10 @@ void MainWindow::connect_signals() {
     // Connect playback mode changes to DSP editor (hide track preview in arrangement mode)
     connect(transportBar, &GlobalTransportBar::playbackModeChanged, 
             m_dspEditorSection, &DSPEditorSection::setPlaybackMode);
+    
+    // Connect playback mode changes to Media Export section
+    connect(transportBar, &GlobalTransportBar::playbackModeChanged, 
+            m_mediaExportSection, &MediaExportSection::setPlaybackMode);
 }
 
 void MainWindow::set_auto_follow(bool checked) { auto_follow = checked; }

@@ -638,7 +638,12 @@ void MediaExportSection::connectWidgetSignals()
 
 void MediaExportSection::connectEngineSignals()
 {
+    // Listen for tick changes during playback (from PlaybackWorker)
     connect(m_engine->getPlaybackWorker(), &NoteNagaPlaybackWorker::currentTickChanged, 
+            this, &MediaExportSection::onPlaybackTickChanged);
+    
+    // Also listen for tick changes from user seeking (progress bar drag)
+    connect(m_engine->getRuntimeData(), &NoteNagaRuntimeData::currentTickChanged,
             this, &MediaExportSection::onPlaybackTickChanged);
     
     // Listen for sequence changes
@@ -651,8 +656,14 @@ void MediaExportSection::connectEngineSignals()
 void MediaExportSection::refreshSequence()
 {
     m_sequence = m_engine->getRuntimeData()->getActiveSequence();
+    NoteNagaArrangement* arrangement = m_engine->getRuntimeData()->getArrangement();
     
-    if (!m_sequence) {
+    bool hasSequence = m_sequence != nullptr;
+    bool hasArrangement = arrangement != nullptr && arrangement->getTrackCount() > 0;
+    
+    qDebug() << "refreshSequence: hasSequence=" << hasSequence << "hasArrangement=" << hasArrangement;
+    
+    if (!hasSequence && !hasArrangement) {
         // Show placeholder, hide docks
         for (auto dock : m_docks) {
             dock->hide();
@@ -670,7 +681,17 @@ void MediaExportSection::refreshSequence()
         dock->show();
     }
     
-    m_totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), m_sequence->getPPQ(), m_sequence->getTempo());
+    // Update duration based on current playback mode from global transport bar
+    bool isArrangement = isArrangementMode();
+    qDebug() << "refreshSequence: isArrangementMode=" << isArrangement;
+    
+    if (isArrangement && hasArrangement) {
+        arrangement->updateMaxTick();
+        m_totalDuration = nn_ticks_to_seconds(arrangement->getMaxTick(), 
+            m_engine->getRuntimeData()->getPPQ(), m_engine->getRuntimeData()->getTempo());
+    } else if (hasSequence) {
+        m_totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), m_sequence->getPPQ(), m_sequence->getTempo());
+    }
     
     // Only start preview worker if section is currently active
     if (m_sectionActive) {
@@ -681,14 +702,52 @@ void MediaExportSection::refreshSequence()
     onPlaybackTickChanged(m_engine->getRuntimeData()->getCurrentTick());
 }
 
+bool MediaExportSection::isArrangementMode() const
+{
+    return m_engine->getPlaybackWorker()->getPlaybackMode() == PlaybackMode::Arrangement;
+}
+
+void MediaExportSection::setPlaybackMode(PlaybackMode mode)
+{
+    Q_UNUSED(mode);
+    // Only refresh if section is currently active
+    if (m_sectionActive) {
+        refreshSequence();
+    }
+}
+
 void MediaExportSection::initPreviewWorker()
 {
-    if (!m_sequence) return;
-    
     cleanupPreviewWorker();
     
+    bool isArrangement = isArrangementMode();
+    
+    qDebug() << "MediaExportSection::initPreviewWorker - isArrangement:" << isArrangement;
+    
+    // Check if we have valid source
+    if (isArrangement) {
+        NoteNagaArrangement* arrangement = m_engine->getRuntimeData()->getArrangement();
+        qDebug() << "  arrangement:" << arrangement;
+        if (arrangement) {
+            qDebug() << "  trackCount:" << arrangement->getTrackCount();
+        }
+        if (!arrangement) return;
+    } else {
+        if (!m_sequence) return;
+    }
+    
     m_previewThread = new QThread(this);
-    m_previewWorker = new PreviewWorker(m_sequence);
+    
+    if (isArrangement) {
+        qDebug() << "  Creating PreviewWorker for ARRANGEMENT";
+        m_previewWorker = new PreviewWorker(
+            m_engine->getRuntimeData()->getArrangement(), 
+            m_engine->getRuntimeData());
+    } else {
+        qDebug() << "  Creating PreviewWorker for SEQUENCE";
+        m_previewWorker = new PreviewWorker(m_sequence);
+    }
+    
     m_previewWorker->moveToThread(m_previewThread);
 
     connect(this, &MediaExportSection::destroyed, m_previewWorker, &PreviewWorker::deleteLater);
@@ -865,9 +924,16 @@ void MediaExportSection::updatePreviewSettings()
 
 void MediaExportSection::onPlaybackTickChanged(int tick)
 {
-    if (!m_sequence) return;
+    bool isArrangement = isArrangementMode();
     
-    m_currentTime = nn_ticks_to_seconds(tick, m_sequence->getPPQ(), m_sequence->getTempo());
+    if (isArrangement) {
+        NoteNagaRuntimeData* runtimeData = m_engine->getRuntimeData();
+        if (!runtimeData) return;
+        m_currentTime = nn_ticks_to_seconds(tick, runtimeData->getPPQ(), runtimeData->getTempo());
+    } else {
+        if (!m_sequence) return;
+        m_currentTime = nn_ticks_to_seconds(tick, m_sequence->getPPQ(), m_sequence->getTempo());
+    }
 
     if (m_previewWorker && m_exportTypeCombo->currentIndex() == 0) {
         QMetaObject::invokeMethod(m_previewWorker, "updateTime", Qt::QueuedConnection,
@@ -1039,8 +1105,16 @@ void MediaExportSection::onSelectLightningColor()
 
 void MediaExportSection::onExportClicked()
 {
-    if (!m_sequence) {
+    bool isArrangement = isArrangementMode();
+    NoteNagaArrangement* arrangement = m_engine->getRuntimeData()->getArrangement();
+    
+    if (!isArrangement && !m_sequence) {
         QMessageBox::warning(this, tr("No Sequence"), tr("No MIDI sequence loaded."));
+        return;
+    }
+    
+    if (isArrangement && (!arrangement || arrangement->getTrackCount() == 0)) {
+        QMessageBox::warning(this, tr("No Arrangement"), tr("No arrangement tracks available."));
         return;
     }
     
@@ -1088,9 +1162,16 @@ void MediaExportSection::onExportClicked()
 
     m_exportThread = new QThread;
     
-    m_exporter = new MediaExporter(m_sequence, outputPath, resolution, fps, m_engine, 
-                                   secondsVisible, settings, 
-                                   mode, audioFormat, audioBitrate);
+    // Create exporter based on source mode
+    if (isArrangement) {
+        m_exporter = new MediaExporter(arrangement, outputPath, resolution, fps, m_engine, 
+                                       secondsVisible, settings, 
+                                       mode, audioFormat, audioBitrate);
+    } else {
+        m_exporter = new MediaExporter(m_sequence, outputPath, resolution, fps, m_engine, 
+                                       secondsVisible, settings, 
+                                       mode, audioFormat, audioBitrate);
+    }
     
     m_exporter->moveToThread(m_exportThread);
 

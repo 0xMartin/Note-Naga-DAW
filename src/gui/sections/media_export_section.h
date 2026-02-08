@@ -53,6 +53,13 @@ public:
      */
     void refreshSequence();
 
+public slots:
+    /**
+     * @brief Called when playback mode changes (Sequence/Arrangement)
+     * @param mode The new playback mode
+     */
+    void setPlaybackMode(PlaybackMode mode);
+
 private slots:
     // Playback position
     void onPlaybackTickChanged(int tick);
@@ -206,6 +213,7 @@ private:
     void updatePreviewRenderSize();
     void initPreviewWorker();
     void cleanupPreviewWorker();
+    bool isArrangementMode() const;
     
 protected:
     virtual void resizeEvent(QResizeEvent *event) override;

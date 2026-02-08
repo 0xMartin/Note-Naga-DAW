@@ -1,7 +1,24 @@
 #include "preview_worker.h"
+#include <QDebug>
+#include <note_naga_engine/core/types.h>
 
 PreviewWorker::PreviewWorker(NoteNagaMidiSeq* sequence)
     : m_sequence(sequence),
+      m_arrangement(nullptr),
+      m_runtimeData(nullptr),
+      m_renderer(nullptr),
+      m_renderTimer(nullptr),
+      m_time(0.0),
+      m_size(320, 240),
+      m_scale(5.0),
+      m_pendingRender(false)
+{
+}
+
+PreviewWorker::PreviewWorker(NoteNagaArrangement* arrangement, NoteNagaRuntimeData* runtimeData)
+    : m_sequence(nullptr),
+      m_arrangement(arrangement),
+      m_runtimeData(runtimeData),
       m_renderer(nullptr),
       m_renderTimer(nullptr),
       m_time(0.0),
@@ -21,8 +38,16 @@ void PreviewWorker::init()
 {
     // This method is called via signal after the object is moved to its thread.
     
+    qDebug() << "PreviewWorker::init - m_arrangement:" << m_arrangement << "m_runtimeData:" << m_runtimeData;
+    
     // m_renderer is owned and used only by this thread
-    m_renderer = new MediaRenderer(m_sequence); 
+    if (m_arrangement && m_runtimeData) {
+        qDebug() << "  Creating MediaRenderer for ARRANGEMENT";
+        m_renderer = new MediaRenderer(m_arrangement, m_runtimeData);
+    } else {
+        qDebug() << "  Creating MediaRenderer for SEQUENCE";
+        m_renderer = new MediaRenderer(m_sequence);
+    } 
     
     // A timer that runs in the same thread as this worker
     m_renderTimer = new QTimer(this);

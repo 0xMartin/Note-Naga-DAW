@@ -2,6 +2,7 @@
 
 #include "media_renderer.h"
 #include <note_naga_engine/note_naga_engine.h>
+#include <note_naga_engine/nn_utils.h>
 #include <opencv2/opencv.hpp>
 #include <QImage>
 #include <fstream>
@@ -11,13 +12,15 @@
 #include <QFuture>
 #include <QTextStream> 
 #include <numeric>
+#include <memory>
 
 // This guard class ensures that the engine is in manual audio rendering mode
 // during the audio export and switches back automatically when done.
 class ManualModeGuard
 {
 public:
-    ManualModeGuard(NoteNagaEngine *engine, NoteNagaMidiSeq *sequence) : m_engine(engine), m_sequence(sequence)
+    ManualModeGuard(NoteNagaEngine *engine, NoteNagaMidiSeq *sequence) 
+        : m_engine(engine), m_sequence(sequence), m_arrangement(nullptr)
     {
         if (m_engine)
         {
@@ -32,15 +35,44 @@ public:
             m_engine->getAudioWorker()->mute();
         }
     }
+    
+    ManualModeGuard(NoteNagaEngine *engine, NoteNagaArrangement *arrangement, NoteNagaRuntimeData *runtimeData)
+        : m_engine(engine), m_sequence(nullptr), m_arrangement(arrangement)
+    {
+        if (m_engine && runtimeData)
+        {
+            // Enter manual mode on all synths from all sequences in clips
+            for (NoteNagaMidiSeq* seq : runtimeData->getSequences()) {
+                if (!seq) continue;
+                for (auto *track : seq->getTracks()) {
+                    if (track && track->getSynth()) {
+                        track->getSynth()->enterManualMode();
+                    }
+                }
+            }
+            m_engine->getAudioWorker()->mute();
+        }
+    }
+    
     ~ManualModeGuard()
     {
         if (m_engine)
         {
+            NoteNagaRuntimeData* runtimeData = m_engine->getRuntimeData();
             // Exit manual mode on all track synths
             if (m_sequence) {
                 for (auto *track : m_sequence->getTracks()) {
                     if (track && track->getSynth()) {
                         track->getSynth()->exitManualMode();
+                    }
+                }
+            } else if (m_arrangement && runtimeData) {
+                for (NoteNagaMidiSeq* seq : runtimeData->getSequences()) {
+                    if (!seq) continue;
+                    for (auto *track : seq->getTracks()) {
+                        if (track && track->getSynth()) {
+                            track->getSynth()->exitManualMode();
+                        }
                     }
                 }
             }
@@ -51,6 +83,7 @@ public:
 private:
     NoteNagaEngine *m_engine;
     NoteNagaMidiSeq *m_sequence;
+    NoteNagaArrangement *m_arrangement;
 };
 
 
@@ -62,7 +95,29 @@ MediaExporter::MediaExporter(NoteNagaMidiSeq *sequence, QString outputPath,
                              const QString& audioFormat, 
                              int audioBitrate, 
                              QObject *parent)
-    : QObject(parent), m_sequence(sequence), m_outputPath(outputPath),
+    : QObject(parent), m_sequence(sequence), m_arrangement(nullptr), 
+      m_sourceMode(SingleSequence), m_outputPath(outputPath),
+      m_resolution(resolution), m_fps(fps), m_engine(engine),
+      m_secondsVisible(secondsVisible), m_settings(settings), 
+      m_exportMode(exportMode), 
+      m_audioFormat(audioFormat), 
+      m_audioBitrate(audioBitrate), 
+      m_framesRendered(0), m_totalFrames(0)
+{
+    connect(&m_audioWatcher, &QFutureWatcher<bool>::finished, this, &MediaExporter::onTaskFinished);
+    connect(&m_videoWatcher, &QFutureWatcher<bool>::finished, this, &MediaExporter::onTaskFinished);
+}
+
+MediaExporter::MediaExporter(NoteNagaArrangement *arrangement, QString outputPath,
+                             QSize resolution, int fps, NoteNagaEngine *engine,
+                             double secondsVisible,
+                             const MediaRenderer::RenderSettings &settings,
+                             ExportMode exportMode, 
+                             const QString& audioFormat, 
+                             int audioBitrate, 
+                             QObject *parent)
+    : QObject(parent), m_sequence(nullptr), m_arrangement(arrangement),
+      m_sourceMode(Arrangement), m_outputPath(outputPath),
       m_resolution(resolution), m_fps(fps), m_engine(engine),
       m_secondsVisible(secondsVisible), m_settings(settings), 
       m_exportMode(exportMode), 
@@ -203,18 +258,26 @@ void MediaExporter::cleanup()
 
 bool MediaExporter::exportAudio(const QString &outputPath)
 {
-    ManualModeGuard manualMode(this->m_engine, m_sequence);
-
+    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
+    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+    
     const int sampleRate = 44100;
     const int numChannels = 2;
-    const double totalDuration = nn_ticks_to_seconds(m_engine->getRuntimeData()->getActiveSequence()->getMaxTick(), m_engine->getRuntimeData()->getPPQ(), m_engine->getRuntimeData()->getTempo()) + 2.0;
+    
+    if (m_sourceMode == Arrangement) {
+        return exportAudioArrangement(outputPath);
+    }
+    
+    // Single Sequence mode
+    ManualModeGuard manualMode(this->m_engine, m_sequence);
+
+    NoteNagaMidiSeq *activeSequence = m_sequence ? m_sequence : project->getActiveSequence();
+    if (!activeSequence) return false;
+    
+    const double totalDuration = nn_ticks_to_seconds(activeSequence->getMaxTick(), project->getPPQ(), project->getTempo()) + 2.0;
     const int totalSamples = static_cast<int>(totalDuration * sampleRate);
 
     std::vector<float> audioBuffer(totalSamples * numChannels, 0.0f);
-
-    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
-    NoteNagaMidiSeq *activeSequence = project->getActiveSequence();
-    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
 
     struct MidiEvent
     {
@@ -305,18 +368,191 @@ bool MediaExporter::exportAudio(const QString &outputPath)
     return true;
 }
 
+bool MediaExporter::exportAudioArrangement(const QString &outputPath)
+{
+    NoteNagaRuntimeData *project = m_engine->getRuntimeData();
+    NoteNagaDSPEngine *dspEngine = m_engine->getDSPEngine();
+    NoteNagaArrangement *arrangement = m_arrangement ? m_arrangement : project->getArrangement();
+    
+    if (!arrangement) return false;
+    
+    ManualModeGuard manualMode(m_engine, arrangement, project);
+    
+    const int sampleRate = 44100;
+    const int numChannels = 2;
+    const int ppq = project->getPPQ();
+    const int tempo = project->getTempo();
+    
+    // Calculate total duration from arrangement
+    arrangement->updateMaxTick();
+    const double totalDuration = nn_ticks_to_seconds(arrangement->getMaxTick(), ppq, tempo) + 2.0;
+    const int totalSamples = static_cast<int>(totalDuration * sampleRate);
+    
+    std::vector<float> audioBuffer(totalSamples * numChannels, 0.0f);
+    
+    // Collect all MIDI events from all clips in arrangement
+    struct ArrangementMidiEvent
+    {
+        int tick;           // Absolute tick in arrangement
+        NN_Note_t note;
+        bool isNoteOn;
+        NoteNagaTrack* track;
+    };
+    std::vector<ArrangementMidiEvent> allEvents;
+    
+    // Process all arrangement tracks
+    for (NoteNagaArrangementTrack* arrTrack : arrangement->getTracks()) {
+        if (!arrTrack || arrTrack->isMuted()) continue;
+        
+        // Process all MIDI clips on this track
+        for (const NN_MidiClip_t& clip : arrTrack->getClips()) {
+            if (clip.muted) continue;
+            
+            NoteNagaMidiSeq* seq = project->getSequenceById(clip.sequenceId);
+            if (!seq) continue;
+            
+            int seqLength = seq->getMaxTick();
+            if (seqLength <= 0) continue;
+            
+            // Process all tracks in the sequence
+            for (NoteNagaTrack* midiTrack : seq->getTracks()) {
+                if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
+                
+                // Add notes with looping support
+                for (const NN_Note_t& note : midiTrack->getNotes()) {
+                    if (!note.start.has_value() || !note.length.has_value()) continue;
+                    
+                    int noteStart = note.start.value();
+                    int noteEnd = noteStart + note.length.value();
+                    
+                    // Handle looping
+                    int loopCount = (clip.durationTicks + seqLength - 1) / seqLength;
+                    for (int loop = 0; loop < loopCount; ++loop) {
+                        int loopOffset = loop * seqLength;
+                        int absNoteStart = clip.startTick + loopOffset + noteStart;
+                        int absNoteEnd = clip.startTick + loopOffset + noteEnd;
+                        
+                        // Clip to clip boundaries
+                        int clipEndTick = clip.startTick + clip.durationTicks;
+                        if (absNoteEnd <= clip.startTick) continue;
+                        if (absNoteStart >= clipEndTick) continue;
+                        
+                        absNoteStart = std::max(absNoteStart, clip.startTick);
+                        absNoteEnd = std::min(absNoteEnd, clipEndTick);
+                        
+                        if (absNoteEnd > absNoteStart) {
+                            // Create a copy of the note with adjusted timing
+                            NN_Note_t adjustedNote = note;
+                            adjustedNote.start = absNoteStart;
+                            adjustedNote.length = absNoteEnd - absNoteStart;
+                            
+                            allEvents.push_back({absNoteStart, adjustedNote, true, midiTrack});
+                            allEvents.push_back({absNoteEnd, adjustedNote, false, midiTrack});
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Sort events by tick
+    std::sort(allEvents.begin(), allEvents.end(), [](const ArrangementMidiEvent &a, const ArrangementMidiEvent &b) {
+        return a.tick < b.tick;
+    });
+    
+    // Stop all notes on all sequences
+    for (NoteNagaMidiSeq* seq : project->getSequences()) {
+        if (!seq) continue;
+        for (auto* track : seq->getTracks()) {
+            if (track) track->stopAllNotes();
+        }
+    }
+    
+    int last_tick = 0;
+    int totalSamplesRendered = 0;
+    
+    for (const auto &event : allEvents)
+    {
+        int ticksToProcess = event.tick - last_tick;
+        if (ticksToProcess > 0)
+        {
+            double durationToRender = nn_ticks_to_seconds(ticksToProcess, ppq, tempo);
+            int samplesToRender = static_cast<int>(durationToRender * sampleRate);
+            if (totalSamplesRendered + samplesToRender > totalSamples)
+            {
+                samplesToRender = totalSamples - totalSamplesRendered;
+            }
+            if (samplesToRender > 0)
+            {
+                dspEngine->render(audioBuffer.data() + totalSamplesRendered * numChannels, samplesToRender, false);
+                totalSamplesRendered += samplesToRender;
+            }
+        }
+        
+        // Play/stop note through track's synth
+        if (event.track) {
+            if (event.isNoteOn) {
+                event.track->playNote(event.note);
+            } else {
+                event.track->stopNote(event.note);
+            }
+            // Process the track's synth queue
+            NoteNagaSynthesizer *synth = event.track->getSynth();
+            if (synth) {
+                synth->processQueue();
+            }
+        }
+        
+        last_tick = event.tick;
+        emit audioProgressUpdated((int)((double)totalSamplesRendered * 100 / totalSamples));
+    }
+    emit audioProgressUpdated(100);
+    
+    int remainingSamples = totalSamples - totalSamplesRendered;
+    if (remainingSamples > 0)
+    {
+        dspEngine->render(audioBuffer.data() + totalSamplesRendered * numChannels, remainingSamples, false);
+    }
+    
+    std::ofstream file(outputPath.toStdString(), std::ios::binary);
+    if (!file.is_open())
+        return false;
+    writeWavHeader(file, sampleRate, totalSamples);
+    std::vector<int16_t> intBuffer(audioBuffer.size());
+    for (size_t i = 0; i < audioBuffer.size(); ++i)
+    {
+        intBuffer[i] = static_cast<int16_t>(std::clamp(audioBuffer[i], -1.0f, 1.0f) * 32767.0f);
+    }
+    file.write(reinterpret_cast<const char *>(intBuffer.data()), intBuffer.size() * sizeof(int16_t));
+    
+    return true;
+}
+
 bool MediaExporter::exportVideoBatched(const QString &outputPath)
 {
     // === 1. PHASE: Simulation (Single-thread) ===
     emit statusTextChanged(tr("Simulating effects..."));
     
-    // Create one renderer ONLY for simulation
-    MediaRenderer simRenderer(m_sequence);
+    NoteNagaRuntimeData* runtimeData = m_engine->getRuntimeData();
+    
+    // Create one renderer ONLY for simulation - based on source mode
+    std::unique_ptr<MediaRenderer> simRendererPtr;
+    double totalDuration;
+    
+    if (m_sourceMode == Arrangement && m_arrangement) {
+        simRendererPtr = std::make_unique<MediaRenderer>(m_arrangement, runtimeData);
+        m_arrangement->updateMaxTick();
+        totalDuration = nn_ticks_to_seconds(m_arrangement->getMaxTick(), runtimeData->getPPQ(), runtimeData->getTempo()) + 1.0;
+    } else {
+        simRendererPtr = std::make_unique<MediaRenderer>(m_sequence);
+        totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), runtimeData->getPPQ(), runtimeData->getTempo()) + 1.0;
+    }
+    
+    MediaRenderer& simRenderer = *simRendererPtr;
     simRenderer.setSecondsVisible(m_secondsVisible);
     simRenderer.setRenderSettings(m_settings);
     simRenderer.prepareKeyboardLayout(m_resolution); // Important for positions!
 
-    double totalDuration = nn_ticks_to_seconds(m_sequence->getMaxTick(), m_engine->getRuntimeData()->getPPQ(), m_engine->getRuntimeData()->getTempo()) + 1.0;
     m_totalFrames = static_cast<int>(totalDuration * m_fps);
     m_framesRendered = 0;
 
@@ -389,8 +625,15 @@ bool MediaExporter::exportVideoBatched(const QString &outputPath)
 QString MediaExporter::renderVideoBatch(int startFrame, int endFrame, 
                                         const std::vector<MediaRenderer::FrameState>& allFrameStates)
 {
-    // Each thread creates its own MediaRenderer
-    MediaRenderer renderer(m_sequence);
+    // Each thread creates its own MediaRenderer - based on source mode
+    std::unique_ptr<MediaRenderer> rendererPtr;
+    if (m_sourceMode == Arrangement && m_arrangement) {
+        rendererPtr = std::make_unique<MediaRenderer>(m_arrangement, m_engine->getRuntimeData());
+    } else {
+        rendererPtr = std::make_unique<MediaRenderer>(m_sequence);
+    }
+    
+    MediaRenderer& renderer = *rendererPtr;
     renderer.setSecondsVisible(m_secondsVisible);
     renderer.setRenderSettings(m_settings);
     

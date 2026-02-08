@@ -7,6 +7,9 @@
 #include <vector>
 #include <note_naga_engine/core/types.h>
 
+class NoteNagaArrangement;
+class NoteNagaRuntimeData;
+
 class MediaRenderer {
 public:
     // Structure for particles (public so FrameState can use it)
@@ -63,7 +66,17 @@ public:
         double lightningJitterX = 2.0;
     };
 
+    /**
+     * @brief Construct renderer for a single MIDI sequence.
+     */
     MediaRenderer(NoteNagaMidiSeq* sequence);
+    
+    /**
+     * @brief Construct renderer for arrangement (multiple sequences via clips).
+     * @param arrangement The arrangement containing tracks with clips.
+     * @param runtimeData Runtime data for sequence lookup.
+     */
+    MediaRenderer(NoteNagaArrangement* arrangement, NoteNagaRuntimeData* runtimeData);
     
     /**
      * @brief Renders a frame (Stateful version for preview).
@@ -110,6 +123,7 @@ private:
     };
 
     void prepareNoteData();
+    void prepareNoteDataFromArrangement();
     
     // Simulation methods
     void updateParticles(double deltaTime, std::vector<Particle>& particles);
@@ -121,6 +135,8 @@ private:
 
     RenderSettings m_settings;
     NoteNagaMidiSeq* m_sequence;
+    NoteNagaArrangement* m_arrangement;
+    NoteNagaRuntimeData* m_runtimeData;
 
     std::vector<NoteInfo> m_notes;
     std::map<int, KeyInfo> m_keyboardLayout;

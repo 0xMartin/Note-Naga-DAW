@@ -4,15 +4,26 @@
 #include <QPainter>
 #include <QLinearGradient>
 #include <QPainterPath>
+#include <QDebug>
+#include <note_naga_engine/nn_utils.h>
+#include <note_naga_engine/core/runtime_data.h>
 
 // Constants for keyboard range
 const int FIRST_MIDI_NOTE = 21; // A0
 const int LAST_MIDI_NOTE = 108; // C8
 
 MediaRenderer::MediaRenderer(NoteNagaMidiSeq *sequence)
-    : m_sequence(sequence), m_lastLayoutSize(0, 0)
+    : m_sequence(sequence), m_arrangement(nullptr), m_runtimeData(nullptr), m_lastLayoutSize(0, 0)
 {
     prepareNoteData();
+    // Load the default particle pixmap
+    m_resourceParticlePixmapCache.load(":/images/sparkle.png");
+}
+
+MediaRenderer::MediaRenderer(NoteNagaArrangement* arrangement, NoteNagaRuntimeData* runtimeData)
+    : m_sequence(nullptr), m_arrangement(arrangement), m_runtimeData(runtimeData), m_lastLayoutSize(0, 0)
+{
+    prepareNoteDataFromArrangement();
     // Load the default particle pixmap
     m_resourceParticlePixmapCache.load(":/images/sparkle.png");
 }
@@ -29,9 +40,14 @@ void MediaRenderer::setRenderSettings(const RenderSettings &settings)
 
 void MediaRenderer::prepareNoteData()
 {
-    // ... (unchanged) ...
+    if (!m_sequence) return;
+    
+    m_notes.clear();
     for (const auto &track : m_sequence->getTracks())
     {
+        // Skip muted tracks and tempo tracks (consistent with arrangement mode)
+        if (!track || track->isMuted() || track->isTempoTrack()) continue;
+        
         QColor trackColor = track->getColor().toQColor();
         for (const auto &note : track->getNotes())
         {
@@ -41,6 +57,93 @@ void MediaRenderer::prepareNoteData()
                                    nn_ticks_to_seconds(note.start.value(), m_sequence->getPPQ(), m_sequence->getTempo()),
                                    nn_ticks_to_seconds(note.start.value() + note.length.value(), m_sequence->getPPQ(), m_sequence->getTempo()),
                                    trackColor});
+            }
+        }
+    }
+}
+
+void MediaRenderer::prepareNoteDataFromArrangement()
+{
+    if (!m_arrangement || !m_runtimeData) {
+        qDebug() << "prepareNoteDataFromArrangement: INVALID - arrangement:" << m_arrangement << "runtimeData:" << m_runtimeData;
+        return;
+    }
+    
+    m_notes.clear();
+    
+    int ppq = m_runtimeData->getPPQ();
+    int tempo = m_runtimeData->getTempo();
+    
+    qDebug() << "prepareNoteDataFromArrangement: trackCount=" << m_arrangement->getTrackCount() << "ppq=" << ppq << "tempo=" << tempo;
+    
+    // Iterate through all arrangement tracks
+    for (NoteNagaArrangementTrack* arrTrack : m_arrangement->getTracks()) {
+        if (!arrTrack || arrTrack->isMuted()) continue;
+        
+        QColor arrTrackColor = arrTrack->getColor().toQColor();
+        
+        qDebug() << "  ArrTrack:" << QString::fromStdString(arrTrack->getName()) << "clips:" << arrTrack->getClips().size();
+        
+        // Process all MIDI clips on this track
+        for (const NN_MidiClip_t& clip : arrTrack->getClips()) {
+            if (clip.muted) continue;
+            
+            // Get the referenced sequence
+            NoteNagaMidiSeq* seq = m_runtimeData->getSequenceById(clip.sequenceId);
+            if (!seq) {
+                qDebug() << "    Clip sequenceId=" << clip.sequenceId << "NOT FOUND";
+                continue;
+            }
+            
+            int seqLength = seq->getMaxTick();
+            if (seqLength <= 0) continue;
+            
+            qDebug() << "    Clip: seqId=" << clip.sequenceId << "startTick=" << clip.startTick << "duration=" << clip.durationTicks << "seqLength=" << seqLength;
+            
+            // Calculate clip boundaries in seconds
+            double clipStartSec = nn_ticks_to_seconds(clip.startTick, ppq, tempo);
+            double clipEndSec = nn_ticks_to_seconds(clip.startTick + clip.durationTicks, ppq, tempo);
+            double seqLengthSec = nn_ticks_to_seconds(seqLength, ppq, tempo);
+            
+            // Get notes from all tracks in the sequence
+            for (NoteNagaTrack* midiTrack : seq->getTracks()) {
+                if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
+                
+                // Use arrangement track color for all notes in this clip
+                QColor noteColor = arrTrackColor;
+                
+                for (const NN_Note_t& note : midiTrack->getNotes()) {
+                    if (!note.start.has_value() || !note.length.has_value()) continue;
+                    
+                    double noteStartInSeq = nn_ticks_to_seconds(note.start.value(), ppq, tempo);
+                    double noteEndInSeq = nn_ticks_to_seconds(note.start.value() + note.length.value(), ppq, tempo);
+                    
+                    // Handle looping - add notes for each loop iteration within the clip
+                    if (seqLengthSec > 0) {
+                        int loopCount = static_cast<int>(ceil((clipEndSec - clipStartSec) / seqLengthSec));
+                        for (int loop = 0; loop < loopCount; ++loop) {
+                            double loopOffset = loop * seqLengthSec;
+                            double absNoteStart = clipStartSec + loopOffset + noteStartInSeq;
+                            double absNoteEnd = clipStartSec + loopOffset + noteEndInSeq;
+                            
+                            // Clip note to clip boundaries
+                            if (absNoteEnd <= clipStartSec) continue;
+                            if (absNoteStart >= clipEndSec) continue;
+                            
+                            absNoteStart = std::max(absNoteStart, clipStartSec);
+                            absNoteEnd = std::min(absNoteEnd, clipEndSec);
+                            
+                            if (absNoteEnd > absNoteStart) {
+                                m_notes.push_back({
+                                    note.note,
+                                    absNoteStart,
+                                    absNoteEnd,
+                                    noteColor
+                                });
+                            }
+                        }
+                    }
+                }
             }
         }
     }

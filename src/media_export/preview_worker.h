@@ -7,6 +7,8 @@
 #include "media_renderer.h"
 
 class NoteNagaMidiSeq;
+class NoteNagaArrangement;
+class NoteNagaRuntimeData;
 
 /**
  * @brief This worker runs in a separate thread and handles preview rendering.
@@ -17,7 +19,16 @@ class PreviewWorker : public QObject
     Q_OBJECT
 
 public:
+    /**
+     * @brief Construct worker for single MIDI sequence mode.
+     */
     explicit PreviewWorker(NoteNagaMidiSeq* sequence);
+    
+    /**
+     * @brief Construct worker for Arrangement mode.
+     */
+    explicit PreviewWorker(NoteNagaArrangement* arrangement, NoteNagaRuntimeData* runtimeData);
+    
     ~PreviewWorker();
 
 signals:
@@ -63,6 +74,8 @@ private slots:
 private:
     MediaRenderer* m_renderer;
     NoteNagaMidiSeq* m_sequence;
+    NoteNagaArrangement* m_arrangement;
+    NoteNagaRuntimeData* m_runtimeData;
     QTimer* m_renderTimer;
 
     // Mutex to protect shared data between slots and doRender()

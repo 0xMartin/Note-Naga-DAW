@@ -20,7 +20,15 @@ public:
      * @brief Export mode enumeration.
      */
     enum ExportMode { Video, AudioOnly };
+    
+    /**
+     * @brief Source mode enumeration.
+     */
+    enum SourceMode { SingleSequence, Arrangement };
 
+    /**
+     * @brief Constructor for single MIDI sequence export.
+     */
     explicit MediaExporter(NoteNagaMidiSeq *sequence, 
                            QString outputPath,
                            QSize resolution, 
@@ -32,6 +40,22 @@ public:
                            const QString& audioFormat, 
                            int audioBitrate, 
                            QObject *parent = nullptr);
+
+    /**
+     * @brief Constructor for arrangement export.
+     */
+    explicit MediaExporter(NoteNagaArrangement *arrangement,
+                           QString outputPath,
+                           QSize resolution, 
+                           int fps, 
+                           NoteNagaEngine *m_engine,
+                           double secondsVisible,
+                           const MediaRenderer::RenderSettings& settings,
+                           ExportMode exportMode, 
+                           const QString& audioFormat, 
+                           int audioBitrate, 
+                           QObject *parent = nullptr);
+                           
     ~MediaExporter();
 
 public slots:
@@ -51,6 +75,8 @@ private:
     // --- Core components ---
     NoteNagaEngine *m_engine;
     NoteNagaMidiSeq *m_sequence;
+    NoteNagaArrangement *m_arrangement;
+    SourceMode m_sourceMode;
 
     // --- Export settings ---
     QString m_outputPath;
@@ -110,6 +136,13 @@ private:
      * @return True if export is successful, false otherwise.
      */
     bool exportAudio(const QString &outputPath);
+    
+    /**
+     * @brief Exports audio from arrangement to a WAV file.
+     * @param outputPath Path to the output WAV file.
+     * @return True if export is successful, false otherwise.
+     */
+    bool exportAudioArrangement(const QString &outputPath);
 
     /**
      * @brief Combines audio and video into a final output file.
