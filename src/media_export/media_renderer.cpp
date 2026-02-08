@@ -65,7 +65,6 @@ void MediaRenderer::prepareNoteData()
 void MediaRenderer::prepareNoteDataFromArrangement()
 {
     if (!m_arrangement || !m_runtimeData) {
-        qDebug() << "prepareNoteDataFromArrangement: INVALID - arrangement:" << m_arrangement << "runtimeData:" << m_runtimeData;
         return;
     }
     
@@ -74,15 +73,11 @@ void MediaRenderer::prepareNoteDataFromArrangement()
     int ppq = m_runtimeData->getPPQ();
     int tempo = m_runtimeData->getTempo();
     
-    qDebug() << "prepareNoteDataFromArrangement: trackCount=" << m_arrangement->getTrackCount() << "ppq=" << ppq << "tempo=" << tempo;
-    
     // Iterate through all arrangement tracks
     for (NoteNagaArrangementTrack* arrTrack : m_arrangement->getTracks()) {
         if (!arrTrack || arrTrack->isMuted()) continue;
         
         QColor arrTrackColor = arrTrack->getColor().toQColor();
-        
-        qDebug() << "  ArrTrack:" << QString::fromStdString(arrTrack->getName()) << "clips:" << arrTrack->getClips().size();
         
         // Process all MIDI clips on this track
         for (const NN_MidiClip_t& clip : arrTrack->getClips()) {
@@ -91,14 +86,11 @@ void MediaRenderer::prepareNoteDataFromArrangement()
             // Get the referenced sequence
             NoteNagaMidiSeq* seq = m_runtimeData->getSequenceById(clip.sequenceId);
             if (!seq) {
-                qDebug() << "    Clip sequenceId=" << clip.sequenceId << "NOT FOUND";
                 continue;
             }
             
             int seqLength = seq->getMaxTick();
             if (seqLength <= 0) continue;
-            
-            qDebug() << "    Clip: seqId=" << clip.sequenceId << "startTick=" << clip.startTick << "duration=" << clip.durationTicks << "seqLength=" << seqLength;
             
             // Calculate clip boundaries in seconds
             double clipStartSec = nn_ticks_to_seconds(clip.startTick, ppq, tempo);

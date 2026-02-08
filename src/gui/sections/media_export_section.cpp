@@ -661,8 +661,6 @@ void MediaExportSection::refreshSequence()
     bool hasSequence = m_sequence != nullptr;
     bool hasArrangement = arrangement != nullptr && arrangement->getTrackCount() > 0;
     
-    qDebug() << "refreshSequence: hasSequence=" << hasSequence << "hasArrangement=" << hasArrangement;
-    
     if (!hasSequence && !hasArrangement) {
         // Show placeholder, hide docks
         for (auto dock : m_docks) {
@@ -683,7 +681,6 @@ void MediaExportSection::refreshSequence()
     
     // Update duration based on current playback mode from global transport bar
     bool isArrangement = isArrangementMode();
-    qDebug() << "refreshSequence: isArrangementMode=" << isArrangement;
     
     if (isArrangement && hasArrangement) {
         arrangement->updateMaxTick();
@@ -722,15 +719,9 @@ void MediaExportSection::initPreviewWorker()
     
     bool isArrangement = isArrangementMode();
     
-    qDebug() << "MediaExportSection::initPreviewWorker - isArrangement:" << isArrangement;
-    
     // Check if we have valid source
     if (isArrangement) {
         NoteNagaArrangement* arrangement = m_engine->getRuntimeData()->getArrangement();
-        qDebug() << "  arrangement:" << arrangement;
-        if (arrangement) {
-            qDebug() << "  trackCount:" << arrangement->getTrackCount();
-        }
         if (!arrangement) return;
     } else {
         if (!m_sequence) return;
@@ -739,12 +730,10 @@ void MediaExportSection::initPreviewWorker()
     m_previewThread = new QThread(this);
     
     if (isArrangement) {
-        qDebug() << "  Creating PreviewWorker for ARRANGEMENT";
         m_previewWorker = new PreviewWorker(
             m_engine->getRuntimeData()->getArrangement(), 
             m_engine->getRuntimeData());
     } else {
-        qDebug() << "  Creating PreviewWorker for SEQUENCE";
         m_previewWorker = new PreviewWorker(m_sequence);
     }
     

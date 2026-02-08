@@ -38,14 +38,10 @@ void PreviewWorker::init()
 {
     // This method is called via signal after the object is moved to its thread.
     
-    qDebug() << "PreviewWorker::init - m_arrangement:" << m_arrangement << "m_runtimeData:" << m_runtimeData;
-    
     // m_renderer is owned and used only by this thread
     if (m_arrangement && m_runtimeData) {
-        qDebug() << "  Creating MediaRenderer for ARRANGEMENT";
         m_renderer = new MediaRenderer(m_arrangement, m_runtimeData);
     } else {
-        qDebug() << "  Creating MediaRenderer for SEQUENCE";
         m_renderer = new MediaRenderer(m_sequence);
     } 
     
