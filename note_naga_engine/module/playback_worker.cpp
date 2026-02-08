@@ -688,6 +688,10 @@ void PlaybackThreadWorker::runArrangementMode() {
                     int prevSeqTick = (prevLocalTick >= 0) ? (prevLocalTick % seqLength) : -1;
                     bool crossedLoopBoundary = (prevSeqTick >= 0 && seqTick < prevSeqTick);
                     
+                    // Also check for clip boundary - when we're at the last tick of a clip
+                    // that ends exactly at the sequence length, notes need to be stopped
+                    bool atClipEnd = (arrangeTick == clipEnd - 1);
+                    
                     // If we crossed a loop boundary, stop all notes from this sequence
                     if (crossedLoopBoundary) {
                         for (auto* midiTrack : seq->getTracks()) {
@@ -715,7 +719,13 @@ void PlaybackThreadWorker::runArrangementMode() {
                             }
 
                             // Note OFF: if this tick matches the note end
-                            if (seqTick == noteEnd) {
+                            // Also handle notes that end at exactly seqLength (which wraps to 0)
+                            bool isNoteOff = (seqTick == noteEnd);
+                            // If note ends exactly at sequence length and we're at clip end
+                            if (noteEnd == seqLength && atClipEnd && seqTick == seqLength - 1) {
+                                isNoteOff = true;
+                            }
+                            if (isNoteOff) {
                                 midiTrack->stopNote(note);
                             }
                         }

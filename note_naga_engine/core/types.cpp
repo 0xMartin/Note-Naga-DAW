@@ -2055,3 +2055,103 @@ double NoteNagaArrangement::getEffectiveBPMAtTick(int tick) const {
     int tempo = getEffectiveTempoAtTick(tick);
     return 60'000'000.0 / tempo;
 }
+
+bool NoteNagaArrangement::wouldClipOverlapSameSequence(int sequenceId, int startTick, int durationTicks,
+                                                        int /*excludeTrackId*/, int excludeClipId) const {
+    int newEndTick = startTick + durationTicks;
+    
+    // Check all tracks and all clips
+    for (const auto* track : tracks_) {
+        if (!track) continue;
+        
+        for (const auto& clip : track->getClips()) {
+            // Skip the excluded clip if specified (the clip being moved/resized)
+            if (excludeClipId >= 0 && clip.id == excludeClipId) continue;
+            
+            // Only check clips from the same sequence
+            if (clip.sequenceId != sequenceId) continue;
+            
+            // Check for time overlap
+            int clipEnd = clip.startTick + clip.durationTicks;
+            bool overlaps = (startTick < clipEnd) && (newEndTick > clip.startTick);
+            if (overlaps) {
+                return true;  // Found an overlapping clip from the same sequence
+            }
+        }
+    }
+    
+    return false;  // No overlap found
+}
+
+int64_t NoteNagaArrangement::findNearestSafePosition(int sequenceId, int64_t preferredStartTick, 
+                                                      int durationTicks, int excludeClipId) const {
+    // Collect all clips of this sequence and sort by start tick
+    std::vector<std::pair<int64_t, int64_t>> occupiedRanges; // (start, end)
+    
+    for (const auto* track : tracks_) {
+        if (!track) continue;
+        for (const auto& clip : track->getClips()) {
+            if (excludeClipId >= 0 && clip.id == excludeClipId) continue;
+            if (clip.sequenceId != sequenceId) continue;
+            occupiedRanges.push_back({clip.startTick, clip.startTick + clip.durationTicks});
+        }
+    }
+    
+    // If no other clips of this sequence, preferred position is safe
+    if (occupiedRanges.empty()) {
+        return preferredStartTick;
+    }
+    
+    // Sort by start tick
+    std::sort(occupiedRanges.begin(), occupiedRanges.end());
+    
+    // Try preferred position first
+    int64_t candidateStart = preferredStartTick;
+    int64_t candidateEnd = candidateStart + durationTicks;
+    
+    bool overlaps = false;
+    for (const auto& range : occupiedRanges) {
+        if (candidateStart < range.second && candidateEnd > range.first) {
+            overlaps = true;
+            // Move candidate to end of this overlapping range
+            candidateStart = range.second;
+            candidateEnd = candidateStart + durationTicks;
+        }
+    }
+    
+    // Check again if the new position overlaps (since we only checked sequentially)
+    while (true) {
+        overlaps = false;
+        for (const auto& range : occupiedRanges) {
+            if (candidateStart < range.second && candidateEnd > range.first) {
+                overlaps = true;
+                candidateStart = range.second;
+                candidateEnd = candidateStart + durationTicks;
+                break;
+            }
+        }
+        if (!overlaps) break;
+    }
+    
+    return candidateStart;
+}
+
+std::vector<std::pair<int64_t, int64_t>> NoteNagaArrangement::getForbiddenZonesForSequence(
+    int sequenceId, int excludeClipId) const {
+    
+    std::vector<std::pair<int64_t, int64_t>> zones;
+    
+    for (const auto* track : tracks_) {
+        if (!track) continue;
+        for (const auto& clip : track->getClips()) {
+            if (excludeClipId >= 0 && clip.id == excludeClipId) continue;
+            if (clip.sequenceId != sequenceId) continue;
+            zones.push_back({clip.startTick, clip.startTick + clip.durationTicks});
+        }
+    }
+    
+    // Sort by start tick
+    std::sort(zones.begin(), zones.end());
+    
+    return zones;
+}

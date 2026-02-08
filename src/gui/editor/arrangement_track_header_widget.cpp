@@ -101,9 +101,9 @@ void ArrangementTrackHeaderWidget::setupUI()
     leftColumn->addLayout(topRow);
     
     // Volume slider (horizontal) - using dB scale
-    // Range: -60 dB to +6 dB (0 dB = 1.0 linear)
+    // Range: -24 dB to +6 dB (0 dB = 1.0 linear)
     m_volumeSlider = new AudioHorizontalSlider(this);
-    m_volumeSlider->setRange(-60.0f, 6.0f);
+    m_volumeSlider->setRange(-24.0f, 6.0f);
     m_volumeSlider->setValue(0.0f);  // 0 dB = unity gain
     m_volumeSlider->setDefaultValue(0.0f);
     m_volumeSlider->setValuePostfix(" dB");
@@ -116,7 +116,7 @@ void ArrangementTrackHeaderWidget::setupUI()
     connect(m_volumeSlider, &AudioHorizontalSlider::valueChanged, this, [this](float dB) {
         if (m_track) {
             // Convert dB to linear: linear = 10^(dB/20)
-            float linear = (dB <= -60.0f) ? 0.0f : std::pow(10.0f, dB / 20.0f);
+            float linear = (dB <= -24.0f) ? 0.0f : std::pow(10.0f, dB / 20.0f);
             m_track->setVolume(linear);
             emit volumeChanged(m_trackIndex, linear);
         }

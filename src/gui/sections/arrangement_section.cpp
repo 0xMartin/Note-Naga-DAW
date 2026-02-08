@@ -23,6 +23,7 @@
 #include <QSplitter>
 #include <QTimer>
 #include <QColorDialog>
+#include <QMessageBox>
 #include <QLabel>
 #include <QPushButton>
 
@@ -540,13 +541,27 @@ void ArrangementSection::connectSignals()
             if (trackIndex < 0) trackIndex = 0;
             if (trackIndex >= static_cast<int>(arrangement->getTrackCount())) return;
             
+            // Calculate clip duration
+            int clipDuration = seq->getMaxTick() > 0 ? seq->getMaxTick() : 480 * 4;
+            
+            // Check if this would overlap with another clip from the same sequence
+            // This prevents the same MIDI sequence from playing simultaneously on multiple tracks
+            if (arrangement->wouldClipOverlapSameSequence(seq->getId(), static_cast<int>(tick), clipDuration)) {
+                // Show warning to user
+                QMessageBox::warning(this, tr("Cannot Place Clip"),
+                    tr("This MIDI sequence is already playing on another track at this time.\n\n"
+                       "The same sequence cannot play simultaneously on multiple arrangement tracks "
+                       "because they share the same synthesizer."));
+                return;
+            }
+            
             // Create clip from dropped sequence
             NN_MidiClip_t clip;
             // Leave name empty - will use sequence name for display
             clip.name = "";
             clip.sequenceId = seq->getId();
             clip.startTick = static_cast<int>(tick);
-            clip.durationTicks = seq->getMaxTick() > 0 ? seq->getMaxTick() : 480 * 4;
+            clip.durationTicks = clipDuration;
             
             arrangement->getTracks()[trackIndex]->addClip(clip);
             onArrangementChanged();

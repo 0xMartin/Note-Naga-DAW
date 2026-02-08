@@ -76,6 +76,7 @@ public:
     void clearSelection();
     void selectClip(int clipId, bool addToSelection = false);
     void deleteSelectedClips();
+    void duplicateSelectedClips();
 
     // Refresh from model
     void refreshFromArrangement();
@@ -120,6 +121,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
@@ -172,6 +174,8 @@ private:
     void cancelPasteMode();
     void finishPaste();
     void drawPastePreview(QPainter &painter);
+    void drawForbiddenZones(QPainter &painter);
+    int getActiveSequenceIdForDrag() const;
 
     NoteNagaEngine *m_engine;
     ArrangementTimelineRuler *m_ruler = nullptr;
@@ -237,6 +241,7 @@ private:
     int m_dropPreviewTrack = -1;
     int64_t m_dropPreviewTick = 0;
     int64_t m_dropPreviewDuration = 0;
+    int m_dropPreviewSequenceId = -1;  // Sequence ID for forbidden zone highlighting
     
     // Inline track name editing
     QLineEdit *m_trackNameEdit = nullptr;

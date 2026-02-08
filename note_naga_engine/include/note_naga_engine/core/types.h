@@ -1581,6 +1581,42 @@ public:
      */
     double getEffectiveBPMAtTick(int tick) const;
 
+    /**
+     * @brief Checks if a new MIDI clip would overlap with any existing clip from the same sequence.
+     * 
+     * This is used to prevent placing clips from the same sequence on multiple tracks
+     * where they would play simultaneously, which would cause audio routing issues.
+     * 
+     * @param sequenceId The sequence ID of the new clip.
+     * @param startTick The start tick of the new clip.
+     * @param durationTicks The duration of the new clip.
+     * @param excludeTrackId Track ID to exclude from check (for moving within same track), or -1.
+     * @param excludeClipId Clip ID to exclude from check (for the clip being moved), or -1.
+     * @return True if there would be overlap, false if placement is safe.
+     */
+    bool wouldClipOverlapSameSequence(int sequenceId, int startTick, int durationTicks, 
+                                       int excludeTrackId = -1, int excludeClipId = -1) const;
+    
+    /**
+     * @brief Find the nearest safe position to place a clip without overlapping.
+     * @param sequenceId The sequence ID of the clip to place.
+     * @param preferredStartTick The preferred start tick.
+     * @param durationTicks The duration of the clip.
+     * @param excludeClipId Clip ID to exclude (for the clip being moved), or -1.
+     * @return The nearest safe start tick, searching forward from preferredStartTick.
+     */
+    int64_t findNearestSafePosition(int sequenceId, int64_t preferredStartTick, int durationTicks,
+                                     int excludeClipId = -1) const;
+    
+    /**
+     * @brief Get all time intervals where clips with a given sequence ID exist.
+     * @param sequenceId The sequence ID to check.
+     * @param excludeClipId Clip ID to exclude from the list, or -1.
+     * @return Vector of pairs (startTick, endTick) representing forbidden zones.
+     */
+    std::vector<std::pair<int64_t, int64_t>> getForbiddenZonesForSequence(int sequenceId, 
+                                                                            int excludeClipId = -1) const;
+
 protected:
     std::vector<NoteNagaArrangementTrack*> tracks_;  ///< All arrangement tracks
     int maxTick_;                                     ///< Cached max tick value

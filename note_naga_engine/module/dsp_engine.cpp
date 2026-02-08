@@ -311,6 +311,8 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
     NoteNagaArrangement* arrangement = runtime_data_->getArrangement();
     if (!arrangement) return;
     
+    int currentTick = runtime_data_->getCurrentArrangementTick();
+    
     // Check if any arrangement track has solo enabled
     bool hasSoloTrack = false;
     for (size_t i = 0; i < arrangement->getTrackCount(); ++i) {
@@ -321,34 +323,48 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
         }
     }
     
-    // First pass: Build a map of synth -> arrangement track
-    // Each synth is assigned to ONE arrangement track (based on which track has clips referencing it)
-    // If multiple arrangement tracks reference the same synth, the first one wins
+    // Build a map of synth -> arrangement track based on ACTIVE clips at current tick
+    // This ensures the synth uses the volume/pan of the track where the clip is currently playing
     std::map<INoteNagaSoftSynth*, NoteNagaArrangementTrack*> synthToArrTrack;
     
     for (size_t trackIdx = 0; trackIdx < arrangement->getTrackCount(); ++trackIdx) {
         NoteNagaArrangementTrack* arrTrack = arrangement->getTracks()[trackIdx];
         if (!arrTrack) continue;
         
-        // Skip muted tracks for ownership (but still allow them to be rendered if another track owns the synth)
+        // Skip muted tracks
         if (arrTrack->isMuted()) continue;
         if (hasSoloTrack && !arrTrack->isSolo()) continue;
         
-        // Iterate ALL clips in this arrangement track (not just active ones)
-        for (const auto& clip : arrTrack->getClips()) {
-            if (clip.muted) continue;
+        // Check only ACTIVE clips at current tick
+        std::vector<const NN_MidiClip_t*> activeClips = arrTrack->getClipsAtTick(currentTick);
+        for (const auto* clip : activeClips) {
+            if (!clip || clip->muted) continue;
             
-            NoteNagaMidiSeq* seq = runtime_data_->getSequenceById(clip.sequenceId);
+            NoteNagaMidiSeq* seq = runtime_data_->getSequenceById(clip->sequenceId);
             if (!seq) continue;
             
             for (NoteNagaTrack* midiTrack : seq->getTracks()) {
                 if (!midiTrack || midiTrack->isTempoTrack()) continue;
                 
                 INoteNagaSoftSynth* softSynth = midiTrack->getSoftSynth();
-                if (softSynth && synthToArrTrack.find(softSynth) == synthToArrTrack.end()) {
-                    // First arrangement track to claim this synth
+                if (softSynth) {
+                    // Override previous assignment - the currently active clip wins
                     synthToArrTrack[softSynth] = arrTrack;
                 }
+            }
+        }
+    }
+    
+    // Also collect all synths that may have notes still playing (from sequences)
+    // even if no clip is currently active (for note release/sustain)
+    std::set<INoteNagaSoftSynth*> allSynths;
+    for (NoteNagaMidiSeq* seq : runtime_data_->getSequences()) {
+        if (!seq) continue;
+        for (NoteNagaTrack* midiTrack : seq->getTracks()) {
+            if (!midiTrack || midiTrack->isTempoTrack()) continue;
+            INoteNagaSoftSynth* softSynth = midiTrack->getSoftSynth();
+            if (softSynth) {
+                allSynths.insert(softSynth);
             }
         }
     }
@@ -365,13 +381,26 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
     std::map<NoteNagaArrangementTrack*, std::pair<float, float>> arrTrackRmsSum;
     std::map<NoteNagaArrangementTrack*, int> arrTrackSampleCount;
     
-    // Second pass: Render each synth with its owning arrangement track's volume/pan
-    for (const auto& [synth, arrTrack] : synthToArrTrack) {
-        if (!synth || !arrTrack) continue;
+    // Render all synths
+    for (INoteNagaSoftSynth* synth : allSynths) {
+        if (!synth) continue;
         
-        // Get arrangement track volume and pan
-        float arrVolume = arrTrack->getVolume();
-        float arrPan = arrTrack->getPan();
+        // Find the arrangement track for this synth (if any)
+        NoteNagaArrangementTrack* arrTrack = nullptr;
+        auto it = synthToArrTrack.find(synth);
+        if (it != synthToArrTrack.end()) {
+            arrTrack = it->second;
+        }
+        
+        // Default volume/pan if no arrangement track owns this synth
+        float arrVolume = arrTrack ? arrTrack->getVolume() : 1.0f;
+        float arrPan = arrTrack ? arrTrack->getPan() : 0.0f;
+        
+        // Check mute/solo state
+        if (arrTrack) {
+            if (arrTrack->isMuted()) continue;
+            if (hasSoloTrack && !arrTrack->isSolo()) continue;
+        }
         
         // Calculate pan gains (constant power)
         float panAngle = (arrPan + 1.0f) * 0.25f * 3.14159265f; // 0 to pi/2
@@ -387,9 +416,9 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
         
         // Apply synth-specific DSP blocks if DSP is enabled
         if (this->enable_dsp_) {
-            auto it = synth_dsp_blocks_.find(synth);
-            if (it != synth_dsp_blocks_.end()) {
-                for (NoteNagaDSPBlockBase *block : it->second) {
+            auto dspIt = synth_dsp_blocks_.find(synth);
+            if (dspIt != synth_dsp_blocks_.end()) {
+                for (NoteNagaDSPBlockBase *block : dspIt->second) {
                     if (block->isActive()) {
                         block->process(track_left_.data(), track_right_.data(), numFrames);
                     }
@@ -398,16 +427,18 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
         }
         
         // Apply arrangement track volume and pan, then add to mix
-        float gainL = arrVolume * panL;
-        float gainR = arrVolume * panR;
-        
+        // Pan crossfeed: pan affects how much of each channel goes to L/R output
         float sumL = 0.0f, sumR = 0.0f;
         
         for (size_t i = 0; i < numFrames; i++) {
-            // Convert stereo to mono for pan processing
-            float mono = (track_left_[i] + track_right_[i]) * 0.5f;
-            float sampleL = mono * gainL;
-            float sampleR = mono * gainR;
+            // Apply volume first, then pan crossfeed for stereo
+            float srcL = track_left_[i] * arrVolume;
+            float srcR = track_right_[i] * arrVolume;
+            
+            // Pan crossfeed: at pan=0, L goes 100% left, R goes 100% right
+            // At pan=-1, both go left; at pan=+1, both go right
+            float sampleL = srcL * panL + srcR * (1.0f - panR);
+            float sampleR = srcR * panR + srcL * (1.0f - panL);
             
             mix_left_[i] += sampleL;
             mix_right_[i] += sampleR;
@@ -417,14 +448,17 @@ void NoteNagaDSPEngine::renderArrangementTracks(size_t numFrames) {
             sumR += sampleR * sampleR;
         }
         
-        // Accumulate RMS for this arrangement track
-        arrTrackRmsSum[arrTrack].first += sumL;
-        arrTrackRmsSum[arrTrack].second += sumR;
-        arrTrackSampleCount[arrTrack] += static_cast<int>(numFrames);
+        // Accumulate RMS for this arrangement track (if any)
+        if (arrTrack) {
+            arrTrackRmsSum[arrTrack].first += sumL;
+            arrTrackRmsSum[arrTrack].second += sumR;
+            arrTrackSampleCount[arrTrack] += static_cast<int>(numFrames);
+        }
     }
     
     // Calculate and store RMS for each arrangement track
     for (const auto& [arrTrack, sums] : arrTrackRmsSum) {
+        if (!arrTrack) continue;
         int count = arrTrackSampleCount[arrTrack];
         if (count > 0) {
             float rmsLeft = sqrtf(sums.first / count);

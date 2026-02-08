@@ -11,11 +11,13 @@
 #include <note_naga_engine/audio/audio_resource.h>
 
 #include <QDragEnterEvent>
+#include <QDragLeaveEvent>
 #include <QMimeData>
 #include <QKeyEvent>
 #include <QApplication>
 #include <QColorDialog>
 #include <QInputDialog>
+#include <QMessageBox>
 #include <cmath>
 #include <algorithm>
 
@@ -153,6 +155,86 @@ void ArrangementTimelineWidget::deleteSelectedClips()
     arrangement->updateMaxTick();
     
     m_selectedClipIds.clear();
+    update();
+    emit selectionChanged();
+}
+
+void ArrangementTimelineWidget::duplicateSelectedClips()
+{
+    if (m_selectedClipIds.isEmpty()) return;
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    // Collect all selected clips
+    struct ClipInfo {
+        NN_MidiClip_t clip;
+        int trackIndex;
+    };
+    std::vector<ClipInfo> clipsTodup;
+    
+    for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+        auto *track = arrangement->getTracks()[tIdx];
+        if (!track) continue;
+        for (const auto &clip : track->getClips()) {
+            if (m_selectedClipIds.contains(clip.id)) {
+                clipsTodup.push_back({clip, tIdx});
+            }
+        }
+    }
+    
+    if (clipsTodup.empty()) return;
+    
+    // Clear selection - will select new clips
+    m_selectedClipIds.clear();
+    
+    int64_t lastClipEnd = 0;
+    
+    // Create duplicates with safe positions
+    for (const auto &info : clipsTodup) {
+        // Preferred position: right after the original clip
+        int64_t preferredStart = info.clip.startTick + info.clip.durationTicks;
+        
+        // Find nearest safe position
+        int64_t safeStart = arrangement->findNearestSafePosition(
+            info.clip.sequenceId, preferredStart, info.clip.durationTicks, -1);
+        
+        // Create duplicate clip
+        NN_MidiClip_t newClip = info.clip;
+        newClip.id = 0;  // Will be assigned by addClip
+        newClip.startTick = safeStart;
+        
+        auto *targetTrack = arrangement->getTracks()[info.trackIndex];
+        if (targetTrack) {
+            targetTrack->addClip(newClip);
+            m_selectedClipIds.insert(newClip.id);
+            
+            // Track the end of the last created clip for scrolling
+            int64_t clipEnd = safeStart + newClip.durationTicks;
+            if (clipEnd > lastClipEnd) {
+                lastClipEnd = clipEnd;
+            }
+        }
+    }
+    
+    // Update arrangement
+    arrangement->updateMaxTick();
+    
+    // Scroll to show the duplicated clips
+    if (lastClipEnd > 0) {
+        // Calculate the x position of the last clip end
+        int targetX = tickToX(lastClipEnd);
+        
+        // If the clip end is outside the viewport, scroll to show it
+        if (targetX > width() - 100 || targetX < 100) {
+            // Center the view roughly around the new clips
+            int64_t centerTick = lastClipEnd - (width() / 2 / m_pixelsPerTick);
+            centerTick = qMax(static_cast<int64_t>(0), centerTick);
+            setHorizontalOffset(static_cast<int>(centerTick * m_pixelsPerTick));
+        }
+    }
+    
     update();
     emit selectionChanged();
 }
@@ -849,6 +931,7 @@ void ArrangementTimelineWidget::paintEvent(QPaintEvent *event)
     // Note: Track headers are now in a separate ArrangementTrackHeadersWidget
     drawTrackLanes(painter);
     drawGridLines(painter);
+    drawForbiddenZones(painter);  // Draw forbidden zones during drag/resize/paste
     drawLoopRegion(painter);
     drawClips(painter);
     drawSelectionRect(painter);
@@ -1316,21 +1399,103 @@ void ArrangementTimelineWidget::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         if (m_interactionMode == MovingClip) {
-            emit clipMoved(m_dragClipId, xToTick(event->pos().x()));
-            // Update arrangement max tick after move
+            // Validate that no moved clip now overlaps another clip with same sequence
+            bool hasOverlap = false;
             if (m_engine && m_engine->getRuntimeData()) {
                 NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
                 if (arrangement) {
-                    arrangement->updateMaxTick();
+                    for (const auto* track : arrangement->getTracks()) {
+                        if (!track) continue;
+                        for (const auto& clip : track->getClips()) {
+                            // Check if this is one of the moved clips
+                            bool isMovedClip = false;
+                            for (const auto& origState : m_originalClipStates) {
+                                if (origState.clipId == clip.id) {
+                                    isMovedClip = true;
+                                    break;
+                                }
+                            }
+                            if (isMovedClip) {
+                                // Check for overlap with clips of the same sequence
+                                if (arrangement->wouldClipOverlapSameSequence(
+                                        clip.sequenceId, clip.startTick, clip.durationTicks, -1, clip.id)) {
+                                    hasOverlap = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (hasOverlap) break;
+                    }
+                    
+                    if (hasOverlap) {
+                        // Revert all clips to their original positions
+                        for (const auto& origState : m_originalClipStates) {
+                            // Find the clip and move it back
+                            for (int tIdx = 0; tIdx < static_cast<int>(arrangement->getTrackCount()); ++tIdx) {
+                                auto* track = arrangement->getTracks()[tIdx];
+                                if (!track) continue;
+                                for (auto& clip : track->getClips()) {
+                                    if (clip.id == origState.clipId) {
+                                        // If clip was moved to a different track, move it back
+                                        if (tIdx != origState.trackIndex) {
+                                            NN_MidiClip_t clipCopy = clip;
+                                            clipCopy.startTick = origState.startTick;
+                                            track->removeClip(clip.id);
+                                            arrangement->getTracks()[origState.trackIndex]->addClip(clipCopy);
+                                        } else {
+                                            clip.startTick = origState.startTick;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        QMessageBox::warning(this, tr("Cannot Move"),
+                            tr("Cannot move clip here - it would overlap with another instance of the same sequence."));
+                    } else {
+                        arrangement->updateMaxTick();
+                    }
                 }
             }
+            emit clipMoved(m_dragClipId, xToTick(event->pos().x()));
         } else if (m_interactionMode == ResizingClipLeft || m_interactionMode == ResizingClipRight) {
-            // Emit resize signal if needed
-            // Update arrangement max tick after resize
+            // Validate that resized clip doesn't overlap another clip with same sequence
+            bool hasOverlap = false;
             if (m_engine && m_engine->getRuntimeData()) {
                 NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
                 if (arrangement) {
-                    arrangement->updateMaxTick();
+                    // Find the clip being resized
+                    for (const auto* track : arrangement->getTracks()) {
+                        if (!track) continue;
+                        for (const auto& clip : track->getClips()) {
+                            if (clip.id == m_dragClipId) {
+                                if (arrangement->wouldClipOverlapSameSequence(
+                                        clip.sequenceId, clip.startTick, clip.durationTicks, -1, clip.id)) {
+                                    hasOverlap = true;
+                                }
+                                break;
+                            }
+                        }
+                        if (hasOverlap) break;
+                    }
+                    
+                    if (hasOverlap) {
+                        // Revert to original size
+                        for (auto* track : arrangement->getTracks()) {
+                            if (!track) continue;
+                            for (auto& clip : track->getClips()) {
+                                if (clip.id == m_dragClipId) {
+                                    clip.startTick = m_originalClipStart;
+                                    clip.durationTicks = m_originalClipDuration;
+                                    break;
+                                }
+                            }
+                        }
+                        QMessageBox::warning(this, tr("Cannot Resize"),
+                            tr("Cannot resize clip - it would overlap with another instance of the same sequence."));
+                    } else {
+                        arrangement->updateMaxTick();
+                    }
                 }
             }
         } else if (m_interactionMode == MovingAudioClip ||
@@ -1487,13 +1652,21 @@ void ArrangementTimelineWidget::dragMoveEvent(QDragMoveEvent *event)
         m_dropPreviewTrack = yToTrackIndex(event->position().toPoint().y());
         m_dropPreviewTick = snapTick(xToTick(event->position().toPoint().x()));
         
-        // Get duration from mime data
+        // Get duration and sequence info from mime data
         QByteArray data = event->mimeData()->data(MIME_TYPE_MIDI_SEQUENCE);
         QDataStream stream(&data, QIODevice::ReadOnly);
         int sequenceIndex;
         int64_t duration;
         stream >> sequenceIndex >> duration;
         m_dropPreviewDuration = duration;
+        
+        // Get the sequence ID for forbidden zone highlighting
+        if (m_engine && m_engine->getRuntimeData()) {
+            auto sequences = m_engine->getRuntimeData()->getSequences();
+            if (sequenceIndex >= 0 && sequenceIndex < static_cast<int>(sequences.size())) {
+                m_dropPreviewSequenceId = sequences[sequenceIndex]->getId();
+            }
+        }
         
         update();
         event->acceptProposedAction();
@@ -1546,6 +1719,7 @@ void ArrangementTimelineWidget::dropEvent(QDropEvent *event)
         emit clipDropped(trackIndex, tick, sequenceIndex);
         
         m_showDropPreview = false;
+        m_dropPreviewSequenceId = -1;
         update();
         event->acceptProposedAction();
     } else if (event->mimeData()->hasFormat(MIME_TYPE_AUDIO_CLIP)) {
@@ -1561,9 +1735,18 @@ void ArrangementTimelineWidget::dropEvent(QDropEvent *event)
         emit audioClipDropped(trackIndex, tick, resourceId);
         
         m_showDropPreview = false;
+        m_dropPreviewSequenceId = -1;
         update();
         event->acceptProposedAction();
     }
+}
+
+void ArrangementTimelineWidget::dragLeaveEvent(QDragLeaveEvent *event)
+{
+    Q_UNUSED(event);
+    m_showDropPreview = false;
+    m_dropPreviewSequenceId = -1;
+    update();
 }
 
 void ArrangementTimelineWidget::resizeEvent(QResizeEvent *event)
@@ -1732,12 +1915,7 @@ void ArrangementTimelineWidget::showClipContextMenu(const QPoint &globalPos)
     } else if (selected == pasteAction) {
         startPasteMode();
     } else if (selected == duplicateAction) {
-        copySelectedClips();
-        // Paste immediately at offset
-        for (auto &clipState : m_clipboardClips) {
-            clipState.startTick += 480; // Offset by 1 beat
-        }
-        finishPaste();
+        duplicateSelectedClips();
     } else if (selected == deleteAction) {
         deleteSelectedClips();
     } else if (selected == selectAllAction) {
@@ -1829,6 +2007,28 @@ void ArrangementTimelineWidget::finishPaste()
     int64_t tickOffset = m_pastePreviewTick - m_clipboardBaseTick;
     int trackOffset = m_pastePreviewTrack - m_clipboardBaseTrack;
     
+    // First pass: check for overlaps with same sequence on different tracks
+    for (const auto &clipState : m_clipboardClips) {
+        int targetTrackIdx = qBound(0, clipState.trackIndex + trackOffset, 
+                                    static_cast<int>(arrangement->getTrackCount()) - 1);
+        int newStartTick = clipState.startTick + tickOffset;
+        
+        // Check if this would overlap with another clip from the same sequence
+        if (arrangement->wouldClipOverlapSameSequence(clipState.sequenceId, newStartTick, 
+                                                       clipState.durationTicks, -1, -1)) {
+            QMessageBox::warning(const_cast<ArrangementTimelineWidget*>(this), 
+                tr("Cannot Paste Clip"),
+                tr("One or more clips would overlap with the same MIDI sequence on another track.\n\n"
+                   "The same sequence cannot play simultaneously on multiple arrangement tracks."));
+            m_interactionMode = None;
+            m_pastePreviewTrack = -1;
+            m_pastePreviewTick = 0;
+            setCursor(Qt::ArrowCursor);
+            update();
+            return;
+        }
+    }
+    
     // Clear selection for new clips
     m_selectedClipIds.clear();
     
@@ -1892,6 +2092,95 @@ void ArrangementTimelineWidget::drawPastePreview(QPainter &painter)
     }
     
     painter.setOpacity(1.0);
+}
+
+int ArrangementTimelineWidget::getActiveSequenceIdForDrag() const
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return -1;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return -1;
+    
+    // For drag & drop from resource panel
+    if (m_showDropPreview && m_dropPreviewSequenceId >= 0) {
+        return m_dropPreviewSequenceId;
+    }
+    
+    // For MovingClip or Resizing, get sequence ID from the dragged clip
+    if ((m_interactionMode == MovingClip || m_interactionMode == ResizingClipLeft || 
+         m_interactionMode == ResizingClipRight) && m_dragClipId >= 0) {
+        for (const auto* track : arrangement->getTracks()) {
+            if (!track) continue;
+            for (const auto& clip : track->getClips()) {
+                if (clip.id == m_dragClipId) {
+                    return clip.sequenceId;
+                }
+            }
+        }
+    }
+    
+    // For PastingClips, get from clipboard
+    if (m_interactionMode == PastingClips && !m_clipboardClips.isEmpty()) {
+        return m_clipboardClips.first().sequenceId;
+    }
+    
+    return -1;
+}
+
+void ArrangementTimelineWidget::drawForbiddenZones(QPainter &painter)
+{
+    // Only draw during relevant interactions
+    if (m_interactionMode != MovingClip && m_interactionMode != ResizingClipLeft && 
+        m_interactionMode != ResizingClipRight && m_interactionMode != PastingClips &&
+        !m_showDropPreview) {
+        return;
+    }
+    
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaArrangement *arrangement = m_engine->getRuntimeData()->getArrangement();
+    if (!arrangement) return;
+    
+    int sequenceId = getActiveSequenceIdForDrag();
+    if (sequenceId < 0) return;
+    
+    // Get excluded clip ID (the one being moved/resized)
+    int excludeClipId = -1;
+    if (m_interactionMode == MovingClip || m_interactionMode == ResizingClipLeft || 
+        m_interactionMode == ResizingClipRight) {
+        excludeClipId = m_dragClipId;
+    }
+    
+    // Get forbidden zones for this sequence
+    auto forbiddenZones = arrangement->getForbiddenZonesForSequence(sequenceId, excludeClipId);
+    
+    if (forbiddenZones.empty()) return;
+    
+    // Draw semi-transparent red overlay on all tracks for each forbidden zone
+    painter.save();
+    painter.setOpacity(0.25);
+    
+    int numTracks = static_cast<int>(arrangement->getTrackCount());
+    
+    for (const auto& zone : forbiddenZones) {
+        int zoneStartX = tickToX(zone.first);
+        int zoneEndX = tickToX(zone.second);
+        int zoneWidth = zoneEndX - zoneStartX;
+        
+        // Skip if completely outside viewport
+        if (zoneEndX < 0 || zoneStartX > width()) continue;
+        
+        // Draw across all tracks
+        for (int trackIdx = 0; trackIdx < numTracks; ++trackIdx) {
+            int trackY = trackIndexToY(trackIdx);
+            QRect zoneRect(zoneStartX, trackY + 2, zoneWidth, m_trackHeight - 4);
+            
+            // Red forbidden zone - simple fill without hatch pattern
+            painter.fillRect(zoneRect, QColor(220, 50, 50));
+        }
+    }
+    
+    painter.restore();
 }
 
 // === Inline Track Name Editing ===
