@@ -8,10 +8,12 @@
 #include <QHBoxLayout>
 #include <QTimer>
 #include <QAudioSource>
+#include <QAudioSink>
 #include <QAudioFormat>
 #include <QMediaDevices>
 #include <QAudioDevice>
 #include <QIODevice>
+#include <QBuffer>
 #include <QWidget>
 #include <QProgressBar>
 #include <QScrollArea>
@@ -169,12 +171,14 @@ private slots:
     void onDeviceChanged(int index);
     void onRecordClicked();
     void onStopClicked();
+    void onPlayClicked();
     void onDeleteClicked();
     void onDoneClicked();
     void onCancelClicked();
     void onSamplesAvailable(const std::vector<float> &samples);
     void onLevelChanged(float level);
     void updateRecordingTime();
+    void onPlaybackStateChanged(QAudio::State state);
 
 private:
     void initUI();
@@ -183,6 +187,8 @@ private:
     void startRecording();
     void stopRecording();
     void clearRecording();
+    void startPlayback();
+    void stopPlayback();
     bool saveRecording();
     QString generateFileName() const;
     QString getAudioFolderPath() const;
@@ -202,6 +208,7 @@ private:
     VolumeMeterWidget *m_volumeMeter;
     QPushButton *m_recordBtn;
     QPushButton *m_stopBtn;
+    QPushButton *m_playBtn;
     QPushButton *m_deleteBtn;
     QPushButton *m_doneBtn;
     QPushButton *m_cancelBtn;
@@ -210,12 +217,15 @@ private:
 
     // Audio
     std::unique_ptr<QAudioSource> m_audioSource;
+    std::unique_ptr<QAudioSink> m_audioSink;
     std::unique_ptr<AudioInputHandler> m_inputHandler;
     QAudioFormat m_audioFormat;
     QList<QAudioDevice> m_audioDevices;
+    QBuffer *m_playbackBuffer = nullptr;
 
     // Recording state
     bool m_isRecording = false;
+    bool m_isPlaying = false;
     bool m_hasRecording = false;
     std::vector<float> m_recordedSamples;
     QTimer *m_recordingTimer;

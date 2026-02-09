@@ -19,6 +19,7 @@
 #include "sections/media_export_section.h"
 #include "sections/project_section.h"
 #include "sections/arrangement_section.h"
+#include "sections/external_midi_section.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -95,6 +96,7 @@ private:
     ArrangementSection *m_arrangementSection;
     NotationSection *m_notationSection;
     MediaExportSection *m_mediaExportSection;
+    ExternalMidiSection *m_externalMidiSection;
 
     // Actions
     QAction *action_open;

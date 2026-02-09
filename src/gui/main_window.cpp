@@ -4,6 +4,7 @@
 #include <QColor>
 #include <QDesktopServices>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QGridLayout>
 #include <QIcon>
 #include <QInputDialog> 
@@ -87,9 +88,9 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setup_actions() {
-    action_open = new QAction(QIcon(":/icons/open.svg"), "Open MIDI", this);
+    action_open = new QAction(QIcon(":/icons/open.svg"), "Import MIDI", this);
     connect(action_open, &QAction::triggered, this, &MainWindow::open_midi);
-    action_export = new QAction(QIcon(":/icons/save.svg"), "Save MIDI", this);
+    action_export = new QAction(QIcon(":/icons/save.svg"), "Export MIDI", this);
     connect(action_export, &QAction::triggered, this, &MainWindow::export_midi);
     action_export_video = new QAction(QIcon(":/icons/video.svg"), "Export as Video...", this);
     connect(action_export_video, &QAction::triggered, this, &MainWindow::export_video);
@@ -270,6 +271,7 @@ void MainWindow::setup_sections() {
     m_notationSection = new NotationSection(engine, this);
     m_mediaExportSection = new MediaExportSection(engine, this);
     m_arrangementSection = new ArrangementSection(engine, this);
+    m_externalMidiSection = new ExternalMidiSection(engine, this);
     
     // Add sections to stack (order must match AppSection enum)
     m_sectionStack->addWidget(m_projectSection);      // index 0 - Project
@@ -278,6 +280,7 @@ void MainWindow::setup_sections() {
     m_sectionStack->addWidget(m_arrangementSection);  // index 3 - Arrangement
     m_sectionStack->addWidget(m_mediaExportSection);  // index 4 - MediaExport
     m_sectionStack->addWidget(m_notationSection);     // index 5 - Notation
+    m_sectionStack->addWidget(m_externalMidiSection); // index 6 - ExternalMidi
     
     // Create section switcher (bottom bar)
     m_sectionSwitcher = new SectionSwitcher(engine, this);
@@ -354,6 +357,9 @@ void MainWindow::onSectionChanged(AppSection section) {
         case AppSection::MediaExport:
             m_mediaExportSection->onSectionDeactivated();
             break;
+        case AppSection::ExternalMidi:
+            m_externalMidiSection->onSectionDeactivated();
+            break;
     }
     
     // Switch to new section
@@ -402,6 +408,13 @@ void MainWindow::onSectionChanged(AppSection section) {
         case AppSection::MediaExport:
             m_mediaExportSection->onSectionActivated();
             // Media Export - allow both modes
+            if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
+                m_sectionSwitcher->getTransportBar()->setAllowedPlaybackModes(3); // Both
+            }
+            break;
+        case AppSection::ExternalMidi:
+            m_externalMidiSection->onSectionActivated();
+            // External MIDI - allow both modes
             if (m_sectionSwitcher && m_sectionSwitcher->getTransportBar()) {
                 m_sectionSwitcher->getTransportBar()->setAllowedPlaybackModes(3); // Both
             }
@@ -463,6 +476,10 @@ void MainWindow::connect_signals() {
     // Connect playback mode changes to Media Export section
     connect(transportBar, &GlobalTransportBar::playbackModeChanged, 
             m_mediaExportSection, &MediaExportSection::setPlaybackMode);
+    
+    // Connect playback mode changes to External MIDI section
+    connect(transportBar, &GlobalTransportBar::playbackModeChanged, 
+            m_externalMidiSection, &ExternalMidiSection::setPlaybackMode);
 }
 
 void MainWindow::set_auto_follow(bool checked) { auto_follow = checked; }
@@ -578,14 +595,34 @@ void MainWindow::onControlBarPositionClicked(float seconds, int tick_position) {
 
 void MainWindow::open_midi() {
     QString fname =
-        QFileDialog::getOpenFileName(this, "Open MIDI file", "", "MIDI Files (*.mid *.midi)");
+        QFileDialog::getOpenFileName(this, "Import MIDI file", "", "MIDI Files (*.mid *.midi)");
     if (fname.isEmpty()) return;
 
-    if (!engine->loadProject(fname.toStdString())) {
-        QMessageBox::critical(this, "Error", "Failed to load MIDI file.");
+    // Create new sequence and load the MIDI file into it
+    NoteNagaMidiSeq *newSequence = new NoteNagaMidiSeq();
+    newSequence->loadFromMidi(fname.toStdString());
+    
+    // Check if loading was successful by verifying tracks were loaded
+    if (newSequence->getTracks().empty()) {
+        delete newSequence;
+        QMessageBox::critical(this, "Error", "Failed to load MIDI file or file contains no tracks.");
         return;
     }
+    
+    // Extract filename without extension for sequence display name
+    QFileInfo fileInfo(fname);
+    QString baseName = fileInfo.baseName();
+    newSequence->setFilePath(baseName.toStdString());
+    
+    // Add to project and set as active
+    engine->getRuntimeData()->addSequence(newSequence);
+    engine->getRuntimeData()->setActiveSequence(newSequence);
 
+    // Switch to MIDI Editor section
+    m_sectionSwitcher->setCurrentSection(AppSection::MidiEditor);
+    onSectionChanged(AppSection::MidiEditor);
+    
+    // Center the view in the editor
     MidiEditorWidget *midi_editor = m_midiEditorSection->getMidiEditor();
     MidiTactRuler *midi_tact_ruler = m_midiEditorSection->getTactRuler();
     if (midi_editor && midi_tact_ruler) {
@@ -594,10 +631,127 @@ void MainWindow::open_midi() {
         vertical_bar->setSliderPosition(center_pos);
         midi_tact_ruler->setHorizontalScroll(0);
     }
+    
+    QMessageBox::information(this, "Import Successful", 
+        "MIDI file imported as new sequence: " + baseName);
 }
 
 void MainWindow::export_midi() {
-    NoteNagaMidiSeq *active_sequence = this->engine->getRuntimeData()->getActiveSequence();
+    // Get current playback mode
+    GlobalTransportBar *transportBar = m_sectionSwitcher ? m_sectionSwitcher->getTransportBar() : nullptr;
+    PlaybackMode mode = transportBar ? transportBar->getPlaybackMode() : PlaybackMode::Sequence;
+    
+    NoteNagaRuntimeData *runtimeData = this->engine->getRuntimeData();
+    
+    if (mode == PlaybackMode::Arrangement) {
+        // In arrangement mode, ask user what to export
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Export MIDI");
+        msgBox.setText("What would you like to export?");
+        QPushButton *arrangementBtn = msgBox.addButton(tr("Entire Arrangement"), QMessageBox::AcceptRole);
+        QPushButton *sequenceBtn = msgBox.addButton(tr("Active Sequence Only"), QMessageBox::AcceptRole);
+        QPushButton *cancelBtn = msgBox.addButton(QMessageBox::Cancel);
+        msgBox.exec();
+        
+        if (msgBox.clickedButton() == cancelBtn) {
+            return;
+        }
+        
+        if (msgBox.clickedButton() == arrangementBtn) {
+            // Export entire arrangement
+            NoteNagaArrangement *arrangement = runtimeData->getArrangement();
+            if (!arrangement || arrangement->getTracks().empty()) {
+                QMessageBox::warning(this, "No Arrangement", "No arrangement tracks to export.");
+                return;
+            }
+            
+            QString fname = QFileDialog::getSaveFileName(this, "Export Arrangement as MIDI", "", "MIDI Files (*.mid *.midi)");
+            if (fname.isEmpty()) return;
+            
+            if (!fname.endsWith(".mid", Qt::CaseInsensitive) && 
+                !fname.endsWith(".midi", Qt::CaseInsensitive)) {
+                fname += ".mid";
+            }
+            
+            // Create a flattened sequence from arrangement
+            NoteNagaMidiSeq *flattenedSeq = new NoteNagaMidiSeq();
+            flattenedSeq->setPPQ(480);
+            
+            // Collect all notes from all clips
+            int trackIdx = 0;
+            for (auto *arrTrack : arrangement->getTracks()) {
+                if (!arrTrack || arrTrack->isMuted()) continue;
+                
+                for (const auto &clip : arrTrack->getClips()) {
+                    if (clip.muted) continue;
+                    
+                    NoteNagaMidiSeq *seq = runtimeData->getSequenceById(clip.sequenceId);
+                    if (!seq) continue;
+                    
+                    int seqLength = seq->getMaxTick();
+                    if (seqLength <= 0) continue;
+                    
+                    for (auto *midiTrack : seq->getTracks()) {
+                        if (!midiTrack || midiTrack->isMuted() || midiTrack->isTempoTrack()) continue;
+                        
+                        // Always create a new track for each MIDI track
+                        int instrument = midiTrack->getInstrument().value_or(0);
+                        NoteNagaTrack *flatTrack = flattenedSeq->addTrack(instrument);
+                        flatTrack->setName(midiTrack->getName());
+                        
+                        for (const auto &note : midiTrack->getNotes()) {
+                            if (!note.start.has_value() || !note.length.has_value()) continue;
+                            
+                            int noteStart = note.start.value();
+                            int noteEnd = noteStart + note.length.value();
+                            
+                            // Calculate how many loops of the sequence fit in the clip
+                            int clipDuration = clip.durationTicks;
+                            int numLoops = (clipDuration + seqLength - 1) / seqLength;
+                            
+                            for (int loop = 0; loop < numLoops; ++loop) {
+                                int loopOffset = loop * seqLength;
+                                int adjustedStart = noteStart - clip.offsetTicks + loopOffset;
+                                int adjustedEnd = noteEnd - clip.offsetTicks + loopOffset;
+                                
+                                // Check if note is within clip bounds
+                                if (adjustedEnd <= 0 || adjustedStart >= clipDuration) continue;
+                                
+                                // Clamp to clip bounds
+                                adjustedStart = std::max(0, adjustedStart);
+                                adjustedEnd = std::min(clipDuration, adjustedEnd);
+                                
+                                if (adjustedEnd <= adjustedStart) continue;
+                                
+                                // Create note at arrangement position
+                                NN_Note_t newNote = note;
+                                newNote.start = clip.startTick + adjustedStart;
+                                newNote.length = adjustedEnd - adjustedStart;
+                                flatTrack->addNote(newNote);
+                            }
+                        }
+                        trackIdx++;
+                    }
+                }
+            }
+            
+            bool success = flattenedSeq->exportToMidi(fname.toStdString());
+            delete flattenedSeq;
+            
+            if (success) {
+                QMessageBox::information(this, "Export Successful", 
+                    "Arrangement exported successfully to:\n" + fname);
+            } else {
+                QMessageBox::critical(this, "Export Failed", 
+                    "Failed to export arrangement. Check the log for details.");
+            }
+            return;
+        }
+        // Otherwise fall through to export active sequence
+    }
+    
+    // Export active sequence
+    NoteNagaMidiSeq *active_sequence = runtimeData->getActiveSequence();
     if (!active_sequence) {
         QMessageBox::warning(this, "No Sequence", "No active MIDI sequence to export.");
         return;

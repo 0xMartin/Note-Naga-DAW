@@ -17,6 +17,7 @@ NoteNagaEngine::NoteNagaEngine()
     this->spectrum_analyzer = nullptr;
     this->pan_analyzer = nullptr;
     this->metronome = nullptr;
+    this->external_midi_router = nullptr;
     NOTE_NAGA_LOG_INFO("Instance created. Version: " + std::string(NOTE_NAGA_VERSION_STR));
 }
 
@@ -59,6 +60,11 @@ NoteNagaEngine::~NoteNagaEngine() {
         metronome = nullptr;
     }
 
+    if (external_midi_router) {
+        delete external_midi_router;
+        external_midi_router = nullptr;
+    }
+
     NOTE_NAGA_LOG_INFO("Instance destroyed");
 }
 
@@ -82,6 +88,11 @@ bool NoteNagaEngine::initialize() {
         this->metronome = new NoteNagaMetronome();
         this->metronome->setSampleRate(44100);
         this->metronome->setProject(this->runtime_data);
+    }
+
+    // Initialize external MIDI router
+    if (!this->external_midi_router) {
+        this->external_midi_router = new ExternalMidiRouter();
     }
 
     // runtime data
@@ -115,6 +126,7 @@ bool NoteNagaEngine::initialize() {
     // Set DSP engine on playback worker for audio synchronization
     if (this->playback_worker) {
         this->playback_worker->setDSPEngine(this->dsp_engine);
+        this->playback_worker->setExternalMidiRouter(this->external_midi_router);
     }
 
     // audio worker - start asynchronously to avoid blocking UI on slow devices (e.g. Bluetooth)

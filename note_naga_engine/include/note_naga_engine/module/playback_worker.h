@@ -13,6 +13,7 @@
 
 // Forward declarations
 class NOTE_NAGA_ENGINE_API PlaybackThreadWorker;
+class NOTE_NAGA_ENGINE_API ExternalMidiRouter;
 
 /*******************************************************************************************************/
 // Playback Mode Enum
@@ -106,6 +107,12 @@ public:
     void setDSPEngine(class NoteNagaDSPEngine* dsp) { dsp_engine_ = dsp; }
 
     /**
+     * @brief Sets the external MIDI router for routing notes to external devices.
+     * @param router Pointer to the external MIDI router.
+     */
+    void setExternalMidiRouter(ExternalMidiRouter* router) { external_midi_router_ = router; }
+
+    /**
      * @brief Adds a callback for the finished event.
      * @param cb Callback function.
      * @return Unique callback ID.
@@ -147,6 +154,7 @@ public:
 private:
     NoteNagaRuntimeData *project; ///< Pointer to project data (not owned)
     class NoteNagaDSPEngine* dsp_engine_ = nullptr; ///< DSP engine for audio sync
+    ExternalMidiRouter* external_midi_router_ = nullptr; ///< External MIDI router (not owned)
 
     // Internal State
     // ////////////////////////////////////////////////////////////////////////////////
@@ -323,9 +331,16 @@ public:
      */
     void setDSPEngine(class NoteNagaDSPEngine* dsp) { dsp_engine_ = dsp; }
 
+    /**
+     * @brief Sets the external MIDI router for routing notes to external devices.
+     * @param router Pointer to the external MIDI router.
+     */
+    void setExternalMidiRouter(ExternalMidiRouter* router) { external_midi_router_ = router; }
+
 private:
     NoteNagaRuntimeData *project; ///< Pointer to project data (not owned)
     class NoteNagaDSPEngine* dsp_engine_ = nullptr; ///< DSP engine for audio sync
+    ExternalMidiRouter* external_midi_router_ = nullptr; ///< External MIDI router (not owned)
 
     // Timing
     // ////////////////////////////////////////////////////////////////////////////////

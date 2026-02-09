@@ -585,6 +585,12 @@ void AudioRecordingDialog::initUI()
     connect(m_stopBtn, &QPushButton::clicked, this, &AudioRecordingDialog::onStopClicked);
     buttonLayout->addWidget(m_stopBtn);
     
+    m_playBtn = new QPushButton(tr("▶ Play"), this);
+    m_playBtn->setObjectName("playBtn");
+    m_playBtn->setMinimumWidth(100);
+    connect(m_playBtn, &QPushButton::clicked, this, &AudioRecordingDialog::onPlayClicked);
+    buttonLayout->addWidget(m_playBtn);
+    
     m_deleteBtn = new QPushButton(tr("🗑 Delete"), this);
     m_deleteBtn->setObjectName("deleteBtn");
     m_deleteBtn->setMinimumWidth(100);
@@ -686,7 +692,20 @@ void AudioRecordingDialog::onRecordClicked()
 
 void AudioRecordingDialog::onStopClicked()
 {
-    stopRecording();
+    if (m_isPlaying) {
+        stopPlayback();
+    } else {
+        stopRecording();
+    }
+}
+
+void AudioRecordingDialog::onPlayClicked()
+{
+    if (m_isPlaying) {
+        stopPlayback();
+    } else {
+        startPlayback();
+    }
 }
 
 void AudioRecordingDialog::onDeleteClicked()
@@ -848,6 +867,88 @@ void AudioRecordingDialog::stopRecording()
     updateButtonStates();
 }
 
+void AudioRecordingDialog::startPlayback()
+{
+    if (m_recordedSamples.empty() || m_isPlaying) return;
+    
+    // Get default output device
+    QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
+    if (outputDevice.isNull()) {
+        QMessageBox::warning(this, tr("No Audio Output"),
+                             tr("No audio output device available."));
+        return;
+    }
+    
+    // Setup playback format
+    QAudioFormat format;
+    format.setSampleRate(m_targetSampleRate);
+    format.setChannelCount(m_monoCheck->isChecked() ? 1 : 2);
+    format.setSampleFormat(QAudioFormat::Float);
+    
+    // Convert samples to byte array
+    QByteArray audioData;
+    audioData.resize(static_cast<int>(m_recordedSamples.size() * sizeof(float)));
+    memcpy(audioData.data(), m_recordedSamples.data(), m_recordedSamples.size() * sizeof(float));
+    
+    // Create buffer for playback
+    if (m_playbackBuffer) {
+        delete m_playbackBuffer;
+    }
+    m_playbackBuffer = new QBuffer(this);
+    m_playbackBuffer->setData(audioData);
+    m_playbackBuffer->open(QIODevice::ReadOnly);
+    
+    // Create and start audio sink
+    m_audioSink = std::make_unique<QAudioSink>(outputDevice, format);
+    
+    connect(m_audioSink.get(), &QAudioSink::stateChanged,
+            this, &AudioRecordingDialog::onPlaybackStateChanged);
+    
+    m_audioSink->start(m_playbackBuffer);
+    m_isPlaying = true;
+    
+    m_statusLabel->setText(tr("Playing recording..."));
+    m_statusLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #3b82f6;");
+    
+    updateButtonStates();
+}
+
+void AudioRecordingDialog::stopPlayback()
+{
+    if (!m_isPlaying) return;
+    
+    if (m_audioSink) {
+        m_audioSink->stop();
+        m_audioSink.reset();
+    }
+    
+    if (m_playbackBuffer) {
+        m_playbackBuffer->close();
+        delete m_playbackBuffer;
+        m_playbackBuffer = nullptr;
+    }
+    
+    m_isPlaying = false;
+    
+    m_statusLabel->setText(tr("Recording stopped"));
+    m_statusLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #f59e0b;");
+    
+    updateButtonStates();
+}
+
+void AudioRecordingDialog::onPlaybackStateChanged(QAudio::State state)
+{
+    if (state == QAudio::IdleState) {
+        // Playback finished
+        stopPlayback();
+    } else if (state == QAudio::StoppedState) {
+        // Check for errors
+        if (m_audioSink && m_audioSink->error() != QAudio::NoError) {
+            stopPlayback();
+        }
+    }
+}
+
 void AudioRecordingDialog::clearRecording()
 {
     if (m_isRecording) {
@@ -980,12 +1081,20 @@ void AudioRecordingDialog::updateButtonStates()
 {
     bool hasDevice = !m_audioDevices.isEmpty();
     
-    m_recordBtn->setEnabled(hasDevice && !m_isRecording);
-    m_stopBtn->setEnabled(m_isRecording);
-    m_deleteBtn->setEnabled(!m_isRecording && m_hasRecording);
-    m_doneBtn->setEnabled(!m_isRecording && m_hasRecording);
+    m_recordBtn->setEnabled(hasDevice && !m_isRecording && !m_isPlaying);
+    m_stopBtn->setEnabled(m_isRecording || m_isPlaying);
+    m_playBtn->setEnabled(!m_isRecording && m_hasRecording && !m_isPlaying);
+    m_deleteBtn->setEnabled(!m_isRecording && !m_isPlaying && m_hasRecording);
+    m_doneBtn->setEnabled(!m_isRecording && !m_isPlaying && m_hasRecording);
     
-    m_deviceCombo->setEnabled(!m_isRecording);
-    m_sampleRateSpin->setEnabled(!m_isRecording);
-    m_monoCheck->setEnabled(!m_isRecording);
+    m_deviceCombo->setEnabled(!m_isRecording && !m_isPlaying);
+    m_sampleRateSpin->setEnabled(!m_isRecording && !m_isPlaying);
+    m_monoCheck->setEnabled(!m_isRecording && !m_isPlaying);
+    
+    // Update play button text
+    if (m_isPlaying) {
+        m_playBtn->setText(tr("⏹ Stop"));
+    } else {
+        m_playBtn->setText(tr("▶ Play"));
+    }
 }

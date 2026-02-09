@@ -1,5 +1,6 @@
 #include <note_naga_engine/module/playback_worker.h>
 #include <note_naga_engine/module/dsp_engine.h>
+#include <note_naga_engine/module/external_midi_router.h>
 
 #include <algorithm>
 #include <map>
@@ -133,6 +134,7 @@ bool NoteNagaPlaybackWorker::play() {
     worker = new PlaybackThreadWorker(project, timer_interval, playback_mode_);
     worker->enableLooping(this->looping);
     worker->setDSPEngine(this->dsp_engine_);
+    worker->setExternalMidiRouter(this->external_midi_router_);
 
     // Forward events from thread worker to this worker
     worker->addPositionChangedCallback([this](int tick) { emitPositionChanged(tick); });
@@ -403,12 +405,20 @@ void PlaybackThreadWorker::runSequenceMode() {
                 // Note ON (use <= for first tick to catch notes at position 0)
                 if (last_tick <= note.start.value() && note.start.value() <= current_tick) {
                     track->playNote(note);
+                    // Also route to external MIDI if configured
+                    if (external_midi_router_) {
+                        external_midi_router_->playNote(note, track);
+                    }
                     emitNotePlayed(note);
                 }
                 // Note OFF
                 int note_end = note.start.value() + note.length.value();
                 if (last_tick < note_end && note_end <= current_tick) {
                     track->stopNote(note);
+                    // Also stop on external MIDI if configured
+                    if (external_midi_router_) {
+                        external_midi_router_->stopNote(note, track);
+                    }
                 }
 
                 // If the note starts after the current tick, we can stop checking
@@ -754,6 +764,10 @@ void PlaybackThreadWorker::runArrangementMode() {
                             // Note ON: if this tick matches the note start
                             if (seqTick == noteStart) {
                                 midiTrack->playNote(note);
+                                // Also route to external MIDI for arrangement track
+                                if (external_midi_router_) {
+                                    external_midi_router_->playNoteForArrangement(note, arrTrack);
+                                }
                                 emitNotePlayed(note);
                             }
 
@@ -766,6 +780,10 @@ void PlaybackThreadWorker::runArrangementMode() {
                             }
                             if (isNoteOff) {
                                 midiTrack->stopNote(note);
+                                // Also stop on external MIDI for arrangement track
+                                if (external_midi_router_) {
+                                    external_midi_router_->stopNoteForArrangement(note, arrTrack);
+                                }
                             }
                         }
                     }

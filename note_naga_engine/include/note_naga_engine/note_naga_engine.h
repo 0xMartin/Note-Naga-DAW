@@ -12,6 +12,7 @@
 #include <note_naga_engine/module/spectrum_analyzer.h>
 #include <note_naga_engine/module/pan_analyzer.h>
 #include <note_naga_engine/module/metronome.h>
+#include <note_naga_engine/module/external_midi_router.h>
 
 #ifndef QT_DEACTIVATED
 #include <QObject>
@@ -219,6 +220,12 @@ public:
      */
     NoteNagaPanAnalyzer *getPanAnalyzer() { return this->pan_analyzer; }
 
+    /**
+     * @brief Gets the external MIDI router instance.
+     * @return Pointer to the ExternalMidiRouter.
+     */
+    ExternalMidiRouter *getExternalMidiRouter() { return this->external_midi_router; }
+
 #ifndef QT_DEACTIVATED
 Q_SIGNALS:
     /**
@@ -246,4 +253,5 @@ protected:
     NoteNagaSpectrumAnalyzer *spectrum_analyzer;     ///< Pointer to the spectrum analyzer instance
     NoteNagaPanAnalyzer *pan_analyzer;               ///< Pointer to the pan analyzer instance
     NoteNagaMetronome *metronome;                    ///< Pointer to the metronome instance
+    ExternalMidiRouter *external_midi_router;        ///< Pointer to the external MIDI router instance
 };

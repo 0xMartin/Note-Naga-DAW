@@ -54,6 +54,7 @@ set(HEADER_FILES
     src/gui/sections/track_preview_widget.h
     src/gui/sections/project_section.h
     src/gui/sections/arrangement_section.h
+    src/gui/sections/external_midi_section.h
     # gui/components
     src/gui/components/audio_dial.h
     src/gui/components/audio_dial_centered.h
@@ -123,6 +124,7 @@ set(SOURCE_FILES
     src/gui/sections/track_preview_widget.cpp
     src/gui/sections/project_section.cpp
     src/gui/sections/arrangement_section.cpp
+    src/gui/sections/external_midi_section.cpp
     # gui/components
     src/gui/components/audio_dial.cpp
     src/gui/components/audio_dial_centered.cpp

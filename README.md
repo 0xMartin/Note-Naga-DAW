@@ -222,11 +222,9 @@ Access advanced MIDI editing tools from the `Edit` menu:
 
 ## 📋 Todo
 - Optimaze and fix bugs in arrangement section
-- ~~Implement support for MIDI/Arrangement mode for Media Export and Notation section~~
-- Implement support for MIDI/Arragement mode for MIDI file export
-- Implement MIDI import in project
-- Microphone recording: add playback function on dialog
-- Implement External MIDI section
+- ~~Implement support for MIDI/Arragement mode for MIDI file export~~
+- ~~Implement MIDI import from file~~
+- ~~Microphone recording: add playback function on dialog~~
 - Output device selection in project section
 - Implement tool bar (open project, save project, import MIDI, export MIDI, import audio, record audio, new MIDI sequence, new Track)
 - Implement menu bar

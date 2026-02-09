@@ -54,6 +54,7 @@ set(PUBLIC_HEADER_FILES
     ./include/note_naga_engine/module/metronome.h
     ./include/note_naga_engine/module/spectrum_analyzer.h
     ./include/note_naga_engine/module/pan_analyzer.h
+    ./include/note_naga_engine/module/external_midi_router.h
     # include/note_naga_engine/synth
     ./include/note_naga_engine/synth/synth_fluidsynth.h
     ./include/note_naga_engine/synth/synth_external_midi.h
@@ -111,6 +112,7 @@ set(SOURCE_FILES
     ./module/metronome.cpp
     ./module/spectrum_analyzer.cpp
     ./module/pan_analyzer.cpp
+    ./module/external_midi_router.cpp
     # synth
     ./synth/synth_fluidsynth.cpp
     ./synth/synth_external_midi.cpp

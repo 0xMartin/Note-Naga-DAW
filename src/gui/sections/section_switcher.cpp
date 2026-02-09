@@ -85,6 +85,20 @@ void SectionSwitcher::setupUi()
             if (m_engine->getDSPEngine()) {
                 m_engine->getDSPEngine()->setPlaybackMode(mode);
             }
+            
+            // Hide/show Notation section based on playback mode
+            // Notation is only available in Sequence mode
+            int notationIndex = static_cast<int>(AppSection::Notation);
+            if (notationIndex < m_buttons.size()) {
+                bool isArrangementMode = (mode == PlaybackMode::Arrangement);
+                m_buttons[notationIndex]->setVisible(!isArrangementMode);
+                
+                // If currently on Notation section and switching to Arrangement mode,
+                // switch to a different section (Arrangement section)
+                if (isArrangementMode && m_currentSection == AppSection::Notation) {
+                    setCurrentSection(AppSection::Arrangement);
+                }
+            }
         });
     }
 
@@ -123,7 +137,8 @@ void SectionSwitcher::setupUi()
         {AppSection::DspEditor, ":/icons/app_section_dsp.svg", tr("DSP Editor")},
         {AppSection::Arrangement, ":/icons/app_section_arrangement.svg", tr("Arrangement")},
         {AppSection::MediaExport, ":/icons/app_section_media.svg", tr("Media Export")},
-        {AppSection::Notation, ":/icons/app_section_notation.svg", tr("Notation")}
+        {AppSection::Notation, ":/icons/app_section_notation.svg", tr("Notation")},
+        {AppSection::ExternalMidi, ":/icons/app_section_external.svg", tr("External")}
     };
 
     // === Section Buttons (left side) ===
