@@ -18,6 +18,7 @@
 #include <QShortcut>
 
 #include <note_naga_engine/nn_utils.h>
+#include <note_naga_engine/audio/audio_manager.h>
 
 // Section widget includes for signal connections
 #include "widgets/global_transport_bar.h"
@@ -26,6 +27,7 @@
 #include "editor/arrangement_timeline_widget.h"
 #include "widgets/track_list_widget.h"
 #include "dialogs/project_wizard_dialog.h"
+#include "dialogs/audio_recording_dialog.h"
 #include "undo/undo_manager.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true), m_currentSection(AppSection::Project) {
@@ -88,13 +90,45 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setup_actions() {
-    action_open = new QAction(QIcon(":/icons/open.svg"), "Import MIDI", this);
+    // Project actions
+    action_open_project = new QAction(QIcon(":/icons/open-project.svg"), tr("Open Project..."), this);
+    action_open_project->setShortcut(QKeySequence::Open);
+    connect(action_open_project, &QAction::triggered, this, &MainWindow::open_project);
+    
+    action_save_project = new QAction(QIcon(":/icons/save-project.svg"), tr("Save Project"), this);
+    action_save_project->setShortcut(QKeySequence::Save);
+    connect(action_save_project, &QAction::triggered, this, &MainWindow::save_project_slot);
+    
+    action_save_project_as = new QAction(tr("Save Project As..."), this);
+    action_save_project_as->setShortcut(QKeySequence::SaveAs);
+    connect(action_save_project_as, &QAction::triggered, this, &MainWindow::saveProjectAs);
+    
+    // MIDI import/export
+    action_open = new QAction(QIcon(":/icons/import-midi.svg"), tr("Import MIDI..."), this);
     connect(action_open, &QAction::triggered, this, &MainWindow::open_midi);
-    action_export = new QAction(QIcon(":/icons/save.svg"), "Export MIDI", this);
+    action_export = new QAction(QIcon(":/icons/export-midi.svg"), tr("Export MIDI..."), this);
     connect(action_export, &QAction::triggered, this, &MainWindow::export_midi);
-    action_export_video = new QAction(QIcon(":/icons/video.svg"), "Export as Video...", this);
+    
+    // Video export
+    action_export_video = new QAction(QIcon(":/icons/video.svg"), tr("Export Video..."), this);
     connect(action_export_video, &QAction::triggered, this, &MainWindow::export_video);
-    action_quit = new QAction("Quit", this);
+    
+    // Audio actions
+    action_import_audio = new QAction(QIcon(":/icons/import-audio.svg"), tr("Import Audio..."), this);
+    connect(action_import_audio, &QAction::triggered, this, &MainWindow::import_audio);
+    
+    action_record_audio = new QAction(QIcon(":/icons/record.svg"), tr("Record Audio..."), this);
+    connect(action_record_audio, &QAction::triggered, this, &MainWindow::record_audio);
+    
+    // Create new items
+    action_new_sequence = new QAction(QIcon(":/icons/new-sequence.svg"), tr("New MIDI Sequence"), this);
+    connect(action_new_sequence, &QAction::triggered, this, &MainWindow::new_sequence);
+    
+    action_new_track = new QAction(QIcon(":/icons/new-track.svg"), tr("New Track"), this);
+    connect(action_new_track, &QAction::triggered, this, &MainWindow::new_track);
+    
+    action_quit = new QAction(tr("Quit"), this);
+    action_quit->setShortcut(QKeySequence::Quit);
     connect(action_quit, &QAction::triggered, this, &MainWindow::close);
 
     // Undo/Redo actions
@@ -195,26 +229,45 @@ void MainWindow::setup_actions() {
 
 void MainWindow::setup_menu_bar() {
     QMenuBar *menubar = menuBar();
-    QMenu *file_menu = menubar->addMenu("File");
-    file_menu->addAction(action_open);
-    file_menu->addAction(action_export);
+    
+    // === File Menu ===
+    QMenu *file_menu = menubar->addMenu(tr("File"));
+    file_menu->addAction(action_open_project);
+    file_menu->addAction(action_save_project);
+    file_menu->addAction(action_save_project_as);
+    file_menu->addSeparator();
+    file_menu->addAction(action_open);  // Import MIDI
+    file_menu->addAction(action_export);  // Export MIDI
+    file_menu->addSeparator();
+    file_menu->addAction(action_import_audio);
+    file_menu->addAction(action_record_audio);
+    file_menu->addSeparator();
     file_menu->addAction(action_export_video);
     file_menu->addSeparator();
     file_menu->addAction(action_quit);
 
-    QMenu *view_menu = menubar->addMenu("View");
-    view_menu->addAction(action_auto_follow);
-    view_menu->addSeparator();
-    view_menu->addAction(action_toggle_editor);
-    view_menu->addAction(action_toggle_tracklist);
-    view_menu->addAction(action_toggle_mixer);
-    view_menu->addSeparator();
-    view_menu->addAction(action_reset_layout);
-
-    QMenu *tools_menu = menubar->addMenu("Tools");
+    // === Edit Menu ===
+    QMenu *edit_menu = menubar->addMenu(tr("Edit"));
+    edit_menu->addAction(action_new_sequence);
+    edit_menu->addAction(action_new_track);
     
-    // === Vytvoření podmenu pro MIDI utility ===
-    QMenu *midi_util_menu = tools_menu->addMenu("MIDI Utilities");
+    // === View Menu ===
+    QMenu *view_menu = menubar->addMenu(tr("View"));
+    view_menu->addAction(action_auto_follow);
+    
+    // MIDI Editor section-specific submenu
+    m_midiEditorMenu = view_menu->addMenu(tr("MIDI Editor"));
+    m_midiEditorMenu->addAction(action_toggle_editor);
+    m_midiEditorMenu->addAction(action_toggle_tracklist);
+    m_midiEditorMenu->addAction(action_toggle_mixer);
+    m_midiEditorMenu->addSeparator();
+    m_midiEditorMenu->addAction(action_reset_layout);
+
+    // === Tools Menu ===
+    QMenu *tools_menu = menubar->addMenu(tr("Tools"));
+    
+    // MIDI utilities submenu
+    QMenu *midi_util_menu = tools_menu->addMenu(tr("MIDI Utilities"));
     midi_util_menu->addAction(action_quantize);
     midi_util_menu->addAction(action_humanize);
     midi_util_menu->addSeparator();
@@ -237,21 +290,37 @@ void MainWindow::setup_menu_bar() {
     tools_menu->addAction(action_reset_colors);
     tools_menu->addAction(action_randomize_colors);
 
-    QMenu *help_menu = menubar->addMenu("Help");
+    // === Help Menu ===
+    QMenu *help_menu = menubar->addMenu(tr("Help"));
     help_menu->addAction(action_about);
     help_menu->addAction(action_homepage);
 }
 
 void MainWindow::setup_toolbar() {
-    QToolBar *toolbar = new QToolBar("Playback");
+    QToolBar *toolbar = new QToolBar(tr("Main Toolbar"));
     toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    toolbar->setIconSize(QSize(21, 21));
+    toolbar->setIconSize(QSize(22, 22));
     toolbar->setMovable(true);
     addToolBar(Qt::LeftToolBarArea, toolbar);
 
-    toolbar->addAction(action_open);
-    toolbar->addAction(action_export);
+    // Project actions
+    toolbar->addAction(action_open_project);
+    toolbar->addAction(action_save_project);
     toolbar->addSeparator();
+    
+    // MIDI import/export
+    toolbar->addAction(action_open);        // Import MIDI
+    toolbar->addAction(action_export);      // Export MIDI
+    toolbar->addSeparator();
+    
+    // Audio actions
+    toolbar->addAction(action_import_audio);
+    toolbar->addAction(action_record_audio);
+    toolbar->addSeparator();
+    
+    // Create new items
+    toolbar->addAction(action_new_sequence);
+    toolbar->addAction(action_new_track);
 }
 
 void MainWindow::setup_sections() {
@@ -297,6 +366,11 @@ void MainWindow::setup_sections() {
     m_sectionStack->setCurrentIndex(0);
     m_currentSection = AppSection::Project;
     m_projectSection->onSectionActivated();  // Activate the initial section
+    
+    // Initialize section-specific menu visibility (hidden at start since we're in Project section)
+    if (m_midiEditorMenu) {
+        m_midiEditorMenu->menuAction()->setVisible(false);
+    }
     
     // Connect project section signals
     connect(m_projectSection, &ProjectSection::saveRequested, 
@@ -420,6 +494,11 @@ void MainWindow::onSectionChanged(AppSection section) {
             }
             break;
     }
+    
+    // Update section-specific menu visibility
+    if (m_midiEditorMenu) {
+        m_midiEditorMenu->menuAction()->setVisible(section == AppSection::MidiEditor);
+    }
 }
 
 void MainWindow::show_hide_dock(const QString &name, bool checked) {
@@ -435,13 +514,124 @@ void MainWindow::export_video() {
 
     // Check if any sequence is loaded
     if (!active_sequence) {
-        QMessageBox::warning(this, "No Sequence", "Please open a MIDI file first.");
+        QMessageBox::warning(this, tr("No Sequence"), tr("Please open a MIDI file first."));
         return;
     }
 
     // Switch to Media Export section
     m_sectionSwitcher->setCurrentSection(AppSection::MediaExport);
     onSectionChanged(AppSection::MediaExport);
+}
+
+void MainWindow::import_audio() {
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        tr("Import Audio File"),
+        QString(),
+        tr("Audio Files (*.wav *.mp3 *.ogg *.flac *.aiff);;All Files (*)"));
+
+    if (fileName.isEmpty()) {
+        return;
+    }
+
+    NoteNagaAudioManager &audioManager = engine->getRuntimeData()->getAudioManager();
+    NoteNagaAudioResource *resource = audioManager.importAudio(fileName.toStdString());
+    
+    if (resource) {
+        QMessageBox::information(this, tr("Audio Imported"), 
+            tr("Audio file imported successfully.\nYou can use it in the Arrangement section."));
+    } else {
+        QMessageBox::warning(this, tr("Import Failed"), 
+            tr("Failed to import audio file."));
+    }
+}
+
+void MainWindow::record_audio() {
+    AudioRecordingDialog dialog(engine, m_currentProjectPath, this);
+    dialog.exec();
+}
+
+void MainWindow::new_sequence() {
+    bool ok;
+    QString name = QInputDialog::getText(this, tr("New MIDI Sequence"),
+                                         tr("Sequence name:"), QLineEdit::Normal,
+                                         tr("New Sequence"), &ok);
+    if (!ok || name.isEmpty()) {
+        return;
+    }
+
+    // Create new sequence
+    NoteNagaMidiSeq *newSequence = new NoteNagaMidiSeq();
+    newSequence->setFilePath(name.toStdString());
+    
+    // Add a default track (Piano)
+    newSequence->addTrack(0);
+    
+    // Add to project
+    engine->getRuntimeData()->addSequence(newSequence);
+    engine->getRuntimeData()->setActiveSequence(newSequence);
+    
+    m_hasUnsavedChanges = true;
+    updateWindowTitle();
+    
+    // Notify sections about the change
+    if (m_midiEditorSection) {
+        m_midiEditorSection->onSectionActivated();
+    }
+}
+
+void MainWindow::new_track() {
+    // Get active sequence
+    NoteNagaMidiSeq *activeSeq = engine->getRuntimeData()->getActiveSequence();
+    if (!activeSeq) {
+        QMessageBox::warning(this, tr("No Sequence"), 
+            tr("Please create or select a MIDI sequence first."));
+        return;
+    }
+
+    // Add new track with default instrument (Piano)
+    NoteNagaTrack *newTrack = activeSeq->addTrack(0);
+    if (newTrack) {
+        m_hasUnsavedChanges = true;
+        updateWindowTitle();
+        
+        // Notify MIDI editor section to refresh
+        if (m_midiEditorSection) {
+            m_midiEditorSection->onSectionActivated();
+        }
+    }
+}
+
+void MainWindow::open_project() {
+    // Check for unsaved changes
+    if (m_hasUnsavedChanges) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this, tr("Unsaved Changes"),
+            tr("You have unsaved changes. Do you want to save before opening another project?"),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+            
+        if (reply == QMessageBox::Save) {
+            if (!saveProject()) {
+                return;  // Save failed or cancelled
+            }
+        } else if (reply == QMessageBox::Cancel) {
+            return;
+        }
+    }
+
+    QString filePath = QFileDialog::getOpenFileName(
+        this,
+        tr("Open Project"),
+        QString(),
+        tr("NoteNaga Project (*.nnproj);;All Files (*)"));
+
+    if (!filePath.isEmpty()) {
+        openProject(filePath);
+    }
+}
+
+void MainWindow::save_project_slot() {
+    saveProject();
 }
 
 void MainWindow::reset_layout() {

@@ -70,6 +70,14 @@
     <file>icons/magnet.svg</file>
     <file>icons/chevron-down.svg</file>
     <file>icons/app_section_external.svg</file>
+    <file>icons/record.svg</file>
+    <file>icons/new-sequence.svg</file>
+    <file>icons/new-track.svg</file>
+    <file>icons/import-audio.svg</file>
+    <file>icons/import-midi.svg</file>
+    <file>icons/export-midi.svg</file>
+    <file>icons/open-project.svg</file>
+    <file>icons/save-project.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>

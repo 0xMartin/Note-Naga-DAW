@@ -45,6 +45,12 @@ private slots:
     void reset_layout();
     void show_hide_dock(const QString &name, bool checked);
     void export_video();
+    void import_audio();
+    void record_audio();
+    void new_sequence();
+    void new_track();
+    void open_project();
+    void save_project_slot();
     
     // Section switching
     void onSectionChanged(AppSection section);
@@ -89,6 +95,9 @@ private:
     QStackedWidget *m_sectionStack;
     SectionSwitcher *m_sectionSwitcher;
     
+    // Section-specific menus (for hiding/showing based on active section)
+    QMenu *m_midiEditorMenu;
+    
     // Sections
     ProjectSection *m_projectSection;
     MidiEditorSection *m_midiEditorSection;
@@ -99,9 +108,16 @@ private:
     ExternalMidiSection *m_externalMidiSection;
 
     // Actions
+    QAction *action_open_project;
+    QAction *action_save_project;
+    QAction *action_save_project_as;
     QAction *action_open;
     QAction *action_export;
     QAction *action_export_video;
+    QAction *action_import_audio;
+    QAction *action_record_audio;
+    QAction *action_new_sequence;
+    QAction *action_new_track;
     QAction *action_quit;
     QAction *action_undo;
     QAction *action_redo;

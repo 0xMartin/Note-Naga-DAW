@@ -226,8 +226,8 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - ~~Implement MIDI import from file~~
 - ~~Microphone recording: add playback function on dialog~~
 - Output device selection in project section
-- Implement tool bar (open project, save project, import MIDI, export MIDI, import audio, record audio, new MIDI sequence, new Track)
-- Implement menu bar
+- ~~Implement tool bar (open project, save project, import MIDI, export MIDI, import audio, record audio, new MIDI sequence, new Track)~~
+- ~~Implement menu bar~~
 
 ### 📊 Project Data Structure
 Current project stores:
