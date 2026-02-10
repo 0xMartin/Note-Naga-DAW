@@ -114,6 +114,32 @@ public:
      */
     bool hasActiveRouting() const;
 
+    /**
+     * @brief Connect to a specific MIDI device
+     * @param deviceName Name of the MIDI device
+     * @return True if connection was successful
+     */
+    bool connectDevice(const std::string& deviceName);
+
+    /**
+     * @brief Disconnect from a specific MIDI device
+     * @param deviceName Name of the MIDI device
+     */
+    void disconnectDevice(const std::string& deviceName);
+
+    /**
+     * @brief Check if a device is currently connected
+     * @param deviceName Name of the MIDI device
+     * @return True if device is connected
+     */
+    bool isDeviceConnected(const std::string& deviceName) const;
+
+    /**
+     * @brief Get list of currently connected device names
+     * @return Vector of connected device names
+     */
+    std::vector<std::string> getConnectedDevices() const;
+
 private:
     /**
      * @brief Get or create external MIDI synthesizer for a device

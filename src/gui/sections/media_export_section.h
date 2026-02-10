@@ -59,6 +59,16 @@ public slots:
      * @param mode The new playback mode
      */
     void setPlaybackMode(PlaybackMode mode);
+    
+    /**
+     * @brief Show or hide a dock widget by name
+     */
+    void showHideDock(const QString &name, bool checked);
+    
+    /**
+     * @brief Reset the dock layout to default positions
+     */
+    void resetLayout();
 
 private slots:
     // Playback position

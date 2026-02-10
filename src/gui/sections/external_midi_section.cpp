@@ -70,6 +70,30 @@ void ExternalMidiSection::setPlaybackMode(PlaybackMode mode)
     }
 }
 
+void ExternalMidiSection::showHideDock(const QString &name, bool checked)
+{
+    if (m_docks.contains(name)) {
+        m_docks[name]->setVisible(checked);
+    }
+}
+
+void ExternalMidiSection::resetLayout()
+{
+    // Remove all docks first
+    for (auto *dock : m_docks) {
+        removeDockWidget(dock);
+    }
+    
+    // Re-add docks in default positions
+    addDockWidget(Qt::LeftDockWidgetArea, m_docks["devices"]);
+    addDockWidget(Qt::RightDockWidgetArea, m_docks["routing"]);
+    
+    // Show all docks
+    for (auto *dock : m_docks) {
+        dock->show();
+    }
+}
+
 void ExternalMidiSection::refreshDevices()
 {
     m_availableDevices.clear();
@@ -97,13 +121,19 @@ void ExternalMidiSection::onDeviceSelected(int index)
 void ExternalMidiSection::onDeviceItemClicked(QListWidgetItem* item)
 {
     if (!item) return;
-    m_selectedDevice = item->text();
     
-    // Update status label
-    if (!m_selectedDevice.isEmpty()) {
-        m_deviceStatusLabel->setText(tr("Selected: %1").arg(m_selectedDevice));
-        m_deviceStatusLabel->setStyleSheet("color: #66bb6a;");
+    // Get raw device name from UserRole (or from text if not available)
+    m_selectedDevice = item->data(Qt::UserRole).toString();
+    if (m_selectedDevice.isEmpty()) {
+        m_selectedDevice = item->text();
+        // Remove status prefix if exists
+        if (m_selectedDevice.startsWith("● ") || m_selectedDevice.startsWith("○ ")) {
+            m_selectedDevice = m_selectedDevice.mid(2);
+        }
     }
+    
+    // Update connection status and buttons
+    updateDeviceConnectionStatus();
 }
 
 void ExternalMidiSection::onTrackRoutingChanged()
@@ -247,6 +277,27 @@ void ExternalMidiSection::setupDockLayout()
     connect(m_deviceList, &QListWidget::itemClicked, this, &ExternalMidiSection::onDeviceItemClicked);
     devicesLayout->addWidget(m_deviceList);
 
+    // Connect/Disconnect buttons
+    QHBoxLayout *connectionButtonsLayout = new QHBoxLayout;
+    connectionButtonsLayout->setSpacing(8);
+    
+    m_connectBtn = new QPushButton(tr("Connect"));
+    m_connectBtn->setStyleSheet(buttonStyle);
+    m_connectBtn->setIcon(QIcon(":/icons/connect.svg"));
+    m_connectBtn->setEnabled(false);
+    connect(m_connectBtn, &QPushButton::clicked, this, &ExternalMidiSection::onConnectDevice);
+    connectionButtonsLayout->addWidget(m_connectBtn);
+    
+    m_disconnectBtn = new QPushButton(tr("Disconnect"));
+    m_disconnectBtn->setStyleSheet(buttonStyle);
+    m_disconnectBtn->setIcon(QIcon(":/icons/disconnect.svg"));
+    m_disconnectBtn->setEnabled(false);
+    connect(m_disconnectBtn, &QPushButton::clicked, this, &ExternalMidiSection::onDisconnectDevice);
+    connectionButtonsLayout->addWidget(m_disconnectBtn);
+    
+    connectionButtonsLayout->addStretch();
+    devicesLayout->addLayout(connectionButtonsLayout);
+
     // Status label
     m_deviceStatusLabel = new QLabel(tr("No device selected"));
     m_deviceStatusLabel->setStyleSheet("color: #888; font-size: 12px;");
@@ -353,9 +404,16 @@ void ExternalMidiSection::updateDeviceList()
         m_deviceList->addItem(item);
         m_deviceStatusLabel->setText(tr("No devices available"));
         m_deviceStatusLabel->setStyleSheet("color: #ff8866;");
+        m_connectBtn->setEnabled(false);
+        m_disconnectBtn->setEnabled(false);
     } else {
+        ExternalMidiRouter* router = m_engine->getExternalMidiRouter();
         for (const QString& device : m_availableDevices) {
-            QListWidgetItem *item = new QListWidgetItem(QIcon(":/icons/midi.svg"), device);
+            bool isConnected = router && router->isDeviceConnected(device.toStdString());
+            QString displayText = (isConnected ? "● " : "○ ") + device;
+            QListWidgetItem *item = new QListWidgetItem(QIcon(":/icons/midi.svg"), displayText);
+            item->setData(Qt::UserRole, device); // Store raw device name
+            item->setForeground(isConnected ? QColor("#66bb6a") : QColor("#eee"));
             m_deviceList->addItem(item);
         }
         m_deviceStatusLabel->setText(tr("%1 device(s) found").arg(m_availableDevices.count()));
@@ -432,8 +490,10 @@ void ExternalMidiSection::rebuildTrackList()
         NoteNagaArrangement* arrangement = m_engine->getRuntimeData()->getArrangement();
         if (!arrangement) return;
         
+        int trackIdx = 0;
         for (NoteNagaArrangementTrack* arrTrack : arrangement->getTracks()) {
             if (!arrTrack) continue;
+            trackIdx++;
             
             TrackRoutingRow row;
             row.midiTrack = nullptr;
@@ -468,8 +528,9 @@ void ExternalMidiSection::rebuildTrackList()
             nameLayout->addWidget(colorLabel);
             
             QString trackName = QString::fromStdString(arrTrack->getName());
-            if (trackName.isEmpty()) trackName = tr("Untitled Track");
-            row.nameLabel = new QLabel(trackName);
+            if (trackName.isEmpty()) trackName = tr("Untitled");
+            QString displayName = QString("%1 : %2").arg(trackIdx).arg(trackName);
+            row.nameLabel = new QLabel(displayName);
             row.nameLabel->setStyleSheet("color: #eee; font-weight: bold;");
             row.nameLabel->setMinimumWidth(120);
             nameLayout->addWidget(row.nameLabel);
@@ -516,8 +577,10 @@ void ExternalMidiSection::rebuildTrackList()
         NoteNagaMidiSeq* seq = m_engine->getRuntimeData()->getActiveSequence();
         if (!seq) return;
         
+        int trackIdx = 0;
         for (NoteNagaTrack* track : seq->getTracks()) {
             if (!track || track->isTempoTrack()) continue;
+            trackIdx++;
             
             TrackRoutingRow row;
             row.midiTrack = track;
@@ -552,16 +615,9 @@ void ExternalMidiSection::rebuildTrackList()
             nameLayout->addWidget(colorLabel);
             
             QString trackName = QString::fromStdString(track->getName());
-            if (trackName.isEmpty()) {
-                // Find track index by iterating
-                int trackIdx = 0;
-                for (NoteNagaTrack* t : seq->getTracks()) {
-                    if (t == track) break;
-                    if (t && !t->isTempoTrack()) trackIdx++;
-                }
-                trackName = tr("Track %1").arg(trackIdx + 1);
-            }
-            row.nameLabel = new QLabel(trackName);
+            if (trackName.isEmpty()) trackName = tr("Untitled");
+            QString displayName = QString("%1 : %2").arg(trackIdx).arg(trackName);
+            row.nameLabel = new QLabel(displayName);
             row.nameLabel->setStyleSheet("color: #eee; font-weight: bold;");
             row.nameLabel->setMinimumWidth(120);
             nameLayout->addWidget(row.nameLabel);
@@ -635,6 +691,82 @@ void ExternalMidiSection::showEvent(QShowEvent *event)
     if (m_sectionActive) {
         refreshDevices();
         refreshTracks();
+    }
+}
+
+void ExternalMidiSection::onConnectDevice()
+{
+    if (m_selectedDevice.isEmpty()) return;
+    
+    ExternalMidiRouter* router = m_engine->getExternalMidiRouter();
+    if (!router) return;
+    
+    bool success = router->connectDevice(m_selectedDevice.toStdString());
+    if (success) {
+        updateDeviceConnectionStatus();
+        refreshTracks(); // Refresh track combos to reflect connection
+    } else {
+        m_deviceStatusLabel->setText(tr("Failed to connect to: %1").arg(m_selectedDevice));
+        m_deviceStatusLabel->setStyleSheet("color: #ff8866;");
+    }
+}
+
+void ExternalMidiSection::onDisconnectDevice()
+{
+    if (m_selectedDevice.isEmpty()) return;
+    
+    ExternalMidiRouter* router = m_engine->getExternalMidiRouter();
+    if (!router) return;
+    
+    router->disconnectDevice(m_selectedDevice.toStdString());
+    updateDeviceConnectionStatus();
+    refreshTracks(); // Refresh track combos to reflect disconnection
+}
+
+void ExternalMidiSection::updateDeviceConnectionStatus()
+{
+    if (m_selectedDevice.isEmpty()) {
+        m_deviceStatusLabel->setText(tr("No device selected"));
+        m_deviceStatusLabel->setStyleSheet("color: #888;");
+        m_connectBtn->setEnabled(false);
+        m_disconnectBtn->setEnabled(false);
+        return;
+    }
+    
+    ExternalMidiRouter* router = m_engine->getExternalMidiRouter();
+    bool isConnected = router && router->isDeviceConnected(m_selectedDevice.toStdString());
+    
+    if (isConnected) {
+        m_deviceStatusLabel->setText(tr("Connected: %1").arg(m_selectedDevice));
+        m_deviceStatusLabel->setStyleSheet("color: #66bb6a;");
+        m_connectBtn->setEnabled(false);
+        m_disconnectBtn->setEnabled(true);
+    } else {
+        m_deviceStatusLabel->setText(tr("Available: %1").arg(m_selectedDevice));
+        m_deviceStatusLabel->setStyleSheet("color: #79b8ff;");
+        m_connectBtn->setEnabled(true);
+        m_disconnectBtn->setEnabled(false);
+    }
+    
+    // Update device list item to show connection status
+    for (int i = 0; i < m_deviceList->count(); ++i) {
+        QListWidgetItem* item = m_deviceList->item(i);
+        if (!item) continue;
+        
+        QString deviceName = item->data(Qt::UserRole).toString();
+        if (deviceName.isEmpty()) {
+            deviceName = item->text();
+            // Remove status prefix if exists
+            if (deviceName.startsWith("● ") || deviceName.startsWith("○ ")) {
+                deviceName = deviceName.mid(2);
+            }
+        }
+        
+        bool itemConnected = router && router->isDeviceConnected(deviceName.toStdString());
+        QString displayText = (itemConnected ? "● " : "○ ") + deviceName;
+        item->setText(displayText);
+        item->setData(Qt::UserRole, deviceName);
+        item->setForeground(itemConnected ? QColor("#66bb6a") : QColor("#eee"));
     }
 }
 

@@ -220,15 +220,6 @@ Access advanced MIDI editing tools from the `Edit` menu:
 - **Duration Tools** - Adjust note lengths
 - **Articulation** - Apply legato or staccato
 
-## 📋 Todo
-- Optimaze and fix bugs in arrangement section
-- ~~Implement support for MIDI/Arragement mode for MIDI file export~~
-- ~~Implement MIDI import from file~~
-- ~~Microphone recording: add playback function on dialog~~
-- Output device selection in project section
-- ~~Implement tool bar (open project, save project, import MIDI, export MIDI, import audio, record audio, new MIDI sequence, new Track)~~
-- ~~Implement menu bar~~
-
 ### 📊 Project Data Structure
 Current project stores:
 1. MIDI data (sequences, tracks, notes)

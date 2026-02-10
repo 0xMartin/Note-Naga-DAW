@@ -713,6 +713,30 @@ void MediaExportSection::setPlaybackMode(PlaybackMode mode)
     }
 }
 
+void MediaExportSection::showHideDock(const QString &name, bool checked)
+{
+    if (m_docks.contains(name)) {
+        m_docks[name]->setVisible(checked);
+    }
+}
+
+void MediaExportSection::resetLayout()
+{
+    // Remove all docks first
+    for (auto *dock : m_docks) {
+        removeDockWidget(dock);
+    }
+    
+    // Re-add docks in default positions
+    addDockWidget(Qt::LeftDockWidgetArea, m_docks["settings"]);
+    addDockWidget(Qt::RightDockWidgetArea, m_docks["preview"]);
+    
+    // Show all docks
+    for (auto *dock : m_docks) {
+        dock->show();
+    }
+}
+
 void MediaExportSection::initPreviewWorker()
 {
     cleanupPreviewWorker();

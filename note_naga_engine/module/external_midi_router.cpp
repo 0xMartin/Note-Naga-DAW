@@ -197,3 +197,47 @@ NoteNagaSynthExternalMidi* ExternalMidiRouter::getOrCreateDevice(const std::stri
     return rawPtr;
 }
 
+bool ExternalMidiRouter::connectDevice(const std::string& deviceName)
+{
+    if (deviceName.empty()) return false;
+    
+    NoteNagaSynthExternalMidi* device = getOrCreateDevice(deviceName);
+    if (device) {
+        NOTE_NAGA_LOG_INFO("Connected to external MIDI device: " + deviceName);
+        return true;
+    }
+    return false;
+}
+
+void ExternalMidiRouter::disconnectDevice(const std::string& deviceName)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    auto it = m_devices.find(deviceName);
+    if (it != m_devices.end()) {
+        if (it->second) {
+            it->second->stopAllNotes();
+        }
+        m_devices.erase(it);
+        NOTE_NAGA_LOG_INFO("Disconnected from external MIDI device: " + deviceName);
+    }
+}
+
+bool ExternalMidiRouter::isDeviceConnected(const std::string& deviceName) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_devices.find(deviceName) != m_devices.end();
+}
+
+std::vector<std::string> ExternalMidiRouter::getConnectedDevices() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::vector<std::string> connected;
+    for (const auto& [name, device] : m_devices) {
+        if (device) {
+            connected.push_back(name);
+        }
+    }
+    return connected;
+}
+

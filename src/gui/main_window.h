@@ -95,8 +95,13 @@ private:
     QStackedWidget *m_sectionStack;
     SectionSwitcher *m_sectionSwitcher;
     
-    // Section-specific menus (for hiding/showing based on active section)
-    QMenu *m_midiEditorMenu;
+    // Section-specific view actions (for hiding/showing based on active section)
+    QList<QAction*> m_midiEditorViewActions;
+    QList<QAction*> m_dspEditorViewActions;
+    QList<QAction*> m_arrangementViewActions;
+    QList<QAction*> m_mediaExportViewActions;
+    QList<QAction*> m_notationViewActions;
+    QList<QAction*> m_externalMidiViewActions;
     
     // Sections
     ProjectSection *m_projectSection;
@@ -131,7 +136,6 @@ private:
     QAction *action_toolbar_to_end;
     QAction *action_toggle_editor;
     QAction *action_toggle_tracklist;
-    QAction *action_toggle_mixer;
     QAction *action_reset_layout;
 
     // === Nové akce pro MIDI utility ===
@@ -155,6 +159,14 @@ private:
     void setup_toolbar();
     void setup_sections();
     void connect_signals();
+    
+    // Helper functions for creating section-specific toggle actions
+    QAction* createDspToggleAction(const QString &title, const QString &dockName);
+    QAction* createArrangementToggleAction(const QString &title, const QString &dockName);
+    QAction* createMediaExportToggleAction(const QString &title, const QString &dockName);
+    QAction* createNotationToggleAction(const QString &title, const QString &dockName);
+    QAction* createExternalMidiToggleAction(const QString &title, const QString &dockName);
+    void updateSectionMenuVisibility(AppSection section);
     
     // Project management
     bool showProjectWizard();

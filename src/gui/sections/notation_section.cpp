@@ -58,6 +58,33 @@ void NotationSection::setProjectMetadata(const NoteNagaProjectMetadata &metadata
     }
 }
 
+void NotationSection::showHideDock(const QString &name, bool checked)
+{
+    if (m_docks.contains(name)) {
+        m_docks[name]->setVisible(checked);
+    }
+}
+
+void NotationSection::resetLayout()
+{
+    // Remove all docks first
+    for (auto *dock : m_docks) {
+        removeDockWidget(dock);
+    }
+    
+    // Re-add docks in default positions
+    addDockWidget(Qt::LeftDockWidgetArea, m_docks["settings"]);
+    addDockWidget(Qt::RightDockWidgetArea, m_docks["notation"]);
+    
+    // Split horizontally (settings on left, notation on right)
+    splitDockWidget(m_docks["settings"], m_docks["notation"], Qt::Horizontal);
+    
+    // Show all docks
+    for (auto *dock : m_docks) {
+        dock->show();
+    }
+}
+
 void NotationSection::onSectionActivated()
 {
     m_sectionActive = true;

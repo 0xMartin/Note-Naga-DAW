@@ -91,11 +91,11 @@ MainWindow::~MainWindow() {
 
 void MainWindow::setup_actions() {
     // Project actions
-    action_open_project = new QAction(QIcon(":/icons/open-project.svg"), tr("Open Project..."), this);
+    action_open_project = new QAction(QIcon(":/icons/open.svg"), tr("Open Project..."), this);
     action_open_project->setShortcut(QKeySequence::Open);
     connect(action_open_project, &QAction::triggered, this, &MainWindow::open_project);
     
-    action_save_project = new QAction(QIcon(":/icons/save-project.svg"), tr("Save Project"), this);
+    action_save_project = new QAction(QIcon(":/icons/save.svg"), tr("Save Project"), this);
     action_save_project->setShortcut(QKeySequence::Save);
     connect(action_save_project, &QAction::triggered, this, &MainWindow::save_project_slot);
     
@@ -104,9 +104,9 @@ void MainWindow::setup_actions() {
     connect(action_save_project_as, &QAction::triggered, this, &MainWindow::saveProjectAs);
     
     // MIDI import/export
-    action_open = new QAction(QIcon(":/icons/import-midi.svg"), tr("Import MIDI..."), this);
+    action_open = new QAction(QIcon(":/icons/import.svg"), tr("Import MIDI..."), this);
     connect(action_open, &QAction::triggered, this, &MainWindow::open_midi);
-    action_export = new QAction(QIcon(":/icons/export-midi.svg"), tr("Export MIDI..."), this);
+    action_export = new QAction(QIcon(":/icons/export.svg"), tr("Export MIDI..."), this);
     connect(action_export, &QAction::triggered, this, &MainWindow::export_midi);
     
     // Video export
@@ -178,11 +178,6 @@ void MainWindow::setup_actions() {
     action_toggle_tracklist->setChecked(true);
     connect(action_toggle_tracklist, &QAction::toggled, this,
             [this](bool checked) { show_hide_dock("tracklist", checked); });
-    action_toggle_mixer = new QAction("Show/Hide Track Mixer", this);
-    action_toggle_mixer->setCheckable(true);
-    action_toggle_mixer->setChecked(true);
-    connect(action_toggle_mixer, &QAction::toggled, this,
-            [this](bool checked) { show_hide_dock("mixer", checked); });
     action_reset_layout = new QAction("Reset Layout", this);
     connect(action_reset_layout, &QAction::triggered, this, &MainWindow::reset_layout);
 
@@ -227,6 +222,93 @@ void MainWindow::setup_actions() {
     connect(action_scale_timing, &QAction::triggered, this, &MainWindow::util_scale_timing);
 }
 
+QAction* MainWindow::createDspToggleAction(const QString &title, const QString &dockName) {
+    QAction *action = new QAction(title, this);
+    action->setCheckable(true);
+    action->setChecked(true);
+    connect(action, &QAction::toggled, this, [this, dockName](bool checked) {
+        if (m_dspEditorSection) m_dspEditorSection->showHideDock(dockName, checked);
+    });
+    return action;
+}
+
+QAction* MainWindow::createArrangementToggleAction(const QString &title, const QString &dockName) {
+    QAction *action = new QAction(title, this);
+    action->setCheckable(true);
+    action->setChecked(true);
+    connect(action, &QAction::toggled, this, [this, dockName](bool checked) {
+        if (m_arrangementSection) m_arrangementSection->showHideDock(dockName, checked);
+    });
+    return action;
+}
+
+QAction* MainWindow::createMediaExportToggleAction(const QString &title, const QString &dockName) {
+    QAction *action = new QAction(title, this);
+    action->setCheckable(true);
+    action->setChecked(true);
+    connect(action, &QAction::toggled, this, [this, dockName](bool checked) {
+        if (m_mediaExportSection) m_mediaExportSection->showHideDock(dockName, checked);
+    });
+    return action;
+}
+
+QAction* MainWindow::createNotationToggleAction(const QString &title, const QString &dockName) {
+    QAction *action = new QAction(title, this);
+    action->setCheckable(true);
+    action->setChecked(true);
+    connect(action, &QAction::toggled, this, [this, dockName](bool checked) {
+        if (m_notationSection) m_notationSection->showHideDock(dockName, checked);
+    });
+    return action;
+}
+
+QAction* MainWindow::createExternalMidiToggleAction(const QString &title, const QString &dockName) {
+    QAction *action = new QAction(title, this);
+    action->setCheckable(true);
+    action->setChecked(true);
+    connect(action, &QAction::toggled, this, [this, dockName](bool checked) {
+        if (m_externalMidiSection) m_externalMidiSection->showHideDock(dockName, checked);
+    });
+    return action;
+}
+
+void MainWindow::updateSectionMenuVisibility(AppSection section) {
+    // Hide all section-specific actions
+    for (QAction* action : m_midiEditorViewActions) action->setVisible(false);
+    for (QAction* action : m_dspEditorViewActions) action->setVisible(false);
+    for (QAction* action : m_arrangementViewActions) action->setVisible(false);
+    for (QAction* action : m_mediaExportViewActions) action->setVisible(false);
+    for (QAction* action : m_notationViewActions) action->setVisible(false);
+    for (QAction* action : m_externalMidiViewActions) action->setVisible(false);
+    
+    // Show only views for current section
+    switch (section) {
+        case AppSection::Project:
+        case AppSection::MidiEditor:
+            for (QAction* action : m_midiEditorViewActions) action->setVisible(true);
+            break;
+        case AppSection::DspEditor:
+            for (QAction* action : m_dspEditorViewActions) action->setVisible(true);
+            break;
+        case AppSection::Arrangement:
+            for (QAction* action : m_arrangementViewActions) action->setVisible(true);
+            break;
+        case AppSection::MediaExport:
+            for (QAction* action : m_mediaExportViewActions) action->setVisible(true);
+            break;
+        case AppSection::Notation:
+            for (QAction* action : m_notationViewActions) action->setVisible(true);
+            break;
+        case AppSection::ExternalMidi:
+            for (QAction* action : m_externalMidiViewActions) action->setVisible(true);
+            break;
+        default:
+            // For any unknown section, show MIDI Editor actions as default
+            for (QAction* action : m_midiEditorViewActions) action->setVisible(true);
+            break;
+    }
+}
+
 void MainWindow::setup_menu_bar() {
     QMenuBar *menubar = menuBar();
     
@@ -253,15 +335,76 @@ void MainWindow::setup_menu_bar() {
     
     // === View Menu ===
     QMenu *view_menu = menubar->addMenu(tr("View"));
-    view_menu->addAction(action_auto_follow);
     
-    // MIDI Editor section-specific submenu
-    m_midiEditorMenu = view_menu->addMenu(tr("MIDI Editor"));
-    m_midiEditorMenu->addAction(action_toggle_editor);
-    m_midiEditorMenu->addAction(action_toggle_tracklist);
-    m_midiEditorMenu->addAction(action_toggle_mixer);
-    m_midiEditorMenu->addSeparator();
-    m_midiEditorMenu->addAction(action_reset_layout);
+    // MIDI Editor section-specific actions
+    m_midiEditorViewActions.append(action_toggle_editor);
+    m_midiEditorViewActions.append(action_toggle_tracklist);
+    m_midiEditorViewActions.append(action_reset_layout);
+    for (QAction* action : m_midiEditorViewActions) {
+        view_menu->addAction(action);
+    }
+    
+    // DSP Editor section-specific actions
+    m_dspEditorViewActions.append(createDspToggleAction(tr("Show/Hide Spectrum"), "spectrum"));
+    m_dspEditorViewActions.append(createDspToggleAction(tr("Show/Hide Pan Analyzer"), "pan"));
+    m_dspEditorViewActions.append(createDspToggleAction(tr("Show/Hide DSP Chain"), "dsp"));
+    m_dspEditorViewActions.append(createDspToggleAction(tr("Show/Hide Track Preview"), "trackpreview"));
+    QAction *dspResetLayout = new QAction(tr("Reset Layout"), this);
+    connect(dspResetLayout, &QAction::triggered, this, [this]() {
+        if (m_dspEditorSection) m_dspEditorSection->resetLayout();
+    });
+    m_dspEditorViewActions.append(dspResetLayout);
+    for (QAction* action : m_dspEditorViewActions) {
+        view_menu->addAction(action);
+    }
+    
+    // Arrangement section-specific actions
+    m_arrangementViewActions.append(createArrangementToggleAction(tr("Show/Hide Layers"), "Layers"));
+    m_arrangementViewActions.append(createArrangementToggleAction(tr("Show/Hide Resources"), "Resources"));
+    QAction *arrangementResetLayout = new QAction(tr("Reset Layout"), this);
+    connect(arrangementResetLayout, &QAction::triggered, this, [this]() {
+        if (m_arrangementSection) m_arrangementSection->resetLayout();
+    });
+    m_arrangementViewActions.append(arrangementResetLayout);
+    for (QAction* action : m_arrangementViewActions) {
+        view_menu->addAction(action);
+    }
+    
+    // Media Export section-specific actions
+    m_mediaExportViewActions.append(createMediaExportToggleAction(tr("Show/Hide Preview"), "preview"));
+    m_mediaExportViewActions.append(createMediaExportToggleAction(tr("Show/Hide Settings"), "settings"));
+    QAction *mediaExportResetLayout = new QAction(tr("Reset Layout"), this);
+    connect(mediaExportResetLayout, &QAction::triggered, this, [this]() {
+        if (m_mediaExportSection) m_mediaExportSection->resetLayout();
+    });
+    m_mediaExportViewActions.append(mediaExportResetLayout);
+    for (QAction* action : m_mediaExportViewActions) {
+        view_menu->addAction(action);
+    }
+    
+    // Notation section-specific actions
+    m_notationViewActions.append(createNotationToggleAction(tr("Show/Hide Notation View"), "notation"));
+    m_notationViewActions.append(createNotationToggleAction(tr("Show/Hide Settings"), "settings"));
+    QAction *notationResetLayout = new QAction(tr("Reset Layout"), this);
+    connect(notationResetLayout, &QAction::triggered, this, [this]() {
+        if (m_notationSection) m_notationSection->resetLayout();
+    });
+    m_notationViewActions.append(notationResetLayout);
+    for (QAction* action : m_notationViewActions) {
+        view_menu->addAction(action);
+    }
+    
+    // External MIDI section-specific actions
+    m_externalMidiViewActions.append(createExternalMidiToggleAction(tr("Show/Hide Devices"), "devices"));
+    m_externalMidiViewActions.append(createExternalMidiToggleAction(tr("Show/Hide Routing"), "routing"));
+    QAction *externalMidiResetLayout = new QAction(tr("Reset Layout"), this);
+    connect(externalMidiResetLayout, &QAction::triggered, this, [this]() {
+        if (m_externalMidiSection) m_externalMidiSection->resetLayout();
+    });
+    m_externalMidiViewActions.append(externalMidiResetLayout);
+    for (QAction* action : m_externalMidiViewActions) {
+        view_menu->addAction(action);
+    }
 
     // === Tools Menu ===
     QMenu *tools_menu = menubar->addMenu(tr("Tools"));
@@ -368,9 +511,7 @@ void MainWindow::setup_sections() {
     m_projectSection->onSectionActivated();  // Activate the initial section
     
     // Initialize section-specific menu visibility (hidden at start since we're in Project section)
-    if (m_midiEditorMenu) {
-        m_midiEditorMenu->menuAction()->setVisible(false);
-    }
+    updateSectionMenuVisibility(AppSection::Project);
     
     // Connect project section signals
     connect(m_projectSection, &ProjectSection::saveRequested, 
@@ -496,9 +637,7 @@ void MainWindow::onSectionChanged(AppSection section) {
     }
     
     // Update section-specific menu visibility
-    if (m_midiEditorMenu) {
-        m_midiEditorMenu->menuAction()->setVisible(section == AppSection::MidiEditor);
-    }
+    updateSectionMenuVisibility(section);
 }
 
 void MainWindow::show_hide_dock(const QString &name, bool checked) {
@@ -635,15 +774,23 @@ void MainWindow::save_project_slot() {
 }
 
 void MainWindow::reset_layout() {
-    // Reset layout of MIDI editor section
-    if (m_midiEditorSection) {
-        m_midiEditorSection->resetLayout();
+    // Reset layout based on current section
+    switch (m_currentSection) {
+        case AppSection::MidiEditor:
+            if (m_midiEditorSection) {
+                m_midiEditorSection->resetLayout();
+                action_toggle_editor->setChecked(true);
+                action_toggle_tracklist->setChecked(true);
+            }
+            break;
+        case AppSection::Arrangement:
+            if (m_arrangementSection) {
+                m_arrangementSection->resetLayout();
+            }
+            break;
+        default:
+            break;
     }
-
-    // Update menu checkboxes
-    action_toggle_editor->setChecked(true);
-    action_toggle_tracklist->setChecked(true);
-    action_toggle_mixer->setChecked(true);
 }
 
 void MainWindow::connect_signals() {
@@ -1336,10 +1483,16 @@ bool MainWindow::openProject(const QString &filePath) {
         return false;
     }
     
+    // Stop playback before loading new project
+    if (engine->isPlaying()) {
+        engine->stopPlayback();
+    }
+    
     m_projectMetadata = loadedMetadata;
     m_currentProjectPath = filePath;
     m_hasUnsavedChanges = false;
     
+    // Update project section
     m_projectSection->setProjectMetadata(m_projectMetadata);
     m_projectSection->setProjectFilePath(m_currentProjectPath);
     m_projectSection->markAsSaved();
@@ -1347,16 +1500,35 @@ bool MainWindow::openProject(const QString &filePath) {
     // Update arrangement section with project path (for audio recording)
     if (m_arrangementSection) {
         m_arrangementSection->setProjectFilePath(m_currentProjectPath);
+        m_arrangementSection->onSectionActivated();
+        m_arrangementSection->refreshMinimap();
     }
     
     // Update notation section with project metadata
     if (m_notationSection) {
         m_notationSection->setProjectMetadata(m_projectMetadata);
+        m_notationSection->onSectionActivated();
     }
     
     // Refresh DSP widgets to reflect loaded DSP chain
     if (m_dspEditorSection) {
         m_dspEditorSection->refreshDSPWidgets();
+    }
+    
+    // Refresh MIDI editor
+    if (m_midiEditorSection) {
+        m_midiEditorSection->onSectionActivated();
+    }
+    
+    // Refresh media export section
+    if (m_mediaExportSection) {
+        m_mediaExportSection->refreshSequence();
+    }
+    
+    // Refresh external MIDI section
+    if (m_externalMidiSection) {
+        m_externalMidiSection->refreshDevices();
+        m_externalMidiSection->refreshTracks();
     }
     
     // Add to recent projects

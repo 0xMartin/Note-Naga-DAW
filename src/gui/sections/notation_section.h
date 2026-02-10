@@ -44,6 +44,16 @@ public:
      * @brief Set project metadata for notation (used for composer/title)
      */
     void setProjectMetadata(const NoteNagaProjectMetadata &metadata);
+    
+    /**
+     * @brief Show or hide a dock widget by name
+     */
+    void showHideDock(const QString &name, bool checked);
+    
+    /**
+     * @brief Reset the dock layout to default positions
+     */
+    void resetLayout();
 
 private slots:
     void onPlaybackTickChanged(int tick);

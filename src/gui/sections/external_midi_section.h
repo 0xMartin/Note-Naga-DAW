@@ -69,6 +69,16 @@ public:
      * @return List of device names
      */
     QStringList getAvailableDevices() const;
+    
+    /**
+     * @brief Show or hide a dock widget by name
+     */
+    void showHideDock(const QString &name, bool checked);
+    
+    /**
+     * @brief Reset the dock layout to default positions
+     */
+    void resetLayout();
 
 public slots:
     /**
@@ -98,6 +108,9 @@ private slots:
     void onDeviceItemClicked(QListWidgetItem* item);
     void onTrackRoutingChanged();
     void onActiveSequenceChanged(NoteNagaMidiSeq* sequence);
+    void onConnectDevice();
+    void onDisconnectDevice();
+    void updateDeviceConnectionStatus();
 
 private:
     // Engine reference
@@ -121,6 +134,8 @@ private:
     // Device list widgets
     QListWidget *m_deviceList;
     QPushButton *m_refreshBtn;
+    QPushButton *m_connectBtn;
+    QPushButton *m_disconnectBtn;
     QLabel *m_deviceStatusLabel;
 
     // Track routing widgets container

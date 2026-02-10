@@ -180,7 +180,7 @@ void AdvancedDockTitleBar::onCloseClicked() {
 }
 
 void AdvancedDockTitleBar::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && dockWidget) {
         setCursor(Qt::SizeAllCursor);
         dragging = true;
         dragStartPos = event->globalPos();
@@ -193,11 +193,15 @@ void AdvancedDockTitleBar::mousePressEvent(QMouseEvent* event) {
 void AdvancedDockTitleBar::mouseMoveEvent(QMouseEvent* event) {
     if (dragging && (event->buttons() & Qt::LeftButton)) {
         if (dockWidget && dockWidget->isFloating()) {
-            QPoint delta = event->globalPos() - dragStartPos;
-            dockWidget->window()->move(dockWidget->window()->pos() + delta);
-            dockWidget->startDragFromTitleBar(dragStartPos, event->globalPos());
-            dragStartPos = event->globalPos();
-        } else if (dockWidget) {
+            // For floating docks, just move the window - don't trigger dock overlay logic
+            QWidget* window = dockWidget->window();
+            if (window && window != dockWidget) {
+                QPoint delta = event->globalPos() - dragStartPos;
+                window->move(window->pos() + delta);
+                dragStartPos = event->globalPos();
+            }
+        } else if (dockWidget && !dockWidget->isFloating()) {
+            // For docked widgets, use our custom drag logic only if still docked
             dockWidget->startDragFromTitleBar(dragStartPos, event->globalPos());
         }
         event->accept();

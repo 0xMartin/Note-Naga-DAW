@@ -47,6 +47,16 @@ public:
      * @brief Sets playback mode visibility for track preview
      */
     void setPlaybackMode(PlaybackMode mode);
+    
+    /**
+     * @brief Show or hide a dock widget by name
+     */
+    void showHideDock(const QString &name, bool checked);
+    
+    /**
+     * @brief Reset the dock layout to default positions
+     */
+    void resetLayout();
 
 private:
     NoteNagaEngine *m_engine;

@@ -103,12 +103,14 @@ void AdvancedDockWidget::mousePressEvent(QMouseEvent *event) {
 
 void AdvancedDockWidget::mouseMoveEvent(QMouseEvent *event) {
     if (dragging && drag_on_title_bar && (event->buttons() & Qt::LeftButton)) {
-        for (QWidget *w : QApplication::topLevelWidgets()) {
+        // Use a copy of the top-level widgets list to avoid issues during iteration
+        QWidgetList topLevelList = QApplication::topLevelWidgets();
+        for (QWidget *w : topLevelList) {
             QMainWindow *mw = qobject_cast<QMainWindow *>(w);
             if (!mw) continue;
             auto docks = mw->findChildren<AdvancedDockWidget *>();
             for (auto dock : docks) {
-                if (dock == this) continue;
+                if (!dock || dock == this) continue;
                 QRect gr = dock->rect();
                 QPoint rel = dock->mapFromGlobal(event->globalPosition().toPoint());
                 if (gr.contains(rel)) {
@@ -119,6 +121,10 @@ void AdvancedDockWidget::mouseMoveEvent(QMouseEvent *event) {
                 }
             }
         }
+        // Don't call base class when handling our custom drag to avoid conflicts
+        // with Qt's internal dock widget handling
+        event->accept();
+        return;
     }
 
     QDockWidget::mouseMoveEvent(event);

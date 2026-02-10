@@ -404,40 +404,39 @@ void MidiEditorSection::showHideDock(const QString &name, bool checked)
 
 void MidiEditorSection::resetLayout()
 {
-    // Add back all docks
-    if (!m_docks["tracklist"]->parentWidget()) {
+    // Add back all docks if not already attached
+    if (m_docks.contains("tracklist") && m_docks["tracklist"] && !m_docks["tracklist"]->parentWidget()) {
         addDockWidget(Qt::LeftDockWidgetArea, m_docks["tracklist"]);
     }
-    if (!m_docks["mixer"]->parentWidget()) {
-        addDockWidget(Qt::LeftDockWidgetArea, m_docks["mixer"]);
-    }
-    if (!m_docks["editor"]->parentWidget()) {
+    if (m_docks.contains("editor") && m_docks["editor"] && !m_docks["editor"]->parentWidget()) {
         addDockWidget(Qt::RightDockWidgetArea, m_docks["editor"]);
     }
 
-    // Show all
-    m_docks["tracklist"]->setVisible(true);
-    m_docks["editor"]->setVisible(true);
-    m_docks["mixer"]->setVisible(true);
+    // Show all existing docks
+    if (m_docks.contains("tracklist") && m_docks["tracklist"]) {
+        m_docks["tracklist"]->setVisible(true);
+    }
+    if (m_docks.contains("editor") && m_docks["editor"]) {
+        m_docks["editor"]->setVisible(true);
+    }
 
-    // First, split horizontally: left area (tracklist) and right area (editor)
-    splitDockWidget(m_docks["tracklist"], m_docks["editor"], Qt::Horizontal);
-    // Then split the left area vertically: tracklist on top, mixer below
-    splitDockWidget(m_docks["tracklist"], m_docks["mixer"], Qt::Vertical);
-    m_docks["editor"]->raise();
+    // Split horizontally: left area (tracklist) and right area (editor)
+    if (m_docks.contains("tracklist") && m_docks.contains("editor") && 
+        m_docks["tracklist"] && m_docks["editor"]) {
+        splitDockWidget(m_docks["tracklist"], m_docks["editor"], Qt::Horizontal);
+        m_docks["editor"]->raise();
 
-    // Set sizes - editor takes most horizontal space
-    // Use QTimer to ensure layout is computed before resizing
-    QTimer::singleShot(0, this, [this]() {
-        QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
-        QList<int> hSizes = {280, 1000};
-        resizeDocks(hOrder, hSizes, Qt::Horizontal);
-        
-        // Adjust vertical ratios for left side
-        QList<QDockWidget*> vOrder = {m_docks["tracklist"], m_docks["mixer"]};
-        QList<int> vSizes = {300, 400};
-        resizeDocks(vOrder, vSizes, Qt::Vertical);
-    });
+        // Set sizes - editor takes most horizontal space
+        // Use QTimer to ensure layout is computed before resizing
+        QTimer::singleShot(0, this, [this]() {
+            if (m_docks.contains("tracklist") && m_docks.contains("editor") &&
+                m_docks["tracklist"] && m_docks["editor"]) {
+                QList<QDockWidget*> hOrder = {m_docks["tracklist"], m_docks["editor"]};
+                QList<int> hSizes = {280, 1000};
+                resizeDocks(hOrder, hSizes, Qt::Horizontal);
+            }
+        });
+    }
 }
 
 void MidiEditorSection::onActiveTrackChanged(NoteNagaTrack *track)

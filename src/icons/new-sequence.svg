@@ -1,8 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <rect x="3" y="5" width="14" height="14" rx="2"/>
-  <line x1="19" y1="9" x2="19" y2="15"/>
-  <line x1="16" y1="12" x2="22" y2="12"/>
-  <line x1="7" y1="9" x2="13" y2="9"/>
-  <line x1="7" y1="12" x2="11" y2="12"/>
-  <line x1="7" y1="15" x2="13" y2="15"/>
-</svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg width="100%" height="100%" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;"><path d="M19,3l0,6" style="fill:none;fill-rule:nonzero;stroke:#fff;stroke-width:2px;"/><path d="M16,6l6,0" style="fill:none;fill-rule:nonzero;stroke:#fff;stroke-width:2px;"/><path d="M20.411,10.011l2.589,6.042l-18.526,0l-3.474,-8.105l16.5,0l0,1.553c0,0.828 0.672,1.5 1.5,1.5c0.649,0 1.202,-0.412 1.411,-0.989Z" style="fill:#fff;"/></svg>
