@@ -2,278 +2,215 @@
 
 <img src="img/logo.png" alt="Note Naga Logo" width="120"/>
 
-# 🎵 Note Naga MIDI Editor 🎵
+# Note Naga
 
 [![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/0xMartin/NoteNagaCPlusPlus)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](https://github.com/0xMartin/NoteNagaCPlusPlus)
+[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://github.com/0xMartin/NoteNagaCPlusPlus)
 
-**A simple, feature-rich MIDI editor with advanced audio processing capabilities**
+**DAW-like music production application with MIDI editing, arrangement, audio recording, and video export capabilities**
 
-**Work in progress**
-
-[Features](#-features) • [Screenshots](#-screenshots) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Todo](#-todo) • [Contributing](#-contributing)
+[Sections](#-sections) • [Installation](#-installation) • [Engine](#-note-naga-engine) • [Todo](#-todo) • [Technologies](#-technologies)
 
 </div>
 
 ---
 
-## 📖 Overview
+## Overview
 
-Note Naga is a professional MIDI editor built with C++ and Qt, featuring a custom real-time audio engine. It provides comprehensive tools for MIDI composition, editing, mixing, and audio processing with an intuitive graphical interface.
+Note Naga is a comprehensive music production application built with C++ and Qt. It combines a powerful MIDI editor with arrangement capabilities, audio recording, external MIDI routing, notation rendering, and advanced media export features. The application is powered by a custom real-time audio engine that handles synthesis, DSP processing, and audio/MIDI playback.
 
-## ✨ Features
+> **Note:** This application is developed and tested on macOS. Functionality and build compatibility on Linux and Windows is not guaranteed.
 
-### 🎹 MIDI Editing
-- **Piano Roll Editor** - Visual note editing with grid snapping and multiple selection
-- **Multi-track Support** - Unlimited MIDI tracks with individual routing
-- **Advanced Note Manipulation**:
-  - ✂️ Quantize notes to grid
-  - 🎲 Humanize timing and velocity
-  - 🎼 Transpose notes
-  - 📊 Velocity editing and scaling
-  - ⏱️ Duration editing and scaling
-  - 🎵 Legato and Staccato modes
-  - 🔄 Invert and retrograde transformations
-  - 🧹 Delete overlapping notes
-  - ⏰ Scale timing
-- **Flexible Grid System** - Multiple resolution options (whole, half, quarter, eighth, etc.)
-- **Follow Modes** - Center, left-side, step-by-step, and none
-- **Loop Playback** - Seamless loop support for composition workflow
+---
 
-### 🎚️ Mixing & Routing
-- **Track Mixer** - Per-track volume, pan, mute, and solo controls
-- **Visual Volume Meters** - Real-time multi-channel volume visualization
-- **Instrument Assignment** - Support for FluidSynth (SoundFont) and external MIDI devices
-- **Flexible Routing** - Connect tracks to different synthesizers and DSP chains
+## Sections
 
-### 🎛️ Audio Processing (DSP Engine)
+Note Naga is organized into multiple sections, each focused on a specific aspect of music production:
 
-The engine includes **18 professional DSP effects**:
+---
 
-| Effect | Description |
-|--------|-------------|
-| 🔊 **Gain** | Volume control with dB scaling |
-| 🎚️ **Pan** | Stereo positioning |
-| ⚡ **Compressor** | Dynamic range compression |
-| 🚫 **Limiter** | Peak limiting protection |
-| 🌊 **Noise Gate** | Automatic noise reduction |
-| 🎚️ **Single EQ** | Parametric equalizer (single band) |
-| 📊 **Multi EQ** | Multi-band equalizer |
-| 🎸 **Filter** | Low-pass, high-pass, band-pass filters |
-| 🌌 **Reverb** | Room and hall reverb effects |
-| ⏱️ **Delay** | Echo and delay effects |
-| 🎵 **Chorus** | Thickening and doubling |
-| 🌀 **Flanger** | Jet-like modulation |
-| 🎭 **Phaser** | Phase-shifting modulation |
-| 🔥 **Saturator** | Harmonic saturation and warmth |
-| ⚡ **Exciter** | High-frequency enhancement |
-| 🎪 **Tremolo** | Amplitude modulation |
-| 📡 **Stereo Imager** | Stereo width control |
-| 🎲 **Bitcrusher** | Lo-fi digital distortion |
+### Project Section
 
-### 📊 Audio Analysis
-- **Spectrum Analyzer** - Real-time frequency spectrum visualization
-- **Volume Indicators** - LED-style volume meters with peak detection
+Configure your project settings including project name, author information, tempo, time signature, and other global project parameters.
 
-### 🎬 Media Export
-- **Video Export** - Export MIDI performance as video with visual piano roll
-- **MIDI Export** - Save projects as standard MIDI files *(coming soon)*
-- **Customizable Video Settings** - Resolution, FPS, codec options
-- **Real-time Preview** - Preview video output before export
+![Project Section](img/img_project.png)
 
-### 🎼 Synthesizers
-- **FluidSynth Integration** - High-quality SoundFont-based synthesis
-- **External MIDI Support** - Route to hardware synthesizers
-- **Multi-instance Support** - Multiple synthesizer instances per project
+---
 
-### 🎨 User Interface
-- **Modern Dark Theme** - Eye-friendly dark color scheme
-- **Flexible Dock System** - Customizable workspace layout
-- **Keyboard Shortcuts** - Efficient workflow with hotkeys
-- **Responsive Design** - Smooth interaction and real-time updates
+### MIDI Editor Section
 
-## 📸 Screenshots
+A classic piano roll MIDI editor for composing and editing music. Features include:
+- Multi-track MIDI editing with unlimited tracks
+- Note editing with velocity, pan, and duration controls
+- Tempo track with tempo changes support
+- Grid snapping with multiple resolution options
+- Advanced note manipulation tools (quantize, humanize, transpose, legato, staccato)
+- Loop playback for seamless workflow
 
-<div align="center">
+![MIDI Editor Section](img/img_midi.png)
 
-### Main Editor Interface
-![Note Naga Editor](img/img1.png)
+---
 
-### Audio Export Interface
-![Mixer View](img/img2.png)
+### Arrangement Section
+
+A timeline-based arrangement view for organizing your composition:
+- Place MIDI clips and audio clips on timeline tracks
+- Trim, cut, and move clips with precise control
+- Fade in/out support for smooth transitions
+- Per-track volume and pan controls
+- Import audio files from disk
+- Record audio directly from microphone input
+- Arrange and structure complete songs
+
+![Arrangement Section](img/img_arrangement.png)
+
+---
+
+### DSP Effects
+
+The integrated DSP engine provides professional audio processing with 20+ effect blocks including: Gain, Pan, Compressor, Limiter, Noise Gate, Single/Multi-band EQ, Filter, Reverb, Delay, Chorus, Flanger, Phaser, Saturator, Exciter, Tremolo, Stereo Imager, Bitcrusher, Distortion, Auto-Wah, De-Esser, and more.
+
+![DSP Effects](img/img_dsp.png)
+
+---
+
+### External MIDI Section
+
+Route MIDI notes from your tracks to external hardware synthesizers and MIDI devices:
+- Scan and connect to available MIDI output devices
+- Per-track routing configuration
+- Channel assignment for each track
+- Real-time connection status monitoring
+
+![External MIDI Section](img/img_external.png)
+
+---
+
+### Media Export Section
+
+Export your composition as video or audio with extensive customization options:
+- Video export with visual piano roll animation
+- Audio-only export in various formats
+- Video effects: particles, screen shake, background images, opacity, lightning effects
+- Customizable resolution and frame rate
+- Real-time preview before export
+
+![Media Export Section](img/img_media.png)
 
 > Video export example: [https://youtu.be/78l0hsS38Ow](https://youtu.be/78l0hsS38Ow)
 
-</div>
+---
 
-## 🏗️ Architecture
+### Notation Section
 
-Note Naga is built on a modular architecture separating the GUI from the audio engine:
+Generate traditional music notation from selected MIDI tracks:
+- Automatic note transcription to staff notation
+- Support for multiple tracks
+- Clean and readable output
 
-### Project Structure
-```
-NoteNaga/
-├── src/                    # GUI application
-│   ├── gui/               # Main window and UI components
-│   │   ├── components/    # Reusable UI widgets
-│   │   ├── dialogs/       # Dialog windows
-│   │   ├── dock_system/   # Custom dock system
-│   │   ├── editor/        # Piano roll editor
-│   │   └── widgets/       # Track list, mixer, DSP widgets
-│   ├── media_export/      # Video/audio export functionality
-│   └── main.cpp           # Application entry point
-│
-└── note_naga_engine/      # Audio engine library
-    ├── core/              # Core types and project data
-    ├── dsp/               # DSP effect blocks
-    ├── io/                # MIDI file I/O
-    ├── module/            # Engine modules (mixer, playback, etc.)
-    └── synth/             # Synthesizer implementations
-```
+![Notation Section](img/img_notation.png)
 
-### Engine Architecture
+---
 
-![Engine Architecture](note_naga_engine/doc/note_naga_engine.png)
-
-The audio engine features a **multi-threaded architecture**:
-
-1. **Playback Worker** - Reads MIDI sequences and sends note events to mixer
-2. **Mixer** - Routes notes to appropriate synthesizers and processes audio
-3. **DSP Engine** - Applies effect chains to audio streams
-4. **Audio Worker** - Manages audio output callback and buffer management
-5. **Spectrum Analyzer** - Real-time frequency analysis
-
-### Data Flow
-```
-MIDI File → Project Data → Playback Worker → Mixer → Synthesizers
-                                                  ↓
-                                            DSP Engine → Audio Output
-```
-
-## 🛠️ Installation
+## Installation
 
 ### Prerequisites
 - **CMake** 3.16 or higher
 - **Qt** 5 or 6 (Widgets, Concurrent, Svg)
 - **OpenCV** (for video export)
 - **FluidSynth** (for SoundFont synthesis)
-- **C++17** compatible compiler
+- **RtMidi** (for MIDI I/O)
+- **RtAudio** (for audio I/O)
+- **C++20** compatible compiler
 
 ### Build Instructions
 
-#### Clone the repository
 ```bash
+# Clone the repository
 git clone https://github.com/0xMartin/NoteNagaCPlusPlus.git
 cd NoteNagaCPlusPlus
-```
 
-#### Build with Qt support (GUI + Engine)
-```bash
+# Build with CMake
 cmake -S . -B build
-make -C build -j8
-```
+cmake --build build -j8
 
-#### Build engine only (no Qt dependencies)
-```bash
-cd note_naga_engine
-cmake -S . -B build -DQT_DEACTIVATED=ON
-make -C build -j8
-```
-
-#### Run the application
-```bash
+# Run the application
 ./build/NoteNaga.app/Contents/MacOS/NoteNaga  # macOS
 ./build/NoteNaga                               # Linux
 ./build/NoteNaga.exe                           # Windows
 ```
 
-## 🚀 Usage
+---
 
-### Basic Workflow
+## Note Naga Engine
 
-1. **Load MIDI File**: `File → Open` to load an existing MIDI file
-2. **Edit Notes**: Click and drag in the piano roll to create/modify notes
-3. **Configure Instruments**: Assign SoundFonts to tracks in the mixer
-4. **Apply Effects**: Add DSP blocks to tracks or master output
-5. **Playback**: Use transport controls to play and navigate
-6. **Export**: `File → Export Video` to render performance
+The application is powered by **note_naga_engine**, a custom real-time audio engine that is also part of this repository. The engine can be built independently without Qt dependencies.
 
-### Keyboard Shortcuts
+### Engine Architecture
 
-| Shortcut | Action |
-|----------|--------|
-| `Space` | Play/Pause |
-| `Home` | Go to start |
-| `End` | Go to end |
-| `Ctrl+O` | Open MIDI file |
-| `Ctrl+E` | Export video |
-| `Ctrl+Q` | Quit application |
+![Engine Architecture](note_naga_engine/doc/note_naga_engine.png)
 
-### MIDI Utilities
+The engine features a multi-threaded architecture:
+- **Playback Worker** - Handles MIDI sequence playback and note scheduling
+- **Audio Worker** - Manages real-time audio output and buffer management
+- **DSP Engine** - Processes audio through configurable effect chains
+- **External MIDI Router** - Routes notes to external MIDI devices
+- **Spectrum Analyzer** - Provides real-time frequency analysis
 
-Access advanced MIDI editing tools from the `Edit` menu:
-- **Quantize** - Snap notes to grid
-- **Humanize** - Add natural timing variations
-- **Transpose** - Shift pitch up/down
-- **Velocity Tools** - Set or scale note velocities
-- **Duration Tools** - Adjust note lengths
-- **Articulation** - Apply legato or staccato
+### Build Engine Only
 
-### 📊 Project Data Structure
-Current project stores:
-1. MIDI data (sequences, tracks, notes)
-2. Mixer configuration (routing entries)
-3. DSP block data (effects and parameters)
+```bash
+cd note_naga_engine
+cmake -S . -B build -DQT_DEACTIVATED=ON
+cmake --build build -j8
+```
 
-## 🤝 Contributing
+---
 
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+## Todo
 
-### Development Setup
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Future improvements and known issues:
 
-### Coding Guidelines
-- Follow C++17 standards
-- Use Qt conventions for GUI code
-- Keep engine code Qt-independent (can be built with `-DQT_DEACTIVATED=ON`)
-- Add comments for complex algorithms
-- Test changes thoroughly before submitting
+- [ ] **Arrangement section polish** - Improve timeline editing UX and add more clip manipulation features
+- [ ] **Bug: Audio clip playback delay** - Fix timing issues with audio clip playback in arrangement section
+- [ ] **Menu bar / Toolbar improvements** - Expand and reorganize menu structure for better workflow
+- [ ] **Plugin support** - VST/AU plugin hosting for external instruments and effects
+- [ ] **Undo/Redo** - Improve undo system coverage across all sections
+- [ ] **Test coverage** - Add unit and integration tests for core engine and GUI components
+- [ ] **Complex Audio Tools** - Add spectral editing, time-stretching, pitch-shifting capabilities
 
-## 📄 License
+---
+
+## Technologies
+
+Note Naga is built using the following technologies and libraries:
+
+| Library | Purpose |
+|---------|---------|
+| **Qt** | Cross-platform GUI framework |
+| **FluidSynth** | SoundFont-based software synthesizer |
+| **RtMidi** | Real-time MIDI input/output |
+| **RtAudio** | Real-time audio input/output |
+| **Verovio** | Music notation engraving (external library) |
+| **OpenCV** | Video processing and export |
+
+---
+
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 👨‍💻 Author
+## Author
 
 **Martin Krčma (0xMartin)**
 
 - GitHub: [@0xMartin](https://github.com/0xMartin)
-- Repository: [NoteNagaCPlusPlus](https://github.com/0xMartin/NoteNagaCPlusPlus)
-
-## 🙏 Acknowledgments
-
-- **Qt Framework** - Cross-platform GUI toolkit
-- **FluidSynth** - Software synthesizer
-- **OpenCV** - Computer vision and video processing library
-- **CMake** - Build system generator
-
-## 📚 Additional Resources
-
-- [Qt Documentation](https://doc.qt.io/)
-- [FluidSynth Documentation](https://www.fluidsynth.org/)
-- [MIDI Specification](https://www.midi.org/specifications)
 
 ---
 
 <div align="center">
 
 **Made with ❤️ by 0xMartin**
-
-⭐ Star this repo if you find it useful!
 
 </div>
