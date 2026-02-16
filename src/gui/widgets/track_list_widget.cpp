@@ -2,6 +2,8 @@
 
 #include "../dialogs/instrument_selector_dialog.h"
 #include "../nn_gui_utils.h"
+#include "../undo/midi_track_commands.h"
+#include "../undo/undo_manager.h"
 #include "note_naga_engine/core/types.h"
 #include "note_naga_engine/synth/synth_fluidsynth.h"
 #include <QApplication>
@@ -223,7 +225,12 @@ void TrackListWidget::onAddTrack() {
   if (dlg.exec() == QDialog::Accepted) {
     int selected_gm_index = dlg.getSelectedGMIndex();
     if (selected_gm_index >= 0) {
-      seq->addTrack(selected_gm_index);
+      if (m_undoManager) {
+        auto *cmd = new MidiAddTrackCommand(seq, selected_gm_index);
+        m_undoManager->executeCommand(cmd);
+      } else {
+        seq->addTrack(selected_gm_index);
+      }
     }
   }
 }
@@ -305,7 +312,12 @@ void TrackListWidget::onRemoveTrack() {
     return;
   }
 
-  seq->removeTrack(selected_row);
+  if (m_undoManager) {
+    auto *cmd = new MidiRemoveTrackCommand(seq, selected_row);
+    m_undoManager->executeCommand(cmd);
+  } else {
+    seq->removeTrack(selected_row);
+  }
 }
 
 void TrackListWidget::onClearTracks() {
@@ -327,10 +339,14 @@ void TrackListWidget::onClearTracks() {
                             "Are you sure you want to remove all tracks? A new empty track will be created.",
                             QMessageBox::Yes | QMessageBox::No,
                             QMessageBox::No) == QMessageBox::Yes) {
-    seq->clear();
-    
-    // Create one empty track so the project is never without tracks
-    seq->addTrack(0);  // Piano as default
+    if (m_undoManager) {
+      auto *cmd = new MidiClearTracksCommand(seq);
+      m_undoManager->executeCommand(cmd);
+    } else {
+      seq->clear();
+      // Create one empty track so the project is never without tracks
+      seq->addTrack(0);  // Piano as default
+    }
   }
 }
 
@@ -602,23 +618,28 @@ void TrackListWidget::onDuplicateTrack() {
   
   if (selected_row < 0 || selected_row >= (int)track_widgets.size()) return;
   
-  NoteNagaTrack *sourceTrack = seq->getTracks()[selected_row];
-  if (!sourceTrack) return;
-  
-  // Create new track with same instrument
-  NoteNagaTrack *newTrack = seq->addTrack(sourceTrack->getInstrument().value_or(0));
-  if (!newTrack) return;
-  
-  // Copy properties
-  newTrack->setName(sourceTrack->getName() + " (Copy)");
-  newTrack->setColor(sourceTrack->getColor());
-  
-  // Copy notes with proper parent assignment
-  for (const auto &note : sourceTrack->getNotes()) {
-    NN_Note_t newNote = note;
-    newNote.id = nn_generate_unique_note_id();
-    newNote.parent = newTrack;
-    newTrack->addNote(newNote);
+  if (m_undoManager) {
+    auto *cmd = new MidiDuplicateTrackCommand(seq, selected_row);
+    m_undoManager->executeCommand(cmd);
+  } else {
+    NoteNagaTrack *sourceTrack = seq->getTracks()[selected_row];
+    if (!sourceTrack) return;
+    
+    // Create new track with same instrument
+    NoteNagaTrack *newTrack = seq->addTrack(sourceTrack->getInstrument().value_or(0));
+    if (!newTrack) return;
+    
+    // Copy properties
+    newTrack->setName(sourceTrack->getName() + " (Copy)");
+    newTrack->setColor(sourceTrack->getColor());
+    
+    // Copy notes with proper parent assignment
+    for (const auto &note : sourceTrack->getNotes()) {
+      NN_Note_t newNote = note;
+      newNote.id = nn_generate_unique_note_id();
+      newNote.parent = newTrack;
+      newTrack->addNote(newNote);
+    }
   }
 }
 
@@ -628,7 +649,12 @@ void TrackListWidget::onMoveTrackUp() {
   
   if (selected_row <= 0 || selected_row >= (int)seq->getTracks().size()) return;
   
-  seq->moveTrack(selected_row, selected_row - 1);
+  if (m_undoManager) {
+    auto *cmd = new MidiMoveTrackCommand(seq, selected_row, selected_row - 1);
+    m_undoManager->executeCommand(cmd);
+  } else {
+    seq->moveTrack(selected_row, selected_row - 1);
+  }
   selected_row--;
 }
 
@@ -638,7 +664,12 @@ void TrackListWidget::onMoveTrackDown() {
   
   if (selected_row < 0 || selected_row >= (int)seq->getTracks().size() - 1) return;
   
-  seq->moveTrack(selected_row, selected_row + 1);
+  if (m_undoManager) {
+    auto *cmd = new MidiMoveTrackCommand(seq, selected_row, selected_row + 1);
+    m_undoManager->executeCommand(cmd);
+  } else {
+    seq->moveTrack(selected_row, selected_row + 1);
+  }
   selected_row++;
 }
 

@@ -498,10 +498,29 @@ void AiModificationCommand::execute() {
         }
     }
     
-    // Add tracks
-    for (const auto &pair : m_addedTracks) {
-        // Track was already added, just needs to be visible
-        // This is complex - need to re-add to sequence
+    // Re-add tracks that were removed during undo (for redo)
+    for (auto &tuple : m_addedTracks) {
+        NoteNagaMidiSeq *seq = tuple.first;
+        NoteNagaTrack *track = tuple.second;
+        if (seq && track) {
+            seq->insertTrack(static_cast<int>(seq->getTracks().size()), track);
+        }
+    }
+    
+    // Re-remove tracks that were added back during undo (for redo)
+    for (auto it = m_removedTracks.begin(); it != m_removedTracks.end(); ++it) {
+        NoteNagaMidiSeq *seq = std::get<0>(*it);
+        NoteNagaTrack *track = std::get<1>(*it);
+        if (seq && track) {
+            // Find and extract the track
+            auto tracks = seq->getTracks();
+            for (size_t i = 0; i < tracks.size(); ++i) {
+                if (tracks[i] == track) {
+                    seq->extractTrack(static_cast<int>(i));
+                    break;
+                }
+            }
+        }
     }
     
     // Apply property changes
@@ -566,6 +585,32 @@ void AiModificationCommand::execute() {
 
 void AiModificationCommand::undo() {
     // Undo in reverse order
+    
+    // Undo removed tracks (re-add them at original position)
+    for (auto it = m_removedTracks.rbegin(); it != m_removedTracks.rend(); ++it) {
+        NoteNagaMidiSeq *seq = std::get<0>(*it);
+        NoteNagaTrack *track = std::get<1>(*it);
+        int originalIndex = std::get<2>(*it);
+        if (seq && track) {
+            seq->insertTrack(originalIndex, track);
+        }
+    }
+    
+    // Undo added tracks (extract them from sequence)
+    for (auto it = m_addedTracks.rbegin(); it != m_addedTracks.rend(); ++it) {
+        NoteNagaMidiSeq *seq = it->first;
+        NoteNagaTrack *track = it->second;
+        if (seq && track) {
+            // Find and extract the track
+            auto tracks = seq->getTracks();
+            for (size_t i = 0; i < tracks.size(); ++i) {
+                if (tracks[i] == track) {
+                    seq->extractTrack(static_cast<int>(i));
+                    break;
+                }
+            }
+        }
+    }
     
     // Undo removed tempo events (re-add them)
     for (auto it = m_removedTempoEvents.rbegin(); it != m_removedTempoEvents.rend(); ++it) {

@@ -924,6 +924,35 @@ bool NoteNagaMidiSeq::removeTrack(int track_index) {
   return true;
 }
 
+NoteNagaTrack* NoteNagaMidiSeq::extractTrack(int track_index) {
+  if (track_index < 0 || track_index >= static_cast<int>(this->tracks.size()))
+    return nullptr;
+
+  NoteNagaTrack *track = this->tracks[track_index];
+  this->tracks.erase(this->tracks.begin() + track_index);
+  NN_QT_EMIT(trackListChanged());
+  return track;  // Caller takes ownership
+}
+
+bool NoteNagaMidiSeq::insertTrack(int index, NoteNagaTrack* track) {
+  if (!track)
+    return false;
+  if (index < 0)
+    index = 0;
+  if (index > static_cast<int>(this->tracks.size()))
+    index = static_cast<int>(this->tracks.size());
+
+#ifndef QT_DEACTIVATED
+  // Connect metadata signal so name/color/etc changes are propagated
+  connect(track, &NoteNagaTrack::metadataChanged, this,
+          &NoteNagaMidiSeq::trackMetadataChanged);
+#endif
+
+  this->tracks.insert(this->tracks.begin() + index, track);
+  NN_QT_EMIT(trackListChanged());
+  return true;
+}
+
 bool NoteNagaMidiSeq::moveTrack(int from_index, int to_index) {
   if (from_index < 0 || from_index >= static_cast<int>(this->tracks.size()))
     return false;

@@ -12,6 +12,8 @@
 #include <note_naga_engine/note_naga_engine.h>
 #include "track_widget.h"
 
+class UndoManager;
+
 /**
  * @brief The TrackListWidget class provides a widget to display and manage a list of tracks in the NoteNaga application.
  */
@@ -35,9 +37,16 @@ public:
      * @brief Returns preferred size hint for dock layout.
      */
     QSize sizeHint() const override { return QSize(280, 300); }
+    
+    /**
+     * @brief Set the undo manager for track operations.
+     * @param undoManager Pointer to the UndoManager instance.
+     */
+    void setUndoManager(UndoManager *undoManager) { m_undoManager = undoManager; }
 
 private:
     NoteNagaEngine* engine;
+    UndoManager* m_undoManager = nullptr;
 
     int selected_row;
     std::vector<TrackWidget*> track_widgets;

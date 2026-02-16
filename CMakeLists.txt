@@ -185,6 +185,7 @@ set(SOURCE_FILES
     # gui/undo
     src/gui/undo/undo_manager.cpp
     src/gui/undo/midi_note_commands.cpp
+    src/gui/undo/midi_track_commands.cpp
     src/gui/undo/arrangement_clip_commands.cpp
     # gui/ai
     src/gui/ai/ai_prompt_generator.cpp

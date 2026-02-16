@@ -713,11 +713,30 @@ public:
     NoteNagaTrack* addTrack(int instrument_index);
 
     /**
-     * @brief Removes a track from the sequence.
+     * @brief Removes a track from the sequence and deletes it.
      * @param track_index Index of the track to remove.
      * @return True if the track was removed successfully, false otherwise.
      */
     bool removeTrack(int track_index);
+
+    /**
+     * @brief Removes a track from the sequence without deleting it.
+     *        The caller takes ownership of the returned track pointer.
+     *        Used for undo/redo operations where the track needs to be preserved.
+     * @param track_index Index of the track to extract.
+     * @return Pointer to the extracted track, or nullptr on failure.
+     */
+    NoteNagaTrack* extractTrack(int track_index);
+
+    /**
+     * @brief Inserts an existing track at a specific index.
+     *        Takes ownership of the track pointer.
+     *        Used for undo/redo operations.
+     * @param index Index where to insert the track.
+     * @param track Pointer to the track to insert.
+     * @return True if successful, false otherwise.
+     */
+    bool insertTrack(int index, NoteNagaTrack* track);
 
     /**
      * @brief Moves a track from one position to another in the sequence.
