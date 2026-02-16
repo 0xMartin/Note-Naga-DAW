@@ -197,26 +197,27 @@ void AiChatDialog::setupUi() {
     
     // Header
     m_headerWidget = new QWidget();
-    m_headerWidget->setFixedHeight(40);
+    m_headerWidget->setFixedHeight(32);
     auto *headerLayout = new QHBoxLayout(m_headerWidget);
-    headerLayout->setContentsMargins(12, 8, 8, 8);
+    headerLayout->setContentsMargins(12, 0, 0, 0);
+    headerLayout->setSpacing(0);
     
     m_titleLabel = new QLabel(tr("AI Assistant"));
-    m_titleLabel->setStyleSheet("font-weight: bold; color: #FFFFFF; font-size: 11pt;");
+    m_titleLabel->setStyleSheet("font-weight: bold; color: #FFFFFF; font-size: 10pt;");
     headerLayout->addWidget(m_titleLabel);
     
     headerLayout->addStretch();
     
     m_clearBtn = new QPushButton(tr("Clear"));
     m_clearBtn->setObjectName("clearBtn");
-    m_clearBtn->setFixedHeight(24);
+    m_clearBtn->setFixedHeight(32);
     m_clearBtn->setCursor(Qt::PointingHandCursor);
     connect(m_clearBtn, &QPushButton::clicked, this, &AiChatDialog::onClearClicked);
     headerLayout->addWidget(m_clearBtn);
     
     m_closeBtn = new QPushButton("×");
     m_closeBtn->setObjectName("closeBtn");
-    m_closeBtn->setFixedSize(24, 24);
+    m_closeBtn->setFixedSize(32, 32);
     m_closeBtn->setCursor(Qt::PointingHandCursor);
     connect(m_closeBtn, &QPushButton::clicked, this, &AiChatDialog::hide);
     headerLayout->addWidget(m_closeBtn);
@@ -257,8 +258,8 @@ void AiChatDialog::setupUi() {
     
     // Spinning indicator
     m_spinnerLabel = new QLabel();
-    m_spinnerLabel->setFixedWidth(16);
-    m_spinnerLabel->setStyleSheet("color: #AAAAFF; font-size: 12pt;");
+    m_spinnerLabel->setFixedWidth(20);
+    m_spinnerLabel->setStyleSheet("color: #AAAAFF; font-size: 16pt;");
     m_spinnerLabel->hide();
     btnLayout->addWidget(m_spinnerLabel);
     
@@ -342,19 +343,22 @@ void AiChatDialog::setupStyle() {
         }
         
         #closeBtn {
-            font-size: 14pt;
+            font-size: 16pt;
             font-weight: bold;
-            min-width: 24px;
-            max-width: 24px;
-            min-height: 24px;
-            max-height: 24px;
+            min-width: 32px;
+            max-width: 32px;
+            min-height: 32px;
+            max-height: 32px;
+            border-radius: 0px;
+            border-top-right-radius: 8px;
         }
         
         #clearBtn {
             font-size: 9pt;
-            min-height: 24px;
-            max-height: 24px;
+            min-height: 32px;
+            max-height: 32px;
             padding: 0 8px;
+            border-radius: 0px;
         }
     )");
     

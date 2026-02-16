@@ -47,24 +47,53 @@ QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNag
     prompt += getInstrumentsList();
     prompt += "\n\n";
     
-    // Include conversation history for context (last 4 turns max)
+    // Include conversation history for context - dynamically determined by size
+    // Reserve approx 6000 chars for history to stay within reasonable prompt limits
+    // (Full prompt ~8000 chars base + sequence data which varies)
+    const int MAX_HISTORY_CHARS = 6000;
+    
     if (!chatHistory.isEmpty()) {
-        prompt += "=== CONVERSATION HISTORY ===\n";
-        int startIdx = qMax(0, chatHistory.size() - 8);  // Last 8 messages (4 turns)
-        for (int i = startIdx; i < chatHistory.size(); ++i) {
+        QString historySection;
+        int totalChars = 0;
+        
+        // Build history from most recent backwards
+        QStringList historyLines;
+        for (int i = chatHistory.size() - 1; i >= 0; --i) {
             const ChatMessage &msg = chatHistory[i];
+            QString line;
+            
             if (msg.role == ChatMessage::Role::User) {
-                prompt += QString("User: %1\n").arg(msg.displayText);
+                // Include user message - truncate if very long
+                QString userText = msg.displayText;
+                if (userText.length() > 200) {
+                    userText = userText.left(200) + "...";
+                }
+                line = QString("User: %1\n").arg(userText);
             } else if (msg.role == ChatMessage::Role::Assistant) {
-                // Just indicate that assistant responded, don't include full response
+                // Just indicate status, don't include full response
                 if (msg.executed) {
-                    prompt += QString("Assistant: [Executed changes successfully]\n");
+                    line = QString("Assistant: [Executed changes successfully]\n");
                 } else {
-                    prompt += QString("Assistant: [Failed to execute]\n");
+                    line = QString("Assistant: [Failed to execute]\n");
                 }
             }
+            
+            // Check if adding this line would exceed limit
+            if (totalChars + line.length() > MAX_HISTORY_CHARS) {
+                break;  // Stop adding more history
+            }
+            
+            historyLines.prepend(line);  // Prepend to maintain chronological order
+            totalChars += line.length();
         }
-        prompt += "\n";
+        
+        if (!historyLines.isEmpty()) {
+            prompt += "=== CONVERSATION HISTORY ===\n";
+            for (const QString &line : historyLines) {
+                prompt += line;
+            }
+            prompt += "\n";
+        }
     }
     
     // User's current request
