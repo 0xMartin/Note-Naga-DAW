@@ -10,6 +10,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QKeyEvent>
+#include <QComboBox>
 
 class NoteNagaMidiSeq;
 class MidiEditorWidget;
@@ -139,6 +140,9 @@ private:
     QString m_pendingPrompt;  // Store prompt while waiting for API response
     QString m_lastUserPrompt; // Last user prompt for retry
     bool m_lastRequestFailed = false;
+    
+    // Duration selection
+    QComboBox *m_durationCombo;
     
     // State
     int m_currentSequenceId = -1;

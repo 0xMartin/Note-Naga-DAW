@@ -210,6 +210,22 @@ void AiChatDialog::setupUi() {
     
     headerLayout->addStretch();
     
+    // Duration combo box
+    m_durationCombo = new QComboBox();
+    m_durationCombo->setFixedWidth(90);
+    m_durationCombo->setToolTip(tr("Target duration for generated music"));
+    m_durationCombo->addItem(tr("Auto"), 0);
+    m_durationCombo->addItem(tr("~10 sec"), 10);
+    m_durationCombo->addItem(tr("~30 sec"), 30);
+    m_durationCombo->addItem(tr("~1 min"), 60);
+    m_durationCombo->addItem(tr("~2 min"), 120);
+    m_durationCombo->addItem(tr("~3 min"), 180);
+    m_durationCombo->addItem(tr("~5 min"), 300);
+    m_durationCombo->setCurrentIndex(2); // Default to 30 sec
+    headerLayout->addWidget(m_durationCombo);
+    
+    headerLayout->addSpacing(8);
+    
     m_clearBtn = new QPushButton(tr("Clear"));
     m_clearBtn->setObjectName("clearBtn");
     m_clearBtn->setFixedHeight(32);
@@ -381,6 +397,39 @@ void AiChatDialog::setupStyle() {
             max-height: 32px;
             padding: 0 8px;
             border-radius: 0px;
+        }
+        
+        QComboBox {
+            background-color: rgba(50, 50, 65, 220);
+            border: 1px solid rgba(80, 80, 110, 180);
+            border-radius: 4px;
+            color: #E0E0E0;
+            padding: 4px 8px;
+            font-size: 9pt;
+        }
+        
+        QComboBox:hover {
+            border: 1px solid rgba(120, 120, 160, 220);
+        }
+        
+        QComboBox::drop-down {
+            border: none;
+            width: 20px;
+        }
+        
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 6px solid #AAAAAA;
+            margin-right: 6px;
+        }
+        
+        QComboBox QAbstractItemView {
+            background-color: rgba(40, 40, 55, 250);
+            border: 1px solid rgba(80, 80, 110, 180);
+            selection-background-color: rgba(80, 80, 120, 200);
+            color: #E0E0E0;
         }
     )");
     
@@ -579,8 +628,11 @@ void AiChatDialog::processUserPrompt(const QString &prompt) {
     // Get existing chat history for context
     const QList<ChatMessage> &history = m_chatManager->getChatHistory(m_currentSequenceId);
     
+    // Get target duration from combo box
+    int targetDuration = m_durationCombo->currentData().toInt();
+    
     // Generate full prompt with instructions, data, and conversation history
-    QString fullPrompt = AiPromptGenerator::generateFullPrompt(prompt, m_sequence, history);
+    QString fullPrompt = AiPromptGenerator::generateFullPrompt(prompt, m_sequence, history, targetDuration);
     
     // Add to chat history
     m_chatManager->addUserMessage(m_currentSequenceId, prompt, fullPrompt);

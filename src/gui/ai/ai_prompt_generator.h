@@ -19,10 +19,12 @@ public:
      * @param userPrompt The user's input text.
      * @param sequence The MIDI sequence to include data from.
      * @param chatHistory Previous conversation messages for context.
+     * @param targetDurationSec Target duration in seconds (0 = not specified).
      * @return Complete prompt string ready for AI.
      */
     static QString generateFullPrompt(const QString &userPrompt, NoteNagaMidiSeq *sequence,
-                                       const QList<ChatMessage> &chatHistory = {});
+                                       const QList<ChatMessage> &chatHistory = {},
+                                       int targetDurationSec = 0);
     
     /**
      * @brief Creates a compact representation of the MIDI sequence.

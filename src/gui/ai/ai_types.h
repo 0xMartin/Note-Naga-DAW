@@ -40,6 +40,16 @@ enum class AiCommandType {
     RemoveNote,
     ModifyNote,
     
+    // Advanced note operations
+    AddChord,           ///< Add chord (root + type)
+    AddArpeggio,        ///< Add arpeggio pattern
+    AddScale,           ///< Play scale notes
+    AddPattern,         ///< Repeat note pattern
+    DuplicateNotes,     ///< Copy notes from range to new position
+    TransposeNotes,     ///< Transpose notes in range
+    QuantizeNotes,      ///< Quantize notes to grid
+    AddDrumPattern,     ///< Add predefined drum pattern
+    
     // Track operations
     AddTrack,
     RemoveTrack,

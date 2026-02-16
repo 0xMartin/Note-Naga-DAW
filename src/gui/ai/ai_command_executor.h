@@ -83,6 +83,16 @@ private:
     bool executeAddTempoEvent(const QJsonObject &params, AiModificationCommand *compound, QString &error);
     bool executeRemoveTempoEvent(const QJsonObject &params, AiModificationCommand *compound, QString &error);
     
+    // Advanced note commands
+    bool executeAddChord(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    bool executeAddArpeggio(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    bool executeAddScale(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    bool executeAddPattern(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    bool executeDuplicateNotes(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    bool executeTransposeNotes(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    bool executeQuantizeNotes(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    bool executeAddDrumPattern(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    
     NoteNagaTrack* findTrackById(int trackId);
     NN_Note_t* findNote(NoteNagaTrack *track, int note, int start);
     void copyChangesToPreviewState(AiModificationCommand *compound, AiPreviewState *previewState);

@@ -6,7 +6,8 @@
 namespace NoteNagaAI {
 
 QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNagaMidiSeq *sequence,
-                                               const QList<ChatMessage> &chatHistory) {
+                                               const QList<ChatMessage> &chatHistory,
+                                               int targetDurationSec) {
     if (!sequence) {
         return QString();
     }
@@ -33,13 +34,34 @@ QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNag
     // Important guidance for extending content
     int maxTick = sequence->getMaxTick();
     if (maxTick > 0) {
-        prompt += "=== IMPORTANT CONTEXT ===\n";
-        prompt += QString("The composition currently ends at tick %1.\n").arg(maxTick);
-        prompt += "When extending or adding more content:\n";
-        prompt += QString("- Add new notes with start positions >= %1 (after existing content)\n").arg(maxTick);
-        prompt += "- Do NOT overwrite existing notes by using the same start positions\n";
-        prompt += "- Extend each track appropriately to maintain the musical style\n";
-        prompt += "\n";
+        prompt += QString("=== CONTEXT: Composition ends at tick %1. Add new content after this position. ===\n\n").arg(maxTick);
+    }
+    
+    // Target duration guidance
+    if (targetDurationSec > 0) {
+        int bpm = compactSeq.bpm;
+        int ppq = compactSeq.ppq;
+        
+        // Calculate target ticks based on duration and tempo
+        // ticks = seconds * (bpm / 60) * ppq
+        int targetTicks = static_cast<int>(targetDurationSec * (bpm / 60.0) * ppq);
+        int targetBars = targetTicks / (ppq * 4); // Assuming 4/4 time
+        int startTick = maxTick > 0 ? maxTick : 0;
+        int endTick = startTick + targetTicks;
+        
+        // Estimate notes needed (rough: 2-4 notes per beat per track)
+        int beatsNeeded = targetDurationSec * bpm / 60;
+        int minNotes = beatsNeeded * 2;
+        int maxNotes = beatsNeeded * 8;
+        
+        prompt += "=== TARGET DURATION ===\n";
+        prompt += QString("User wants approximately %1 seconds of music.\n").arg(targetDurationSec);
+        prompt += QString("At %1 BPM with PPQ=%2:\n").arg(bpm).arg(ppq);
+        prompt += QString("- Generate content from tick %1 to ~%2\n").arg(startTick).arg(endTick);
+        prompt += QString("- This equals roughly %1 bars (4/4 time)\n").arg(targetBars);
+        prompt += QString("- Create %1-%2 notes total across all tracks\n").arg(minNotes).arg(maxNotes);
+        prompt += "- Fill the ENTIRE duration, don't stop early!\n";
+        prompt += "- Create complete musical phrases and sections\n\n";
     }
     
     // Available instruments (condensed)
@@ -97,11 +119,9 @@ QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNag
     }
     
     // User's current request
-    prompt += "=== USER REQUEST ===\n";
+    prompt += "=== REQUEST ===\n";
     prompt += userPrompt;
-    prompt += "\n\n";
-    
-    prompt += "Please respond ONLY with valid JSON following the response schema above. Do not include any explanatory text outside the JSON.";
+    prompt += "\n\nRespond with NNC commands only:";
     
     return prompt;
 }
@@ -156,60 +176,67 @@ CompactTrack AiPromptGenerator::createCompactTrack(NoteNagaTrack *track) {
 }
 
 QString AiPromptGenerator::getSystemInstructions() {
-    return R"PROMPT(You are a MIDI composition assistant for NoteNaga music software.
-You can create and modify MIDI melodies, manage tracks, adjust track properties, and control tempo.
+    return R"PROMPT(MIDI composition assistant for NoteNaga. Create/modify melodies, tracks, tempo.
 
-=== AVAILABLE COMMANDS ===
+=== RULES ===
+- NEVER overlap notes with same pitch on same track (causes stuck notes)
+- When extending: add notes AFTER maxTick, don't overwrite existing
+- Channel 9 is drums only
+- Note pitch: 0-127, velocity: 0-127
 
-1. ADD_NOTE - Add a new note to a track
-   Parameters: trackId (int), note (int 0-127), start (int ticks), length (int ticks), velocity (int 0-127), pan (int 0-127, optional)
+=== INPUT FORMAT (JSON) ===
+Sequence: {bpm, ppq, maxTick, tracks[]}
+Track: {id, name, inst, ch, vol, pan, mute, solo, notes[]}
+Note: {n=pitch, s=start, l=length, v=velocity}
 
-2. REMOVE_NOTE - Remove a note from a track
-   Parameters: trackId (int), note (int), start (int) - matches note by pitch and start position
+=== OUTPUT FORMAT (NNC) ===
+One command per line. NO JSON, NO markdown!
 
-3. MODIFY_NOTE - Modify an existing note
-   Parameters: trackId (int), originalNote (int), originalStart (int), newNote (int), newStart (int), newLength (int), newVelocity (int)
+M:message                                     Optional message (first line)
 
-4. ADD_TRACK - Create a new track
-   Parameters: name (string), instrument (int 0-127 GM instrument index), channel (int 0-15)
+NOTES:
+N+tid,pitch,start,len,vel                     Add note
+N-tid,pitch,start                             Remove note
+N*tid,oPitch,oStart>nPitch,nStart,nLen,nVel   Modify note
 
-5. REMOVE_TRACK - Delete a track
-   Parameters: trackId (int)
+CHORDS/ARPEGGIOS:
+CHORD:tid,root,type,start,len,vel             maj/min/dim/aug/7/maj7/min7/sus2/sus4
+ARP:tid,root,type,start,len,vel,dir           dir: up/down/updown
+SCALE:tid,root,type,start,len,vel             major/minor/penta/blues/dorian
 
-6. MODIFY_TRACK - Change track properties
-   Parameters: trackId (int), and any of: name (string), instrument (int), channel (int), mute (bool), solo (bool), volume (int 0-100), pan (int -64 to +64), color (string "R,G,B")
+BATCH:
+PAT:tid,notes,start,len,vel                   notes: 60-64-67
+DUP:tid,srcStart,srcEnd,destStart             Copy range
+TRANS:tid,start,end,semitones                 Transpose
+QUANT:tid,start,end,grid                      Quantize to grid
 
-7. CLEAR_TRACK - Remove all notes from a track
-   Parameters: trackId (int)
+DRUMS:
+DRUM:tid,pattern,start,bars                   rock/pop/hiphop/jazz/metal/shuffle
 
-8. SET_TEMPO - Set the global tempo
-   Parameters: bpm (int, beats per minute, typically 40-240)
+TRACKS:
+T+name|inst|ch                                Add track
+T-tid                                         Remove track
+T*tid i=inst v=vol p=pan m=0/1 s=0/1          Modify track
+TC:tid                                        Clear track
 
-9. ADD_TEMPO_EVENT - Add a tempo change at a specific tick position
-   Parameters: tick (int), bpm (int)
+TEMPO:
+BPM:value                                     Set tempo
+TE+tick,bpm                                   Add tempo event
 
-10. REMOVE_TEMPO_EVENT - Remove a tempo change at a specific tick
-    Parameters: tick (int)
-
-=== MUSIC THEORY REFERENCE ===
-- MIDI notes: C4 = 60, each semitone = +1
-- Common scales: Major (W-W-H-W-W-W-H), Minor (W-H-W-W-H-W-W)
-- PPQ (pulses per quarter): typically 480, so quarter note = 480 ticks, eighth = 240, sixteenth = 120
-- Velocity: 0-127 (0=silent, 64=mf, 100=f, 127=fff)
-- Channel 9 (index 9) is reserved for drums
-- Tempo: 60 BPM = 1 beat per second, 120 BPM = 2 beats per second)PROMPT";
+=== REFERENCE ===
+Notes: C4=60 | Octave=12 semitones | PPQ=480 (quarter=480, 8th=240, 16th=120)
+Velocity: pp=32 mp=64 mf=80 f=100 ff=120
+Chords: maj[0,4,7] min[0,3,7] 7[0,4,7,10] maj7[0,4,7,11]
+Drums(ch9): 36=kick 38=snare 42=hihat 46=open 49=crash 51=ride
+Progressions: I-V-vi-IV | ii-V-I | I-IV-V-I)PROMPT";
 }
 
 QString AiPromptGenerator::getResponseSchema() {
-    return R"SCHEMA({
-  "message": "Optional text message to show user (string)",
-  "commands": [
-    {
-      "type": "ADD_NOTE|REMOVE_NOTE|MODIFY_NOTE|ADD_TRACK|REMOVE_TRACK|MODIFY_TRACK|CLEAR_TRACK",
-      "params": { ... command-specific parameters ... }
-    }
-  ]
-})SCHEMA";
+    return R"SCHEMA(Output NNC commands only. Example:
+M:Added 4-bar melody
+N+0,60,0,480,100
+N+0,64,480,480,90
+CHORD:0,60,maj,1920,960,85)SCHEMA";
 }
 
 QString AiPromptGenerator::getInstrumentsList() {

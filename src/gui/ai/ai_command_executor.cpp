@@ -5,6 +5,8 @@
 #include <note_naga_engine/core/types.h>
 #include <QJsonObject>
 #include <QPointer>
+#include <algorithm>
+#include <climits>
 
 namespace NoteNagaAI {
 
@@ -186,6 +188,22 @@ bool AiCommandExecutor::executeCommand(const AiCommand &cmd, AiModificationComma
             return executeAddTempoEvent(cmd.params, compound, error);
         case AiCommandType::RemoveTempoEvent:
             return executeRemoveTempoEvent(cmd.params, compound, error);
+        case AiCommandType::AddChord:
+            return executeAddChord(cmd.params, compound, error);
+        case AiCommandType::AddArpeggio:
+            return executeAddArpeggio(cmd.params, compound, error);
+        case AiCommandType::AddScale:
+            return executeAddScale(cmd.params, compound, error);
+        case AiCommandType::AddPattern:
+            return executeAddPattern(cmd.params, compound, error);
+        case AiCommandType::DuplicateNotes:
+            return executeDuplicateNotes(cmd.params, compound, error);
+        case AiCommandType::TransposeNotes:
+            return executeTransposeNotes(cmd.params, compound, error);
+        case AiCommandType::QuantizeNotes:
+            return executeQuantizeNotes(cmd.params, compound, error);
+        case AiCommandType::AddDrumPattern:
+            return executeAddDrumPattern(cmd.params, compound, error);
         default:
             error = QObject::tr("Unknown command type");
             return false;
@@ -925,6 +943,508 @@ bool AiCommandExecutor::executeRemoveTempoEvent(const QJsonObject &params, AiMod
     // Record for undo
     if (compound) {
         compound->addTempoEventRemove(m_sequence, tick, oldBpm);
+    }
+    
+    return true;
+}
+
+// ============================================================================
+// Advanced Note Commands Implementation
+// ============================================================================
+
+namespace {
+    // Chord intervals from root note
+    QVector<int> getChordIntervals(const QString &type) {
+        QString t = type.toLower();
+        if (t == "maj" || t == "major") return {0, 4, 7};
+        if (t == "min" || t == "minor" || t == "m") return {0, 3, 7};
+        if (t == "dim") return {0, 3, 6};
+        if (t == "aug") return {0, 4, 8};
+        if (t == "7" || t == "dom7") return {0, 4, 7, 10};
+        if (t == "maj7") return {0, 4, 7, 11};
+        if (t == "min7" || t == "m7") return {0, 3, 7, 10};
+        if (t == "dim7") return {0, 3, 6, 9};
+        if (t == "sus2") return {0, 2, 7};
+        if (t == "sus4") return {0, 5, 7};
+        if (t == "add9") return {0, 4, 7, 14};
+        if (t == "6") return {0, 4, 7, 9};
+        if (t == "min6" || t == "m6") return {0, 3, 7, 9};
+        if (t == "9") return {0, 4, 7, 10, 14};
+        if (t == "maj9") return {0, 4, 7, 11, 14};
+        if (t == "min9" || t == "m9") return {0, 3, 7, 10, 14};
+        if (t == "power" || t == "5") return {0, 7};
+        return {0, 4, 7}; // default to major
+    }
+    
+    // Scale intervals
+    QVector<int> getScaleIntervals(const QString &type) {
+        QString t = type.toLower();
+        if (t == "major" || t == "ionian") return {0, 2, 4, 5, 7, 9, 11, 12};
+        if (t == "minor" || t == "aeolian" || t == "natural") return {0, 2, 3, 5, 7, 8, 10, 12};
+        if (t == "harmonic") return {0, 2, 3, 5, 7, 8, 11, 12};
+        if (t == "melodic") return {0, 2, 3, 5, 7, 9, 11, 12};
+        if (t == "penta" || t == "pentatonic") return {0, 2, 4, 7, 9, 12};
+        if (t == "penta_minor" || t == "minpenta") return {0, 3, 5, 7, 10, 12};
+        if (t == "blues") return {0, 3, 5, 6, 7, 10, 12};
+        if (t == "dorian") return {0, 2, 3, 5, 7, 9, 10, 12};
+        if (t == "phrygian") return {0, 1, 3, 5, 7, 8, 10, 12};
+        if (t == "lydian") return {0, 2, 4, 6, 7, 9, 11, 12};
+        if (t == "mixo" || t == "mixolydian") return {0, 2, 4, 5, 7, 9, 10, 12};
+        if (t == "locrian") return {0, 1, 3, 5, 6, 8, 10, 12};
+        if (t == "chromatic") return {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+        if (t == "wholetone") return {0, 2, 4, 6, 8, 10, 12};
+        return {0, 2, 4, 5, 7, 9, 11, 12}; // default to major
+    }
+    
+    // Drum pattern - returns list of (tick_offset, note, velocity)
+    struct DrumHit { int tickOffset; int note; int velocity; };
+    
+    QVector<DrumHit> getDrumPattern(const QString &pattern, int ppq) {
+        QVector<DrumHit> hits;
+        QString p = pattern.toLower();
+        
+        // Standard note values
+        int q = ppq;        // quarter
+        int e = ppq / 2;    // eighth
+        int s = ppq / 4;    // sixteenth
+        
+        // Drum notes (GM standard)
+        int kick = 36, snare = 38, hihat = 42, hihatOpen = 46, ride = 51, crash = 49;
+        int tomHi = 50, tomMid = 47, tomLow = 43;
+        
+        if (p == "rock" || p == "basic") {
+            // Basic rock beat - 1 bar
+            for (int beat = 0; beat < 4; beat++) {
+                hits.append({beat * q, hihat, 80});
+                hits.append({beat * q + e, hihat, 70});
+            }
+            hits.append({0, kick, 110});
+            hits.append({2 * q, kick, 110});
+            hits.append({1 * q, snare, 100});
+            hits.append({3 * q, snare, 100});
+        }
+        else if (p == "pop") {
+            // Pop beat with more hihat
+            for (int i = 0; i < 8; i++) {
+                hits.append({i * e, hihat, 75});
+            }
+            hits.append({0, kick, 110});
+            hits.append({q + e, kick, 100});
+            hits.append({2 * q, kick, 110});
+            hits.append({1 * q, snare, 100});
+            hits.append({3 * q, snare, 100});
+        }
+        else if (p == "hiphop") {
+            // Hip-hop beat
+            hits.append({0, kick, 120});
+            hits.append({q + e, kick, 110});
+            hits.append({2 * q + s, kick, 100});
+            hits.append({1 * q, snare, 100});
+            hits.append({3 * q, snare, 100});
+            for (int i = 0; i < 8; i++) {
+                hits.append({i * e, hihat, 60 + (i % 2) * 20});
+            }
+        }
+        else if (p == "jazz") {
+            // Jazz swing pattern on ride
+            hits.append({0, ride, 90});
+            hits.append({q * 2 / 3, ride, 70}); // swing triplet feel
+            hits.append({q, ride, 90});
+            hits.append({q + q * 2 / 3, ride, 70});
+            hits.append({2 * q, ride, 90});
+            hits.append({2 * q + q * 2 / 3, ride, 70});
+            hits.append({3 * q, ride, 90});
+            hits.append({3 * q + q * 2 / 3, ride, 70});
+            hits.append({2 * q, kick, 80});
+            hits.append({3 * q + e, kick, 70});
+        }
+        else if (p == "latin" || p == "bossa") {
+            // Bossa nova pattern
+            hits.append({0, kick, 100});
+            hits.append({3 * e, kick, 90});
+            hits.append({q + e, snare, 80}); // cross-stick
+            hits.append({2 * q + e, snare, 80});
+            for (int i = 0; i < 16; i++) {
+                hits.append({i * s, hihat, 60});
+            }
+        }
+        else if (p == "metal") {
+            // Double bass metal
+            for (int i = 0; i < 16; i++) {
+                hits.append({i * s, kick, 120});
+            }
+            hits.append({1 * q, snare, 127});
+            hits.append({3 * q, snare, 127});
+            for (int i = 0; i < 8; i++) {
+                hits.append({i * e, hihat, 100});
+            }
+        }
+        else if (p == "halftime") {
+            // Half-time feel
+            hits.append({0, kick, 110});
+            hits.append({2 * q, snare, 100});
+            for (int i = 0; i < 8; i++) {
+                hits.append({i * e, hihat, 70});
+            }
+        }
+        else if (p == "shuffle") {
+            // Shuffle beat
+            int triplet = q / 3;
+            for (int beat = 0; beat < 4; beat++) {
+                hits.append({beat * q, hihat, 85});
+                hits.append({beat * q + 2 * triplet, hihat, 70});
+            }
+            hits.append({0, kick, 110});
+            hits.append({2 * q, kick, 110});
+            hits.append({1 * q, snare, 100});
+            hits.append({3 * q, snare, 100});
+        }
+        else if (p == "fill1") {
+            // Simple fill
+            hits.append({0, snare, 90});
+            hits.append({e, snare, 85});
+            hits.append({2 * e, tomHi, 95});
+            hits.append({3 * e, tomHi, 90});
+            hits.append({4 * e, tomMid, 100});
+            hits.append({5 * e, tomMid, 95});
+            hits.append({6 * e, tomLow, 105});
+            hits.append({7 * e, crash, 120});
+        }
+        else if (p == "fill2") {
+            // 16th note fill
+            for (int i = 0; i < 12; i++) {
+                int note = (i < 4) ? tomHi : (i < 8) ? tomMid : tomLow;
+                hits.append({i * s, note, 90 + (i % 2) * 10});
+            }
+            hits.append({12 * s, kick, 120});
+            hits.append({12 * s, crash, 127});
+        }
+        else {
+            // Default to basic rock
+            return getDrumPattern("rock", ppq);
+        }
+        
+        return hits;
+    }
+}
+
+bool AiCommandExecutor::executeAddChord(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    int trackId = params["trackId"].toInt(-1);
+    NoteNagaTrack *track = findTrackById(trackId);
+    if (!track) {
+        error = QObject::tr("Track %1 not found").arg(trackId);
+        return false;
+    }
+    
+    int root = params["root"].toInt(60);
+    QString chordType = params["chordType"].toString("maj");
+    int start = params["start"].toInt(0);
+    int length = params["length"].toInt(480);
+    int velocity = params["velocity"].toInt(100);
+    
+    QVector<int> intervals = getChordIntervals(chordType);
+    
+    for (int interval : intervals) {
+        NN_Note_t note;
+        note.note = root + interval;
+        note.start = start;
+        note.length = length;
+        note.velocity = velocity;
+        note.parent = track;
+        
+        if (note.note >= 0 && note.note <= 127) {
+            track->addNote(note);
+            if (compound) {
+                compound->addAddedNote(track, note);
+            }
+        }
+    }
+    
+    return true;
+}
+
+bool AiCommandExecutor::executeAddArpeggio(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    int trackId = params["trackId"].toInt(-1);
+    NoteNagaTrack *track = findTrackById(trackId);
+    if (!track) {
+        error = QObject::tr("Track %1 not found").arg(trackId);
+        return false;
+    }
+    
+    int root = params["root"].toInt(60);
+    QString chordType = params["chordType"].toString("maj");
+    int start = params["start"].toInt(0);
+    int noteLength = params["noteLength"].toInt(120);
+    int velocity = params["velocity"].toInt(100);
+    QString direction = params["direction"].toString("up");
+    
+    QVector<int> intervals = getChordIntervals(chordType);
+    
+    // Handle direction
+    if (direction.toLower() == "down") {
+        std::reverse(intervals.begin(), intervals.end());
+    } else if (direction.toLower() == "updown") {
+        QVector<int> down = intervals;
+        std::reverse(down.begin(), down.end());
+        down.removeFirst(); // Don't repeat top note
+        intervals.append(down);
+    }
+    
+    int currentStart = start;
+    for (int interval : intervals) {
+        NN_Note_t note;
+        note.note = root + interval;
+        note.start = currentStart;
+        note.length = noteLength;
+        note.velocity = velocity;
+        note.parent = track;
+        
+        if (note.note >= 0 && note.note <= 127) {
+            track->addNote(note);
+            if (compound) {
+                compound->addAddedNote(track, note);
+            }
+        }
+        currentStart += noteLength;
+    }
+    
+    return true;
+}
+
+bool AiCommandExecutor::executeAddScale(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    int trackId = params["trackId"].toInt(-1);
+    NoteNagaTrack *track = findTrackById(trackId);
+    if (!track) {
+        error = QObject::tr("Track %1 not found").arg(trackId);
+        return false;
+    }
+    
+    int root = params["root"].toInt(60);
+    QString scaleType = params["scaleType"].toString("major");
+    int start = params["start"].toInt(0);
+    int noteLength = params["noteLength"].toInt(240);
+    int velocity = params["velocity"].toInt(100);
+    
+    QVector<int> intervals = getScaleIntervals(scaleType);
+    
+    int currentStart = start;
+    for (int interval : intervals) {
+        NN_Note_t note;
+        note.note = root + interval;
+        note.start = currentStart;
+        note.length = noteLength;
+        note.velocity = velocity;
+        note.parent = track;
+        
+        if (note.note >= 0 && note.note <= 127) {
+            track->addNote(note);
+            if (compound) {
+                compound->addAddedNote(track, note);
+            }
+        }
+        currentStart += noteLength;
+    }
+    
+    return true;
+}
+
+bool AiCommandExecutor::executeAddPattern(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    int trackId = params["trackId"].toInt(-1);
+    NoteNagaTrack *track = findTrackById(trackId);
+    if (!track) {
+        error = QObject::tr("Track %1 not found").arg(trackId);
+        return false;
+    }
+    
+    QString pattern = params["pattern"].toString();
+    int start = params["start"].toInt(0);
+    int noteLength = params["noteLength"].toInt(240);
+    int velocity = params["velocity"].toInt(100);
+    
+    // Parse pattern - can be "60-64-67" or "60,64,67"
+    QStringList notes;
+    if (pattern.contains('-')) {
+        notes = pattern.split('-');
+    } else {
+        notes = pattern.split(',');
+    }
+    
+    int currentStart = start;
+    for (const QString &noteStr : notes) {
+        int pitch = noteStr.trimmed().toInt();
+        
+        NN_Note_t note;
+        note.note = pitch;
+        note.start = currentStart;
+        note.length = noteLength;
+        note.velocity = velocity;
+        note.parent = track;
+        
+        if (note.note >= 0 && note.note <= 127) {
+            track->addNote(note);
+            if (compound) {
+                compound->addAddedNote(track, note);
+            }
+        }
+        currentStart += noteLength;
+    }
+    
+    return true;
+}
+
+bool AiCommandExecutor::executeDuplicateNotes(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    int trackId = params["trackId"].toInt(-1);
+    NoteNagaTrack *track = findTrackById(trackId);
+    if (!track) {
+        error = QObject::tr("Track %1 not found").arg(trackId);
+        return false;
+    }
+    
+    int srcStart = params["srcStart"].toInt(0);
+    int srcEnd = params["srcEnd"].toInt(0);
+    int destStart = params["destStart"].toInt(0);
+    
+    int offset = destStart - srcStart;
+    
+    // Collect notes to duplicate
+    std::vector<NN_Note_t> notesToDuplicate;
+    for (const auto &note : track->getNotes()) {
+        int noteStart = note.start.value_or(0);
+        if (noteStart >= srcStart && noteStart < srcEnd) {
+            notesToDuplicate.push_back(note);
+        }
+    }
+    
+    // Add duplicated notes
+    for (const auto &origNote : notesToDuplicate) {
+        NN_Note_t note = origNote;
+        note.start = origNote.start.value_or(0) + offset;
+        note.parent = track;
+        
+        track->addNote(note);
+        if (compound) {
+            compound->addAddedNote(track, note);
+        }
+    }
+    
+    return true;
+}
+
+bool AiCommandExecutor::executeTransposeNotes(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    int trackId = params["trackId"].toInt(-1);
+    NoteNagaTrack *track = findTrackById(trackId);
+    if (!track) {
+        error = QObject::tr("Track %1 not found").arg(trackId);
+        return false;
+    }
+    
+    int start = params["start"].toInt(0);
+    int end = params["end"].toInt(INT_MAX);
+    int semitones = params["semitones"].toInt(0);
+    
+    // Find and modify notes in range
+    std::vector<NN_Note_t> notesToModify;
+    for (const auto &note : track->getNotes()) {
+        int noteStart = note.start.value_or(0);
+        if (noteStart >= start && noteStart < end) {
+            notesToModify.push_back(note);
+        }
+    }
+    
+    for (const auto &oldNote : notesToModify) {
+        NN_Note_t newNote = oldNote;
+        newNote.note = std::clamp(oldNote.note + semitones, 0, 127);
+        
+        track->removeNote(oldNote);
+        track->addNote(newNote);
+        
+        if (compound) {
+            compound->addModifiedNote(track, oldNote, newNote);
+        }
+    }
+    
+    return true;
+}
+
+bool AiCommandExecutor::executeQuantizeNotes(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    int trackId = params["trackId"].toInt(-1);
+    NoteNagaTrack *track = findTrackById(trackId);
+    if (!track) {
+        error = QObject::tr("Track %1 not found").arg(trackId);
+        return false;
+    }
+    
+    int start = params["start"].toInt(0);
+    int end = params["end"].toInt(INT_MAX);
+    int grid = params["grid"].toInt(120); // Default to 16th notes
+    
+    if (grid <= 0) {
+        error = QObject::tr("Invalid grid value");
+        return false;
+    }
+    
+    // Find and modify notes in range
+    std::vector<NN_Note_t> notesToQuantize;
+    for (const auto &note : track->getNotes()) {
+        int noteStart = note.start.value_or(0);
+        if (noteStart >= start && noteStart < end) {
+            notesToQuantize.push_back(note);
+        }
+    }
+    
+    for (const auto &oldNote : notesToQuantize) {
+        int oldStart = oldNote.start.value_or(0);
+        int newStart = ((oldStart + grid / 2) / grid) * grid; // Round to nearest grid
+        
+        if (newStart != oldStart) {
+            NN_Note_t newNote = oldNote;
+            newNote.start = newStart;
+            
+            track->removeNote(oldNote);
+            track->addNote(newNote);
+            
+            if (compound) {
+                compound->addModifiedNote(track, oldNote, newNote);
+            }
+        }
+    }
+    
+    return true;
+}
+
+bool AiCommandExecutor::executeAddDrumPattern(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    int trackId = params["trackId"].toInt(-1);
+    NoteNagaTrack *track = findTrackById(trackId);
+    if (!track) {
+        error = QObject::tr("Track %1 not found").arg(trackId);
+        return false;
+    }
+    
+    QString pattern = params["pattern"].toString("rock");
+    int start = params["start"].toInt(0);
+    int bars = params["bars"].toInt(1);
+    
+    int ppq = m_sequence ? m_sequence->getPPQ() : 480;
+    int barLength = ppq * 4; // 4/4 time signature
+    
+    QVector<DrumHit> hits = getDrumPattern(pattern, ppq);
+    
+    for (int bar = 0; bar < bars; bar++) {
+        int barStart = start + bar * barLength;
+        
+        for (const DrumHit &hit : hits) {
+            NN_Note_t note;
+            note.note = hit.note;
+            note.start = barStart + hit.tickOffset;
+            note.length = ppq / 4; // 16th note length
+            note.velocity = hit.velocity;
+            note.parent = track;
+            
+            track->addNote(note);
+            if (compound) {
+                compound->addAddedNote(track, note);
+            }
+        }
     }
     
     return true;
