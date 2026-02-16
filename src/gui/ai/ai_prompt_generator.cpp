@@ -199,7 +199,7 @@ M:message                                     Optional message (first line)
 NOTES:
 N+tid,pitch,start,len,vel                     Add note
 N-tid,pitch,start                             Remove note
-N*tid,oPitch,oStart>nPitch,nStart,nLen,nVel   Modify note
+NM:tid,oPitch,oStart>nPitch,nStart,nLen,nVel  Modify note
 
 CHORDS/ARPEGGIOS:
 CHORD:tid,root,type,start,len,vel             maj/min/dim/aug/7/maj7/min7/sus2/sus4
@@ -218,7 +218,7 @@ DRUM:tid,pattern,start,bars                   rock/pop/hiphop/jazz/metal/shuffle
 TRACKS:
 T+name|inst|ch                                Add track
 T-tid                                         Remove track
-T*tid i=inst v=vol p=pan m=0/1 s=0/1          Modify track
+TM:tid i=inst v=vol p=pan m=0/1 s=0/1         Modify track
 TC:tid                                        Clear ALL notes from track
 TCA                                           Clear ALL tracks (use when replacing entire composition)
 
@@ -235,11 +235,18 @@ Progressions: I-V-vi-IV | ii-V-I | I-IV-V-I)PROMPT";
 }
 
 QString AiPromptGenerator::getResponseSchema() {
-    return R"SCHEMA(Output NNC commands only. Example:
+    return R"SCHEMA(=== RESPONSE FORMAT ===
+Output NNC commands only. Example:
 M:Added 4-bar melody
 N+0,60,0,480,100
 N+0,64,480,480,90
-CHORD:0,60,maj,1920,960,85)SCHEMA";
+CHORD:0,60,maj,1920,960,85
+
+IMPORTANT: Output ONLY NNC commands, nothing else!
+- NO questions or suggestions at the end
+- NO markdown formatting
+- NO explanatory text after commands
+- Put any message in M: command ONLY)SCHEMA";
 }
 
 QString AiPromptGenerator::getInstrumentsList() {

@@ -56,9 +56,10 @@ AiCommand parseNncLine(const QString &line) {
         return cmd;
     }
     
-    // N* : Modify note - N*trackId,oNote,oStart>nNote,nStart,nLen,nVel
-    if (trimmed.startsWith("N*")) {
-        QString params = trimmed.mid(2);
+    // N* or NM: : Modify note - N*trackId,oNote,oStart>nNote,nStart,nLen,nVel or NM:...
+    if (trimmed.startsWith("N*") || trimmed.startsWith("NM:")) {
+        int prefixLen = trimmed.startsWith("NM:") ? 3 : 2;
+        QString params = trimmed.mid(prefixLen);
         int arrowPos = params.indexOf('>');
         if (arrowPos > 0) {
             QString oldPart = params.left(arrowPos);
@@ -76,10 +77,10 @@ AiCommand parseNncLine(const QString &line) {
                 cmd.params["newLength"] = newParts[2].toInt();
                 cmd.params["newVelocity"] = newParts[3].toInt();
             } else {
-                cmd.error = QObject::tr("N* format: trackId,oNote,oStart>nNote,nStart,nLen,nVel");
+                cmd.error = QObject::tr("NM: format: trackId,oNote,oStart>nNote,nStart,nLen,nVel");
             }
         } else {
-            cmd.error = QObject::tr("N* requires '>' separator");
+            cmd.error = QObject::tr("NM: requires '>' separator");
         }
         return cmd;
     }
@@ -107,9 +108,10 @@ AiCommand parseNncLine(const QString &line) {
         return cmd;
     }
     
-    // T* : Modify track - T*trackId prop=val prop=val...
-    if (trimmed.startsWith("T*")) {
-        QString params = trimmed.mid(2);
+    // T* or TM: : Modify track - T*trackId prop=val or TM:trackId prop=val
+    if (trimmed.startsWith("T*") || trimmed.startsWith("TM:")) {
+        int prefixLen = trimmed.startsWith("TM:") ? 3 : 2;
+        QString params = trimmed.mid(prefixLen);
         int spacePos = params.indexOf(' ');
         if (spacePos > 0) {
             cmd.type = AiCommandType::ModifyTrack;
@@ -134,7 +136,7 @@ AiCommand parseNncLine(const QString &line) {
                 else if (key == "col") cmd.params["color"] = val;
             }
         } else {
-            cmd.error = QObject::tr("T* requires: trackId prop=val...");
+            cmd.error = QObject::tr("TM: requires: trackId prop=val...");
         }
         return cmd;
     }
@@ -399,7 +401,7 @@ bool AiCommandParser::isAiResponse(const QString &text) {
     QString trimmed = text.trimmed();
     
     // Check for NNC command patterns
-    static QRegularExpression nncPattern(R"(^(M:|N[+\-*]|T[+\-*]|TC:|TCA|BPM:|TE[+\-]))", 
+    static QRegularExpression nncPattern(R"(^(M:|N[+\-]|NM:|T[+\-]|TM:|TC:|TCA|BPM:|TE[+\-]|CHORD:|ARP:|SCALE:|PAT:|DUP:|TRANS:|QUANT:|DRUM:))", 
         QRegularExpression::MultilineOption);
     
     return nncPattern.match(trimmed).hasMatch();
@@ -418,7 +420,7 @@ QString AiCommandParser::extractNncText(const QString &text) {
     }
     
     // Check if text contains NNC commands directly
-    static QRegularExpression nncPattern(R"(^(M:|N[+\-*]|T[+\-*]|TC:|TCA|BPM:|TE[+\-]))", 
+    static QRegularExpression nncPattern(R"(^(M:|N[+\-]|NM:|T[+\-]|TM:|TC:|TCA|BPM:|TE[+\-]|CHORD:|ARP:|SCALE:|PAT:|DUP:|TRANS:|QUANT:|DRUM:))", 
         QRegularExpression::MultilineOption);
     
     if (nncPattern.match(trimmed).hasMatch()) {
@@ -432,9 +434,12 @@ QString AiCommandParser::extractNncText(const QString &text) {
     for (const QString &line : lines) {
         QString l = line.trimmed();
         if (l.startsWith("M:") || l.startsWith("N+") || l.startsWith("N-") || 
-            l.startsWith("N*") || l.startsWith("T+") || l.startsWith("T-") ||
-            l.startsWith("T*") || l.startsWith("TC:") || l == "TCA" ||
-            l.startsWith("BPM:") || l.startsWith("TE+") || l.startsWith("TE-")) {
+            l.startsWith("NM:") || l.startsWith("T+") || l.startsWith("T-") ||
+            l.startsWith("TM:") || l.startsWith("TC:") || l == "TCA" ||
+            l.startsWith("BPM:") || l.startsWith("TE+") || l.startsWith("TE-") ||
+            l.startsWith("CHORD:") || l.startsWith("ARP:") || l.startsWith("SCALE:") ||
+            l.startsWith("PAT:") || l.startsWith("DUP:") || l.startsWith("TRANS:") ||
+            l.startsWith("QUANT:") || l.startsWith("DRUM:")) {
             validLines.append(l);
         }
     }
