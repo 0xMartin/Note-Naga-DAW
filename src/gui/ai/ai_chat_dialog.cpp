@@ -269,6 +269,22 @@ void AiChatDialog::setupUi() {
     m_statusLabel->hide();
     btnLayout->addWidget(m_statusLabel);
     
+    // Cancel button (shown during generation)
+    m_cancelBtn = new QPushButton(tr("Cancel"));
+    m_cancelBtn->setFixedSize(60, 28);
+    m_cancelBtn->setCursor(Qt::PointingHandCursor);
+    m_cancelBtn->hide();
+    connect(m_cancelBtn, &QPushButton::clicked, this, &AiChatDialog::onCancelClicked);
+    btnLayout->addWidget(m_cancelBtn);
+    
+    // Retry button (shown after error)
+    m_retryBtn = new QPushButton(tr("Retry"));
+    m_retryBtn->setFixedSize(60, 28);
+    m_retryBtn->setCursor(Qt::PointingHandCursor);
+    m_retryBtn->hide();
+    connect(m_retryBtn, &QPushButton::clicked, this, &AiChatDialog::onRetryClicked);
+    btnLayout->addWidget(m_retryBtn);
+    
     btnLayout->addStretch();
     
     m_sendBtn = new QPushButton(tr("Send"));
@@ -280,6 +296,9 @@ void AiChatDialog::setupUi() {
     
     inputLayout->addLayout(btnLayout);
     mainLayout->addWidget(inputWidget);
+    
+    // Install event filter on input for Enter key handling
+    m_inputEdit->installEventFilter(this);
     
     // Spinner animation timer - rotates through spinner characters
     m_spinnerTimer = new QTimer(this);
@@ -351,6 +370,7 @@ void AiChatDialog::setupStyle() {
             max-height: 32px;
             border-radius: 0px;
             border-top-right-radius: 8px;
+            padding-bottom: 3px;
         }
         
         #clearBtn {
@@ -415,11 +435,25 @@ void AiChatDialog::toggle() {
 }
 
 bool AiChatDialog::eventFilter(QObject *watched, QEvent *event) {
+    // Handle parent resize
     if (watched == parentWidget() && event->type() == QEvent::Resize) {
         if (isVisible()) {
             updateGeometry();
         }
     }
+    
+    // Handle Enter key in input edit (send on Enter, newline on Shift+Enter)
+    if (watched == m_inputEdit && event->type() == QEvent::KeyPress) {
+        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        if ((keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) &&
+            !(keyEvent->modifiers() & Qt::ShiftModifier)) {
+            if (m_sendBtn->isEnabled()) {
+                onSendClicked();
+            }
+            return true;  // Consume the event
+        }
+    }
+    
     return QWidget::eventFilter(watched, event);
 }
 
@@ -438,6 +472,25 @@ void AiChatDialog::onSendClicked() {
     
     m_inputEdit->clear();
     processInput(text);
+}
+
+void AiChatDialog::onCancelClicked() {
+    if (m_apiClient) {
+        m_apiClient->cancelRequest();
+    }
+    onApiRequestFinished();
+    
+    // Add cancelled message to chat
+    if (m_chatManager) {
+        m_chatManager->addAssistantMessage(m_currentSequenceId, tr("Request cancelled."), false);
+    }
+}
+
+void AiChatDialog::onRetryClicked() {
+    if (!m_lastUserPrompt.isEmpty() && m_lastRequestFailed) {
+        m_retryBtn->hide();
+        processInput(m_lastUserPrompt);
+    }
 }
 
 void AiChatDialog::onInputChanged() {
@@ -516,6 +569,11 @@ void AiChatDialog::processInput(const QString &text) {
 void AiChatDialog::processUserPrompt(const QString &prompt) {
     if (!m_sequence || !m_chatManager) return;
     
+    // Store for potential retry
+    m_lastUserPrompt = prompt;
+    m_lastRequestFailed = false;
+    m_retryBtn->hide();
+    
     // Get existing chat history for context
     const QList<ChatMessage> &history = m_chatManager->getChatHistory(m_currentSequenceId);
     
@@ -581,6 +639,10 @@ void AiChatDialog::onApiRequestStarted() {
     m_statusLabel->setText(tr("Generating..."));
     m_statusLabel->show();
     m_spinnerTimer->start(150);  // Fast spin animation
+    
+    // Show cancel button, hide retry
+    m_cancelBtn->show();
+    m_retryBtn->hide();
 }
 
 void AiChatDialog::onApiRequestFinished() {
@@ -592,21 +654,34 @@ void AiChatDialog::onApiRequestFinished() {
     m_sendBtn->setEnabled(!m_inputEdit->toPlainText().trimmed().isEmpty());
     m_spinnerLabel->hide();
     m_statusLabel->hide();
+    m_cancelBtn->hide();
 }
 
 void AiChatDialog::onApiResponseReceived(const QString &response, bool success, const QString &errorMessage) {
     m_pendingPrompt.clear();
     
     if (success) {
+        m_lastRequestFailed = false;
         // Process the AI response automatically
         processAiResponse(response);
     } else {
-        // Show error in chat
+        // Show error in chat and enable retry
+        m_lastRequestFailed = true;
+        m_retryBtn->show();
         if (m_chatManager) {
             QString errorMsg = tr("API Error: %1").arg(errorMessage);
             m_chatManager->addAssistantMessage(m_currentSequenceId, errorMsg, false);
         }
     }
+}
+
+void AiChatDialog::keyPressEvent(QKeyEvent *event) {
+    // Escape closes the dialog
+    if (event->key() == Qt::Key_Escape) {
+        hide();
+        return;
+    }
+    QWidget::keyPressEvent(event);
 }
 
 } // namespace NoteNagaAI

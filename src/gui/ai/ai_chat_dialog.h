@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QTextEdit>
 #include <QTimer>
+#include <QKeyEvent>
 
 class NoteNagaMidiSeq;
 class MidiEditorWidget;
@@ -86,6 +87,7 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
     void onSendClicked();
@@ -93,6 +95,8 @@ private slots:
     void onMessageAdded(int sequenceId, const ChatMessage &message);
     void onCopyClicked(const QString &text);
     void onClearClicked();
+    void onCancelClicked();
+    void onRetryClicked();
     void onApiResponseReceived(const QString &response, bool success, const QString &errorMessage);
     void onApiRequestStarted();
     void onApiRequestFinished();
@@ -123,6 +127,8 @@ private:
     
     QTextEdit *m_inputEdit;
     QPushButton *m_sendBtn;
+    QPushButton *m_cancelBtn;
+    QPushButton *m_retryBtn;
     QLabel *m_spinnerLabel;    // Rotating spinner symbol
     QLabel *m_statusLabel;     // "Generating..." text
     QTimer *m_spinnerTimer;
@@ -131,6 +137,8 @@ private:
     // Gemini API
     GeminiApiClient *m_apiClient;
     QString m_pendingPrompt;  // Store prompt while waiting for API response
+    QString m_lastUserPrompt; // Last user prompt for retry
+    bool m_lastRequestFailed = false;
     
     // State
     int m_currentSequenceId = -1;
