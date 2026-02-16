@@ -213,6 +213,7 @@ void AiChatDialog::setupUi() {
     // Duration combo box
     m_durationCombo = new QComboBox();
     m_durationCombo->setFixedWidth(90);
+    m_durationCombo->setFixedHeight(24);
     m_durationCombo->setToolTip(tr("Target duration for generated music"));
     m_durationCombo->addItem(tr("Auto"), 0);
     m_durationCombo->addItem(tr("~10 sec"), 10);
@@ -220,8 +221,43 @@ void AiChatDialog::setupUi() {
     m_durationCombo->addItem(tr("~1 min"), 60);
     m_durationCombo->addItem(tr("~2 min"), 120);
     m_durationCombo->addItem(tr("~3 min"), 180);
-    m_durationCombo->addItem(tr("~5 min"), 300);
     m_durationCombo->setCurrentIndex(2); // Default to 30 sec
+    m_durationCombo->setStyleSheet(R"(
+        QComboBox {
+            background-color: #2a2d35;
+            color: #E0E0E0;
+            border: 1px solid #494d56;
+            border-radius: 4px;
+            padding: 2px 6px;
+            padding-right: 20px;
+            font-size: 9pt;
+        }
+        QComboBox:hover {
+            border-color: #7070A0;
+        }
+        QComboBox::drop-down {
+            subcontrol-origin: border;
+            subcontrol-position: top right;
+            width: 20px;
+            border-left: 1px solid #494d56;
+            border-top-right-radius: 4px;
+            border-bottom-right-radius: 4px;
+            background-color: #2a2d35;
+        }
+        QComboBox::down-arrow {
+            image: url(:/icons/dropdown-arrow.svg);
+            width: 10px;
+            height: 10px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #2a2d35;
+            border: 1px solid #494d56;
+            selection-background-color: #3a3d55;
+            selection-color: #E0E0E0;
+            color: #E0E0E0;
+            outline: none;
+        }
+    )");
     headerLayout->addWidget(m_durationCombo);
     
     headerLayout->addSpacing(8);
@@ -397,39 +433,6 @@ void AiChatDialog::setupStyle() {
             max-height: 32px;
             padding: 0 8px;
             border-radius: 0px;
-        }
-        
-        QComboBox {
-            background-color: rgba(50, 50, 65, 220);
-            border: 1px solid rgba(80, 80, 110, 180);
-            border-radius: 4px;
-            color: #E0E0E0;
-            padding: 4px 8px;
-            font-size: 9pt;
-        }
-        
-        QComboBox:hover {
-            border: 1px solid rgba(120, 120, 160, 220);
-        }
-        
-        QComboBox::drop-down {
-            border: none;
-            width: 20px;
-        }
-        
-        QComboBox::down-arrow {
-            image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 6px solid #AAAAAA;
-            margin-right: 6px;
-        }
-        
-        QComboBox QAbstractItemView {
-            background-color: rgba(40, 40, 55, 250);
-            border: 1px solid rgba(80, 80, 110, 180);
-            selection-background-color: rgba(80, 80, 120, 200);
-            color: #E0E0E0;
         }
     )");
     

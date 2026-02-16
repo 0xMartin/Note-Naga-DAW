@@ -3,6 +3,7 @@
   <qresource prefix="/">
     <file>icons/add.svg</file>
     <file>icons/clear.svg</file>
+    <file>icons/dropdown-arrow.svg</file>
     <file>icons/eye-not-visible.svg</file>
     <file>icons/eye-visible.svg</file>
     <file>icons/layers.svg</file>
