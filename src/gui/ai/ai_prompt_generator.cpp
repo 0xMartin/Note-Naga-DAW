@@ -180,7 +180,9 @@ QString AiPromptGenerator::getSystemInstructions() {
 
 === RULES ===
 - NEVER overlap notes with same pitch on same track (causes stuck notes)
-- When extending: add notes AFTER maxTick, don't overwrite existing
+- When EXTENDING existing music: add notes AFTER maxTick, don't overwrite
+- When user asks for COMPLETELY DIFFERENT/NEW music: use TC:tid to clear tracks FIRST, then generate new notes from tick 0
+- Keywords meaning "replace all": "different", "new", "change style", "don't like", "something else", "start over", "jiny", "novy", "uplne", "nelibi"
 - Channel 9 is drums only
 - Note pitch: 0-127, velocity: 0-127
 
@@ -217,7 +219,8 @@ TRACKS:
 T+name|inst|ch                                Add track
 T-tid                                         Remove track
 T*tid i=inst v=vol p=pan m=0/1 s=0/1          Modify track
-TC:tid                                        Clear track
+TC:tid                                        Clear ALL notes from track
+TCA                                           Clear ALL tracks (use when replacing entire composition)
 
 TEMPO:
 BPM:value                                     Set tempo
