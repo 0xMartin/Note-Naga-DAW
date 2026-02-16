@@ -90,6 +90,10 @@ public:
     void clearGhostPreview();
     QList<QGraphicsItem*>& ghostItems() { return m_ghostItems; }
     
+    // --- Enable/disable (for preview mode) ---
+    void setEnabled(bool enabled) { m_enabled = enabled; }
+    bool isEnabled() const { return m_enabled; }
+    
     // --- Note items management ---
     QMap<int, std::list<NoteGraphics>>& noteItems() { return m_noteItems; }
     void clearNoteItems();
@@ -118,6 +122,9 @@ private:
     QList<CopiedNote> m_clipboard;
     bool m_pasteMode = false;
     int m_clipboardBaseNote = 64; // Reference note for vertical positioning
+    
+    // Enable/disable for preview mode
+    bool m_enabled = true;
     
     static constexpr int RESIZE_EDGE_MARGIN = 5;
 };

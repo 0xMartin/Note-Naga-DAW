@@ -1,6 +1,7 @@
 #include "midi_editor_widget.h"
 #include "midi_editor_context_menu.h"
 #include "midi_editor_note_handler.h"
+#include "ai_preview_banner.h"
 #include "../undo/undo_manager.h"
 #include "../ai/ai_chat_button.h"
 #include "../ai/ai_chat_dialog.h"
@@ -19,6 +20,7 @@
 #include <climits>
 #include <QApplication>
 #include <QCursor>
+#include <QDebug>
 
 #include "../nn_gui_utils.h"
 
@@ -570,6 +572,13 @@ void MidiEditorWidget::resizeEvent(QResizeEvent *event) {
         m_legendWidget->move(x, y);
     }
     
+    // Resize preview banner if visible - account for AI chat width
+    if (m_previewBanner && m_previewBanner->isVisible()) {
+        int chatWidth = (m_aiChatDialog && m_aiChatDialog->isVisible()) ? 420 : 0;
+        int bannerWidth = width() - chatWidth;
+        m_previewBanner->setGeometry(0, 0, bannerWidth, m_previewBanner->height());
+    }
+    
     refreshAll();
 }
 
@@ -1093,6 +1102,45 @@ void MidiEditorWidget::updateAllNotes() {
             drawNote(note, track, is_selected, is_drum, x, y, w, h);
         }
     }
+    
+    // In preview mode, also draw removed notes as ghost outlines
+    if (m_previewState.isActive()) {
+        const auto &removedNotes = m_previewState.getRemovedNotes();
+        for (const auto &pair : removedNotes) {
+            NoteNagaTrack *track = pair.first;
+            const NN_Note_t &note = pair.second;
+            
+            if (!note.start.has_value() || !note.length.has_value()) continue;
+            
+            int y = content_height - (note.note - MIN_NOTE + 1) * config.key_height;
+            int x = note.start.value() * config.time_scale;
+            int w = std::max(1, int(note.length.value() * config.time_scale));
+            int h = config.key_height;
+            
+            if (!((x + w > visible_x0 && x < visible_x1) &&
+                (y + h > visible_y0 && y < visible_y1))) continue;
+            
+            // Draw as ghost outline (transparent fill, red dashed outline)
+            QPen ghostPen(m_colors.preview_removed, 2, Qt::DashLine);
+            QBrush ghostBrush(QColor(m_colors.preview_removed.red(), 
+                                      m_colors.preview_removed.green(), 
+                                      m_colors.preview_removed.blue(), 50));
+            
+            bool is_drum = track->getChannel().value_or(0) == 9;
+            QGraphicsItem *shape = nullptr;
+            if (is_drum) {
+                int sz = h * 0.6;
+                int cx = x + w / 2;
+                int cy = y + h / 2;
+                int left = cx - sz / 2;
+                int top = cy - sz / 2;
+                shape = scene->addEllipse(left, top, sz, sz, ghostPen, ghostBrush);
+            } else {
+                shape = scene->addRect(x, y, w, h, ghostPen, ghostBrush);
+            }
+            shape->setZValue(998);  // High z-value so it's visible
+        }
+    }
 }
 
 void MidiEditorWidget::updateTrackNotes(NoteNagaTrack *track) {
@@ -1164,6 +1212,25 @@ void MidiEditorWidget::drawNote(const NN_Note_t &note, const NoteNagaTrack *trac
     QGraphicsItem *shape = nullptr;
     
     QColor baseColor = getNoteColor(note, track);
+    
+    // Check for preview mode and apply diff colors
+    if (m_previewState.isActive()) {
+        PreviewNoteState noteState = m_previewState.getNoteState(const_cast<NoteNagaTrack*>(track), note);
+        switch (noteState) {
+            case PreviewNoteState::Added:
+                baseColor = m_colors.preview_added;  // Green
+                break;
+            case PreviewNoteState::Modified:
+                baseColor = m_colors.preview_modified;  // Yellow
+                break;
+            case PreviewNoteState::Removed:
+                baseColor = m_colors.preview_removed;  // Red
+                break;
+            default:
+                break;
+        }
+    }
+    
     NN_Color_t t_color = is_selected ? NN_Color_t::fromQColor(baseColor)
                                      : nn_color_blend(NN_Color_t::fromQColor(baseColor),
                                                       NN_Color_t::fromQColor(m_colors.bg_color), 0.3);
@@ -1482,10 +1549,144 @@ void MidiEditorWidget::initAiAssistant() {
         m_aiButton->setVisible(!visible);
     });
     
+    // Update preview banner width when chat visibility changes
+    connect(m_aiChatDialog, &NoteNagaAI::AiChatDialog::visibilityChanged, this, [this](bool visible) {
+        if (m_previewBanner && m_previewBanner->isVisible()) {
+            int chatWidth = visible ? 420 : 0;
+            int bannerWidth = width() - chatWidth;
+            m_previewBanner->setGeometry(0, 0, bannerWidth, m_previewBanner->height());
+        }
+    });
+    
     // Connect commands executed signal to refresh
     connect(m_aiChatDialog, &NoteNagaAI::AiChatDialog::commandsExecuted, this, [this](int count) {
         Q_UNUSED(count);
         refreshAll();
         updateUndoRedoButtons();
     });
+}
+
+/*******************************************************************************************************/
+// AI Preview Mode
+/*******************************************************************************************************/
+
+bool MidiEditorWidget::isInPreviewMode() const {
+    return m_previewState.isActive();
+}
+
+AiPreviewState* MidiEditorWidget::getPreviewState() {
+    return &m_previewState;
+}
+
+void MidiEditorWidget::enterPreviewMode() {
+    qDebug() << "enterPreviewMode() called";
+    qDebug() << "Preview state - added:" << m_previewState.getAddedNotesCount() 
+             << "removed:" << m_previewState.getRemovedNotesCount()
+             << "modified:" << m_previewState.getModifiedNotesCount();
+    
+    // Check if banner is already visible (not isActive - that's set by executeWithPreview)
+    if (m_previewBanner && m_previewBanner->isVisible()) {
+        qDebug() << "Banner already visible, returning";
+        return;
+    }
+    
+    // Ensure preview state is active
+    m_previewState.setActive(true);
+    
+    // Create and show preview banner if not exists
+    if (!m_previewBanner) {
+        qDebug() << "Creating new AiPreviewBanner";
+        // Create as child of this (MidiEditorWidget) so it stays fixed as overlay
+        m_previewBanner = new AiPreviewBanner(this);
+        
+        // Connect banner signals
+        connect(m_previewBanner, &AiPreviewBanner::keepClicked, this, &MidiEditorWidget::keepPreviewChanges);
+        connect(m_previewBanner, &AiPreviewBanner::discardClicked, this, &MidiEditorWidget::discardPreviewChanges);
+    }
+    
+    // Update banner stats
+    m_previewBanner->setStats(m_previewState.getAddedNotesCount(),
+                              m_previewState.getRemovedNotesCount(),
+                              m_previewState.getModifiedNotesCount());
+    
+    // Position banner at top - account for AI chat width if visible
+    int bannerHeight = m_previewBanner->sizeHint().height();
+    if (bannerHeight <= 0) bannerHeight = 60;
+    
+    // Calculate width: leave space for AI chat dialog if visible (it's ~400px + 10px margin)
+    int chatWidth = (m_aiChatDialog && m_aiChatDialog->isVisible()) ? 420 : 0;
+    int bannerWidth = width() - chatWidth;
+    
+    m_previewBanner->setGeometry(0, 0, bannerWidth, bannerHeight);
+    m_previewBanner->show();
+    m_previewBanner->raise();
+    qDebug() << "Banner shown, geometry:" << m_previewBanner->geometry();
+    
+    // Disable note handler interactions during preview
+    if (m_noteHandler) {
+        m_noteHandler->setEnabled(false);
+    }
+    
+    // Redraw to show preview colors
+    refreshAll();
+    
+    emit previewModeChanged(true);
+}
+
+void MidiEditorWidget::keepPreviewChanges() {
+    if (!isInPreviewMode()) {
+        return;
+    }
+    
+    // Changes are already applied to the sequence, just exit preview mode
+    m_previewState.clear();
+    
+    // Hide banner
+    if (m_previewBanner) {
+        m_previewBanner->hide();
+    }
+    
+    // Re-enable note handler
+    if (m_noteHandler) {
+        m_noteHandler->setEnabled(true);
+    }
+    
+    // Redraw without preview colors
+    refreshAll();
+    updateUndoRedoButtons();
+    
+    emit previewModeChanged(false);
+    emit notesModified();
+}
+
+void MidiEditorWidget::discardPreviewChanges() {
+    if (!isInPreviewMode()) {
+        return;
+    }
+    
+    // Undo all AI changes (they were made through undo commands)
+    // The number of undo operations should match the number of AI commands
+    if (m_undoManager && m_previewState.getPendingUndoCount() > 0) {
+        for (int i = 0; i < m_previewState.getPendingUndoCount(); ++i) {
+            m_undoManager->undo();
+        }
+    }
+    
+    m_previewState.clear();
+    
+    // Hide banner
+    if (m_previewBanner) {
+        m_previewBanner->hide();
+    }
+    
+    // Re-enable note handler
+    if (m_noteHandler) {
+        m_noteHandler->setEnabled(true);
+    }
+    
+    // Redraw original state
+    refreshAll();
+    updateUndoRedoButtons();
+    
+    emit previewModeChanged(false);
 }

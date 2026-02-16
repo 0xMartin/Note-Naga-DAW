@@ -5,6 +5,7 @@
 #include "ai_command_executor.h"
 #include "gemini_api_client.h"
 #include "../editor/midi_editor_widget.h"
+#include "../editor/ai_preview_state.h"
 #include "../settings/settings_manager.h"
 
 #include <note_naga_engine/core/types.h>
@@ -19,6 +20,7 @@
 #include <QResizeEvent>
 #include <QMessageBox>
 #include <QGraphicsDropShadowEffect>
+#include <QDebug>
 
 namespace NoteNagaAI {
 
@@ -591,21 +593,42 @@ void AiChatDialog::processUserPrompt(const QString &prompt) {
 }
 
 void AiChatDialog::processAiResponse(const QString &response) {
-    if (!m_sequence || !m_chatManager || !m_editor) return;
+    qDebug() << "=== processAiResponse called ===";
+    qDebug() << "Response length:" << response.length();
+    qDebug() << "Response preview (first 500 chars):" << response.left(500);
+    
+    if (!m_sequence || !m_chatManager || !m_editor) {
+        qDebug() << "ERROR: Missing dependencies - sequence:" << m_sequence 
+                 << "chatManager:" << m_chatManager << "editor:" << m_editor;
+        return;
+    }
     
     // Parse the response
     AiResponse parsed = AiCommandParser::parseResponse(response);
     
+    qDebug() << "Parse result - isValid:" << parsed.isValid() 
+             << "parseError:" << parsed.parseError
+             << "commands count:" << parsed.commands.size();
+    
     if (!parsed.isValid()) {
         // Show error in chat
         QString errorMsg = tr("Failed to parse AI response: %1").arg(parsed.parseError);
+        qDebug() << "Showing error in chat:" << errorMsg;
         m_chatManager->addAssistantMessage(m_currentSequenceId, errorMsg, false);
         return;
     }
     
-    // Execute commands
+    qDebug() << "AI response parsed successfully, commands:" << parsed.commands.size();
+    
+    // Execute commands with preview mode
     AiCommandExecutor executor(m_editor, m_sequence);
-    ExecutionResult result = executor.execute(parsed);
+    AiPreviewState *previewState = m_editor->getPreviewState();
+    qDebug() << "PreviewState pointer:" << previewState;
+    ExecutionResult result = executor.executeWithPreview(parsed, previewState);
+    
+    qDebug() << "Execution result - success:" << result.success 
+             << "executed:" << result.commandsExecuted 
+             << "failed:" << result.commandsFailed;
     
     // Create summary message
     QString summary;
@@ -622,8 +645,14 @@ void AiChatDialog::processAiResponse(const QString &response) {
     
     m_chatManager->addAssistantMessage(m_currentSequenceId, summary, result.success);
     
-    if (result.success) {
+    if (result.success && result.commandsExecuted > 0) {
+        qDebug() << ">>> Calling enterPreviewMode()";
+        // Enter preview mode to show visual diff
+        m_editor->enterPreviewMode();
         emit commandsExecuted(result.commandsExecuted);
+    } else {
+        qDebug() << "NOT entering preview mode - success:" << result.success 
+                 << "commandsExecuted:" << result.commandsExecuted;
     }
 }
 

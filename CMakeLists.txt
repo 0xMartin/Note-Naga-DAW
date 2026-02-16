@@ -174,6 +174,8 @@ set(SOURCE_FILES
     src/gui/editor/midi_editor_note_handler.cpp
     src/gui/editor/note_property_editor.cpp
     src/gui/editor/tempo_track_editor.cpp
+    src/gui/editor/ai_preview_banner.cpp
+    src/gui/editor/ai_preview_state.cpp
     src/gui/editor/arrangement_layer_manager.cpp
     src/gui/editor/arrangement_timeline_widget.cpp
     src/gui/editor/arrangement_timeline_ruler.cpp

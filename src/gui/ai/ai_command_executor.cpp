@@ -1,5 +1,6 @@
 #include "ai_command_executor.h"
 #include "../editor/midi_editor_widget.h"
+#include "../editor/ai_preview_state.h"
 
 #include <note_naga_engine/core/types.h>
 #include <QJsonObject>
@@ -70,6 +71,83 @@ ExecutionResult AiCommandExecutor::execute(const AiResponse &response) {
     }
     
     // Refresh UI
+    m_editor->refreshAll();
+    if (m_trackListChangedCallback) {
+        m_trackListChangedCallback();
+    }
+    
+    // Recompute max tick
+    m_sequence->computeMaxTick();
+    
+    return result;
+}
+
+ExecutionResult AiCommandExecutor::executeWithPreview(const AiResponse &response, AiPreviewState *previewState) {
+    ExecutionResult result;
+    
+    if (!m_editor || !m_sequence) {
+        result.errorMessage = QObject::tr("Editor or sequence not available");
+        return result;
+    }
+    
+    if (!response.isValid()) {
+        result.errorMessage = response.parseError;
+        return result;
+    }
+    
+    if (!previewState) {
+        result.errorMessage = QObject::tr("Preview state not provided");
+        return result;
+    }
+    
+    // Begin preview mode
+    previewState->beginPreview(m_sequence);
+    
+    // Create compound command for undo (still use undo stack so we can discard later)
+    auto *compound = new AiModificationCommand();
+    
+    QPointer<MidiEditorWidget> editorPtr = m_editor;
+    compound->setRefreshCallback([editorPtr]() {
+        if (editorPtr) {
+            editorPtr->refreshAll();
+        }
+    });
+    compound->setTrackListCallback(m_trackListChangedCallback);
+    
+    // Execute all commands and track for preview
+    for (const auto &cmd : response.commands) {
+        QString error;
+        if (executeCommand(cmd, compound, error)) {
+            result.commandsExecuted++;
+        } else {
+            result.commandsFailed++;
+            result.warnings.append(error);
+        }
+    }
+    
+    // Copy tracked changes to preview state from the compound command
+    // We need to access the compound's tracked data
+    copyChangesToPreviewState(compound, previewState);
+    
+    // Add compound command to undo stack if any operations were performed
+    if (!compound->isEmpty()) {
+        UndoManager *undoManager = m_editor->getUndoManager();
+        if (undoManager) {
+            undoManager->addCommandWithoutExecute(compound);
+            // Track how many undo operations we pushed (it's one compound command)
+            previewState->setPendingUndoCount(1);
+        } else {
+            delete compound;
+        }
+        result.success = true;
+    } else {
+        delete compound;
+        if (result.commandsFailed > 0 && result.commandsExecuted == 0) {
+            result.errorMessage = QObject::tr("All commands failed to execute");
+        }
+    }
+    
+    // Refresh UI (will show preview colors)
     m_editor->refreshAll();
     if (m_trackListChangedCallback) {
         m_trackListChangedCallback();
@@ -425,6 +503,35 @@ NN_Note_t* AiCommandExecutor::findNote(NoteNagaTrack *track, int noteNum, int st
         }
     }
     return nullptr;
+}
+
+void AiCommandExecutor::copyChangesToPreviewState(AiModificationCommand *compound, AiPreviewState *previewState) {
+    if (!compound || !previewState) return;
+    
+    // Copy added notes
+    for (const auto &pair : compound->getAddedNotes()) {
+        previewState->addAddedNote(pair.first, pair.second);
+    }
+    
+    // Copy removed notes
+    for (const auto &pair : compound->getRemovedNotes()) {
+        previewState->addRemovedNote(pair.first, pair.second);
+    }
+    
+    // Copy modified notes
+    for (const auto &tuple : compound->getModifiedNotes()) {
+        previewState->addModifiedNote(std::get<0>(tuple), std::get<1>(tuple), std::get<2>(tuple));
+    }
+    
+    // Copy added tracks
+    for (const auto &pair : compound->getAddedTracks()) {
+        previewState->addAddedTrack(pair.first, pair.second);
+    }
+    
+    // Copy removed tracks
+    for (const auto &tuple : compound->getRemovedTracks()) {
+        previewState->addRemovedTrack(std::get<0>(tuple), std::get<1>(tuple), std::get<2>(tuple));
+    }
 }
 
 // ============================================================================

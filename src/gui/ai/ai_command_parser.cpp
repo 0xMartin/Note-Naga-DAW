@@ -4,17 +4,94 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QRegularExpression>
+#include <QDebug>
 
 namespace NoteNagaAI {
+
+/**
+ * @brief Attempt to repair incomplete JSON by closing unclosed brackets.
+ *        Useful when AI model response is truncated mid-generation.
+ */
+QString repairIncompleteJson(const QString &json) {
+    QString result = json.trimmed();
+    
+    // Track unclosed brackets/braces
+    QVector<QChar> stack;
+    bool inString = false;
+    bool escaped = false;
+    
+    for (int i = 0; i < result.length(); ++i) {
+        QChar c = result[i];
+        
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        
+        if (c == '\\' && inString) {
+            escaped = true;
+            continue;
+        }
+        
+        if (c == '"') {
+            inString = !inString;
+            continue;
+        }
+        
+        if (inString) continue;
+        
+        if (c == '{' || c == '[') {
+            stack.push_back(c);
+        } else if (c == '}') {
+            if (!stack.isEmpty() && stack.last() == '{') {
+                stack.pop_back();
+            }
+        } else if (c == ']') {
+            if (!stack.isEmpty() && stack.last() == '[') {
+                stack.pop_back();
+            }
+        }
+    }
+    
+    // If we're inside an unterminated string, close it
+    if (inString) {
+        result += '"';
+    }
+    
+    // Remove trailing comma if present (common in truncated arrays)
+    while (result.endsWith(',') || result.endsWith(' ') || result.endsWith('\n')) {
+        result.chop(1);
+    }
+    
+    // Close any unclosed brackets in reverse order
+    while (!stack.isEmpty()) {
+        QChar open = stack.takeLast();
+        if (open == '{') {
+            result += '}';
+        } else if (open == '[') {
+            result += ']';
+        }
+    }
+    
+    return result;
+}
 
 AiResponse AiCommandParser::parseResponse(const QString &jsonText) {
     AiResponse response;
     response.rawJson = jsonText;
     
+    qDebug() << "parseResponse called, input length:" << jsonText.length();
+    
     // Try to extract JSON from the text
     QString json = extractJson(jsonText);
+    qDebug() << "extractJson result length:" << json.length();
+    
     if (json.isEmpty()) {
         response.parseError = QObject::tr("No valid JSON found in response");
+        qWarning() << "=== AI RESPONSE PARSE FAILED ===";
+        qWarning() << "Error:" << response.parseError;
+        qWarning() << "Raw response:" << jsonText;
+        qWarning() << "================================";
         return response;
     }
     
@@ -22,13 +99,31 @@ AiResponse AiCommandParser::parseResponse(const QString &jsonText) {
     QJsonParseError parseError;
     QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8(), &parseError);
     
+    // If parsing failed, try to repair incomplete JSON
+    if (parseError.error != QJsonParseError::NoError) {
+        QString repairedJson = repairIncompleteJson(json);
+        if (repairedJson != json) {
+            qDebug() << "Attempting to repair incomplete JSON...";
+            doc = QJsonDocument::fromJson(repairedJson.toUtf8(), &parseError);
+        }
+    }
+    
     if (parseError.error != QJsonParseError::NoError) {
         response.parseError = QObject::tr("JSON parse error: %1").arg(parseError.errorString());
+        qWarning() << "=== AI RESPONSE PARSE FAILED ===";
+        qWarning() << "Error:" << response.parseError;
+        qWarning() << "Extracted JSON:" << json;
+        qWarning() << "Raw response:" << jsonText;
+        qWarning() << "================================";
         return response;
     }
     
     if (!doc.isObject()) {
         response.parseError = QObject::tr("Expected JSON object at root");
+        qWarning() << "=== AI RESPONSE PARSE FAILED ===";
+        qWarning() << "Error:" << response.parseError;
+        qWarning() << "Raw response:" << jsonText;
+        qWarning() << "================================";
         return response;
     }
     
@@ -42,12 +137,20 @@ AiResponse AiCommandParser::parseResponse(const QString &jsonText) {
     // Extract commands array
     if (!root.contains("commands")) {
         response.parseError = QObject::tr("Missing 'commands' array in response");
+        qWarning() << "=== AI RESPONSE PARSE FAILED ===";
+        qWarning() << "Error:" << response.parseError;
+        qWarning() << "Raw response:" << jsonText;
+        qWarning() << "================================";
         return response;
     }
     
     QJsonValue commandsVal = root["commands"];
     if (!commandsVal.isArray()) {
         response.parseError = QObject::tr("'commands' must be an array");
+        qWarning() << "=== AI RESPONSE PARSE FAILED ===";
+        qWarning() << "Error:" << response.parseError;
+        qWarning() << "Raw response:" << jsonText;
+        qWarning() << "================================";
         return response;
     }
     
@@ -61,6 +164,15 @@ AiResponse AiCommandParser::parseResponse(const QString &jsonText) {
         }
         
         response.commands.push_back(parseCommand(cmdVal.toObject()));
+    }
+    
+    // Check if commands array was empty
+    if (response.commands.empty()) {
+        response.parseError = QObject::tr("No commands found in AI response");
+        qWarning() << "=== AI RESPONSE PARSE FAILED ===";
+        qWarning() << "Error:" << response.parseError;
+        qWarning() << "Raw response:" << jsonText;
+        qWarning() << "================================";
     }
     
     return response;

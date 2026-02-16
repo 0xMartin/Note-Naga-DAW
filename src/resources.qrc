@@ -77,6 +77,8 @@
     <file>icons/import.svg</file>
     <file>icons/export.svg</file>
     <file>icons/ai.svg</file>
+    <file>icons/connect.svg</file>
+    <file>icons/disconnect.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>

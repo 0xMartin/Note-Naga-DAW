@@ -79,4 +79,9 @@ struct MidiEditorColors {
     QColor grid_bar_label_color{"#6fa5ff"};
     QColor grid_subdiv_color{"#44464b"};
     QColor selection_color{"#70a7ff"};
+    
+    // AI Preview diff colors (semi-transparent for visual distinction)
+    QColor preview_added{80, 255, 80, 180};       // Green for added notes
+    QColor preview_removed{255, 80, 80, 180};     // Red for removed notes
+    QColor preview_modified{255, 255, 80, 180};   // Yellow for modified notes
 };

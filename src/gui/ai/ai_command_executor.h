@@ -12,6 +12,7 @@
 class MidiEditorWidget;
 class NoteNagaMidiSeq;
 class NoteNagaTrack;
+class AiPreviewState;
 struct NN_Note_t;
 
 namespace NoteNagaAI {
@@ -53,6 +54,15 @@ public:
     ExecutionResult execute(const AiResponse &response);
     
     /**
+     * @brief Executes commands and populates preview state for visual diff.
+     *        Changes are applied but tracked in previewState for potential undo.
+     * @param response Parsed AI response.
+     * @param previewState State object to populate with changes.
+     * @return Execution result with success/failure info.
+     */
+    ExecutionResult executeWithPreview(const AiResponse &response, AiPreviewState *previewState);
+    
+    /**
      * @brief Sets callback for track list changes (add/remove track).
      */
     void setTrackListChangedCallback(std::function<void()> callback) {
@@ -75,6 +85,7 @@ private:
     
     NoteNagaTrack* findTrackById(int trackId);
     NN_Note_t* findNote(NoteNagaTrack *track, int note, int start);
+    void copyChangesToPreviewState(AiModificationCommand *compound, AiPreviewState *previewState);
     
     MidiEditorWidget *m_editor;
     NoteNagaMidiSeq *m_sequence;
@@ -110,6 +121,13 @@ public:
     
     bool isEmpty() const { return m_isEmpty; }
     int operationCount() const { return m_operationCount; }
+    
+    // Getters for preview state copying
+    const QList<QPair<NoteNagaTrack*, NN_Note_t>>& getAddedNotes() const { return m_addedNotes; }
+    const QList<QPair<NoteNagaTrack*, NN_Note_t>>& getRemovedNotes() const { return m_removedNotes; }
+    const QList<std::tuple<NoteNagaTrack*, NN_Note_t, NN_Note_t>>& getModifiedNotes() const { return m_modifiedNotes; }
+    const QList<QPair<NoteNagaMidiSeq*, NoteNagaTrack*>>& getAddedTracks() const { return m_addedTracks; }
+    const QList<std::tuple<NoteNagaMidiSeq*, NoteNagaTrack*, int>>& getRemovedTracks() const { return m_removedTracks; }
 
 private:
     void refreshAll();

@@ -12,9 +12,11 @@
 #include <vector>
 
 #include "midi_editor_types.h"
+#include "ai_preview_state.h"
 
 // Forward declarations for AI components
 class AiChatButton;
+class AiPreviewBanner;
 namespace NoteNagaAI {
 class AiChatDialog;
 class AiChatManager;
@@ -54,6 +56,35 @@ public:
 
     QSize sizeHint() const override { return QSize(content_width, content_height); }
     QSize minimumSizeHint() const override { return QSize(320, 100); }
+    
+    // --- AI Preview Mode ---
+    /**
+     * @brief Check if editor is in AI preview mode.
+     */
+    bool isInPreviewMode() const;
+    
+    /**
+     * @brief Get the preview state for tracking AI changes.
+     */
+    AiPreviewState* getPreviewState();
+    
+    /**
+     * @brief Enter AI preview mode.
+     *        Disables editing and shows preview banner.
+     */
+    void enterPreviewMode();
+    
+    /**
+     * @brief Exit preview mode and keep the AI changes.
+     *        Creates undo command and applies changes permanently.
+     */
+    void keepPreviewChanges();
+    
+    /**
+     * @brief Exit preview mode and discard AI changes.
+     *        Restores original state.
+     */
+    void discardPreviewChanges();
 
     // --- Coordinate conversion (public for helper classes) ---
     int sceneXToTick(qreal x) const;
@@ -96,6 +127,7 @@ signals:
     void selectionChanged();
     void contentSizeChanged(int maxTick);
     void noteTrackSelected(NoteNagaTrack *track);  ///< Emitted when clicking on a note to select its track
+    void previewModeChanged(bool inPreview);  ///< Emitted when entering/exiting AI preview mode
 
 public slots:
     void setTimeScale(double scale);
@@ -182,6 +214,10 @@ private:
     NoteNagaAI::AiChatDialog *m_aiChatDialog = nullptr;
     static NoteNagaAI::AiChatManager *s_aiChatManager;  // Shared across editors
     void initAiAssistant();
+    
+    // --- AI Preview Mode ---
+    AiPreviewState m_previewState;
+    AiPreviewBanner *m_previewBanner = nullptr;
 
     // --- Setup ---
     void initTitleUI();
