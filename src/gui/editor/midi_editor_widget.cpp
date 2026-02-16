@@ -2,6 +2,9 @@
 #include "midi_editor_context_menu.h"
 #include "midi_editor_note_handler.h"
 #include "../undo/undo_manager.h"
+#include "../ai/ai_chat_button.h"
+#include "../ai/ai_chat_dialog.h"
+#include "../ai/ai_chat_manager.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -21,6 +24,9 @@
 
 #define MIN_NOTE 0
 #define MAX_NOTE 127
+
+// Static member initialization for shared AI chat manager
+NoteNagaAI::AiChatManager* MidiEditorWidget::s_aiChatManager = nullptr;
 
 MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     : QGraphicsView(parent), engine(engine)
@@ -118,6 +124,9 @@ MidiEditorWidget::MidiEditorWidget(NoteNagaEngine *engine, QWidget *parent)
     this->last_seq = engine->getRuntimeData()->getActiveSequence();
     refreshAll();
     
+    // Initialize AI assistant (floating button and chat dialog)
+    initAiAssistant();
+    
     setFocusPolicy(Qt::StrongFocus);
 }
 
@@ -137,6 +146,11 @@ void MidiEditorWidget::setupConnections() {
             [this](NoteNagaMidiSeq *seq) {
                 // Use refreshSequence to also scroll to first note
                 refreshSequence(seq);
+                
+                // Update AI chat dialog with new sequence
+                if (m_aiChatDialog) {
+                    m_aiChatDialog->setSequence(seq);
+                }
             });
 
     connect(project, &NoteNagaRuntimeData::sequenceMetadataChanged, this,
@@ -1439,4 +1453,39 @@ void MidiEditorWidget::updateUndoRedoButtons() {
             ? tr("Redo %1 (Cmd+Shift+Z)").arg(m_undoManager->redoDescription()) 
             : tr("Redo (Cmd+Shift+Z)"));
     }
+}
+
+/*******************************************************************************************************/
+// AI Assistant
+/*******************************************************************************************************/
+
+void MidiEditorWidget::initAiAssistant() {
+    // Create shared chat manager if not exists (shared across all editors)
+    if (!s_aiChatManager) {
+        s_aiChatManager = new NoteNagaAI::AiChatManager();
+    }
+    
+    // Create floating AI button as child of this widget (not viewport) so it doesn't scroll
+    m_aiButton = new AiChatButton(this);
+    m_aiButton->show();
+    m_aiButton->raise();
+    
+    // Create chat dialog as child of this widget (not viewport) so it doesn't scroll
+    m_aiChatDialog = new NoteNagaAI::AiChatDialog(this, s_aiChatManager, this);
+    m_aiChatDialog->setSequence(last_seq);
+    
+    // Connect button to toggle dialog
+    connect(m_aiButton, &QPushButton::clicked, m_aiChatDialog, &NoteNagaAI::AiChatDialog::toggle);
+    
+    // Hide button when chat is visible, show when hidden
+    connect(m_aiChatDialog, &NoteNagaAI::AiChatDialog::visibilityChanged, m_aiButton, [this](bool visible) {
+        m_aiButton->setVisible(!visible);
+    });
+    
+    // Connect commands executed signal to refresh
+    connect(m_aiChatDialog, &NoteNagaAI::AiChatDialog::commandsExecuted, this, [this](int count) {
+        Q_UNUSED(count);
+        refreshAll();
+        updateUndoRedoButtons();
+    });
 }

@@ -13,6 +13,13 @@
 
 #include "midi_editor_types.h"
 
+// Forward declarations for AI components
+class AiChatButton;
+namespace NoteNagaAI {
+class AiChatDialog;
+class AiChatManager;
+}
+
 class NoteNagaEngine;
 class NoteNagaMidiSeq;
 class NoteNagaTrack;
@@ -169,6 +176,12 @@ private:
     // --- Legend widget ---
     QWidget *m_legendWidget = nullptr;
     void updateLegendVisibility();
+    
+    // --- AI Assistant ---
+    AiChatButton *m_aiButton = nullptr;
+    NoteNagaAI::AiChatDialog *m_aiChatDialog = nullptr;
+    static NoteNagaAI::AiChatManager *s_aiChatManager;  // Shared across editors
+    void initAiAssistant();
 
     // --- Setup ---
     void initTitleUI();

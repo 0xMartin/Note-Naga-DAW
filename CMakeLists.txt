@@ -94,6 +94,14 @@ set(HEADER_FILES
     src/gui/editor/arrangement_track_header_widget.h
     src/gui/editor/arrangement_track_headers_widget.h
     src/gui/editor/arrangement_minimap_widget.h
+    # gui/ai
+    src/gui/ai/ai_types.h
+    src/gui/ai/ai_prompt_generator.h
+    src/gui/ai/ai_command_parser.h
+    src/gui/ai/ai_command_executor.h
+    src/gui/ai/ai_chat_manager.h
+    src/gui/ai/ai_chat_button.h
+    src/gui/ai/ai_chat_dialog.h
     # gui/widgets
     src/gui/widgets/verovio_widget.h
     src/gui/widgets/dsp_block_widget.h
@@ -171,6 +179,13 @@ set(SOURCE_FILES
     src/gui/undo/undo_manager.cpp
     src/gui/undo/midi_note_commands.cpp
     src/gui/undo/arrangement_clip_commands.cpp
+    # gui/ai
+    src/gui/ai/ai_prompt_generator.cpp
+    src/gui/ai/ai_command_parser.cpp
+    src/gui/ai/ai_command_executor.cpp
+    src/gui/ai/ai_chat_manager.cpp
+    src/gui/ai/ai_chat_button.cpp
+    src/gui/ai/ai_chat_dialog.cpp
     # gui/widgets
     src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp
