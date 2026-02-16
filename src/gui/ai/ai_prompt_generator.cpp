@@ -5,13 +5,14 @@
 
 namespace NoteNagaAI {
 
-QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNagaMidiSeq *sequence) {
+QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNagaMidiSeq *sequence,
+                                               const QList<ChatMessage> &chatHistory) {
     if (!sequence) {
         return QString();
     }
     
     QString prompt;
-    prompt.reserve(8192);
+    prompt.reserve(12000);
     
     // System instructions
     prompt += getSystemInstructions();
@@ -29,12 +30,44 @@ QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNag
     prompt += QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
     prompt += "\n\n";
     
+    // Important guidance for extending content
+    int maxTick = sequence->getMaxTick();
+    if (maxTick > 0) {
+        prompt += "=== IMPORTANT CONTEXT ===\n";
+        prompt += QString("The composition currently ends at tick %1.\n").arg(maxTick);
+        prompt += "When extending or adding more content:\n";
+        prompt += QString("- Add new notes with start positions >= %1 (after existing content)\n").arg(maxTick);
+        prompt += "- Do NOT overwrite existing notes by using the same start positions\n";
+        prompt += "- Extend each track appropriately to maintain the musical style\n";
+        prompt += "\n";
+    }
+    
     // Available instruments (condensed)
     prompt += "=== AVAILABLE GM INSTRUMENTS (index: name) ===\n";
     prompt += getInstrumentsList();
     prompt += "\n\n";
     
-    // User's request
+    // Include conversation history for context (last 4 turns max)
+    if (!chatHistory.isEmpty()) {
+        prompt += "=== CONVERSATION HISTORY ===\n";
+        int startIdx = qMax(0, chatHistory.size() - 8);  // Last 8 messages (4 turns)
+        for (int i = startIdx; i < chatHistory.size(); ++i) {
+            const ChatMessage &msg = chatHistory[i];
+            if (msg.role == ChatMessage::Role::User) {
+                prompt += QString("User: %1\n").arg(msg.displayText);
+            } else if (msg.role == ChatMessage::Role::Assistant) {
+                // Just indicate that assistant responded, don't include full response
+                if (msg.executed) {
+                    prompt += QString("Assistant: [Executed changes successfully]\n");
+                } else {
+                    prompt += QString("Assistant: [Failed to execute]\n");
+                }
+            }
+        }
+        prompt += "\n";
+    }
+    
+    // User's current request
     prompt += "=== USER REQUEST ===\n";
     prompt += userPrompt;
     prompt += "\n\n";

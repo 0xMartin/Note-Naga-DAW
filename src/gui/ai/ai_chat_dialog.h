@@ -123,9 +123,10 @@ private:
     
     QTextEdit *m_inputEdit;
     QPushButton *m_sendBtn;
-    QLabel *m_statusLabel;
+    QLabel *m_spinnerLabel;    // Rotating spinner symbol
+    QLabel *m_statusLabel;     // "Generating..." text
     QTimer *m_spinnerTimer;
-    int m_spinnerDots = 0;
+    int m_spinnerFrame = 0;
     
     // Gemini API
     GeminiApiClient *m_apiClient;

@@ -252,10 +252,17 @@ void AiChatDialog::setupUi() {
     connect(m_inputEdit, &QTextEdit::textChanged, this, &AiChatDialog::onInputChanged);
     inputLayout->addWidget(m_inputEdit);
     
-    // Button row with status label on left
+    // Button row with spinner and status on left
     auto *btnLayout = new QHBoxLayout();
     
-    // Status label for API progress - on the left
+    // Spinning indicator
+    m_spinnerLabel = new QLabel();
+    m_spinnerLabel->setFixedWidth(16);
+    m_spinnerLabel->setStyleSheet("color: #AAAAFF; font-size: 12pt;");
+    m_spinnerLabel->hide();
+    btnLayout->addWidget(m_spinnerLabel);
+    
+    // Status text - "Generating..."
     m_statusLabel = new QLabel();
     m_statusLabel->setStyleSheet("color: #AAAAFF; font-size: 9pt;");
     m_statusLabel->hide();
@@ -273,12 +280,13 @@ void AiChatDialog::setupUi() {
     inputLayout->addLayout(btnLayout);
     mainLayout->addWidget(inputWidget);
     
-    // Spinner animation timer
+    // Spinner animation timer - rotates through spinner characters
     m_spinnerTimer = new QTimer(this);
     connect(m_spinnerTimer, &QTimer::timeout, this, [this]() {
-        m_spinnerDots = (m_spinnerDots + 1) % 4;
-        QString dots = QString(".").repeated(m_spinnerDots + 1);
-        m_statusLabel->setText(tr("Generating") + dots.leftJustified(4, ' '));
+        // Unicode spinner frames: ◐ ◓ ◑ ◒
+        static const QChar spinnerChars[] = {QChar(0x25D0), QChar(0x25D3), QChar(0x25D1), QChar(0x25D2)};
+        m_spinnerFrame = (m_spinnerFrame + 1) % 4;
+        m_spinnerLabel->setText(QString(spinnerChars[m_spinnerFrame]));
     });
 }
 
@@ -340,10 +348,6 @@ void AiChatDialog::setupStyle() {
             max-width: 24px;
             min-height: 24px;
             max-height: 24px;
-            border-bottom: 2px solid rgba(90, 90, 120, 200);
-            border-bottom-left-radius: 0px;
-            border-bottom-right-radius: 0px;
-            margin-bottom: -10px;
         }
         
         #clearBtn {
@@ -351,10 +355,6 @@ void AiChatDialog::setupStyle() {
             min-height: 24px;
             max-height: 24px;
             padding: 0 8px;
-            border-bottom: 2px solid rgba(90, 90, 120, 200);
-            border-bottom-left-radius: 0px;
-            border-bottom-right-radius: 0px;
-            margin-bottom: -10px;
         }
     )");
     
@@ -512,8 +512,11 @@ void AiChatDialog::processInput(const QString &text) {
 void AiChatDialog::processUserPrompt(const QString &prompt) {
     if (!m_sequence || !m_chatManager) return;
     
-    // Generate full prompt with instructions and data
-    QString fullPrompt = AiPromptGenerator::generateFullPrompt(prompt, m_sequence);
+    // Get existing chat history for context
+    const QList<ChatMessage> &history = m_chatManager->getChatHistory(m_currentSequenceId);
+    
+    // Generate full prompt with instructions, data, and conversation history
+    QString fullPrompt = AiPromptGenerator::generateFullPrompt(prompt, m_sequence, history);
     
     // Add to chat history
     m_chatManager->addUserMessage(m_currentSequenceId, prompt, fullPrompt);
@@ -567,11 +570,13 @@ void AiChatDialog::onApiRequestStarted() {
     m_inputEdit->setEnabled(false);
     m_sendBtn->setEnabled(false);
     
-    // Show animated status
-    m_spinnerDots = 0;
-    m_statusLabel->setText(tr("Generating."));
+    // Show animated spinner and status
+    m_spinnerFrame = 0;
+    m_spinnerLabel->setText(QChar(0x25D0));  // Initial spinner frame
+    m_spinnerLabel->show();
+    m_statusLabel->setText(tr("Generating..."));
     m_statusLabel->show();
-    m_spinnerTimer->start(400);  // Update dots every 400ms
+    m_spinnerTimer->start(150);  // Fast spin animation
 }
 
 void AiChatDialog::onApiRequestFinished() {
@@ -581,6 +586,7 @@ void AiChatDialog::onApiRequestFinished() {
     // Re-enable input
     m_inputEdit->setEnabled(true);
     m_sendBtn->setEnabled(!m_inputEdit->toPlainText().trimmed().isEmpty());
+    m_spinnerLabel->hide();
     m_statusLabel->hide();
 }
 

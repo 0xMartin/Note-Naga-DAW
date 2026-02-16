@@ -2,6 +2,7 @@
 
 #include "ai_types.h"
 #include <QString>
+#include <QList>
 
 class NoteNagaMidiSeq;
 class NoteNagaTrack;
@@ -17,9 +18,11 @@ public:
      * @brief Generates a full AI prompt including sequence data and instructions.
      * @param userPrompt The user's input text.
      * @param sequence The MIDI sequence to include data from.
+     * @param chatHistory Previous conversation messages for context.
      * @return Complete prompt string ready for AI.
      */
-    static QString generateFullPrompt(const QString &userPrompt, NoteNagaMidiSeq *sequence);
+    static QString generateFullPrompt(const QString &userPrompt, NoteNagaMidiSeq *sequence,
+                                       const QList<ChatMessage> &chatHistory = {});
     
     /**
      * @brief Creates a compact representation of the MIDI sequence.
