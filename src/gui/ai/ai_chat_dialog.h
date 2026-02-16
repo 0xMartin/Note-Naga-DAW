@@ -16,6 +16,7 @@ namespace NoteNagaAI {
 
 class AiChatManager;
 class AiCommandExecutor;
+class GeminiApiClient;
 
 /**
  * @brief Single message widget in the chat display.
@@ -91,6 +92,9 @@ private slots:
     void onMessageAdded(int sequenceId, const ChatMessage &message);
     void onCopyClicked(const QString &text);
     void onClearClicked();
+    void onApiResponseReceived(const QString &response, bool success, const QString &errorMessage);
+    void onApiRequestStarted();
+    void onApiRequestFinished();
 
 private:
     void setupUi();
@@ -118,6 +122,11 @@ private:
     
     QTextEdit *m_inputEdit;
     QPushButton *m_sendBtn;
+    QLabel *m_statusLabel;
+    
+    // Gemini API
+    GeminiApiClient *m_apiClient;
+    QString m_pendingPrompt;  // Store prompt while waiting for API response
     
     // State
     int m_currentSequenceId = -1;

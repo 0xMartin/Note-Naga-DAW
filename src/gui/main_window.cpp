@@ -28,6 +28,7 @@
 #include "widgets/track_list_widget.h"
 #include "dialogs/project_wizard_dialog.h"
 #include "dialogs/audio_recording_dialog.h"
+#include "dialogs/settings_dialog.h"
 #include "undo/undo_manager.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), auto_follow(true), m_currentSection(AppSection::Project) {
@@ -141,6 +142,15 @@ void MainWindow::setup_actions() {
     action_redo->setShortcut(QKeySequence::Redo);
     action_redo->setEnabled(false);
     connect(action_redo, &QAction::triggered, this, &MainWindow::onRedo);
+    
+    // Preferences action
+    action_preferences = new QAction(tr("Preferences..."), this);
+    action_preferences->setShortcut(QKeySequence::Preferences);
+    action_preferences->setMenuRole(QAction::NoRole);  // Prevent macOS from moving to app menu
+    connect(action_preferences, &QAction::triggered, this, [this]() {
+        SettingsDialog dialog(this);
+        dialog.exec();
+    });
 
     action_auto_follow = new QAction("Auto-Follow Playback", this);
     action_auto_follow->setCheckable(true);
@@ -332,6 +342,8 @@ void MainWindow::setup_menu_bar() {
     QMenu *edit_menu = menubar->addMenu(tr("Edit"));
     edit_menu->addAction(action_new_sequence);
     edit_menu->addAction(action_new_track);
+    edit_menu->addSeparator();
+    edit_menu->addAction(action_preferences);
     
     // === View Menu ===
     QMenu *view_menu = menubar->addMenu(tr("View"));

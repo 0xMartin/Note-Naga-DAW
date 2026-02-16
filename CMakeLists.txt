@@ -23,9 +23,9 @@ add_subdirectory(libs/verovio/cmake)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg SvgWidgets PrintSupport Xml Multimedia)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg SvgWidgets PrintSupport Xml Multimedia Network)
 else()
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg PrintSupport Xml Multimedia)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg PrintSupport Xml Multimedia Network)
 endif()
 
 find_package(OpenCV REQUIRED)
@@ -78,6 +78,9 @@ set(HEADER_FILES
     src/gui/dialogs/project_wizard_dialog.h
     src/gui/dialogs/track_settings_dialog.h
     src/gui/dialogs/audio_recording_dialog.h
+    src/gui/dialogs/settings_dialog.h
+    # gui/settings
+    src/gui/settings/settings_manager.h
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.h
     src/gui/dock_system/dock_indicator_overlay.h
@@ -102,6 +105,7 @@ set(HEADER_FILES
     src/gui/ai/ai_chat_manager.h
     src/gui/ai/ai_chat_button.h
     src/gui/ai/ai_chat_dialog.h
+    src/gui/ai/gemini_api_client.h
     # gui/widgets
     src/gui/widgets/verovio_widget.h
     src/gui/widgets/dsp_block_widget.h
@@ -157,6 +161,9 @@ set(SOURCE_FILES
     src/gui/dialogs/project_wizard_dialog.cpp
     src/gui/dialogs/track_settings_dialog.cpp
     src/gui/dialogs/audio_recording_dialog.cpp
+    src/gui/dialogs/settings_dialog.cpp
+    # gui/settings
+    src/gui/settings/settings_manager.cpp
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.cpp
     src/gui/dock_system/dock_indicator_overlay.cpp
@@ -186,6 +193,7 @@ set(SOURCE_FILES
     src/gui/ai/ai_chat_manager.cpp
     src/gui/ai/ai_chat_button.cpp
     src/gui/ai/ai_chat_dialog.cpp
+    src/gui/ai/gemini_api_client.cpp
     # gui/widgets
     src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp
@@ -227,6 +235,7 @@ target_link_libraries(NoteNaga PRIVATE
     Qt${QT_VERSION_MAJOR}::PrintSupport
     Qt${QT_VERSION_MAJOR}::Xml
     Qt${QT_VERSION_MAJOR}::Multimedia
+    Qt${QT_VERSION_MAJOR}::Network
     ${OpenCV_LIBS}
     note_naga_engine
     verovio

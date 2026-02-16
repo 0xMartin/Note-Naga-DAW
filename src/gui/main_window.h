@@ -21,6 +21,8 @@
 #include "sections/arrangement_section.h"
 #include "sections/external_midi_section.h"
 
+class SettingsDialog;
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
@@ -126,6 +128,7 @@ private:
     QAction *action_quit;
     QAction *action_undo;
     QAction *action_redo;
+    QAction *action_preferences;
     QAction *action_auto_follow;
     QAction *action_reset_colors;
     QAction *action_randomize_colors;

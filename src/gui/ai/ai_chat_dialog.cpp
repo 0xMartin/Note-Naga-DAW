@@ -3,7 +3,9 @@
 #include "ai_prompt_generator.h"
 #include "ai_command_parser.h"
 #include "ai_command_executor.h"
+#include "gemini_api_client.h"
 #include "../editor/midi_editor_widget.h"
+#include "../settings/settings_manager.h"
 
 #include <note_naga_engine/core/types.h>
 
@@ -147,6 +149,8 @@ AiChatDialog::AiChatDialog(MidiEditorWidget *editor, AiChatManager *chatManager,
     , m_editor(editor)
     , m_chatManager(chatManager)
     , m_sequence(nullptr)
+    , m_statusLabel(nullptr)
+    , m_apiClient(new GeminiApiClient(this))
 {
     setWindowFlags(Qt::Widget);
     setAttribute(Qt::WA_NoSystemBackground, false);
@@ -172,6 +176,14 @@ AiChatDialog::AiChatDialog(MidiEditorWidget *editor, AiChatManager *chatManager,
         connect(m_chatManager, &AiChatManager::messageAdded, 
                 this, &AiChatDialog::onMessageAdded);
     }
+    
+    // Connect to API client signals
+    connect(m_apiClient, &GeminiApiClient::responseReceived,
+            this, &AiChatDialog::onApiResponseReceived);
+    connect(m_apiClient, &GeminiApiClient::requestStarted,
+            this, &AiChatDialog::onApiRequestStarted);
+    connect(m_apiClient, &GeminiApiClient::requestFinished,
+            this, &AiChatDialog::onApiRequestFinished);
     
     hide();
 }
@@ -238,6 +250,12 @@ void AiChatDialog::setupUi() {
     m_inputEdit->setMinimumHeight(60);
     connect(m_inputEdit, &QTextEdit::textChanged, this, &AiChatDialog::onInputChanged);
     inputLayout->addWidget(m_inputEdit);
+    
+    // Status label for API progress
+    m_statusLabel = new QLabel();
+    m_statusLabel->setStyleSheet("color: #888888; font-size: 9pt; padding-left: 4px;");
+    m_statusLabel->hide();
+    inputLayout->addWidget(m_statusLabel);
     
     auto *btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
@@ -473,6 +491,12 @@ void AiChatDialog::processUserPrompt(const QString &prompt) {
     
     // Add to chat history
     m_chatManager->addUserMessage(m_currentSequenceId, prompt, fullPrompt);
+    
+    // If API is configured, automatically send request
+    if (m_apiClient->isConfigured()) {
+        m_pendingPrompt = fullPrompt;
+        m_apiClient->sendPrompt(fullPrompt);
+    }
 }
 
 void AiChatDialog::processAiResponse(const QString &response) {
@@ -509,6 +533,39 @@ void AiChatDialog::processAiResponse(const QString &response) {
     
     if (result.success) {
         emit commandsExecuted(result.commandsExecuted);
+    }
+}
+
+void AiChatDialog::onApiRequestStarted() {
+    // Disable input while waiting for response
+    m_inputEdit->setEnabled(false);
+    m_sendBtn->setEnabled(false);
+    
+    // Show status
+    m_statusLabel->setText(tr("⏳ Generating response..."));
+    m_statusLabel->setStyleSheet("color: #AAAAFF; font-size: 9pt; padding-left: 4px;");
+    m_statusLabel->show();
+}
+
+void AiChatDialog::onApiRequestFinished() {
+    // Re-enable input
+    m_inputEdit->setEnabled(true);
+    m_sendBtn->setEnabled(!m_inputEdit->toPlainText().trimmed().isEmpty());
+    m_statusLabel->hide();
+}
+
+void AiChatDialog::onApiResponseReceived(const QString &response, bool success, const QString &errorMessage) {
+    m_pendingPrompt.clear();
+    
+    if (success) {
+        // Process the AI response automatically
+        processAiResponse(response);
+    } else {
+        // Show error in chat
+        if (m_chatManager) {
+            QString errorMsg = tr("API Error: %1").arg(errorMessage);
+            m_chatManager->addAssistantMessage(m_currentSequenceId, errorMsg, false);
+        }
     }
 }
 
