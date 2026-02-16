@@ -208,7 +208,8 @@ void AiChatDialog::setupUi() {
     headerLayout->addStretch();
     
     m_clearBtn = new QPushButton(tr("Clear"));
-    m_clearBtn->setFixedSize(50, 24);
+    m_clearBtn->setObjectName("clearBtn");
+    m_clearBtn->setFixedHeight(24);
     m_clearBtn->setCursor(Qt::PointingHandCursor);
     connect(m_clearBtn, &QPushButton::clicked, this, &AiChatDialog::onClearClicked);
     headerLayout->addWidget(m_clearBtn);
@@ -251,13 +252,15 @@ void AiChatDialog::setupUi() {
     connect(m_inputEdit, &QTextEdit::textChanged, this, &AiChatDialog::onInputChanged);
     inputLayout->addWidget(m_inputEdit);
     
-    // Status label for API progress
-    m_statusLabel = new QLabel();
-    m_statusLabel->setStyleSheet("color: #888888; font-size: 9pt; padding-left: 4px;");
-    m_statusLabel->hide();
-    inputLayout->addWidget(m_statusLabel);
-    
+    // Button row with status label on left
     auto *btnLayout = new QHBoxLayout();
+    
+    // Status label for API progress - on the left
+    m_statusLabel = new QLabel();
+    m_statusLabel->setStyleSheet("color: #AAAAFF; font-size: 9pt;");
+    m_statusLabel->hide();
+    btnLayout->addWidget(m_statusLabel);
+    
     btnLayout->addStretch();
     
     m_sendBtn = new QPushButton(tr("Send"));
@@ -269,6 +272,14 @@ void AiChatDialog::setupUi() {
     
     inputLayout->addLayout(btnLayout);
     mainLayout->addWidget(inputWidget);
+    
+    // Spinner animation timer
+    m_spinnerTimer = new QTimer(this);
+    connect(m_spinnerTimer, &QTimer::timeout, this, [this]() {
+        m_spinnerDots = (m_spinnerDots + 1) % 4;
+        QString dots = QString(".").repeated(m_spinnerDots + 1);
+        m_statusLabel->setText(tr("Generating") + dots.leftJustified(4, ' '));
+    });
 }
 
 void AiChatDialog::setupStyle() {
@@ -329,6 +340,21 @@ void AiChatDialog::setupStyle() {
             max-width: 24px;
             min-height: 24px;
             max-height: 24px;
+            border-bottom: 2px solid rgba(90, 90, 120, 200);
+            border-bottom-left-radius: 0px;
+            border-bottom-right-radius: 0px;
+            margin-bottom: -10px;
+        }
+        
+        #clearBtn {
+            font-size: 9pt;
+            min-height: 24px;
+            max-height: 24px;
+            padding: 0 8px;
+            border-bottom: 2px solid rgba(90, 90, 120, 200);
+            border-bottom-left-radius: 0px;
+            border-bottom-right-radius: 0px;
+            margin-bottom: -10px;
         }
     )");
     
@@ -541,13 +567,17 @@ void AiChatDialog::onApiRequestStarted() {
     m_inputEdit->setEnabled(false);
     m_sendBtn->setEnabled(false);
     
-    // Show status
-    m_statusLabel->setText(tr("⏳ Generating response..."));
-    m_statusLabel->setStyleSheet("color: #AAAAFF; font-size: 9pt; padding-left: 4px;");
+    // Show animated status
+    m_spinnerDots = 0;
+    m_statusLabel->setText(tr("Generating."));
     m_statusLabel->show();
+    m_spinnerTimer->start(400);  // Update dots every 400ms
 }
 
 void AiChatDialog::onApiRequestFinished() {
+    // Stop spinner animation
+    m_spinnerTimer->stop();
+    
     // Re-enable input
     m_inputEdit->setEnabled(true);
     m_sendBtn->setEnabled(!m_inputEdit->toPlainText().trimmed().isEmpty());

@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QTextEdit>
+#include <QTimer>
 
 class NoteNagaMidiSeq;
 class MidiEditorWidget;
@@ -123,6 +124,8 @@ private:
     QTextEdit *m_inputEdit;
     QPushButton *m_sendBtn;
     QLabel *m_statusLabel;
+    QTimer *m_spinnerTimer;
+    int m_spinnerDots = 0;
     
     // Gemini API
     GeminiApiClient *m_apiClient;

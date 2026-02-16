@@ -3,6 +3,7 @@
 
 #include <note_naga_engine/core/types.h>
 #include <QJsonObject>
+#include <QPointer>
 
 namespace NoteNagaAI {
 
@@ -30,9 +31,13 @@ ExecutionResult AiCommandExecutor::execute(const AiResponse &response) {
     
     // Create compound command for undo
     auto *compound = new AiModificationCommand();
-    compound->setRefreshCallback([this]() {
-        if (m_editor) {
-            m_editor->refreshAll();
+    
+    // Use QPointer to safely check if editor still exists when undo is called
+    // (the executor is a temporary stack object, so we must capture editor directly)
+    QPointer<MidiEditorWidget> editorPtr = m_editor;
+    compound->setRefreshCallback([editorPtr]() {
+        if (editorPtr) {
+            editorPtr->refreshAll();
         }
     });
     compound->setTrackListCallback(m_trackListChangedCallback);
