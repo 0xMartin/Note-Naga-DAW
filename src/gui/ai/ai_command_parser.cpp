@@ -373,6 +373,11 @@ AiResponse AiCommandParser::parseResponse(const QString &responseText) {
             continue;
         }
         
+        // Skip comment lines (lines starting with #)
+        if (trimmed.startsWith('#')) {
+            continue;
+        }
+        
         // Parse command
         AiCommand cmd = parseNncLine(trimmed);
         if (cmd.type != AiCommandType::Unknown || !cmd.error.isEmpty()) {
