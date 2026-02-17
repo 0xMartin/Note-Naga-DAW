@@ -1486,6 +1486,7 @@ bool AiCommandExecutor::executeDuplicateNotes(const QJsonObject &params, AiModif
     // Add duplicated notes
     for (const auto &origNote : notesToDuplicate) {
         NN_Note_t note = origNote;
+        note.id = nn_generate_unique_note_id(); 
         note.start = origNote.start.value_or(0) + offset;
         note.parent = track;
         
