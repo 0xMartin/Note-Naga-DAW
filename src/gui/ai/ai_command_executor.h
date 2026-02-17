@@ -6,6 +6,7 @@
 #include <QString>
 #include <QList>
 #include <QPair>
+#include <QSet>
 #include <tuple>
 #include <functional>
 
@@ -79,6 +80,7 @@ private:
     bool executeRemoveTrack(const QJsonObject &params, AiModificationCommand *compound, QString &error);
     bool executeModifyTrack(const QJsonObject &params, AiModificationCommand *compound, QString &error);
     bool executeClearTrack(const QJsonObject &params, AiModificationCommand *compound, QString &error);
+    bool executeClearAllTracks(const QJsonObject &params, AiModificationCommand *compound, QString &error);
     bool executeSetTempo(const QJsonObject &params, AiModificationCommand *compound, QString &error);
     bool executeAddTempoEvent(const QJsonObject &params, AiModificationCommand *compound, QString &error);
     bool executeRemoveTempoEvent(const QJsonObject &params, AiModificationCommand *compound, QString &error);
@@ -141,6 +143,9 @@ public:
 
 private:
     void refreshAll();
+    QSet<NoteNagaMidiSeq*> collectSequences() const;
+    void blockAllSignals(const QSet<NoteNagaMidiSeq*> &sequences, bool block);
+    void emitAllSignals(const QSet<NoteNagaMidiSeq*> &sequences);
     
     // Added notes: <track, note>
     QList<QPair<NoteNagaTrack*, NN_Note_t>> m_addedNotes;
@@ -174,6 +179,7 @@ private:
     
     bool m_isEmpty = true;
     int m_operationCount = 0;
+    bool m_undone = false;  // Tracks current ownership state for proper cleanup
 };
 
 } // namespace NoteNagaAI

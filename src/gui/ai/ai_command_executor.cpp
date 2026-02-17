@@ -5,6 +5,7 @@
 #include <note_naga_engine/core/types.h>
 #include <QJsonObject>
 #include <QPointer>
+#include <QSet>
 #include <algorithm>
 #include <climits>
 
@@ -32,6 +33,12 @@ ExecutionResult AiCommandExecutor::execute(const AiResponse &response) {
         return result;
     }
     
+    // Block signals on sequence and all tracks to prevent excessive UI updates during batch operations
+    m_sequence->blockSignals(true);
+    for (auto *track : m_sequence->getTracks()) {
+        track->blockSignals(true);
+    }
+    
     // Create compound command for undo
     auto *compound = new AiModificationCommand();
     
@@ -54,6 +61,18 @@ ExecutionResult AiCommandExecutor::execute(const AiResponse &response) {
             result.commandsFailed++;
             result.warnings.append(error);
         }
+    }
+    
+    // Unblock signals on sequence and all tracks (including any newly created ones)
+    for (auto *track : m_sequence->getTracks()) {
+        track->blockSignals(false);
+    }
+    m_sequence->blockSignals(false);
+    
+    // Emit signals once to notify all listeners (track list, editors, etc.)
+    emit m_sequence->trackListChanged();
+    for (auto *track : m_sequence->getTracks()) {
+        emit track->metadataChanged(track, "notes");
     }
     
     // Add compound command to undo stack if any operations were performed
@@ -105,6 +124,12 @@ ExecutionResult AiCommandExecutor::executeWithPreview(const AiResponse &response
     // Begin preview mode
     previewState->beginPreview(m_sequence);
     
+    // Block signals on sequence and all tracks to prevent excessive UI updates during batch operations
+    m_sequence->blockSignals(true);
+    for (auto *track : m_sequence->getTracks()) {
+        track->blockSignals(true);
+    }
+    
     // Create compound command for undo (still use undo stack so we can discard later)
     auto *compound = new AiModificationCommand();
     
@@ -125,6 +150,18 @@ ExecutionResult AiCommandExecutor::executeWithPreview(const AiResponse &response
             result.commandsFailed++;
             result.warnings.append(error);
         }
+    }
+    
+    // Unblock signals on sequence and all tracks (including any newly created ones)
+    for (auto *track : m_sequence->getTracks()) {
+        track->blockSignals(false);
+    }
+    m_sequence->blockSignals(false);
+    
+    // Emit signals once to notify all listeners (track list, editors, etc.)
+    emit m_sequence->trackListChanged();
+    for (auto *track : m_sequence->getTracks()) {
+        emit track->metadataChanged(track, "notes");
     }
     
     // Copy tracked changes to preview state from the compound command
@@ -182,6 +219,8 @@ bool AiCommandExecutor::executeCommand(const AiCommand &cmd, AiModificationComma
             return executeModifyTrack(cmd.params, compound, error);
         case AiCommandType::ClearTrack:
             return executeClearTrack(cmd.params, compound, error);
+        case AiCommandType::ClearAllTracks:
+            return executeClearAllTracks(cmd.params, compound, error);
         case AiCommandType::SetTempo:
             return executeSetTempo(cmd.params, compound, error);
         case AiCommandType::AddTempoEvent:
@@ -381,8 +420,8 @@ bool AiCommandExecutor::executeRemoveTrack(const QJsonObject &params, AiModifica
         compound->addRemovedTrack(m_sequence, track, trackIndex);
     }
     
-    // Execute immediately
-    m_sequence->removeTrack(trackIndex);
+    // Extract track (don't delete - undo needs the pointer)
+    m_sequence->extractTrack(trackIndex);
     
     return true;
 }
@@ -501,6 +540,36 @@ bool AiCommandExecutor::executeClearTrack(const QJsonObject &params, AiModificat
     return true;
 }
 
+bool AiCommandExecutor::executeClearAllTracks(const QJsonObject &params, AiModificationCommand *compound, QString &error) {
+    Q_UNUSED(params);
+    
+    if (!m_sequence) {
+        error = QObject::tr("Sequence not available");
+        return false;
+    }
+    
+    auto tracks = m_sequence->getTracks();
+    if (tracks.empty()) {
+        // Nothing to clear, but that's not an error
+        return true;
+    }
+    
+    // Remove tracks in reverse order to avoid index shifting issues
+    for (int i = static_cast<int>(tracks.size()) - 1; i >= 0; --i) {
+        NoteNagaTrack *track = tracks[i];
+        
+        // Record for undo BEFORE removing
+        if (compound) {
+            compound->addRemovedTrack(m_sequence, track, i);
+        }
+        
+        // Extract track (don't delete - undo needs the pointer)
+        m_sequence->extractTrack(i);
+    }
+    
+    return true;
+}
+
 NoteNagaTrack* AiCommandExecutor::findTrackById(int trackId) {
     if (!m_sequence) return nullptr;
     return m_sequence->getTrackById(trackId);
@@ -558,7 +627,23 @@ void AiCommandExecutor::copyChangesToPreviewState(AiModificationCommand *compoun
 
 AiModificationCommand::AiModificationCommand() {}
 
-AiModificationCommand::~AiModificationCommand() {}
+AiModificationCommand::~AiModificationCommand() {
+    // Clean up owned tracks to prevent memory leaks.
+    // Track ownership depends on whether undo() was called:
+    // - Initial state (m_undone=false): we own extracted tracks in m_removedTracks
+    // - After undo (m_undone=true): we own extracted tracks in m_addedTracks
+    if (!m_undone) {
+        // We own the tracks that were removed from the sequence
+        for (const auto &tuple : m_removedTracks) {
+            delete std::get<1>(tuple);
+        }
+    } else {
+        // We own the tracks that were added (then extracted during undo)
+        for (const auto &pair : m_addedTracks) {
+            delete pair.second;
+        }
+    }
+}
 
 void AiModificationCommand::addAddedNote(NoteNagaTrack *track, const NN_Note_t &note) {
     m_addedNotes.append({track, note});
@@ -599,6 +684,10 @@ void AiModificationCommand::addTrackPropertyChange(NoteNagaTrack *track, const Q
 
 void AiModificationCommand::execute() {
     // Re-execute all operations (for redo)
+    
+    // Block signals during batch operations for performance
+    QSet<NoteNagaMidiSeq*> sequences = collectSequences();
+    blockAllSignals(sequences, true);
     
     // Add notes
     for (const auto &pair : m_addedNotes) {
@@ -705,11 +794,21 @@ void AiModificationCommand::execute() {
         }
     }
     
+    m_undone = false;  // After execute/redo, we own m_removedTracks
+    
+    // Unblock and emit signals once
+    blockAllSignals(sequences, false);
+    emitAllSignals(sequences);
+    
     refreshAll();
 }
 
 void AiModificationCommand::undo() {
     // Undo in reverse order
+    
+    // Block signals during batch operations for performance
+    QSet<NoteNagaMidiSeq*> sequences = collectSequences();
+    blockAllSignals(sequences, true);
     
     // Undo removed tracks (re-add them at original position)
     for (auto it = m_removedTracks.rbegin(); it != m_removedTracks.rend(); ++it) {
@@ -817,6 +916,12 @@ void AiModificationCommand::undo() {
         }
     }
     
+    m_undone = true;  // After undo, we own m_addedTracks
+    
+    // Unblock and emit signals once
+    blockAllSignals(sequences, false);
+    emitAllSignals(sequences);
+    
     refreshAll();
 }
 
@@ -830,6 +935,69 @@ void AiModificationCommand::refreshAll() {
     }
     if (m_trackListCallback) {
         m_trackListCallback();
+    }
+}
+
+QSet<NoteNagaMidiSeq*> AiModificationCommand::collectSequences() const {
+    QSet<NoteNagaMidiSeq*> sequences;
+    
+    // Collect from added tracks
+    for (const auto &pair : m_addedTracks) {
+        if (pair.first) sequences.insert(pair.first);
+    }
+    
+    // Collect from removed tracks
+    for (const auto &tuple : m_removedTracks) {
+        if (std::get<0>(tuple)) sequences.insert(std::get<0>(tuple));
+    }
+    
+    // Collect from tempo changes
+    for (const auto &tuple : m_tempoChanges) {
+        if (std::get<0>(tuple)) sequences.insert(std::get<0>(tuple));
+    }
+    
+    // Collect from tempo events
+    for (const auto &tuple : m_addedTempoEvents) {
+        if (std::get<0>(tuple)) sequences.insert(std::get<0>(tuple));
+    }
+    for (const auto &tuple : m_removedTempoEvents) {
+        if (std::get<0>(tuple)) sequences.insert(std::get<0>(tuple));
+    }
+    
+    // Collect from notes (get parent sequence from track)
+    for (const auto &pair : m_addedNotes) {
+        if (pair.first && pair.first->getParent()) {
+            sequences.insert(pair.first->getParent());
+        }
+    }
+    for (const auto &pair : m_removedNotes) {
+        if (pair.first && pair.first->getParent()) {
+            sequences.insert(pair.first->getParent());
+        }
+    }
+    
+    return sequences;
+}
+
+void AiModificationCommand::blockAllSignals(const QSet<NoteNagaMidiSeq*> &sequences, bool block) {
+    for (NoteNagaMidiSeq *seq : sequences) {
+        if (seq) {
+            seq->blockSignals(block);
+            for (auto *track : seq->getTracks()) {
+                track->blockSignals(block);
+            }
+        }
+    }
+}
+
+void AiModificationCommand::emitAllSignals(const QSet<NoteNagaMidiSeq*> &sequences) {
+    for (NoteNagaMidiSeq *seq : sequences) {
+        if (seq) {
+            emit seq->trackListChanged();
+            for (auto *track : seq->getTracks()) {
+                emit track->metadataChanged(track, "notes");
+            }
+        }
     }
 }
 

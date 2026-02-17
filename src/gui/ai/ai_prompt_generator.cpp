@@ -31,10 +31,20 @@ QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNag
     prompt += QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
     prompt += "\n\n";
     
-    // Important guidance for extending content
-    int maxTick = sequence->getMaxTick();
-    if (maxTick > 0) {
-        prompt += QString("=== CONTEXT: Composition ends at tick %1. Add new content after this position. ===\n\n").arg(maxTick);
+    // Calculate ACTUAL maxTick from notes (not cached value which may be stale)
+    int actualMaxTick = 0;
+    for (NoteNagaTrack *track : sequence->getTracks()) {
+        for (const auto &note : track->getNotes()) {
+            int noteEnd = note.start.value_or(0) + note.length.value_or(0);
+            if (noteEnd > actualMaxTick) {
+                actualMaxTick = noteEnd;
+            }
+        }
+    }
+    
+    // Important guidance for extending content - only if there's actual content
+    if (actualMaxTick > 0) {
+        prompt += QString("=== CONTEXT: Composition ends at tick %1. Add new content after this position. ===\n\n").arg(actualMaxTick);
     }
     
     // Target duration guidance
@@ -46,7 +56,7 @@ QString AiPromptGenerator::generateFullPrompt(const QString &userPrompt, NoteNag
         // ticks = seconds * (bpm / 60) * ppq
         int targetTicks = static_cast<int>(targetDurationSec * (bpm / 60.0) * ppq);
         int targetBars = targetTicks / (ppq * 4); // Assuming 4/4 time
-        int startTick = maxTick > 0 ? maxTick : 0;
+        int startTick = actualMaxTick > 0 ? actualMaxTick : 0;
         int endTick = startTick + targetTicks;
         
         // Estimate notes needed (rough: 2-4 notes per beat per track)
@@ -134,7 +144,18 @@ CompactSequence AiPromptGenerator::createCompactSequence(NoteNagaMidiSeq *sequen
     cs.ppq = sequence->getPPQ();
     cs.tempo = sequence->getTempo();
     cs.bpm = static_cast<int>(60000000.0 / sequence->getTempo());
-    cs.maxTick = sequence->getMaxTick();
+    
+    // Calculate actual maxTick from notes (not cached value which may be stale after clearing tracks)
+    int actualMaxTick = 0;
+    for (NoteNagaTrack *track : sequence->getTracks()) {
+        for (const auto &note : track->getNotes()) {
+            int noteEnd = note.start.value_or(0) + note.length.value_or(0);
+            if (noteEnd > actualMaxTick) {
+                actualMaxTick = noteEnd;
+            }
+        }
+    }
+    cs.maxTick = actualMaxTick;
     
     for (NoteNagaTrack *track : sequence->getTracks()) {
         cs.tracks.push_back(createCompactTrack(track));

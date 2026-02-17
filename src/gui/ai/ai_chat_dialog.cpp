@@ -675,11 +675,23 @@ void AiChatDialog::processAiResponse(const QString &response) {
     
     qDebug() << "AI response parsed successfully, commands:" << parsed.commands.size();
     
+    // Show execution spinner
+    m_spinnerLabel->show();
+    m_statusLabel->setText(tr("Executing %1 commands...").arg(parsed.commands.size()));
+    m_statusLabel->show();
+    m_spinnerTimer->start(150);
+    QApplication::processEvents();  // Force UI update before blocking execution
+    
     // Execute commands with preview mode
     AiCommandExecutor executor(m_editor, m_sequence);
     AiPreviewState *previewState = m_editor->getPreviewState();
     qDebug() << "PreviewState pointer:" << previewState;
     ExecutionResult result = executor.executeWithPreview(parsed, previewState);
+    
+    // Hide execution spinner
+    m_spinnerTimer->stop();
+    m_spinnerLabel->hide();
+    m_statusLabel->hide();
     
     qDebug() << "Execution result - success:" << result.success 
              << "executed:" << result.commandsExecuted 
