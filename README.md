@@ -30,14 +30,6 @@ Note Naga is organized into multiple sections, each focused on a specific aspect
 
 ---
 
-### Project Section
-
-Configure your project settings including project name, author information, tempo, time signature, and other global project parameters.
-
-![Project Section](img/img_project.png)
-
----
-
 ### MIDI Editor Section
 
 A classic piano roll MIDI editor for composing and editing music. Features include:

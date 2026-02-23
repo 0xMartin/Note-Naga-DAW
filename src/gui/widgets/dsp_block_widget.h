@@ -5,6 +5,9 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QDrag>
+#include <QMimeData>
+#include <QMouseEvent>
 #include <vector>
 #include <memory>
 
@@ -27,9 +30,17 @@ public:
      * @brief Sync widget state from block (e.g. after project load)
      */
     void syncFromBlock();
+    
+    /**
+     * @brief Get the MIME type for DSP block drag & drop
+     */
+    static QString mimeType() { return "application/x-notenaga-dsp-block"; }
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
 
 signals:
     void moveLeftRequested(DSPBlockWidget* widget);
@@ -88,4 +99,9 @@ private:
     void buildDialGrid();
     void buildVSliderStack();
     void buildCenterArea();
+    
+    // Drag & drop state
+    QPoint m_dragStartPos;
+    bool m_dragging = false;
+    static constexpr int DRAG_THRESHOLD = 10;
 };

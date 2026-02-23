@@ -200,6 +200,7 @@ void MidiEditorWidget::initTitleUI() {
     combo_note_duration = new QComboBox();
     combo_note_duration->setFixedWidth(70);
     combo_note_duration->setStyleSheet("QComboBox QAbstractItemView { min-width: 70px; }");
+    combo_note_duration->setToolTip(tr("Default duration for new notes"));
     combo_note_duration->addItem("1/1", static_cast<int>(NoteDuration::Whole));
     combo_note_duration->addItem("1/2", static_cast<int>(NoteDuration::Half));
     combo_note_duration->addItem("1/4", static_cast<int>(NoteDuration::Quarter));
@@ -214,6 +215,7 @@ void MidiEditorWidget::initTitleUI() {
     combo_grid_resolution = new QComboBox();
     combo_grid_resolution->setFixedWidth(70);
     combo_grid_resolution->setStyleSheet("QComboBox QAbstractItemView { min-width: 70px; }");
+    combo_grid_resolution->setToolTip(tr("Grid snap resolution for note placement"));
     combo_grid_resolution->addItem("1/1", static_cast<int>(GridResolution::Whole));
     combo_grid_resolution->addItem("1/2", static_cast<int>(GridResolution::Half));
     combo_grid_resolution->addItem("1/4", static_cast<int>(GridResolution::Quarter));

@@ -1424,6 +1424,104 @@ Q_SIGNALS:
  * @brief Represents the full arrangement/composition timeline.
  *        Contains multiple arrangement tracks with clips.
  */
+
+/*******************************************************************************************************/
+// Arrangement Marker
+/*******************************************************************************************************/
+
+/**
+ * @brief Predefined marker colors for common section types.
+ */
+enum class MarkerType {
+    Custom = 0,   ///< User-defined color
+    Intro,        ///< Introduction (blue)
+    Verse,        ///< Verse (green)
+    Chorus,       ///< Chorus (yellow)
+    Bridge,       ///< Bridge (purple)
+    Outro,        ///< Outro (orange)
+    PreChorus,    ///< Pre-chorus (teal)
+    Solo,         ///< Solo section (red)
+    Interlude,    ///< Interlude (cyan)
+    Breakdown     ///< Breakdown (magenta)
+};
+
+/**
+ * @brief Structure representing a timeline marker in the arrangement.
+ */
+struct NOTE_NAGA_ENGINE_API NN_Marker_t {
+    int id;                ///< Unique marker ID
+    int64_t tick;          ///< Tick position of the marker
+    std::string name;      ///< Marker name/label
+    MarkerType type;       ///< Marker type (determines default color)
+    NN_Color_t color;      ///< Custom color (used if type is Custom)
+    
+    /**
+     * @brief Default constructor.
+     */
+    NN_Marker_t() : id(0), tick(0), name("Marker"), type(MarkerType::Custom), 
+                   color(NN_Color_t(100, 180, 255)) {}
+    
+    /**
+     * @brief Parameterized constructor.
+     * @param id_ Marker ID.
+     * @param tick_ Tick position.
+     * @param name_ Marker name.
+     * @param type_ Marker type.
+     */
+    NN_Marker_t(int id_, int64_t tick_, const std::string &name_, MarkerType type_ = MarkerType::Custom)
+        : id(id_), tick(tick_), name(name_), type(type_), color(NN_Color_t(100, 180, 255)) {}
+    
+    /**
+     * @brief Gets the display color based on marker type.
+     * @return Color for rendering.
+     */
+    NN_Color_t getDisplayColor() const {
+        switch (type) {
+            case MarkerType::Intro:     return NN_Color_t(100, 149, 237);  // Cornflower blue
+            case MarkerType::Verse:     return NN_Color_t(50, 205, 50);    // Lime green
+            case MarkerType::Chorus:    return NN_Color_t(255, 215, 0);    // Gold
+            case MarkerType::Bridge:    return NN_Color_t(147, 112, 219);  // Medium purple
+            case MarkerType::Outro:     return NN_Color_t(255, 140, 0);    // Dark orange
+            case MarkerType::PreChorus: return NN_Color_t(32, 178, 170);   // Light sea green
+            case MarkerType::Solo:      return NN_Color_t(220, 20, 60);    // Crimson
+            case MarkerType::Interlude: return NN_Color_t(0, 206, 209);    // Dark turquoise
+            case MarkerType::Breakdown: return NN_Color_t(199, 21, 133);   // Medium violet red
+            case MarkerType::Custom:
+            default:                    return color;
+        }
+    }
+    
+    /**
+     * @brief Comparison operator for sorting by tick.
+     */
+    bool operator<(const NN_Marker_t &other) const {
+        return tick < other.tick;
+    }
+};
+
+/**
+ * @brief Convert marker type to string name.
+ */
+inline std::string markerTypeToString(MarkerType type) {
+    switch (type) {
+        case MarkerType::Intro:     return "Intro";
+        case MarkerType::Verse:     return "Verse";
+        case MarkerType::Chorus:    return "Chorus";
+        case MarkerType::Bridge:    return "Bridge";
+        case MarkerType::Outro:     return "Outro";
+        case MarkerType::PreChorus: return "Pre-Chorus";
+        case MarkerType::Solo:      return "Solo";
+        case MarkerType::Interlude: return "Interlude";
+        case MarkerType::Breakdown: return "Breakdown";
+        case MarkerType::Custom:
+        default:                    return "Custom";
+    }
+}
+
+/*******************************************************************************************************/
+// Note Naga Arrangement
+/*******************************************************************************************************/
+
 #ifndef QT_DEACTIVATED
 class NOTE_NAGA_ENGINE_API NoteNagaArrangement : public QObject {
     Q_OBJECT
@@ -1653,9 +1751,68 @@ public:
     std::vector<std::pair<int64_t, int64_t>> getForbiddenZonesForSequence(int sequenceId, 
                                                                             int excludeClipId = -1) const;
 
+    // MARKER MANAGEMENT
+    // ///////////////////////////////////////////////////////////////////////////////
+    
+    /**
+     * @brief Adds a new marker to the arrangement.
+     * @param tick Tick position.
+     * @param name Marker name.
+     * @param type Marker type.
+     * @return Reference to the added marker.
+     */
+    NN_Marker_t& addMarker(int64_t tick, const std::string &name, MarkerType type = MarkerType::Custom);
+    
+    /**
+     * @brief Removes a marker by ID.
+     * @param markerId The marker ID to remove.
+     * @return True if marker was found and removed.
+     */
+    bool removeMarker(int markerId);
+    
+    /**
+     * @brief Gets a marker by ID.
+     * @param markerId The marker ID.
+     * @return Pointer to the marker, or nullptr if not found.
+     */
+    NN_Marker_t* getMarkerById(int markerId);
+    const NN_Marker_t* getMarkerById(int markerId) const;
+    
+    /**
+     * @brief Gets all markers.
+     * @return Reference to the markers vector.
+     */
+    const std::vector<NN_Marker_t>& getMarkers() const { return markers_; }
+    std::vector<NN_Marker_t>& getMarkers() { return markers_; }
+    
+    /**
+     * @brief Updates a marker's properties.
+     * @param markerId The marker ID to update.
+     * @param tick New tick position.
+     * @param name New name.
+     * @param type New type.
+     * @return True if marker was found and updated.
+     */
+    bool updateMarker(int markerId, int64_t tick, const std::string &name, MarkerType type);
+    
+    /**
+     * @brief Gets the nearest marker to a given tick.
+     * @param tick The tick to search from.
+     * @param searchForward If true, search forward; if false, search backward.
+     * @return Pointer to nearest marker, or nullptr if none found.
+     */
+    const NN_Marker_t* getNearestMarker(int64_t tick, bool searchForward = true) const;
+    
+    /**
+     * @brief Sorts markers by tick position.
+     */
+    void sortMarkers();
+
 protected:
     std::vector<NoteNagaArrangementTrack*> tracks_;  ///< All arrangement tracks
+    std::vector<NN_Marker_t> markers_;               ///< Timeline markers
     int maxTick_;                                     ///< Cached max tick value
+    int nextMarkerId_ = 1;                           ///< Next marker ID to assign
     NoteNagaTrack* tempoTrack_ = nullptr;            ///< Arrangement tempo track
     
     // Loop region
@@ -1693,5 +1850,10 @@ Q_SIGNALS:
      * @brief Signal emitted when tempo track changes.
      */
     void tempoTrackChanged();
+    
+    /**
+     * @brief Signal emitted when markers change.
+     */
+    void markersChanged();
 #endif
 };

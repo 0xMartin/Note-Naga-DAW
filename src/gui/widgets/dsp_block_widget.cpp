@@ -4,6 +4,9 @@
 #include <QIcon>
 #include <QResizeEvent>
 #include <QSpacerItem>
+#include <QApplication>
+#include <QDrag>
+#include <QMimeData>
 #include <cmath>
 
 static constexpr int VSLIDER_WIDTH = 30;
@@ -33,6 +36,54 @@ DSPBlockWidget::DSPBlockWidget(NoteNagaDSPBlockBase *block, QWidget *parent)
 
 void DSPBlockWidget::resizeEvent(QResizeEvent *event) {
     QFrame::resizeEvent(event);
+}
+
+void DSPBlockWidget::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        m_dragStartPos = event->pos();
+        m_dragging = false;
+    }
+    QFrame::mousePressEvent(event);
+}
+
+void DSPBlockWidget::mouseMoveEvent(QMouseEvent *event) {
+    if (!(event->buttons() & Qt::LeftButton)) {
+        QFrame::mouseMoveEvent(event);
+        return;
+    }
+    
+    if (!m_dragging && (event->pos() - m_dragStartPos).manhattanLength() >= DRAG_THRESHOLD) {
+        m_dragging = true;
+        
+        // Start drag operation
+        QDrag *drag = new QDrag(this);
+        QMimeData *mimeData = new QMimeData;
+        
+        // Store pointer to this widget
+        QByteArray data;
+        QDataStream stream(&data, QIODevice::WriteOnly);
+        stream << reinterpret_cast<quintptr>(this);
+        mimeData->setData(mimeType(), data);
+        
+        drag->setMimeData(mimeData);
+        
+        // Create drag pixmap (semi-transparent)
+        QPixmap pixmap = grab();
+        pixmap.setDevicePixelRatio(devicePixelRatioF());
+        QPixmap scaled = pixmap.scaled(pixmap.size() * 0.8, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        drag->setPixmap(scaled);
+        drag->setHotSpot(QPoint(scaled.width() / 2, scaled.height() / 2));
+        
+        drag->exec(Qt::MoveAction);
+        m_dragging = false;
+    }
+    
+    QFrame::mouseMoveEvent(event);
+}
+
+void DSPBlockWidget::mouseReleaseEvent(QMouseEvent *event) {
+    m_dragging = false;
+    QFrame::mouseReleaseEvent(event);
 }
 
 void DSPBlockWidget::onLeftClicked() { emit moveLeftRequested(this); }

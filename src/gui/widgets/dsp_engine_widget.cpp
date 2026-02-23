@@ -17,10 +17,13 @@
 #include <QVBoxLayout>
 
 DSPEngineWidget::DSPEngineWidget(NoteNagaEngine *engine, QWidget *parent)
-    : QWidget(parent), engine(engine), title_widget(nullptr), dsp_layout(nullptr) {
+    : QWidget(parent), engine(engine), title_widget(nullptr), dsp_layout(nullptr), dsp_container(nullptr) {
     
     // Ensure widget fills available space
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
+    // Enable drag and drop
+    setAcceptDrops(true);
     
     // Connect to runtime data for sequence/track changes (synth per track)
 #ifndef QT_DEACTIVATED
@@ -243,7 +246,7 @@ void DSPEngineWidget::initUI() {
     main_layout->setSpacing(8);
 
     // Horizontal scroll area for DSP modules (stacked from right)
-    QWidget *dsp_container = new QWidget();
+    dsp_container = new QWidget();
     dsp_container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
     dsp_layout = new QHBoxLayout(dsp_container);
     dsp_layout->setContentsMargins(0, 0, 0, 0);
@@ -251,6 +254,12 @@ void DSPEngineWidget::initUI() {
 
     // DSP widgets will be added to the right, so insert from right
     dsp_layout->addStretch(1); // left side: always spacer/stretch
+
+    // Create drop indicator line (hidden by default)
+    m_dropIndicatorLine = new QFrame(dsp_container);
+    m_dropIndicatorLine->setFixedWidth(3);
+    m_dropIndicatorLine->setStyleSheet("QFrame { background: #4fc3f7; border-radius: 1px; }");
+    m_dropIndicatorLine->hide();
 
     QScrollArea *dsp_scroll_area = new QScrollArea();
     dsp_scroll_area->setWidgetResizable(true);
@@ -346,6 +355,15 @@ void DSPEngineWidget::addDSPClicked() {
 
 void DSPEngineWidget::removeAllDSPClicked() {
     if (dsp_widgets.empty()) return;
+    
+    // Ask for confirmation
+    if (QMessageBox::question(this, tr("Remove All DSP Effects"),
+                              tr("Are you sure you want to remove all DSP effects from %1?")
+                                  .arg(current_synth == nullptr ? tr("Master") : synth_selector->currentText()),
+                              QMessageBox::Yes | QMessageBox::No,
+                              QMessageBox::No) != QMessageBox::Yes) {
+        return;
+    }
     
     // Remove all blocks from engine
     for (auto *dsp_widget : dsp_widgets) {
@@ -465,4 +483,143 @@ void DSPEngineWidget::contextMenuEvent(QContextMenuEvent *event)
     }
     
     menu.exec(event->globalPos());
+}
+
+int DSPEngineWidget::findDropIndex(const QPoint &pos) const {
+    if (dsp_widgets.empty()) return 0;
+    
+    // Map position to dsp_container coordinates
+    QPoint containerPos = dsp_container->mapFrom(const_cast<DSPEngineWidget*>(this), pos);
+    
+    // Find insert position based on x coordinate
+    for (size_t i = 0; i < dsp_widgets.size(); ++i) {
+        QWidget *widget = dsp_widgets[i];
+        QRect widgetRect = widget->geometry();
+        int widgetCenter = widgetRect.left() + widgetRect.width() / 2;
+        
+        if (containerPos.x() < widgetCenter) {
+            return static_cast<int>(i);
+        }
+    }
+    
+    return static_cast<int>(dsp_widgets.size());
+}
+
+void DSPEngineWidget::updateDropIndicator(int index) {
+    m_dropIndicatorIndex = index;
+    
+    if (index < 0 || dsp_widgets.empty()) {
+        m_dropIndicatorLine->hide();
+        return;
+    }
+    
+    // Calculate position for the indicator line
+    int xPos = 0;
+    int height = dsp_container->height() - 4;
+    
+    if (index == 0) {
+        // Before first widget
+        if (!dsp_widgets.empty() && dsp_widgets[0]) {
+            QPoint widgetPos = dsp_widgets[0]->pos();
+            xPos = widgetPos.x() - 6;
+        }
+    } else if (index >= static_cast<int>(dsp_widgets.size())) {
+        // After last widget
+        DSPBlockWidget *lastWidget = dsp_widgets.back();
+        if (lastWidget) {
+            xPos = lastWidget->pos().x() + lastWidget->width() + 3;
+        }
+    } else {
+        // Between widgets
+        DSPBlockWidget *widgetBefore = dsp_widgets[index - 1];
+        DSPBlockWidget *widgetAfter = dsp_widgets[index];
+        if (widgetBefore && widgetAfter) {
+            int endOfPrev = widgetBefore->pos().x() + widgetBefore->width();
+            int startOfNext = widgetAfter->pos().x();
+            xPos = (endOfPrev + startOfNext) / 2 - 1;
+        }
+    }
+    
+    m_dropIndicatorLine->setFixedHeight(height);
+    m_dropIndicatorLine->move(xPos, 2);
+    m_dropIndicatorLine->show();
+    m_dropIndicatorLine->raise();
+}
+
+void DSPEngineWidget::clearDropIndicator() {
+    m_dropIndicatorIndex = -1;
+    m_dropIndicatorLine->hide();
+}
+
+void DSPEngineWidget::dragEnterEvent(QDragEnterEvent *event) {
+    if (event->mimeData()->hasFormat(DSPBlockWidget::mimeType())) {
+        event->acceptProposedAction();
+    }
+}
+
+void DSPEngineWidget::dragMoveEvent(QDragMoveEvent *event) {
+    if (event->mimeData()->hasFormat(DSPBlockWidget::mimeType())) {
+        int dropIndex = findDropIndex(event->position().toPoint());
+        updateDropIndicator(dropIndex);
+        event->acceptProposedAction();
+    }
+}
+
+void DSPEngineWidget::dragLeaveEvent(QDragLeaveEvent *event) {
+    Q_UNUSED(event);
+    clearDropIndicator();
+}
+
+void DSPEngineWidget::dropEvent(QDropEvent *event) {
+    if (!event->mimeData()->hasFormat(DSPBlockWidget::mimeType())) {
+        clearDropIndicator();
+        return;
+    }
+    
+    // Extract the source widget pointer
+    QByteArray data = event->mimeData()->data(DSPBlockWidget::mimeType());
+    QDataStream stream(&data, QIODevice::ReadOnly);
+    quintptr widgetPtr;
+    stream >> widgetPtr;
+    DSPBlockWidget *sourceWidget = reinterpret_cast<DSPBlockWidget*>(widgetPtr);
+    
+    // Find source index
+    int sourceIndex = -1;
+    for (size_t i = 0; i < dsp_widgets.size(); ++i) {
+        if (dsp_widgets[i] == sourceWidget) {
+            sourceIndex = static_cast<int>(i);
+            break;
+        }
+    }
+    
+    int targetIndex = findDropIndex(event->position().toPoint());
+    
+    // Adjust target index if moving forward
+    if (sourceIndex >= 0 && sourceIndex < targetIndex) {
+        targetIndex--;
+    }
+    
+    // Perform the reorder if indices are valid and different
+    if (sourceIndex >= 0 && sourceIndex != targetIndex && 
+        targetIndex >= 0 && targetIndex <= static_cast<int>(dsp_widgets.size())) {
+        
+        // Reorder in engine
+        if (current_synth == nullptr) {
+            engine->getDSPEngine()->reorderDSPBlock(sourceIndex, targetIndex);
+        } else {
+            engine->getDSPEngine()->reorderSynthDSPBlock(current_synth, sourceIndex, targetIndex);
+        }
+        
+        // Reorder in widget list
+        DSPBlockWidget *widget = dsp_widgets[sourceIndex];
+        dsp_widgets.erase(dsp_widgets.begin() + sourceIndex);
+        dsp_widgets.insert(dsp_widgets.begin() + targetIndex, widget);
+        
+        // Reorder in layout (account for stretch at index 0)
+        dsp_layout->removeWidget(widget);
+        dsp_layout->insertWidget(targetIndex, widget);
+    }
+    
+    clearDropIndicator();
+    event->acceptProposedAction();
 }

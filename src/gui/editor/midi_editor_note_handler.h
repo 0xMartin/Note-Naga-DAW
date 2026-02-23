@@ -41,6 +41,7 @@ public:
     void selectNotesInRect(const QRectF &rect);
     void selectAll();
     void invertSelection();
+    void selectNotesByIds(const QSet<unsigned long> &noteIds);
     
     bool hasSelection() const { return !m_selectedNotes.isEmpty(); }
     const QList<NoteGraphics*>& selectedNotes() const { return m_selectedNotes; }
