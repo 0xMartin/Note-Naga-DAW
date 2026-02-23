@@ -23,9 +23,9 @@ add_subdirectory(libs/verovio/cmake)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg SvgWidgets PrintSupport Xml Multimedia)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg SvgWidgets PrintSupport Xml Multimedia Network)
 else()
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg PrintSupport Xml Multimedia)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Concurrent Svg PrintSupport Xml Multimedia Network)
 endif()
 
 find_package(OpenCV REQUIRED)
@@ -78,6 +78,9 @@ set(HEADER_FILES
     src/gui/dialogs/project_wizard_dialog.h
     src/gui/dialogs/track_settings_dialog.h
     src/gui/dialogs/audio_recording_dialog.h
+    src/gui/dialogs/settings_dialog.h
+    # gui/settings
+    src/gui/settings/settings_manager.h
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.h
     src/gui/dock_system/dock_indicator_overlay.h
@@ -94,6 +97,15 @@ set(HEADER_FILES
     src/gui/editor/arrangement_track_header_widget.h
     src/gui/editor/arrangement_track_headers_widget.h
     src/gui/editor/arrangement_minimap_widget.h
+    # gui/ai
+    src/gui/ai/ai_types.h
+    src/gui/ai/ai_prompt_generator.h
+    src/gui/ai/ai_command_parser.h
+    src/gui/ai/ai_command_executor.h
+    src/gui/ai/ai_chat_manager.h
+    src/gui/ai/ai_chat_button.h
+    src/gui/ai/ai_chat_dialog.h
+    src/gui/ai/gemini_api_client.h
     # gui/widgets
     src/gui/widgets/verovio_widget.h
     src/gui/widgets/dsp_block_widget.h
@@ -149,6 +161,9 @@ set(SOURCE_FILES
     src/gui/dialogs/project_wizard_dialog.cpp
     src/gui/dialogs/track_settings_dialog.cpp
     src/gui/dialogs/audio_recording_dialog.cpp
+    src/gui/dialogs/settings_dialog.cpp
+    # gui/settings
+    src/gui/settings/settings_manager.cpp
     # gui/dock_system
     src/gui/dock_system/advanced_dock_widget.cpp
     src/gui/dock_system/dock_indicator_overlay.cpp
@@ -159,6 +174,8 @@ set(SOURCE_FILES
     src/gui/editor/midi_editor_note_handler.cpp
     src/gui/editor/note_property_editor.cpp
     src/gui/editor/tempo_track_editor.cpp
+    src/gui/editor/ai_preview_banner.cpp
+    src/gui/editor/ai_preview_state.cpp
     src/gui/editor/arrangement_layer_manager.cpp
     src/gui/editor/arrangement_timeline_widget.cpp
     src/gui/editor/arrangement_timeline_ruler.cpp
@@ -170,7 +187,16 @@ set(SOURCE_FILES
     # gui/undo
     src/gui/undo/undo_manager.cpp
     src/gui/undo/midi_note_commands.cpp
+    src/gui/undo/midi_track_commands.cpp
     src/gui/undo/arrangement_clip_commands.cpp
+    # gui/ai
+    src/gui/ai/ai_prompt_generator.cpp
+    src/gui/ai/ai_command_parser.cpp
+    src/gui/ai/ai_command_executor.cpp
+    src/gui/ai/ai_chat_manager.cpp
+    src/gui/ai/ai_chat_button.cpp
+    src/gui/ai/ai_chat_dialog.cpp
+    src/gui/ai/gemini_api_client.cpp
     # gui/widgets
     src/gui/widgets/verovio_widget.cpp
     src/gui/widgets/dsp_block_widget.cpp
@@ -212,6 +238,7 @@ target_link_libraries(NoteNaga PRIVATE
     Qt${QT_VERSION_MAJOR}::PrintSupport
     Qt${QT_VERSION_MAJOR}::Xml
     Qt${QT_VERSION_MAJOR}::Multimedia
+    Qt${QT_VERSION_MAJOR}::Network
     ${OpenCV_LIBS}
     note_naga_engine
     verovio

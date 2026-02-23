@@ -49,6 +49,9 @@ public:
     
     /// Update the fixed height to match parent scroll area
     void updateHeight(int height);
+    
+    /// Set playback position (0.0 - 1.0, -1.0 to hide)
+    void setPlaybackPosition(double position) { m_playbackPosition = position; update(); }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -62,6 +65,7 @@ private:
     int m_samplesPerPeak = 256;
     bool m_autoScroll = true;
     int m_scrollOffset = 0;
+    double m_playbackPosition = -1.0; // Current playback position (0.0 - 1.0), -1 = not playing
 };
 
 /**
@@ -178,6 +182,7 @@ private slots:
     void onSamplesAvailable(const std::vector<float> &samples);
     void onLevelChanged(float level);
     void updateRecordingTime();
+    void updatePlaybackPosition();
     void onPlaybackStateChanged(QAudio::State state);
 
 private:
@@ -229,6 +234,8 @@ private:
     bool m_hasRecording = false;
     std::vector<float> m_recordedSamples;
     QTimer *m_recordingTimer;
+    QTimer *m_playbackTimer;
     qint64 m_recordingStartTime = 0;
+    qint64 m_playbackStartTime = 0;
     int m_targetSampleRate = 44100;
 };

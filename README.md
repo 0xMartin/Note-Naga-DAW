@@ -30,14 +30,6 @@ Note Naga is organized into multiple sections, each focused on a specific aspect
 
 ---
 
-### Project Section
-
-Configure your project settings including project name, author information, tempo, time signature, and other global project parameters.
-
-![Project Section](img/img_project.png)
-
----
-
 ### MIDI Editor Section
 
 A classic piano roll MIDI editor for composing and editing music. Features include:
@@ -49,6 +41,18 @@ A classic piano roll MIDI editor for composing and editing music. Features inclu
 - Loop playback for seamless workflow
 
 ![MIDI Editor Section](img/img_midi.png)
+
+---
+
+### AI Assistant
+
+The MIDI editor includes an integrated AI assistant for melody generation and editing. Features include:
+- Built-in integration with [Google AI Studio](https://aistudio.google.com) (free daily usage limit available)
+- Option to configure your own API key for extended usage
+- Alternative workflow: copy the AI-generated prompt from Note Naga, paste it into your preferred AI model in a browser, and paste the response back into the chat to achieve the same result without API key setup
+- Currently focused on melody generation from text prompts and note modifications
+
+![AI Assistant](img/img_ai.png)
 
 ---
 

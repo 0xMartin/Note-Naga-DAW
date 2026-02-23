@@ -164,6 +164,9 @@ void MidiEditorSection::setupDockLayout()
     m_trackListWidget->setMinimumWidth(280);
     m_trackListWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     
+    // Connect track list to MIDI editor's undo manager for track operations
+    m_trackListWidget->setUndoManager(m_midiEditor->getUndoManager());
+    
     auto *tracklistDock = new AdvancedDockWidget(
         tr("Tracks"), 
         QIcon(":/icons/track.svg"),

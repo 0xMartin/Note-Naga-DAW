@@ -5,11 +5,15 @@
 #include <note_naga_engine/core/types.h>
 
 #include <QStyle>
+#include <QContextMenuEvent>
+#include <QInputDialog>
+#include <QMessageBox>
 
 MidiSequenceSelector::MidiSequenceSelector(NoteNagaEngine* engine, QWidget* parent)
     : QFrame(parent), m_engine(engine)
 {
     initUI();
+    setupContextMenu();
     setupConnections();
     refreshSequenceList();
 }
@@ -143,8 +147,9 @@ void MidiSequenceSelector::refreshSequenceList()
     for (auto* seq : sequences) {
         if (!seq) continue;
         
-        QString displayName = QString("Sequence %1").arg(seq->getId());
-        // Use file path as display name if available
+        QString displayName;
+        
+        // Use file path as display name if available, otherwise default to "Sequence N"
         if (!seq->getFilePath().empty()) {
             QString path = QString::fromStdString(seq->getFilePath());
             int lastSlash = path.lastIndexOf('/');
@@ -153,11 +158,15 @@ void MidiSequenceSelector::refreshSequenceList()
             } else {
                 displayName = path;
             }
-            // Remove extension
-            int lastDot = displayName.lastIndexOf('.');
-            if (lastDot > 0) {
-                displayName = displayName.left(lastDot);
+            // Remove extension if it looks like a file path
+            if (displayName.contains('.')) {
+                int lastDot = displayName.lastIndexOf('.');
+                if (lastDot > 0) {
+                    displayName = displayName.left(lastDot);
+                }
             }
+        } else {
+            displayName = QString("Sequence %1").arg(seq->getId());
         }
         
         m_sequenceCombo->addItem(displayName, seq->getId());
@@ -269,4 +278,132 @@ QString MidiSequenceSelector::formatDuration(int ticks, int ppq, int tempo) cons
     int seconds = static_cast<int>(totalSeconds) % 60;
     
     return QString("%1:%2").arg(minutes).arg(seconds, 2, 10, QChar('0'));
+}
+
+void MidiSequenceSelector::setupContextMenu()
+{
+    m_contextMenu = new QMenu(this);
+    m_contextMenu->setStyleSheet(R"(
+        QMenu {
+            background-color: #2a2a30;
+            color: #dddddd;
+            border: 1px solid #4a4a52;
+            border-radius: 4px;
+            padding: 4px;
+        }
+        QMenu::item {
+            padding: 6px 20px;
+            border-radius: 3px;
+        }
+        QMenu::item:selected {
+            background-color: #2563eb;
+        }
+        QMenu::separator {
+            height: 1px;
+            background: #4a4a52;
+            margin: 4px 8px;
+        }
+    )");
+
+    m_addAction = m_contextMenu->addAction(tr("Add New Sequence..."));
+    m_contextMenu->addSeparator();
+    m_renameAction = m_contextMenu->addAction(tr("Rename Sequence..."));
+    m_removeAction = m_contextMenu->addAction(tr("Remove Sequence"));
+
+    connect(m_addAction, &QAction::triggered, this, &MidiSequenceSelector::onAddSequence);
+    connect(m_renameAction, &QAction::triggered, this, &MidiSequenceSelector::onRenameSequence);
+    connect(m_removeAction, &QAction::triggered, this, &MidiSequenceSelector::onRemoveSequence);
+}
+
+void MidiSequenceSelector::contextMenuEvent(QContextMenuEvent* event)
+{
+    // Enable/disable actions based on current state
+    NoteNagaMidiSeq* currentSeq = getCurrentSequence();
+    bool hasSequence = (currentSeq != nullptr);
+    
+    m_renameAction->setEnabled(hasSequence);
+    m_removeAction->setEnabled(hasSequence && m_sequenceCombo->count() > 1);
+
+    m_contextMenu->exec(event->globalPos());
+}
+
+void MidiSequenceSelector::onAddSequence()
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+
+    bool ok;
+    QString name = QInputDialog::getText(this, tr("New MIDI Sequence"),
+                                         tr("Sequence name:"), QLineEdit::Normal,
+                                         tr("New Sequence"), &ok);
+    if (!ok || name.isEmpty()) return;
+
+    NoteNagaRuntimeData* runtime = m_engine->getRuntimeData();
+    
+    // Create new sequence
+    auto* newSeq = new NoteNagaMidiSeq();
+    newSeq->setFilePath(name.toStdString());
+    newSeq->setPPQ(runtime->getPPQ());
+    newSeq->setTempo(runtime->getTempo());
+    
+    // Add default track using instrument index 0 (Acoustic Grand Piano)
+    newSeq->addTrack(0);
+    
+    runtime->addSequence(newSeq);
+    runtime->setActiveSequence(newSeq);
+}
+
+void MidiSequenceSelector::onRemoveSequence()
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaMidiSeq* currentSeq = getCurrentSequence();
+    if (!currentSeq) return;
+    
+    // Don't allow removing the last sequence
+    if (m_sequenceCombo->count() <= 1) {
+        QMessageBox::warning(this, tr("Cannot Remove"),
+                            tr("Cannot remove the last sequence."));
+        return;
+    }
+
+    QString seqName = QString::fromStdString(currentSeq->getFilePath());
+    if (seqName.isEmpty()) {
+        seqName = m_sequenceCombo->currentText();
+    }
+
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, tr("Remove Sequence"),
+        tr("Are you sure you want to remove \"%1\"?\n\nThis action cannot be undone.").arg(seqName),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+    );
+
+    if (reply == QMessageBox::Yes) {
+        NoteNagaRuntimeData* runtime = m_engine->getRuntimeData();
+        runtime->removeSequence(currentSeq);
+    }
+}
+
+void MidiSequenceSelector::onRenameSequence()
+{
+    if (!m_engine || !m_engine->getRuntimeData()) return;
+    
+    NoteNagaMidiSeq* currentSeq = getCurrentSequence();
+    if (!currentSeq) return;
+
+    QString currentName = QString::fromStdString(currentSeq->getFilePath());
+    if (currentName.isEmpty()) {
+        currentName = m_sequenceCombo->currentText();
+    }
+
+    bool ok;
+    QString newName = QInputDialog::getText(this, tr("Rename Sequence"),
+                                            tr("New name:"), QLineEdit::Normal,
+                                            currentName, &ok);
+    if (!ok || newName.isEmpty()) return;
+
+    currentSeq->setFilePath(newName.toStdString());
+    
+    // Refresh the combo box to show new name
+    refreshSequenceList();
 }

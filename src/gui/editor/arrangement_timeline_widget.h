@@ -118,6 +118,9 @@ signals:
     void trackSelected(int trackIndex);
     void trackMuteToggled(int trackIndex);
     void trackSoloToggled(int trackIndex);
+    void markerAdded(int markerId);
+    void markerEdited(int markerId);
+    void markerRemoved(int markerId);
 
 public slots:
     void onSequenceDropped(int midiSequenceIndex, const QPoint &pos);
@@ -157,6 +160,7 @@ private:
     // Hit testing
     NN_MidiClip_t* clipAtPosition(const QPoint &pos, int &outTrackIndex);
     NN_AudioClip_t* audioClipAtPosition(const QPoint &pos, int &outTrackIndex);
+    int markerAtPosition(const QPoint &pos);  // Returns marker ID or -1
     enum HitZone { NoHit, BodyHit, LeftEdgeHit, RightEdgeHit, FadeInHit, FadeOutHit };
     HitZone hitTestClip(NN_MidiClip_t *clip, int trackIndex, const QPoint &pos);
     HitZone hitTestAudioClip(NN_AudioClip_t *clip, int trackIndex, const QPoint &pos);
@@ -173,11 +177,13 @@ private:
     void drawPlayhead(QPainter &painter);
     void drawSelectionRect(QPainter &painter);
     void drawDropPreview(QPainter &painter);
+    void drawMarkers(QPainter &painter);
     
     // Context menus
     void showTrackContextMenu(int trackIndex, const QPoint &globalPos);
     void showEmptyAreaContextMenu(const QPoint &globalPos);
     void showClipContextMenu(const QPoint &globalPos);
+    void showMarkerContextMenu(int markerId, const QPoint &globalPos);
     
     // Clipboard operations
     void copySelectedClips();

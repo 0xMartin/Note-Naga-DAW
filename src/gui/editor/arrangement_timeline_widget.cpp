@@ -476,6 +476,52 @@ NN_AudioClip_t* ArrangementTimelineWidget::audioClipAtPosition(const QPoint &pos
     return nullptr;
 }
 
+int ArrangementTimelineWidget::markerAtPosition(const QPoint &pos)
+{
+    auto *arr = getArrangement();
+    if (!arr) return -1;
+    
+    // Only check top area where marker flags are drawn
+    if (pos.y() > 30) return -1;
+    
+    const auto &markers = arr->getMarkers();
+    
+    QFont markerFont = font();
+    markerFont.setPointSize(9);
+    markerFont.setBold(true);
+    QFontMetrics fm(markerFont);
+    
+    for (const auto &marker : markers) {
+        int x = tickToX(marker.tick);
+        
+        QString name = QString::fromStdString(marker.name);
+        if (name.isEmpty()) {
+            switch (marker.type) {
+                case MarkerType::Intro: name = "Intro"; break;
+                case MarkerType::Verse: name = "Verse"; break;
+                case MarkerType::Chorus: name = "Chorus"; break;
+                case MarkerType::Bridge: name = "Bridge"; break;
+                case MarkerType::Outro: name = "Outro"; break;
+                case MarkerType::PreChorus: name = "Pre-Chorus"; break;
+                case MarkerType::Solo: name = "Solo"; break;
+                case MarkerType::Interlude: name = "Interlude"; break;
+                case MarkerType::Breakdown: name = "Breakdown"; break;
+                default: name = "Marker"; break;
+            }
+        }
+        
+        int textWidth = fm.horizontalAdvance(name) + 8;
+        int textHeight = fm.height() + 4;
+        QRect flagRect(x, 2, textWidth, textHeight);
+        
+        if (flagRect.contains(pos)) {
+            return marker.id;
+        }
+    }
+    
+    return -1;
+}
+
 ArrangementTimelineWidget::HitZone ArrangementTimelineWidget::hitTestClip(
     NN_MidiClip_t *clip, int trackIndex, const QPoint &pos)
 {
@@ -1154,6 +1200,71 @@ void ArrangementTimelineWidget::drawDropPreview(QPainter &painter)
     painter.drawRect(x, y + 4, w, m_trackHeight - 8);
 }
 
+void ArrangementTimelineWidget::drawMarkers(QPainter &painter)
+{
+    auto *arr = getArrangement();
+    if (!arr) return;
+    
+    const auto &markers = arr->getMarkers();
+    if (markers.empty()) return;
+    
+    QFont markerFont = painter.font();
+    markerFont.setPointSize(9);
+    markerFont.setBold(true);
+    painter.setFont(markerFont);
+    
+    QFontMetrics fm(markerFont);
+    
+    for (const auto &marker : markers) {
+        int x = tickToX(marker.tick);
+        
+        // Skip if out of visible range
+        if (x < -50 || x > width() + 50) continue;
+        
+        // Get marker color (use display color that handles auto-color for types)
+        NN_Color_t displayColor = marker.getDisplayColor();
+        QColor color(displayColor.red, displayColor.green, displayColor.blue);
+        QColor lineColor = color;
+        lineColor.setAlpha(180);
+        
+        // Draw vertical line
+        painter.setPen(QPen(lineColor, 1, Qt::DashDotLine));
+        painter.drawLine(x, 0, x, height());
+        
+        // Draw marker flag at top
+        QString name = QString::fromStdString(marker.name);
+        if (name.isEmpty()) {
+            // Use type name if no custom name
+            switch (marker.type) {
+                case MarkerType::Intro: name = "Intro"; break;
+                case MarkerType::Verse: name = "Verse"; break;
+                case MarkerType::Chorus: name = "Chorus"; break;
+                case MarkerType::Bridge: name = "Bridge"; break;
+                case MarkerType::Outro: name = "Outro"; break;
+                case MarkerType::PreChorus: name = "Pre-Chorus"; break;
+                case MarkerType::Solo: name = "Solo"; break;
+                case MarkerType::Interlude: name = "Interlude"; break;
+                case MarkerType::Breakdown: name = "Breakdown"; break;
+                default: name = "Marker"; break;
+            }
+        }
+        
+        int textWidth = fm.horizontalAdvance(name) + 8;
+        int textHeight = fm.height() + 4;
+        
+        // Draw flag background
+        QRect flagRect(x, 2, textWidth, textHeight);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+        painter.drawRoundedRect(flagRect, 3, 3);
+        
+        // Draw flag text (use contrasting color)
+        double luminance = (0.299 * color.redF() + 0.587 * color.greenF() + 0.114 * color.blueF());
+        painter.setPen(luminance > 0.5 ? Qt::black : Qt::white);
+        painter.drawText(flagRect, Qt::AlignCenter, name);
+    }
+}
+
 void ArrangementTimelineWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
@@ -1174,6 +1285,7 @@ void ArrangementTimelineWidget::paintEvent(QPaintEvent *event)
     drawSelectionRect(painter);
     drawDropPreview(painter);
     drawPastePreview(painter);
+    drawMarkers(painter);
     drawPlayhead(painter);
 }
 
@@ -1383,6 +1495,13 @@ void ArrangementTimelineWidget::mousePressEvent(QMouseEvent *event)
                 showEmptyAreaContextMenu(event->globalPosition().toPoint());
             }
         } else {
+            // Check for marker click first (in top area)
+            int markerId = markerAtPosition(event->pos());
+            if (markerId >= 0) {
+                showMarkerContextMenu(markerId, event->globalPosition().toPoint());
+                return;
+            }
+            
             // Content area right-click
             int trackIndex;
             NN_MidiClip_t *clip = clipAtPosition(event->pos(), trackIndex);
@@ -2379,6 +2498,21 @@ void ArrangementTimelineWidget::showEmptyAreaContextMenu(const QPoint &globalPos
     
     QAction *addTrackAction = menu.addAction(tr("Add New Track"));
     
+    // Marker submenu
+    menu.addSeparator();
+    QMenu *markerMenu = menu.addMenu(tr("Add Marker"));
+    QAction *addCustomMarker = markerMenu->addAction(tr("Custom Marker..."));
+    markerMenu->addSeparator();
+    QAction *addIntroMarker = markerMenu->addAction(tr("Intro"));
+    QAction *addVerseMarker = markerMenu->addAction(tr("Verse"));
+    QAction *addChorusMarker = markerMenu->addAction(tr("Chorus"));
+    QAction *addBridgeMarker = markerMenu->addAction(tr("Bridge"));
+    QAction *addOutroMarker = markerMenu->addAction(tr("Outro"));
+    QAction *addPreChorusMarker = markerMenu->addAction(tr("Pre-Chorus"));
+    QAction *addSoloMarker = markerMenu->addAction(tr("Solo"));
+    QAction *addInterludeMarker = markerMenu->addAction(tr("Interlude"));
+    QAction *addBreakdownMarker = markerMenu->addAction(tr("Breakdown"));
+    
     // Tempo track options
     menu.addSeparator();
     QAction *addTempoTrackAction = nullptr;
@@ -2399,7 +2533,38 @@ void ArrangementTimelineWidget::showEmptyAreaContextMenu(const QPoint &globalPos
     
     QAction *selected = menu.exec(globalPos);
     
-    if (selected == addTrackAction) {
+    // Get tick at click position
+    QPoint localPos = mapFromGlobal(globalPos);
+    int64_t clickTick = snapTick(xToTick(localPos.x()));
+    if (clickTick < 0) clickTick = 0;
+    
+    // Handle marker actions
+    auto addMarkerOfType = [this, arrangement, clickTick](MarkerType type) {
+        NN_Marker_t& marker = arrangement->addMarker(clickTick, "", type);
+        emit markerAdded(marker.id);
+        update();
+    };
+    
+    if (selected == addCustomMarker) {
+        bool ok;
+        QString name = QInputDialog::getText(this, tr("Add Marker"), 
+                                             tr("Marker name:"), QLineEdit::Normal,
+                                             tr("Marker"), &ok);
+        if (ok && !name.isEmpty()) {
+            NN_Marker_t& marker = arrangement->addMarker(clickTick, name.toStdString(), MarkerType::Custom);
+            emit markerAdded(marker.id);
+            update();
+        }
+    } else if (selected == addIntroMarker) { addMarkerOfType(MarkerType::Intro); }
+    else if (selected == addVerseMarker) { addMarkerOfType(MarkerType::Verse); }
+    else if (selected == addChorusMarker) { addMarkerOfType(MarkerType::Chorus); }
+    else if (selected == addBridgeMarker) { addMarkerOfType(MarkerType::Bridge); }
+    else if (selected == addOutroMarker) { addMarkerOfType(MarkerType::Outro); }
+    else if (selected == addPreChorusMarker) { addMarkerOfType(MarkerType::PreChorus); }
+    else if (selected == addSoloMarker) { addMarkerOfType(MarkerType::Solo); }
+    else if (selected == addInterludeMarker) { addMarkerOfType(MarkerType::Interlude); }
+    else if (selected == addBreakdownMarker) { addMarkerOfType(MarkerType::Breakdown); }
+    else if (selected == addTrackAction) {
         QString name = tr("Track %1").arg(arrangement->getTrackCount() + 1);
         if (m_undoManager) {
             m_undoManager->executeCommand(new AddTrackCommand(this, name));
@@ -2518,6 +2683,83 @@ void ArrangementTimelineWidget::showClipContextMenu(const QPoint &globalPos)
         }
         update();
         emit selectionChanged();
+    }
+}
+
+void ArrangementTimelineWidget::showMarkerContextMenu(int markerId, const QPoint &globalPos)
+{
+    auto *arr = getArrangement();
+    if (!arr) return;
+    
+    auto *marker = arr->getMarkerById(markerId);
+    if (!marker) return;
+    
+    QMenu menu(this);
+    
+    QAction *editAction = menu.addAction(tr("Edit Marker..."));
+    QAction *deleteAction = menu.addAction(tr("Delete Marker"));
+    
+    menu.addSeparator();
+    
+    QMenu *changeTypeMenu = menu.addMenu(tr("Change Type"));
+    QAction *typeCustom = changeTypeMenu->addAction(tr("Custom"));
+    QAction *typeIntro = changeTypeMenu->addAction(tr("Intro"));
+    QAction *typeVerse = changeTypeMenu->addAction(tr("Verse"));
+    QAction *typeChorus = changeTypeMenu->addAction(tr("Chorus"));
+    QAction *typeBridge = changeTypeMenu->addAction(tr("Bridge"));
+    QAction *typeOutro = changeTypeMenu->addAction(tr("Outro"));
+    QAction *typePreChorus = changeTypeMenu->addAction(tr("Pre-Chorus"));
+    QAction *typeSolo = changeTypeMenu->addAction(tr("Solo"));
+    QAction *typeInterlude = changeTypeMenu->addAction(tr("Interlude"));
+    QAction *typeBreakdown = changeTypeMenu->addAction(tr("Breakdown"));
+    
+    QAction *selected = menu.exec(globalPos);
+    
+    if (selected == editAction) {
+        QString currentName = QString::fromStdString(marker->name);
+        bool ok;
+        QString newName = QInputDialog::getText(this, tr("Edit Marker"),
+                                                tr("Marker name:"), QLineEdit::Normal,
+                                                currentName, &ok);
+        if (ok) {
+            arr->updateMarker(markerId, marker->tick, newName.toStdString(), marker->type);
+            emit markerEdited(markerId);
+            update();
+        }
+    } else if (selected == deleteAction) {
+        arr->removeMarker(markerId);
+        emit markerRemoved(markerId);
+        update();
+    } else if (selected == typeCustom) {
+        arr->updateMarker(markerId, marker->tick, marker->name, MarkerType::Custom);
+        update();
+    } else if (selected == typeIntro) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::Intro);
+        update();
+    } else if (selected == typeVerse) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::Verse);
+        update();
+    } else if (selected == typeChorus) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::Chorus);
+        update();
+    } else if (selected == typeBridge) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::Bridge);
+        update();
+    } else if (selected == typeOutro) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::Outro);
+        update();
+    } else if (selected == typePreChorus) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::PreChorus);
+        update();
+    } else if (selected == typeSolo) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::Solo);
+        update();
+    } else if (selected == typeInterlude) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::Interlude);
+        update();
+    } else if (selected == typeBreakdown) {
+        arr->updateMarker(markerId, marker->tick, "", MarkerType::Breakdown);
+        update();
     }
 }
 

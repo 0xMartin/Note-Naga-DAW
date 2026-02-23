@@ -132,11 +132,11 @@ void RecordingWaveformWidget::paintEvent(QPaintEvent *event)
         painter.fillRect(x, y1, 1, std::max(1, y2 - y1), drawColor);
     }
     
-    // Draw current position indicator
-    if (!m_peakData.empty()) {
-        int posX = static_cast<int>(m_peakData.size()) - 1;
+    // Draw playback position indicator
+    if (m_playbackPosition >= 0.0 && m_playbackPosition <= 1.0 && !m_peakData.empty()) {
+        int posX = static_cast<int>(m_playbackPosition * m_peakData.size());
         if (posX >= 0 && posX < width()) {
-            painter.setPen(QPen(QColor("#f59e0b"), 2));
+            painter.setPen(QPen(QColor("#3b82f6"), 2));
             painter.drawLine(posX, 0, posX, height());
         }
     }
@@ -361,6 +361,10 @@ AudioRecordingDialog::AudioRecordingDialog(NoteNagaEngine *engine,
     // Timer for updating recording time
     m_recordingTimer = new QTimer(this);
     connect(m_recordingTimer, &QTimer::timeout, this, &AudioRecordingDialog::updateRecordingTime);
+    
+    // Timer for updating playback position
+    m_playbackTimer = new QTimer(this);
+    connect(m_playbackTimer, &QTimer::timeout, this, &AudioRecordingDialog::updatePlaybackPosition);
 }
 
 AudioRecordingDialog::~AudioRecordingDialog()
@@ -437,7 +441,7 @@ void AudioRecordingDialog::initUI()
             background-color: #4a4a55;
         }
         QPushButton:pressed {
-            background-color: #10b981;
+            background-color: #555560;
         }
         QPushButton:disabled {
             background-color: #2a2a35;
@@ -449,23 +453,17 @@ void AudioRecordingDialog::initUI()
         QPushButton#recordBtn:hover {
             background-color: #ef4444;
         }
-        QPushButton#stopBtn {
-            background-color: #f59e0b;
-        }
-        QPushButton#stopBtn:hover {
-            background-color: #fbbf24;
-        }
-        QPushButton#deleteBtn {
-            background-color: #7f1d1d;
-        }
-        QPushButton#deleteBtn:hover {
-            background-color: #991b1b;
+        QPushButton#recordBtn:pressed {
+            background-color: #b91c1c;
         }
         QPushButton#doneBtn {
             background-color: #10b981;
         }
         QPushButton#doneBtn:hover {
             background-color: #34d399;
+        }
+        QPushButton#doneBtn:pressed {
+            background-color: #059669;
         }
         QSpinBox {
             background-color: #2a2a35;
@@ -778,6 +776,31 @@ void AudioRecordingDialog::updateRecordingTime()
         .arg(milliseconds, 3, 10, QChar('0')));
 }
 
+void AudioRecordingDialog::updatePlaybackPosition()
+{
+    if (!m_isPlaying || m_recordedSamples.empty()) return;
+    
+    // Calculate position based on elapsed time and sample rate
+    qint64 elapsedMs = QDateTime::currentMSecsSinceEpoch() - m_playbackStartTime;
+    double elapsedSec = elapsedMs / 1000.0;
+    double totalDuration = static_cast<double>(m_recordedSamples.size()) / m_audioFormat.sampleRate();
+    double position = elapsedSec / totalDuration;
+    
+    if (position > 1.0) position = 1.0;
+    
+    m_waveformWidget->setPlaybackPosition(position);
+    
+    // Scroll to follow playback position
+    if (m_waveformScrollArea) {
+        QScrollBar *hBar = m_waveformScrollArea->horizontalScrollBar();
+        if (hBar) {
+            int maxScroll = hBar->maximum();
+            int targetScroll = static_cast<int>(position * maxScroll);
+            hBar->setValue(targetScroll);
+        }
+    }
+}
+
 void AudioRecordingDialog::startRecording()
 {
     if (m_audioDevices.isEmpty()) return;
@@ -879,10 +902,10 @@ void AudioRecordingDialog::startPlayback()
         return;
     }
     
-    // Setup playback format
+    // Setup playback format - use the ACTUAL recorded format, not target
     QAudioFormat format;
-    format.setSampleRate(m_targetSampleRate);
-    format.setChannelCount(m_monoCheck->isChecked() ? 1 : 2);
+    format.setSampleRate(m_audioFormat.sampleRate());
+    format.setChannelCount(m_audioFormat.channelCount());
     format.setSampleFormat(QAudioFormat::Float);
     
     // Convert samples to byte array
@@ -906,6 +929,8 @@ void AudioRecordingDialog::startPlayback()
     
     m_audioSink->start(m_playbackBuffer);
     m_isPlaying = true;
+    m_playbackStartTime = QDateTime::currentMSecsSinceEpoch();
+    m_playbackTimer->start(30);  // Update position every 30ms
     
     m_statusLabel->setText(tr("Playing recording..."));
     m_statusLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #3b82f6;");
@@ -916,6 +941,9 @@ void AudioRecordingDialog::startPlayback()
 void AudioRecordingDialog::stopPlayback()
 {
     if (!m_isPlaying) return;
+    
+    m_playbackTimer->stop();
+    m_waveformWidget->setPlaybackPosition(-1.0);  // Hide playback indicator
     
     if (m_audioSink) {
         m_audioSink->stop();
@@ -930,8 +958,8 @@ void AudioRecordingDialog::stopPlayback()
     
     m_isPlaying = false;
     
-    m_statusLabel->setText(tr("Recording stopped"));
-    m_statusLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #f59e0b;");
+    m_statusLabel->setText(tr("Playback stopped"));
+    m_statusLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #10b981;");
     
     updateButtonStates();
 }

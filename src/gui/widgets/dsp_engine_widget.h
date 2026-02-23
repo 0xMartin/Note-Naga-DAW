@@ -47,6 +47,7 @@ private:
     AudioVerticalSlider *volume_slider;
     StereoVolumeBarWidget* volume_bar;
     QHBoxLayout *dsp_layout;
+    QWidget *dsp_container;  // For drop target
 
     QPushButton *btn_add;
     QPushButton *btn_clear;
@@ -57,14 +58,27 @@ private:
 
     // Currently selected synth (nullptr for master)
     INoteNagaSoftSynth *current_synth = nullptr;
+    
+    // Drop indicator
+    int m_dropIndicatorIndex = -1;
+    QFrame *m_dropIndicatorLine = nullptr;
 
     void initTitleUI();
     void initUI();
     void refreshDSPWidgets();
     void clearDSPWidgets();
+    
+    // Find drop position index from mouse position
+    int findDropIndex(const QPoint &pos) const;
+    void updateDropIndicator(int index);
+    void clearDropIndicator();
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 private slots:
     void addDSPClicked();

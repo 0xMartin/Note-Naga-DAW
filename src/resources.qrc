@@ -3,6 +3,7 @@
   <qresource prefix="/">
     <file>icons/add.svg</file>
     <file>icons/clear.svg</file>
+    <file>icons/dropdown-arrow.svg</file>
     <file>icons/eye-not-visible.svg</file>
     <file>icons/eye-visible.svg</file>
     <file>icons/layers.svg</file>
@@ -76,6 +77,9 @@
     <file>icons/import-audio.svg</file>
     <file>icons/import.svg</file>
     <file>icons/export.svg</file>
+    <file>icons/ai.svg</file>
+    <file>icons/connect.svg</file>
+    <file>icons/disconnect.svg</file>
   </qresource>
   <qresource prefix="/">
     <file>instruments_icons/accordion.svg</file>

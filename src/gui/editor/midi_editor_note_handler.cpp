@@ -197,6 +197,32 @@ void MidiEditorNoteHandler::invertSelection() {
     emit selectionChanged();
 }
 
+void MidiEditorNoteHandler::selectNotesByIds(const QSet<unsigned long> &noteIds) {
+    if (noteIds.isEmpty()) return;
+    
+    clearSelection();
+    
+    for (auto &trackPair : m_noteItems) {
+        for (auto &ng : trackPair) {
+            if (noteIds.contains(ng.note.id)) {
+                QAbstractGraphicsShapeItem *shapeItem = qgraphicsitem_cast<QAbstractGraphicsShapeItem*>(ng.item);
+                if (shapeItem) {
+                    m_selectedNotes.append(&ng);
+                    shapeItem->setPen(m_editor->getNotePen(ng.track, false, true));
+                    shapeItem->setZValue(999);
+                    if (ng.label) {
+                        ng.label->setZValue(1000);
+                    }
+                }
+            }
+        }
+    }
+    
+    if (!m_selectedNotes.isEmpty()) {
+        emit selectionChanged();
+    }
+}
+
 std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> MidiEditorNoteHandler::getSelectedNotesData() const {
     std::vector<std::pair<NoteNagaTrack*, NN_Note_t>> result;
     result.reserve(m_selectedNotes.size());
@@ -1102,6 +1128,8 @@ void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
     
     // Collect notes for undo command
     QList<QPair<NoteNagaTrack*, NN_Note_t>> pastedNotes;
+    QSet<unsigned long> pastedNoteIds;  // For selecting pasted notes after commit
+    
     for (auto it = notesByTrack.begin(); it != notesByTrack.end(); ++it) {
         NoteNagaTrack *track = seq->getTrackById(it.key());
         if (!track) continue;
@@ -1109,6 +1137,7 @@ void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
         for (NN_Note_t &newNote : it.value()) {
             newNote.parent = track;
             pastedNotes.append({track, newNote});
+            pastedNoteIds.insert(newNote.id);
         }
     }
     
@@ -1124,4 +1153,7 @@ void MidiEditorNoteHandler::commitPaste(const QPointF &scenePos) {
     m_editor->getUndoManager()->executeCommand(std::move(cmd));
     
     emit notesModified();
+    
+    // Select the pasted notes (after refresh)
+    selectNotesByIds(pastedNoteIds);
 }

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <limits>
 #include <map>
 #include <cmath>
 
@@ -920,6 +921,35 @@ bool NoteNagaMidiSeq::removeTrack(int track_index) {
 
   delete this->tracks[track_index];
   this->tracks.erase(this->tracks.begin() + track_index);
+  NN_QT_EMIT(trackListChanged());
+  return true;
+}
+
+NoteNagaTrack* NoteNagaMidiSeq::extractTrack(int track_index) {
+  if (track_index < 0 || track_index >= static_cast<int>(this->tracks.size()))
+    return nullptr;
+
+  NoteNagaTrack *track = this->tracks[track_index];
+  this->tracks.erase(this->tracks.begin() + track_index);
+  NN_QT_EMIT(trackListChanged());
+  return track;  // Caller takes ownership
+}
+
+bool NoteNagaMidiSeq::insertTrack(int index, NoteNagaTrack* track) {
+  if (!track)
+    return false;
+  if (index < 0)
+    index = 0;
+  if (index > static_cast<int>(this->tracks.size()))
+    index = static_cast<int>(this->tracks.size());
+
+#ifndef QT_DEACTIVATED
+  // Connect metadata signal so name/color/etc changes are propagated
+  connect(track, &NoteNagaTrack::metadataChanged, this,
+          &NoteNagaMidiSeq::trackMetadataChanged);
+#endif
+
+  this->tracks.insert(this->tracks.begin() + index, track);
   NN_QT_EMIT(trackListChanged());
   return true;
 }
@@ -2191,4 +2221,112 @@ std::vector<std::pair<int64_t, int64_t>> NoteNagaArrangement::getForbiddenZonesF
     std::sort(zones.begin(), zones.end());
     
     return zones;
+}
+
+// ============================================================================
+// Marker management methods
+// ============================================================================
+
+NN_Marker_t& NoteNagaArrangement::addMarker(int64_t tick, const std::string& name, MarkerType type) {
+    NN_Marker_t marker(nextMarkerId_++, tick, name, type);
+    
+    markers_.push_back(marker);
+    sortMarkers();
+    
+#ifndef QT_DEACTIVATED
+    emit markersChanged();
+#endif
+    
+    // Return reference to the just-added marker (find by id after sorting)
+    auto it = std::find_if(markers_.begin(), markers_.end(),
+                           [id = marker.id](const NN_Marker_t& m) { return m.id == id; });
+    return *it;
+}
+
+bool NoteNagaArrangement::removeMarker(int markerId) {
+    auto it = std::find_if(markers_.begin(), markers_.end(),
+                           [markerId](const NN_Marker_t& m) { return m.id == markerId; });
+    
+    if (it == markers_.end()) {
+        return false;
+    }
+    
+    markers_.erase(it);
+    
+#ifndef QT_DEACTIVATED
+    emit markersChanged();
+#endif
+    
+    return true;
+}
+
+NN_Marker_t* NoteNagaArrangement::getMarkerById(int markerId) {
+    auto it = std::find_if(markers_.begin(), markers_.end(),
+                           [markerId](const NN_Marker_t& m) { return m.id == markerId; });
+    
+    return (it != markers_.end()) ? &(*it) : nullptr;
+}
+
+const NN_Marker_t* NoteNagaArrangement::getMarkerById(int markerId) const {
+    auto it = std::find_if(markers_.begin(), markers_.end(),
+                           [markerId](const NN_Marker_t& m) { return m.id == markerId; });
+    
+    return (it != markers_.end()) ? &(*it) : nullptr;
+}
+
+bool NoteNagaArrangement::updateMarker(int markerId, int64_t tick, const std::string& name, 
+                                        MarkerType type) {
+    NN_Marker_t* marker = getMarkerById(markerId);
+    if (!marker) {
+        return false;
+    }
+    
+    marker->tick = tick;
+    marker->name = name;
+    marker->type = type;
+    
+    sortMarkers();
+    
+#ifndef QT_DEACTIVATED
+    emit markersChanged();
+#endif
+    
+    return true;
+}
+
+const NN_Marker_t* NoteNagaArrangement::getNearestMarker(int64_t tick, bool searchForward) const {
+    if (markers_.empty()) {
+        return nullptr;
+    }
+    
+    const NN_Marker_t* nearest = nullptr;
+    int64_t bestDelta = std::numeric_limits<int64_t>::max();
+    
+    for (const auto& marker : markers_) {
+        if (searchForward) {
+            // Find nearest marker at or after tick
+            if (marker.tick >= tick) {
+                int64_t delta = marker.tick - tick;
+                if (delta < bestDelta) {
+                    bestDelta = delta;
+                    nearest = &marker;
+                }
+            }
+        } else {
+            // Find nearest marker at or before tick
+            if (marker.tick <= tick) {
+                int64_t delta = tick - marker.tick;
+                if (delta < bestDelta) {
+                    bestDelta = delta;
+                    nearest = &marker;
+                }
+            }
+        }
+    }
+    
+    return nearest;
+}
+
+void NoteNagaArrangement::sortMarkers() {
+    std::sort(markers_.begin(), markers_.end());
 }

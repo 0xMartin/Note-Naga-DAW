@@ -247,7 +247,7 @@ void ExternalMidiSection::setupDockLayout()
     
     m_refreshBtn = new QPushButton(tr("Refresh"));
     m_refreshBtn->setStyleSheet(buttonStyle);
-    m_refreshBtn->setIcon(QIcon(":/icons/refresh.svg"));
+    m_refreshBtn->setIcon(QIcon(":/icons/reload.svg"));
     connect(m_refreshBtn, &QPushButton::clicked, this, &ExternalMidiSection::refreshDevices);
     deviceHeaderLayout->addWidget(m_refreshBtn);
     devicesLayout->addLayout(deviceHeaderLayout);
@@ -373,7 +373,7 @@ void ExternalMidiSection::setupDockLayout()
 
     auto *trackDock = new AdvancedDockWidget(
         tr("Track Routing"), 
-        QIcon(":/icons/routing.svg"),
+        QIcon(":/icons/route.svg"),
         nullptr, 
         this
     );

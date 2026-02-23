@@ -7,6 +7,7 @@
 #include <QVBoxLayout>
 #include <QPushButton>
 #include <QFrame>
+#include <QMenu>
 
 class NoteNagaEngine;
 class NoteNagaMidiSeq;
@@ -59,6 +60,12 @@ signals:
 private slots:
     void onComboIndexChanged(int index);
     void onEngineSequenceChanged(NoteNagaMidiSeq* sequence);
+    void onAddSequence();
+    void onRemoveSequence();
+    void onRenameSequence();
+
+protected:
+    void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
     NoteNagaEngine* m_engine;
@@ -68,8 +75,15 @@ private:
     QComboBox* m_sequenceCombo;
     QLabel* m_metadataLabel;
     
+    // Context menu
+    QMenu* m_contextMenu;
+    QAction* m_addAction;
+    QAction* m_removeAction;
+    QAction* m_renameAction;
+    
     void initUI();
     void setupConnections();
+    void setupContextMenu();
     void updateMetadataDisplay();
     QString formatDuration(int ticks, int ppq, int tempo) const;
 };
