@@ -18,7 +18,7 @@
 
 ## Overview
 
-Note Naga is a comprehensive music production application built with C++ and Qt. It combines a powerful MIDI editor with arrangement capabilities, audio recording, external MIDI routing, notation rendering, and advanced media export features. The application is powered by a custom real-time audio engine that handles synthesis, DSP processing, and audio/MIDI playback.
+Note Naga is a music production application built with C++ and Qt. It combines a powerful MIDI editor with arrangement capabilities, audio recording, external MIDI routing, notation rendering, and advanced media export features. The application is powered by a custom real-time audio engine that handles synthesis, DSP processing, and audio/MIDI playback.
 
 > **Note:** This application is developed and tested on macOS. Functionality and build compatibility on Linux and Windows is not guaranteed.
 
